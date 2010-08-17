@@ -34,7 +34,7 @@ module Dalli
         server = @continuum[entryidx].server
         return server if server.alive?
         break unless failover
-        hkey = hash_for "#{try}#{key}"
+        hkey = Zlib.crc32("#{try}#{key}")
       end
 
       raise Dalli::NetworkError, "No servers available"
