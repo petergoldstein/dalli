@@ -15,9 +15,13 @@ module Dalli
     def request(op, *args)
       send(op, *args)
     end
-    
+
+    def alive?
+      !connection.closed?
+    end
+
     private
-    
+
     def connection
       @sock ||= begin
         s = TCPSocket.new(hostname, port)
@@ -31,19 +35,26 @@ module Dalli
       connection.write(req)
       generic_response
     end
-    
+
     def set(key, value, ttl=0)
       req = [REQUEST, OPCODES[:set], key.size,8,0,0,value.size + key.size + 8,0,0,0,ttl, key, value].pack(FORMAT[:set])
       connection.write(req)
       generic_response
     end
-    
+
+    def flush(ttl)
+      req = [REQUEST, OPCODES[:flush],0,4,0,0,4,0,0,0].pack(FORMAT[:flush])
+      connection.write(req)
+      generic_response
+    end
+
     def generic_response
       header = connection.read(24)
       raise Dalli::NetworkError, 'No response' if !header
-      (status, count) = header.unpack('@6nN')
+      (extras, status, count) = header.unpack('@4vnN')
       if count > 0
-        connection.read(count)
+        data = connection.read(count)
+        extras != 0 ? data[extras..-1] : data
       elsif status != 0
         raise Dalli::NetworkError, "Response error #{status}: #{RESPONSE_CODES[status]}"
       else
@@ -72,8 +83,8 @@ module Dalli
       :add => 0x02,
       :replace => 0x03,
       :delete => 0x04,
-      :increment => 0x05,
-      :decrement => 0x06,
+      :incr => 0x05,
+      :decr => 0x06,
       :flush => 0x08,
       :noop => 0x0A,
       :version => 0x0B,
@@ -87,8 +98,8 @@ module Dalli
       :add => 'NNa*a*',
       :replace => 'NNa*a*',
       :delete => 'a*',
-      :increment => 'NNNNNa*',
-      :decrement => 'NNNNNa*',
+      :incr => 'NNNNNa*',
+      :decr => 'NNNNNa*',
       :flush => 'N',
       :noop => '',
       :version => '',

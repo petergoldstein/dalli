@@ -22,9 +22,6 @@ module Dalli
     end
     
     def server_for_key(key)
-      raise ArgumentError, "illegal character in key #{key.inspect}" if key =~ /\s/
-      raise ArgumentError, "key cannot be blank" if key.nil? || key.strip.size == 0
-      raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
       return @servers.first unless @continuum
 
       hkey = Zlib.crc32(key)
