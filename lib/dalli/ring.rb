@@ -1,3 +1,6 @@
+require 'digest/sha1'
+require 'zlib'
+
 module Dalli
   class Ring
     POINTS_PER_SERVER = 160 # this is the default in libmemcached
@@ -11,7 +14,7 @@ module Dalli
         continuum = []
         servers.each do |server|
           entry_count_for(server, servers.size, total_weight).times do |idx|
-            hash = Digest::SHA1.hexdigest("#{server.host}:#{server.port}:#{idx}")
+            hash = Digest::SHA1.hexdigest("#{server.hostname}:#{server.port}:#{idx}")
             value = Integer("0x#{hash[0..7]}")
             continuum << Dalli::Ring::Entry.new(value, server)
           end
@@ -27,7 +30,7 @@ module Dalli
       hkey = Zlib.crc32(key)
 
       20.times do |try|
-        entryidx = Continuum.binary_search(@continuum, hkey)
+        entryidx = self.class.binary_search(@continuum, hkey)
         server = @continuum[entryidx].server
         return server if server.alive?
         break unless failover

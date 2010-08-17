@@ -14,7 +14,8 @@ module Dalli
     #
 
     def get(key)
-      perform(:get, key)
+      resp = perform(:get, key)
+      resp == 'Not found' ? nil : resp
     end
     
     def set(key, value, expiry=0)

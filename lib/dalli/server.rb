@@ -31,19 +31,63 @@ module Dalli
     end
 
     def get(key)
-      req = [REQUEST, OPCODES[:get],key.size,0,0,0,key.size,0,0,key].pack(FORMAT[:get])
+      req = [REQUEST, OPCODES[:get], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:get])
       connection.write(req)
       generic_response
     end
 
     def set(key, value, ttl=0)
-      req = [REQUEST, OPCODES[:set], key.size,8,0,0,value.size + key.size + 8,0,0,0,ttl, key, value].pack(FORMAT[:set])
+      req = [REQUEST, OPCODES[:set], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:set])
       connection.write(req)
       generic_response
     end
 
     def flush(ttl)
-      req = [REQUEST, OPCODES[:flush],0,4,0,0,4,0,0,0].pack(FORMAT[:flush])
+      req = [REQUEST, OPCODES[:flush], 0, 4, 0, 0, 4, 0, 0, 0].pack(FORMAT[:flush])
+      connection.write(req)
+      generic_response
+    end
+    
+    def add(key, value, ttl)
+      req = [REQUEST, OPCODES[:add], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:add])
+      connection.write(req)
+      generic_response
+    end
+    
+    def append(key, value)
+      req = [REQUEST, OPCODES[:append], key.size, 0, 0, 0, value.size + key.size, 0, 0, key, value].pack(FORMAT[:append])
+      connection.write(req)
+      generic_response
+    end
+    
+    def delete(key)
+      req = [REQUEST, OPCODES[:delete], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:delete])
+      connection.write(req)
+      generic_response
+    end
+    
+    def decr(key, count)
+      raise NotImplementedError
+    end
+    
+    def incr(key, count)
+      raise NotImplementedError
+    end
+    
+    def noop
+      req = [REQUEST, OPCODES[:noop], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
+      connection.write(req)
+      generic_response
+    end
+    
+    def prepend(key, value)
+      req = [REQUEST, OPCODES[:prepend], key.size, 0, 0, 0, value.size + key.size, 0, 0, key, value].pack(FORMAT[:prepend])
+      connection.write(req)
+      generic_response
+    end
+    
+    def replace(key, value, ttl)
+      req = [REQUEST, OPCODES[:replace], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:replace])
       connection.write(req)
       generic_response
     end
@@ -52,11 +96,13 @@ module Dalli
       header = connection.read(24)
       raise Dalli::NetworkError, 'No response' if !header
       (extras, status, count) = header.unpack('@4vnN')
-      if count > 0
-        data = connection.read(count)
-        extras != 0 ? data[extras..-1] : data
+      data = connection.read(count) if count > 0
+      if status == 1
+        nil
       elsif status != 0
         raise Dalli::NetworkError, "Response error #{status}: #{RESPONSE_CODES[status]}"
+      elsif data
+        extras != 0 ? data[extras..-1] : data
       else
         true
       end
@@ -88,7 +134,9 @@ module Dalli
       :flush => 0x08,
       :noop => 0x0A,
       :version => 0x0B,
-      :stat => 0x0C,
+      :append => 0x0E,
+      :prepend => 0x0F,
+      :stat => 0x10,
     }
     
     HEADER = "CCnCCnNNQ"
@@ -103,7 +151,9 @@ module Dalli
       :flush => 'N',
       :noop => '',
       :version => '',
-      :stat => 'a*'
+      :stat => 'a*',
+      :append => 'a*a*',
+      :prepend => 'a*a*',
     }
     FORMAT = OP_FORMAT.inject({}) { |memo, (k, v)| memo[k] = HEADER + v; memo }
     
