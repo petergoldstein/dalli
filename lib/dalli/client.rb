@@ -13,7 +13,7 @@ module Dalli
       perform(:get, key)
     end
     
-    def set(key, value, expiry = 0)
+    def set(key, value, expiry=0)
       perform(:set, key, value, expiry)
     end
     

@@ -8,29 +8,15 @@ module Dalli
     
     def initialize(attribs)
       (@hostname, @port, @weight) = attribs.split(':')
+      @port ||= 11211
+      @weight ||= 1
     end
     
-    def send_request(req)
-      puts req
-      connection.write(req)
+    def request(op, *args)
+      send(op, *args)
     end
     
-    def read_response
-      line = connection.gets
-      return nil if line == "END\r\n"
-      return line if line == "STORED\r\n"
-      raise Dalli::NetworkError, "Error: '#{$1}'" if line =~ /ERROR(.*)\r\n/
-
-      unless line =~ /(\d+)\r/
-        raise Dalli::NetworkError, "Unexpected response: '#{line}'"
-      end
-
-      count = $1.to_i
-      value = connection.read(count)
-      connection.read(2)
-      connection.gets
-      value
-    end
+    private
     
     def connection
       @sock ||= begin
@@ -40,10 +26,6 @@ module Dalli
       end
     end
 
-    def request(op, *args)
-      send(op, *args)
-    end
-    
     def get(key)
       req = [REQUEST, OPCODES[:get],key.size,0,0,0,key.size,0,0,key].pack(FORMAT[:get])
       connection.write(req)
@@ -69,12 +51,6 @@ module Dalli
       end
     end
 
-    def get(key)
-      [REQUEST, OPCODES[:get], key.size, 0,0,0,key.size,0,0,key].pack(FORMAT[:get])
-    end
-
-    private
-    
     REQUEST = 0x80
     RESPONSE = 0x81
     
