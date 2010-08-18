@@ -10,23 +10,49 @@ module Dalli
       (@hostname, @port, @weight) = attribs.split(':')
       @port ||= 11211
       @weight ||= 1
+      connection
+      Dalli.logger.info { "#{@hostname}:#{@port} running memcached v#{request(:version)}" }
     end
     
     def request(op, *args)
-      send(op, *args)
+      begin
+        send(op, *args)
+      rescue SocketError, SystemCallError, IOError, Timeout::Error
+        down!
+      end
     end
 
     def alive?
-      !connection.closed?
+      @sock && !@sock.closed?
+    end
+
+    def close
+      (@sock.close rescue nil; @sock = nil) if @sock
     end
 
     private
 
+    def down!
+      close
+      @down_at = Time.now
+      @msg = $!.message
+      nil
+    end
+
+    TIMEOUT = 0.5
+    TIMEOUT_NATIVE = [0, 500_000].pack("l_2")
+
     def connection
       @sock ||= begin
-        s = TCPSocket.new(hostname, port)
-        s.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
-        s
+        begin
+          s = TCPSocket.new(hostname, port)
+          s.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
+          s.setsockopt Socket::SOL_SOCKET, Socket::SO_RCVTIMEO, TIMEOUT_NATIVE
+          s.setsockopt Socket::SOL_SOCKET, Socket::SO_SNDTIMEO, TIMEOUT_NATIVE
+          s
+        rescue SocketError, SystemCallError, IOError, Timeout::Error
+          down!
+        end
       end
     end
 
@@ -88,6 +114,12 @@ module Dalli
     
     def replace(key, value, ttl)
       req = [REQUEST, OPCODES[:replace], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:replace])
+      connection.write(req)
+      generic_response
+    end
+
+    def version
+      req = [REQUEST, OPCODES[:version], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
       connection.write(req)
       generic_response
     end

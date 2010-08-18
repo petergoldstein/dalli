@@ -24,20 +24,23 @@ module Dalli
       end
     end
     
+    def hash_for(key)
+      Zlib.crc32(key)
+    end
+
     def server_for_key(key)
       return @servers.first unless @continuum
 
-      hkey = Zlib.crc32(key)
+      hkey = hash_for(key)
 
       20.times do |try|
         entryidx = self.class.binary_search(@continuum, hkey)
         server = @continuum[entryidx].server
         return server if server.alive?
-        break unless failover
-        hkey = Zlib.crc32("#{try}#{key}")
+        hkey = hash_for("#{try}#{key}")
       end
 
-      raise Dalli::NetworkError, "No servers available"
+      raise Dalli::ServerError, "No servers available"
     end
     
     private

@@ -52,7 +52,7 @@ module Dalli
 
     def flush(delay=0)
       time = -delay
-      @ring.servers.map { |s| s.request(:flush, time += delay) if s.alive? }
+      @ring.servers.map { |s| s.request(:flush, time += delay) }
     end
 
     private
