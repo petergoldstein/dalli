@@ -11,7 +11,7 @@ module Dalli
     # servers is an Array of "host:port:weight" where weight allows you to distribute cache unevenly.
     # Options:
     #   :threadsafe - ensure that only one thread is actively using a socket at a time. Default: false.
-    #   :marshalled - ensure that the value you store is exactly what is returned.  Otherwise you can see this:
+    #   :marshal - ensure that the value you store is exactly what is returned.  Otherwise you can see this:
     #        set('abc', 123)
     #        get('abc') ==> '123'  (Note you set an Integer but got back a String)
     #      Default: false.
