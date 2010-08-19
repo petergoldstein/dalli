@@ -32,7 +32,7 @@ module Dalli
 
     def get(key)
       resp = perform(:get, key)
-      (!resp || resp == 'Not found') ? nil : out(resp)
+      (!resp || resp == 'Not found') ? nil : deserialize(resp)
     end
 
     def get_multi(keys)
@@ -42,15 +42,15 @@ module Dalli
     end
     
     def set(key, value, ttl=0)
-      perform(:set, key, prep(value), ttl)
+      perform(:set, key, serialize(value), ttl)
     end
     
     def add(key, value, ttl=0)
-      perform(:add, key, prep(value), ttl)
+      perform(:add, key, serialize(value), ttl)
     end
 
     def replace(key, value, ttl=0)
-      perform(:replace, key, prep(value), ttl)
+      perform(:replace, key, serialize(value), ttl)
     end
 
     def delete(key)
@@ -92,11 +92,11 @@ module Dalli
 
     private
 
-    def prep(value)
+    def serialize(value)
       value.to_s
     end
     
-    def out(value)
+    def deserialize(value)
       value
     end
 

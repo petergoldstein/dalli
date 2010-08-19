@@ -8,11 +8,11 @@ module Dalli
   # Dalli::Client.extend(Dalli::Marshal)
   #
   module Marshal
-    def prep(value)
+    def serialize(value)
       ::Marshal.dump(value)
     end
 
-    def out(value)
+    def deserialize(value)
       begin
         ::Marshal.load(value)
       rescue TypeError
