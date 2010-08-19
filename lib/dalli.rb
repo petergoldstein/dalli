@@ -8,8 +8,9 @@ require 'logger'
 
 module Dalli
   # socket communication error
-  class NetworkError < RuntimeError; end
-  class ServerError < RuntimeError; end
+  class DalliError < RuntimeError; end
+  class NetworkError < DalliError; end
+  class ServerError < DalliError; end
 
   def self.logger
     @logger ||= begin

@@ -63,7 +63,7 @@ module ActiveSupport
         options = names.extract_options!
         options = merged_options(options)
         keys_to_names = names.inject({}){|map, name| map[escape_key(namespaced_key(name, options))] = name; map}
-        raw_values = @data.get_multi(keys_to_names.keys, :raw => true)
+        raw_values = @data.get_multi(keys_to_names.keys)
         values = {}
         raw_values.each do |key, value|
           entry = deserialize_entry(value)
@@ -82,7 +82,7 @@ module ActiveSupport
           @data.incr(escape_key(namespaced_key(name, options)), amount)
         end
         response == Response::NOT_FOUND ? nil : response.to_i
-      rescue MemCache::MemCacheError
+      rescue Dalli::DalliError
         nil
       end
 
@@ -96,7 +96,7 @@ module ActiveSupport
           @data.decr(escape_key(namespaced_key(name, options)), amount)
         end
         response == Response::NOT_FOUND ? nil : response.to_i
-      rescue MemCache::MemCacheError
+      rescue Dalli::DalliError
         nil
       end
 
@@ -115,8 +115,8 @@ module ActiveSupport
         # Read an entry from the cache.
         def read_entry(key, options) # :nodoc:
           deserialize_entry(@data.get(escape_key(key), true))
-        rescue MemCache::MemCacheError => e
-          logger.error("MemCacheError (#{e}): #{e.message}") if logger
+        rescue Dalli::DalliError => e
+          logger.error("DalliError (#{e}): #{e.message}") if logger
           nil
         end
 
@@ -131,8 +131,8 @@ module ActiveSupport
           end
           response = @data.send(method, escape_key(key), value, expires_in, options[:raw])
           response == Response::STORED
-        rescue MemCache::MemCacheError => e
-          logger.error("MemCacheError (#{e}): #{e.message}") if logger
+        rescue Dalli::DalliError => e
+          logger.error("DalliError (#{e}): #{e.message}") if logger
           false
         end
 
@@ -140,8 +140,8 @@ module ActiveSupport
         def delete_entry(key, options) # :nodoc:
           response = @data.delete(escape_key(key))
           response == Response::DELETED
-        rescue MemCache::MemCacheError => e
-          logger.error("MemCacheError (#{e}): #{e.message}") if logger
+        rescue Dalli::DalliError => e
+          logger.error("DalliError (#{e}): #{e.message}") if logger
           false
         end
 
