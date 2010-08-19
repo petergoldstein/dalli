@@ -12,7 +12,7 @@ module Dalli
       @port ||= 11211
       @weight ||= 1
       connection
-      Dalli.logger.info { "#{@hostname}:#{@port} running memcached v#{request(:version)}" }
+      Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{request(:version)}" }
     end
     
     def request(op, *args)
@@ -42,6 +42,7 @@ module Dalli
 
     TIMEOUT = 0.5
     TIMEOUT_NATIVE = [0, 500_000].pack("l_2")
+    ONE_MB = 1024 * 1024
 
     def connection
       @sock ||= begin
@@ -64,6 +65,8 @@ module Dalli
     end
 
     def set(key, value, ttl=0)
+      raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.size > ONE_MB
+
       req = [REQUEST, OPCODES[:set], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:set])
       connection.write(req)
       generic_response
@@ -74,8 +77,10 @@ module Dalli
       connection.write(req)
       generic_response
     end
-    
+
     def add(key, value, ttl)
+      raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.size > ONE_MB
+
       req = [REQUEST, OPCODES[:add], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:add])
       connection.write(req)
       generic_response

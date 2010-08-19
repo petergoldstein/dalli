@@ -114,7 +114,7 @@ module ActiveSupport
       protected
         # Read an entry from the cache.
         def read_entry(key, options) # :nodoc:
-          deserialize_entry(@data.get(escape_key(key), true))
+          deserialize_entry(@data.get(escape_key(key)))
         rescue Dalli::DalliError => e
           logger.error("DalliError (#{e}): #{e.message}") if logger
           nil
@@ -129,8 +129,7 @@ module ActiveSupport
             # Set the memcache expire a few minutes in the future to support race condition ttls on read
             expires_in += 5.minutes
           end
-          response = @data.send(method, escape_key(key), value, expires_in, options[:raw])
-          response == Response::STORED
+          @data.send(method, escape_key(key), value, expires_in)
         rescue Dalli::DalliError => e
           logger.error("DalliError (#{e}): #{e.message}") if logger
           false
@@ -138,8 +137,7 @@ module ActiveSupport
 
         # Delete an entry from the cache.
         def delete_entry(key, options) # :nodoc:
-          response = @data.delete(escape_key(key))
-          response == Response::DELETED
+          @data.delete(escape_key(key))
         rescue Dalli::DalliError => e
           logger.error("DalliError (#{e}): #{e.message}") if logger
           false

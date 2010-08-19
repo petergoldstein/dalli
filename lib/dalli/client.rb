@@ -6,15 +6,15 @@ module Dalli
     # the memcached server.  Usage:
     #
     # Dalli::Client.new(['localhost:11211:10', 'cache-2:11211:5', 'cache-2:22122:5'], 
-    #                   :threadsafe => true, :marshal => true)
+    #                   :threadsafe => false, :marshal => false)
     #
     # servers is an Array of "host:port:weight" where weight allows you to distribute cache unevenly.
     # Options:
-    #   :threadsafe - ensure that only one thread is actively using a socket at a time. Default: false.
+    #   :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     #   :marshal - ensure that the value you store is exactly what is returned.  Otherwise you can see this:
     #        set('abc', 123)
     #        get('abc') ==> '123'  (Note you set an Integer but got back a String)
-    #      Default: false.
+    #      Default: true.
     #
     def initialize(servers, options={})
       @ring = Dalli::Ring.new(
@@ -22,8 +22,8 @@ module Dalli
           Dalli::Server.new(s)
         end
       )
-      @ring.threadsafe! if options[:threadsafe]
-      self.extend(Dalli::Marshal) if options[:marshal]
+      @ring.threadsafe! unless options[:threadsafe] == false
+      self.extend(Dalli::Marshal) unless options[:marshal] == false
     end
     
     #
@@ -32,15 +32,17 @@ module Dalli
 
     def get(key)
       resp = perform(:get, key)
-      resp == 'Not found' ? nil : out(resp)
+      (!resp || resp == 'Not found') ? nil : out(resp)
     end
 
     def get_multi(keys)
-
+      Array(keys).inject({}) do |result, key|
+        result[key] = get(key); result
+      end
     end
     
-    def set(key, value, expiry=0)
-      perform(:set, key, prep(value), expiry)
+    def set(key, value, ttl=0)
+      perform(:set, key, prep(value), ttl)
     end
     
     def add(key, value, ttl=0)
@@ -84,7 +86,8 @@ module Dalli
       @ring.servers.inject({}) { |memo, s| memo["#{s.hostname}:#{s.port}"] = s.request(:stats); memo }
     end
 
-    def get_multi(keys, options)
+    def close
+      @ring.servers.map { |s| s.close }
     end
 
     private

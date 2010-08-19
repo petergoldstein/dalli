@@ -1,7 +1,7 @@
 require 'helper'
 
 class TestDalli < Test::Unit::TestCase
-  context 'live server' do
+  context 'using a live server' do
     setup do
       begin
         TCPSocket.new('localhost', 11211)
@@ -30,21 +30,35 @@ class TestDalli < Test::Unit::TestCase
       
       resp = dc.set('123', 'abc')
       assert_equal true, resp
-      
+
+      assert_raises Dalli::DalliError do
+        dc.prepend('123', '0')
+      end
+
+      assert_raises Dalli::DalliError do
+        dc.append('123', '0')
+      end
+
       resp = dc.get('123')
       assert_equal 'abc', resp
+      dc.close
+      dc = nil
 
-      resp = dc.prepend '123', '0'
+      dc = Dalli::Client.new('localhost:11211', :marshal => false)
+
+      resp = dc.set('456', 'xyz')
+      assert_equal true, resp
+      
+      resp = dc.prepend '456', '0'
       assert_equal true, resp
 
-      resp = dc.append '123', '9'
+      resp = dc.append '456', '9'
       assert_equal true, resp
 
-      resp = dc.get('123')
-      assert_equal '0abc9', resp
+      resp = dc.get('456')
+      assert_equal '0xyz9', resp
       
       resp = dc.stats
-      p resp
       assert_equal Hash, resp.class
     end
   end

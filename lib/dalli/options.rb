@@ -9,11 +9,23 @@ module Dalli
   #
   module Marshal
     def prep(value)
-      Marshal.dump(value)
+      ::Marshal.dump(value)
     end
-    
+
     def out(value)
-      Marshal.load(value)
+      begin
+        ::Marshal.load(value)
+      rescue TypeError
+        raise Dalli::DalliError, "Invalid marshalled data in memcached, this happens if you switch the :marshal option and still have old data in memcached: #{value}"
+      end
+    end
+
+    def append(key, value)
+      raise Dalli::DalliError, "Marshalling and append do not work together"
+    end
+
+    def prepend(key, value)
+      raise Dalli::DalliError, "Marshalling and prepend do not work together"
     end
   end
 
@@ -29,13 +41,13 @@ module Dalli
       end
     end
 
-    def alive?(op, *args)
+    def alive?
       lock.synchronize do
         super
       end
     end
 
-    def close(op, *args)
+    def close
       lock.synchronize do
         super
       end

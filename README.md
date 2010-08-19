@@ -10,18 +10,17 @@ Design
 
 I decided to write Dalli after maintaining memcache-client for the last two years for a few specific reasons:
 
- 1. The code is mostly old and gross.  The bulk of the code is a single 1000 line .rb file.
- 2. It has a lot of options that are infrequently used which complicate the codebase.
- 3. The implementation has no single point to attach monitoring hooks.
- 4. Uses the old text protocol, which hurts raw performance.
+ 0. The code is mostly old and gross.  The bulk of the code is a single 1000 line .rb file.
+ 1. It has a lot of options that are infrequently used which complicate the codebase.
+ 2. The implementation has no single point to attach monitoring hooks.
+ 3. Uses the old text protocol, which hurts raw performance.
 
-So a few notes:
+So a few notes.  Dalli:
 
- 0. Dalli uses the exact same algorithm to choose a server so existing memcached clusters with TBs of data will work identically to memcache-client.
- 1. Dalli does not support multiple namespaces or any of the more esoteric features in MemCache.
- 2. Dalli is approximately 2x faster than memcache-client (which itself was heavily optimized) simply due to the decrease in code and use of the new binary protocol.
- 3. There are explicit "chokepoint" methods which handle all requests; these can be hooked into by monitoring tools (NewRelic, Rack::Bug, etc) to track memcached usage.
- 4. Dalli comes with hooks to replace memcache-client in Rails.
+ 0. uses the exact same algorithm to choose a server so existing memcached clusters with TBs of data will work identically to memcache-client.
+ 1. is approximately 2x faster than memcache-client (which itself was heavily optimized) simply due to the decrease in code and use of the new binary protocol.
+ 2. contains explicit "chokepoint" methods which handle all requests; these can be hooked into by monitoring tools (NewRelic, Rack::Bug, etc) to track memcached usage.
+ 3. comes with hooks to replace memcache-client in Rails.
 
 Installation and Usage
 ------------------------
@@ -33,7 +32,7 @@ Installation and Usage
     dc.set('abc', 123)
     value = dc.get('abc')
 
-Installation with Rails
+Usage with Rails
 ---------------------------
 
 In your Gemfile:
@@ -42,7 +41,17 @@ In your Gemfile:
 
 In `config/environments/production.rb`:
 
-    config.cache_store = :dalli_store, 'localhost:11211', :threadsafe => true
+    config.cache_store = :dalli_store, 'localhost:11211'
+
+
+Features and Changes
+------------------------
+
+memcache-client allowed developers to store either raw or marshalled values with each API call.  I feel this is needless complexity; Dalli allows you to control marshalling per-Client with the `:marshal => false` flag but you cannot explicitly set the raw flag for each API call.  By default, marshalling is enabled.
+
+ActiveSupport::Cache implements several esoteric features so there is no need for Dalli to reinvent them.  Specifically, key namespaces and automatic pruning of keys longer than 250 characters.
+
+By default, Dalli is thread-safe.  Disable thread-safety at your own peril.
 
 
 Author
