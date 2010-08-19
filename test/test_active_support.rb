@@ -9,11 +9,7 @@ class TestDalli < Test::Unit::TestCase
       @mc = ActiveSupport::Cache.lookup_store(:mem_cache_store, 'localhost:11211', :expires_in => 10.seconds, :namespace => 'a')
       @dalli.clear
     end
-    
-    def rand_key
-      rand(1_000_000_000)
-    end
-    
+
     should 'support fetch' do
       dvalue = @mc.fetch('some key with spaces', :expires_in => 1.second) { 123 }
       mvalue = @dalli.fetch('some other key with spaces', :expires_in => 1.second) { 123 }
@@ -31,7 +27,7 @@ class TestDalli < Test::Unit::TestCase
       assert_equal mvalue, dvalue
       assert_equal o, dvalue
     end
-    
+
     should 'support read_multi' do
       x = rand_key
       y = rand_key
@@ -71,5 +67,9 @@ class TestDalli < Test::Unit::TestCase
       assert_equal ms.keys.sort, ds.keys.sort
       assert_equal ms[ms.keys.first].keys.sort, ds[ds.keys.first].keys.sort
     end
+  end
+
+  def rand_key
+    rand(1_000_000_000)
   end
 end
