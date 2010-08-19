@@ -49,18 +49,37 @@ module Dalli
         begin
           s = TCPSocket.new(hostname, port)
           s.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
-          s.setsockopt Socket::SOL_SOCKET, Socket::SO_RCVTIMEO, TIMEOUT_NATIVE
-          s.setsockopt Socket::SOL_SOCKET, Socket::SO_SNDTIMEO, TIMEOUT_NATIVE
+          begin
+            s.setsockopt Socket::SOL_SOCKET, Socket::SO_RCVTIMEO, TIMEOUT_NATIVE
+            s.setsockopt Socket::SOL_SOCKET, Socket::SO_SNDTIMEO, TIMEOUT_NATIVE
+          rescue Errno::ENOPROTOOPT
+          end
           s
         rescue SocketError, SystemCallError, IOError, Timeout::Error
           down!
         end
       end
     end
+    
+    def write(bytes)
+      begin
+        connection.write(bytes)
+      rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF
+        raise Dalli::NetworkError, $!.class.name
+      end
+    end
+    
+    def read(count)
+      begin
+        connection.read(count)
+      rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF
+        raise Dalli::NetworkError, $!.class.name
+      end
+    end
 
     def get(key)
       req = [REQUEST, OPCODES[:get], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:get])
-      connection.write(req)
+      write(req)
       generic_response
     end
 
@@ -68,13 +87,13 @@ module Dalli
       raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.size > ONE_MB
 
       req = [REQUEST, OPCODES[:set], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:set])
-      connection.write(req)
+      write(req)
       generic_response
     end
 
     def flush(ttl)
       req = [REQUEST, OPCODES[:flush], 0, 4, 0, 0, 4, 0, 0, 0].pack(FORMAT[:flush])
-      connection.write(req)
+      write(req)
       generic_response
     end
 
@@ -82,19 +101,19 @@ module Dalli
       raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.size > ONE_MB
 
       req = [REQUEST, OPCODES[:add], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:add])
-      connection.write(req)
+      write(req)
       generic_response
     end
     
     def append(key, value)
       req = [REQUEST, OPCODES[:append], key.size, 0, 0, 0, value.size + key.size, 0, 0, key, value].pack(FORMAT[:append])
-      connection.write(req)
+      write(req)
       generic_response
     end
     
     def delete(key)
       req = [REQUEST, OPCODES[:delete], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:delete])
-      connection.write(req)
+      write(req)
       generic_response
     end
     
@@ -108,39 +127,39 @@ module Dalli
     
     def noop
       req = [REQUEST, OPCODES[:noop], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
-      connection.write(req)
+      write(req)
       generic_response
     end
-    
+
     def prepend(key, value)
       req = [REQUEST, OPCODES[:prepend], key.size, 0, 0, 0, value.size + key.size, 0, 0, key, value].pack(FORMAT[:prepend])
-      connection.write(req)
+      write(req)
       generic_response
     end
-    
+
     def replace(key, value, ttl)
       req = [REQUEST, OPCODES[:replace], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:replace])
-      connection.write(req)
+      write(req)
       generic_response
     end
 
     def version
       req = [REQUEST, OPCODES[:version], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
-      connection.write(req)
+      write(req)
       generic_response
     end
-    
+
     def stats(info='')
       req = [REQUEST, OPCODES[:stat], info.size, 0, 0, 0, info.size, 0, 0, info].pack(FORMAT[:stat])
-      connection.write(req)
+      write(req)
       stat_response
     end
 
     def generic_response
-      header = connection.read(24)
+      header = read(24)
       raise Dalli::NetworkError, 'No response' if !header
       (extras, status, count) = header.unpack(NORMAL_HEADER)
-      data = connection.read(count) if count > 0
+      data = read(count) if count > 0
       if status == 1
         nil
       elsif status != 0
@@ -155,12 +174,12 @@ module Dalli
     def stat_response
       stats = {}
       loop do
-        header = connection.read(24)
+        header = read(24)
         raise Dalli::NetworkError, 'No response' if !header
         (key_length, status, body_length) = header.unpack(STAT_HEADER)
         return stats if key_length == 0
-        key = connection.read(key_length)
-        value = connection.read(body_length - key_length) if body_length - key_length > 0
+        key = read(key_length)
+        value = read(body_length - key_length) if body_length - key_length > 0
         stats[key] = value
       end
     end
