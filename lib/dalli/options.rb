@@ -3,7 +3,7 @@ require 'thread'
 module Dalli
 
   # Auto-marshal all values in/out of memcached.
-  # By default, Dalli will just use to_s on all values.
+  # Otherwise, Dalli will just use to_s on all values.
   #
   # Dalli::Client.extend(Dalli::Marshal)
   #

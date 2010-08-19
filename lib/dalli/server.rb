@@ -217,10 +217,5 @@ module Dalli
     }
     FORMAT = OP_FORMAT.inject({}) { |memo, (k, v)| memo[k] = HEADER + v; memo }
     
-    TYPES = {
-      :raw => 0
-    }
-    
-
   end
 end
