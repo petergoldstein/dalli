@@ -42,6 +42,10 @@ class TestDalli < Test::Unit::TestCase
 
       resp = dc.get('123')
       assert_equal '0abc9', resp
+      
+      resp = dc.stats
+      p resp
+      assert_equal Hash, resp.class
     end
   end
 end

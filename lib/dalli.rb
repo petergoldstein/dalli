@@ -2,6 +2,7 @@ require 'dalli/client'
 require 'dalli/ring'
 require 'dalli/server'
 require 'dalli/version'
+require 'dalli/options'
 
 require 'logger'
 

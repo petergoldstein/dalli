@@ -1,4 +1,5 @@
 require 'socket'
+require 'timeout'
 
 module Dalli
   class Server
@@ -123,11 +124,17 @@ module Dalli
       connection.write(req)
       generic_response
     end
+    
+    def stats(info='')
+      req = [REQUEST, OPCODES[:stat], info.size, 0, 0, 0, info.size, 0, 0, info].pack(FORMAT[:stat])
+      connection.write(req)
+      stat_response
+    end
 
     def generic_response
       header = connection.read(24)
       raise Dalli::NetworkError, 'No response' if !header
-      (extras, status, count) = header.unpack('@4vnN')
+      (extras, status, count) = header.unpack(NORMAL_HEADER)
       data = connection.read(count) if count > 0
       if status == 1
         nil
@@ -139,6 +146,22 @@ module Dalli
         true
       end
     end
+
+    def stat_response
+      stats = {}
+      loop do
+        header = connection.read(24)
+        raise Dalli::NetworkError, 'No response' if !header
+        (key_length, status, body_length) = header.unpack(STAT_HEADER)
+        return stats if key_length == 0
+        key = connection.read(key_length)
+        value = connection.read(body_length - key_length) if body_length - key_length > 0
+        stats[key] = value
+      end
+    end
+    
+    NORMAL_HEADER = '@4vnN'
+    STAT_HEADER = '@2n@6nN'
 
     REQUEST = 0x80
     RESPONSE = 0x81

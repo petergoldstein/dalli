@@ -24,10 +24,6 @@ module Dalli
       end
     end
     
-    def hash_for(key)
-      Zlib.crc32(key)
-    end
-
     def server_for_key(key)
       return @servers.first unless @continuum
 
@@ -43,8 +39,18 @@ module Dalli
       raise Dalli::ServerError, "No servers available"
     end
     
+    def threadsafe!
+      @servers.each do |s|
+        s.extend(Dalli::Threadsafe)
+      end
+    end
+    
     private
     
+    def hash_for(key)
+      Zlib.crc32(key)
+    end
+
     class Entry
       attr_reader :value
       attr_reader :server
