@@ -35,9 +35,13 @@ module Dalli
       (!resp || resp == 'Not found') ? nil : deserialize(resp)
     end
 
-    def get_multi(keys)
-      Array(keys).inject({}) do |result, key|
-        result[key] = get(key); result
+    def get_multi(*keys)
+      @ring.lock do
+        keys.each do |key|
+          perform(:getkq, key)
+        end
+        values = @ring.servers.inject({}) { |hash, s| hash.merge!(s.request(:noop)); hash }
+        values.inject(values) { |memo, (k,v)| memo[k] = deserialize(v); memo }
       end
     end
     

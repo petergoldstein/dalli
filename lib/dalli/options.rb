@@ -53,6 +53,14 @@ module Dalli
       end
     end
 
+    def lock!
+      lock.mon_enter
+    end
+
+    def unlock!
+      lock.mon_exit
+    end
+
     private
     def lock
       @lock ||= Monitor.new

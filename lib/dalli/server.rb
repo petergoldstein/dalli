@@ -31,6 +31,12 @@ module Dalli
       (@sock.close rescue nil; @sock = nil) if @sock
     end
 
+    def lock!
+    end
+
+    def unlock!
+    end
+
     private
 
     def down!
@@ -63,6 +69,7 @@ module Dalli
     
     def write(bytes)
       begin
+        #Dalli.logger.debug { "[#{self.hostname}]: W #{bytes.inspect}" }
         connection.write(bytes)
       rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF
         raise Dalli::NetworkError, $!.class.name
@@ -71,7 +78,9 @@ module Dalli
     
     def read(count)
       begin
-        connection.read(count)
+        value = connection.read(count)
+        #Dalli.logger.debug { "[#{self.hostname}]: R #{value.inspect}" }
+        value
       rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF
         raise Dalli::NetworkError, $!.class.name
       end
@@ -81,6 +90,11 @@ module Dalli
       req = [REQUEST, OPCODES[:get], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:get])
       write(req)
       generic_response
+    end
+
+    def getkq(key)
+      req = [REQUEST, OPCODES[:getkq], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:getkq])
+      write(req)
     end
 
     def set(key, value, ttl=0)
@@ -124,11 +138,13 @@ module Dalli
     def incr(key, count)
       raise NotImplementedError
     end
-    
+
+    # Noop is a keepalive operation but also used to demarcate the end of a set of pipelined commands.
+    # We need to read all the responses at once.
     def noop
       req = [REQUEST, OPCODES[:noop], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
       write(req)
-      generic_response
+      multi_response
     end
 
     def prepend(key, value)
@@ -152,7 +168,7 @@ module Dalli
     def stats(info='')
       req = [REQUEST, OPCODES[:stat], info.size, 0, 0, 0, info.size, 0, 0, info].pack(FORMAT[:stat])
       write(req)
-      stat_response
+      keyvalue_response
     end
 
     def generic_response
@@ -171,21 +187,35 @@ module Dalli
       end
     end
 
-    def stat_response
-      stats = {}
+    def keyvalue_response
+      hash = {}
       loop do
         header = read(24)
         raise Dalli::NetworkError, 'No response' if !header
-        (key_length, status, body_length) = header.unpack(STAT_HEADER)
-        return stats if key_length == 0
+        (key_length, status, body_length) = header.unpack(KV_HEADER)
+        return hash if key_length == 0
         key = read(key_length)
         value = read(body_length - key_length) if body_length - key_length > 0
-        stats[key] = value
+        hash[key] = value
       end
     end
-    
+
+    def multi_response
+      hash = {}
+      loop do
+        header = read(24)
+        raise Dalli::NetworkError, 'No response' if !header
+        (key_length, status, body_length) = header.unpack(KV_HEADER)
+        return hash if key_length == 0
+        read(4)
+        key = read(key_length)
+        value = read(body_length - key_length - 4) if body_length - key_length - 4 > 0
+        hash[key] = value
+      end
+    end
+
     NORMAL_HEADER = '@4vnN'
-    STAT_HEADER = '@2n@6nN'
+    KV_HEADER = '@2n@6nN'
 
     REQUEST = 0x80
     RESPONSE = 0x81
@@ -213,6 +243,7 @@ module Dalli
       :flush => 0x08,
       :noop => 0x0A,
       :version => 0x0B,
+      :getkq => 0x0D,
       :append => 0x0E,
       :prepend => 0x0F,
       :stat => 0x10,
@@ -229,6 +260,7 @@ module Dalli
       :decr => 'NNNNNa*',
       :flush => 'N',
       :noop => '',
+      :getkq => 'a*',
       :version => '',
       :stat => 'a*',
       :append => 'a*a*',

@@ -45,6 +45,15 @@ module Dalli
       end
     end
     
+    def lock
+      @servers.each { |s| s.lock! }
+      begin
+        return yield
+      ensure
+        @servers.each { |s| s.unlock! }
+      end
+    end
+    
     private
     
     def hash_for(key)

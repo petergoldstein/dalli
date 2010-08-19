@@ -10,7 +10,20 @@ class TestDalli < Test::Unit::TestCase
         puts "Skipping live test as memcached is not running at localhost:11211.  Start it with 'memcached -d'"
       end
     end
-    
+
+    should "support multi-get" do
+      return if $skip
+      dc = Dalli::Client.new(['localhost:11211', '127.0.0.1'])
+      resp = dc.get_multi(*%w(a b c d e f))
+      assert_equal({}, resp)
+
+      dc.set('a', 'foo')
+      dc.set('b', 123)
+      dc.set('c', %w(a b c))
+      resp = dc.get_multi(*%w(a b c d e f))
+      assert_equal({ 'a' => 'foo', 'b' => 123, 'c' => %w(a b c) }, resp)
+    end
+
     should "pass a simple smoke test" do
       return if $skip
       
