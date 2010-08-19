@@ -5,8 +5,8 @@ require 'active_support/cache/dalli_store'
 class TestDalli < Test::Unit::TestCase
   context 'activesupport caching' do
     setup do
-      @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:11211', :threadsafe => true, :marshal => true, :expires_in => 10.seconds)
-      @mc = ActiveSupport::Cache.lookup_store(:mem_cache_store, 'localhost:11211', :expires_in => 10.seconds)
+      @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:11211', :expires_in => 10.seconds)
+      @mc = ActiveSupport::Cache.lookup_store(:mem_cache_store, 'localhost:11211', :expires_in => 10.seconds, :namespace => 'a')
       @dalli.clear
     end
     
@@ -32,6 +32,19 @@ class TestDalli < Test::Unit::TestCase
       assert_equal o, dvalue
     end
     
+    should 'support read_multi' do
+      x = rand_key
+      y = rand_key
+      assert_equal({}, @mc.read_multi(x, y))
+      assert_equal({}, @dalli.read_multi(x, y))
+      @dalli.write(x, '123')
+      @dalli.write(y, 123)
+      @mc.write(x, '123')
+      @mc.write(y, 123)
+      assert_equal({ x => '123', y => 123 }, @dalli.read_multi(x, y))
+      assert_equal({ x => '123', y => 123 }, @mc.read_multi(x, y))
+    end
+
     should 'support read, write and delete' do
       x = rand_key
       y = rand_key

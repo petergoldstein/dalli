@@ -37,7 +37,7 @@ module Dalli
 
     def get_multi(*keys)
       @ring.lock do
-        keys.each do |key|
+        keys.flatten.each do |key|
           perform(:getkq, key)
         end
         values = @ring.servers.inject({}) { |hash, s| hash.merge!(s.request(:noop)); hash }
