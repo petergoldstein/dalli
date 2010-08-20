@@ -41,7 +41,7 @@ module Dalli
 
     def down!
       close
-      @down_at = Time.now
+      @down_at = Time.now.to_i
       @msg = $!.message
       nil
     end
@@ -52,6 +52,9 @@ module Dalli
 
     def connection
       @sock ||= begin
+        if @down_at && @down_at == Time.now.to_i
+          raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{@msg}"
+        end
         begin
           s = TCPSocket.new(hostname, port)
           s.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
@@ -63,6 +66,7 @@ module Dalli
           s
         rescue SocketError, SystemCallError, IOError, Timeout::Error
           down!
+          raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{@msg}"
         end
       end
     end

@@ -15,6 +15,7 @@ Gem::Specification.new do |s|
      "README.md",
      "Rakefile",
      "Gemfile",
+     "Performance.md",
   ]
   s.homepage = %q{http://github.com/mperham/dalli}
   s.rdoc_options = ["--charset=UTF-8"]

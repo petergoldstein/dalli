@@ -5,6 +5,7 @@ Dalli is a high performance pure Ruby client for accessing memcached servers.  I
 
 The name is a variant of Salvador Dali for his famous painting [The Persistence of Memory](http://en.wikipedia.org/wiki/The_Persistence_of_Memory).
 
+
 Design
 ------------
 
@@ -22,6 +23,7 @@ So a few notes.  Dalli:
  2. contains explicit "chokepoint" methods which handle all requests; these can be hooked into by monitoring tools (NewRelic, Rack::Bug, etc) to track memcached usage.
  3. comes with hooks to replace memcache-client in Rails.
 
+
 Installation and Usage
 ------------------------
 
@@ -32,6 +34,7 @@ Installation and Usage
     dc.set('abc', 123)
     value = dc.get('abc')
 
+
 Usage with Rails
 ---------------------------
 
@@ -39,9 +42,11 @@ In your Gemfile:
 
     gem 'dalli'
 
-In `config/environments/production.rb`:
+In `config/environments/production.rb`.  Note that we are also setting a reasonable default for maximum cache entry lifetime (one day), enabling compression for large values, and namespacing all entries for this rails app.  Remove the namespace if you have multiple apps which share cached values.
 
-    config.cache_store = :dalli_store, 'localhost:11211'
+	require 'active_support/cache/dalli_store'
+    config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com',
+        :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true, :compress_threshold => 64.kilobytes
 
 
 Features and Changes
@@ -49,7 +54,7 @@ Features and Changes
 
 memcache-client allowed developers to store either raw or marshalled values with each API call.  I feel this is needless complexity; Dalli allows you to control marshalling per-Client with the `:marshal => false` flag but you cannot explicitly set the raw flag for each API call.  By default, marshalling is enabled.
 
-ActiveSupport::Cache implements several esoteric features so there is no need for Dalli to reinvent them.  Specifically, key namespaces and automatic pruning of keys longer than 250 characters.
+I've removed support for key namespaces and automatic pruning of keys longer than 250 characters.  ActiveSupport::Cache implements these features so there is little need for Dalli to reinvent them.
 
 By default, Dalli is thread-safe.  Disable thread-safety at your own peril.
 
@@ -59,7 +64,8 @@ Note that Dalli does not require ActiveSupport or Rails.  You can safely use it 
 Author
 ----------
 
-Mike Perham, mperham@gmail.com, [mikeperham.com](http://mikeperham.com), [@mperham](http://twitter.com/mperham)
+Mike Perham, mperham@gmail.com, [mikeperham.com](http://mikeperham.com), [@mperham](http://twitter.com/mperham)  If you like and use this project, please
+give me a recommendation at [WWR](http://workingwithrails.com/person/10797-mike-perham).  Happy caching!
 
 
 Copyright

@@ -60,20 +60,6 @@ module Dalli
       Zlib.crc32(key)
     end
 
-    class Entry
-      attr_reader :value
-      attr_reader :server
-
-      def initialize(val, srv)
-        @value = val
-        @server = srv
-      end
-
-      def inspect
-        "<#{value}, #{server.host}:#{server.port}>"
-      end
-    end
-
     def entry_count_for(server, total_servers, total_weight)
       ((total_servers * POINTS_PER_SERVER * server.weight) / Float(total_weight)).floor
     end
@@ -98,41 +84,16 @@ module Dalli
       end
       return upper
     end
-    
-    # Native extension to perform the binary search within the ring.  This is purely optional for
-    # performance and only necessary if you are using multiple memcached servers.
-    class << self
-      begin
-        require 'inline'
-        inline do |builder|
-          builder.c <<-EOM
-          int binary_search(VALUE ary, unsigned int r) {
-              int upper = RARRAY_LEN(ary) - 1;
-              int lower = 0;
-              int idx = 0;
-              ID value = rb_intern("value");
-    
-              while (lower <= upper) {
-                  idx = (lower + upper) / 2;
-    
-                  VALUE continuumValue = rb_funcall(RARRAY_PTR(ary)[idx], value, 0);
-                  unsigned int l = NUM2UINT(continuumValue);
-                  if (l == r) {
-                      return idx;
-                  }
-                  else if (l > r) {
-                      upper = idx - 1;
-                  }
-                  else {
-                      lower = idx + 1;
-                  }
-              }
-              return upper;
-          }
-          EOM
-        end
-      rescue Exception => e
+
+    class Entry
+      attr_reader :value
+      attr_reader :server
+
+      def initialize(val, srv)
+        @value = val
+        @server = srv
       end
     end
+
   end
 end
