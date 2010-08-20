@@ -90,6 +90,7 @@ module Dalli
         #Dalli.logger.debug { "[#{self.hostname}]: W #{bytes.inspect}" }
         connection.write(bytes)
       rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF
+        down!
         raise Dalli::NetworkError, $!.class.name
       end
     end
@@ -100,6 +101,7 @@ module Dalli
         #Dalli.logger.debug { "[#{self.hostname}]: R #{value.inspect}" }
         value
       rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF
+        down!
         raise Dalli::NetworkError, $!.class.name
       end
     end
