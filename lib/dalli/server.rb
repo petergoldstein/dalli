@@ -10,7 +10,9 @@ module Dalli
     def initialize(attribs)
       (@hostname, @port, @weight) = attribs.split(':')
       @port ||= 11211
+      @port = Integer(@port)
       @weight ||= 1
+      @weight = Integer(@weight)
       connection
       Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{request(:version)}" }
     end
@@ -55,19 +57,31 @@ module Dalli
         if @down_at && @down_at == Time.now.to_i
           raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{@msg}"
         end
+
+        # All this ugly code to ensure proper Socket connect timeout
+        addr = Socket.getaddrinfo(self.hostname, nil)
+        sock = Socket.new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
         begin
-          s = TCPSocket.new(hostname, port)
-          s.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
+          sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
+        rescue Errno::EINPROGRESS
+          IO.select(nil, [sock], nil, TIMEOUT)
           begin
-            s.setsockopt Socket::SOL_SOCKET, Socket::SO_RCVTIMEO, TIMEOUT_NATIVE
-            s.setsockopt Socket::SOL_SOCKET, Socket::SO_SNDTIMEO, TIMEOUT_NATIVE
-          rescue Errno::ENOPROTOOPT
+            sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
+          rescue Errno::EISCONN
+            ;
+          rescue
+            raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{$!.message}"
           end
-          s
-        rescue SocketError, SystemCallError, IOError, Timeout::Error
-          down!
-          raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{@msg}"
         end
+        # end ugly code
+
+        sock.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
+        begin
+          sock.setsockopt Socket::SOL_SOCKET, Socket::SO_RCVTIMEO, TIMEOUT_NATIVE
+          sock.setsockopt Socket::SOL_SOCKET, Socket::SO_SNDTIMEO, TIMEOUT_NATIVE
+        rescue Errno::ENOPROTOOPT
+        end
+        sock
       end
     end
     
