@@ -4,11 +4,13 @@ module Dalli
     ##
     # Dalli::Client is the main class which developers will use to interact with
     # the memcached server.  Usage:
-    #
-    # Dalli::Client.new(['localhost:11211:10', 'cache-2:11211:5', 'cache-2:22122:5'], 
+    # <pre>
+    # Dalli::Client.new(['localhost:11211:10', 'cache-2.example.com:11211:5', '192.168.0.1:22122:5'], 
     #                   :threadsafe => false, :marshal => false)
-    #
+    # </pre>
     # servers is an Array of "host:port:weight" where weight allows you to distribute cache unevenly.
+    # Both weight and port are optional.
+    #
     # Options:
     #   :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     #   :marshal - ensure that the value you store is exactly what is returned.  Otherwise you can see this:
