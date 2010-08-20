@@ -61,11 +61,16 @@ By default, Dalli is thread-safe.  Disable thread-safety at your own peril.
 Note that Dalli does not require ActiveSupport or Rails.  You can safely use it in your own Ruby projects.
 
 
+Thanks
+------------
+
+Dalli's development is sponsored by [NorthScale](http://www.northscale.com/).  Many thanks to them!
+
+
 Author
 ----------
 
-Mike Perham, mperham@gmail.com, [mikeperham.com](http://mikeperham.com), [@mperham](http://twitter.com/mperham)  If you like and use this project, please
-give me a recommendation at [WWR](http://workingwithrails.com/person/10797-mike-perham).  Happy caching!
+Mike Perham, mperham@gmail.com, [mikeperham.com](http://mikeperham.com), [@mperham](http://twitter.com/mperham)  If you like and use this project, please give me a recommendation at [WWR](http://workingwithrails.com/person/10797-mike-perham).  Happy caching!
 
 
 Copyright

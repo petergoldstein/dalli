@@ -36,7 +36,7 @@ module Dalli
         hkey = hash_for("#{try}#{key}")
       end
 
-      raise Dalli::ServerError, "No servers available"
+      raise Dalli::NetworkError, "No servers available"
     end
     
     def threadsafe!

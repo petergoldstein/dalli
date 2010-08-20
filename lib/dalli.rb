@@ -10,7 +10,6 @@ module Dalli
   # socket communication error
   class DalliError < RuntimeError; end
   class NetworkError < DalliError; end
-  class ServerError < DalliError; end
 
   def self.logger
     @logger ||= begin

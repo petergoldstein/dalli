@@ -20,7 +20,11 @@ module Dalli
     def request(op, *args)
       begin
         send(op, *args)
-      rescue SocketError, SystemCallError, IOError, Timeout::Error
+      rescue Dalli::NetworkError
+        raise
+      rescue Exception => ex
+        puts "Unexpected exception: #{ex.class.name}: #{ex.message}"
+        puts ex.backtrace.join("\n")
         down!
       end
     end
@@ -48,63 +52,7 @@ module Dalli
       nil
     end
 
-    TIMEOUT = 0.5
-    TIMEOUT_NATIVE = [0, 500_000].pack("l_2")
     ONE_MB = 1024 * 1024
-
-    def connection
-      @sock ||= begin
-        if @down_at && @down_at == Time.now.to_i
-          raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{@msg}"
-        end
-
-        # All this ugly code to ensure proper Socket connect timeout
-        addr = Socket.getaddrinfo(self.hostname, nil)
-        sock = Socket.new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
-        begin
-          sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
-        rescue Errno::EINPROGRESS
-          IO.select(nil, [sock], nil, TIMEOUT)
-          begin
-            sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
-          rescue Errno::EISCONN
-            ;
-          rescue
-            raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{$!.message}"
-          end
-        end
-        # end ugly code
-
-        sock.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
-        begin
-          sock.setsockopt Socket::SOL_SOCKET, Socket::SO_RCVTIMEO, TIMEOUT_NATIVE
-          sock.setsockopt Socket::SOL_SOCKET, Socket::SO_SNDTIMEO, TIMEOUT_NATIVE
-        rescue Errno::ENOPROTOOPT
-        end
-        sock
-      end
-    end
-    
-    def write(bytes)
-      begin
-        #Dalli.logger.debug { "[#{self.hostname}]: W #{bytes.inspect}" }
-        connection.write(bytes)
-      rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF
-        down!
-        raise Dalli::NetworkError, $!.class.name
-      end
-    end
-    
-    def read(count)
-      begin
-        value = connection.read(count)
-        #Dalli.logger.debug { "[#{self.hostname}]: R #{value.inspect}" }
-        value
-      rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF
-        down!
-        raise Dalli::NetworkError, $!.class.name
-      end
-    end
 
     def get(key)
       req = [REQUEST, OPCODES[:get], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:get])
@@ -199,7 +147,7 @@ module Dalli
       if status == 1
         nil
       elsif status != 0
-        raise Dalli::NetworkError, "Response error #{status}: #{RESPONSE_CODES[status]}"
+        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
       elsif data
         extras != 0 ? data[extras..-1] : data
       else
@@ -231,6 +179,65 @@ module Dalli
         key = read(key_length)
         value = read(body_length - key_length - 4) if body_length - key_length - 4 > 0
         hash[key] = value
+      end
+    end
+
+    TIMEOUT = 0.5
+
+    def connection
+      @sock ||= begin
+        if @down_at && @down_at == Time.now.to_i
+          raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{@msg}"
+        end
+
+        # All this ugly code to ensure proper Socket connect timeout
+        addr = Socket.getaddrinfo(self.hostname, nil)
+        sock = Socket.new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
+        begin
+          sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
+        rescue Errno::EINPROGRESS
+          resp = IO.select(nil, [sock], nil, TIMEOUT)
+          begin
+            sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
+          rescue Errno::EISCONN
+            ;
+          rescue
+            raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{$!.message}"
+          end
+        end
+        # end ugly code
+
+        sock.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
+        sock
+      end
+    end
+
+    def write(bytes)
+      begin
+        #Dalli.logger.debug { "[#{self.hostname}]: W #{bytes.inspect}" }
+        connection.write(bytes)
+      rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF
+        down!
+        raise Dalli::NetworkError, $!.class.name
+      end
+    end
+
+    def read(count)
+      begin
+        value = ''
+        begin
+          value = connection.read_nonblock(count - value.size)
+        rescue Errno::EWOULDBLOCK, Errno::EAGAIN, Errno::EINTR
+          IO.select([connection], nil, nil, TIMEOUT)
+          retry
+        end
+        raise Errno::EINVAL, "Not enough data to fulfill read request: #{value.inspect}" if value.size != count
+        #Dalli.logger.debug { "[#{self.hostname}]: R #{value.inspect}" }
+        value
+      rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF, Errno::EINVAL, Timeout::Error
+        p $!
+        down!
+        raise Dalli::NetworkError, "#{$!.class.name}: #{$!.message}"
       end
     end
 
