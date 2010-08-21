@@ -27,7 +27,7 @@ class TestNetwork < Test::Unit::TestCase
 
       should 'handle malformed response' do
         memcached_mock(lambda {|sock| sock.write('123') }) do
-          assert_error Dalli::NetworkError, /EINVAL/ do
+          assert_error Dalli::NetworkError, /EOFError/ do
             dc = Dalli::Client.new('localhost:22122')
             dc.get('abc')
           end
@@ -35,8 +35,8 @@ class TestNetwork < Test::Unit::TestCase
       end
 
       should 'handle connect timeouts' do
-        memcached_mock(lambda {|sock|  sock.close }, :delayed_start) do
-          assert_error Dalli::NetworkError, /ECONNRESET/ do
+        memcached_mock(lambda {|sock| sleep(0.6); sock.close }, :delayed_start) do
+          assert_error Dalli::NetworkError, /Timeout::Error/ do
             dc = Dalli::Client.new('localhost:22122')
             dc.get('abc')
           end

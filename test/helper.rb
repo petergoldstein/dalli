@@ -5,15 +5,8 @@ require 'shoulda'
 require 'dalli'
 
 class Test::Unit::TestCase
-  def assert_error(error, regexp=nil)
-    begin
-      yield
-      fail("Expected #{error.name} but nothing was raised.")
-    rescue error => err
-      fail("Expected error to match #{regexp.inspect}: #{err.inspect}") if regexp and err.message !~ regexp
-      # success
-    rescue Exception => ex
-      fail("Expected #{error.name} but got #{ex.class.name}")
-    end
+  def assert_error(error, regexp=nil, &block)
+    ex = assert_raise(error, &block)
+    assert_match(regexp, ex.message, "#{ex.class.name}: #{ex.message}\n#{ex.backtrace.join("\n\t")}")
   end
 end

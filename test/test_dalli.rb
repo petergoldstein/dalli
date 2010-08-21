@@ -11,9 +11,28 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
+    should "support huge get/set" do
+      return if $skip
+      dc = Dalli::Client.new('localhost:11211')
+      dc.flush
+
+      val1 = "1234567890"*105000
+      assert_error Dalli::DalliError, /too large/ do
+        dc.set('a', val1)
+        val2 = dc.get('a')
+        assert_equal val1, val2
+      end
+
+      val1 = "1234567890"*100000
+      dc.set('a', val1)
+      val2 = dc.get('a')
+      assert_equal val1, val2
+    end
+
     should "support multi-get" do
       return if $skip
       dc = Dalli::Client.new(['localhost:11211', '127.0.0.1'])
+      dc.flush
       resp = dc.get_multi(%w(a b c d e f))
       assert_equal({}, resp)
 

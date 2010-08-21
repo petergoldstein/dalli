@@ -1,5 +1,4 @@
 require 'socket'
-require 'timeout'
 
 module Dalli
   class Server
@@ -21,6 +20,8 @@ module Dalli
       begin
         send(op, *args)
       rescue Dalli::NetworkError
+        raise
+      rescue Dalli::DalliError
         raise
       rescue Exception => ex
         puts "Unexpected exception: #{ex.class.name}: #{ex.message}"
@@ -214,7 +215,6 @@ module Dalli
 
     def write(bytes)
       begin
-        #Dalli.logger.debug { "[#{self.hostname}]: W #{bytes.inspect}" }
         connection.write(bytes)
       rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF
         down!
@@ -226,16 +226,20 @@ module Dalli
       begin
         value = ''
         begin
-          value = connection.read_nonblock(count - value.size)
-        rescue Errno::EWOULDBLOCK, Errno::EAGAIN, Errno::EINTR
-          IO.select([connection], nil, nil, TIMEOUT)
-          retry
+          loop do
+            value << connection.sysread(count)
+            break if value.size == count
+          end
+        rescue Errno::EAGAIN, Errno::EWOULDBLOCK
+          if IO.select([connection], nil, nil, TIMEOUT)
+            retry
+          else
+            raise Timeout::Error, "IO timeout"
+          end
         end
         raise Errno::EINVAL, "Not enough data to fulfill read request: #{value.inspect}" if value.size != count
-        #Dalli.logger.debug { "[#{self.hostname}]: R #{value.inspect}" }
         value
-      rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF, Errno::EINVAL, Timeout::Error
-        p $!
+      rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF, Errno::EINVAL, Timeout::Error, EOFError
         down!
         raise Dalli::NetworkError, "#{$!.class.name}: #{$!.message}"
       end
