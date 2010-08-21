@@ -16,6 +16,7 @@ module Dalli
       Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{request(:version)}" }
     end
     
+    # Chokepoint method for instrumentation
     def request(op, *args)
       begin
         send(op, *args)
@@ -101,13 +102,23 @@ module Dalli
       write(req)
       generic_response
     end
-    
-    def decr(key, count)
-      raise NotImplementedError
+
+    def decr(key, count, ttl, default)
+      expiry = default ? ttl : 0xFFFFFFFF
+      default ||= 0
+      req = [REQUEST, OPCODES[:decr], key.size, 20, 0, 0, key.size + 20, 0, 0, count, default, expiry, key].pack(FORMAT[:decr])
+      write(req)
+      body = generic_response
+      body ? body.unpack('Q')[0] : body
     end
     
-    def incr(key, count)
-      raise NotImplementedError
+    def incr(key, count, ttl, default)
+      expiry = default ? ttl : 0xFFFFFFFF
+      default ||= 0
+      req = [REQUEST, OPCODES[:incr], key.size, 20, 0, 0, key.size + 20, 0, 0, count, default, expiry, key].pack(FORMAT[:incr])
+      write(req)
+      body = generic_response
+      body ? body.unpack('Q')[0] : body
     end
 
     # Noop is a keepalive operation but also used to demarcate the end of a set of pipelined commands.
@@ -288,8 +299,8 @@ module Dalli
       :add => 'NNa*a*',
       :replace => 'NNa*a*',
       :delete => 'a*',
-      :incr => 'NNNNNa*',
-      :decr => 'NNNNNa*',
+      :incr => 'QQNa*',
+      :decr => 'QQNa*',
       :flush => 'N',
       :noop => '',
       :getkq => 'a*',

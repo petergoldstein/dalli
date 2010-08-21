@@ -7,7 +7,7 @@ module Dalli
     
     attr_accessor :servers, :continuum
     
-    def initialize(servers)
+    def initialize(servers, options)
       @servers = servers
       if servers.size > 1
         total_weight = servers.inject(0) { |memo, srv| memo + srv.weight }
@@ -22,6 +22,9 @@ module Dalli
         continuum.sort { |a, b| a.value <=> b.value }
         @continuum = continuum
       end
+
+      threadsafe! unless options[:threadsafe] == false
+      @failover = options[:failover] != false
     end
     
     def server_for_key(key)
@@ -33,16 +36,11 @@ module Dalli
         entryidx = self.class.binary_search(@continuum, hkey)
         server = @continuum[entryidx].server
         return server if server.alive?
+        break unless @failover
         hkey = hash_for("#{try}#{key}")
       end
 
       raise Dalli::NetworkError, "No servers available"
-    end
-    
-    def threadsafe!
-      @servers.each do |s|
-        s.extend(Dalli::Threadsafe)
-      end
     end
     
     def lock
@@ -55,7 +53,13 @@ module Dalli
     end
     
     private
-    
+
+    def threadsafe!
+      @servers.each do |s|
+        s.extend(Dalli::Threadsafe)
+      end
+    end
+
     def hash_for(key)
       Zlib.crc32(key)
     end

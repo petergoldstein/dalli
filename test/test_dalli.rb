@@ -43,6 +43,45 @@ class TestDalli < Test::Unit::TestCase
       assert_equal({ 'a' => 'foo', 'b' => 123, 'c' => %w(a b c) }, resp)
     end
 
+    should "support incr/decr operations" do
+      dc = Dalli::Client.new(['localhost:11211', '127.0.0.1'])
+      dc.flush
+
+      resp = dc.decr('counter', 100, 5, 0)
+      assert_equal 0, resp
+
+      resp = dc.decr('counter', 10)
+      assert_equal 0, resp
+
+      resp = dc.incr('counter', 10)
+      assert_equal 10, resp
+
+      # go over the 32-bit mark to verify proper (un)packing
+      resp = dc.incr('counter', 10_000_000_000)
+      assert_equal 10_000_000_010, resp
+
+      resp = dc.decr('counter', 1)
+      assert_equal 10_000_000_009, resp
+
+      resp = dc.decr('counter', 0)
+      assert_equal 10_000_000_009, resp
+
+      resp = dc.incr('counter', 0)
+      assert_equal 10_000_000_009, resp
+
+      assert_nil dc.incr('DNE', 10)
+      assert_nil dc.decr('DNE', 10)
+
+      resp = dc.incr('big', 100, 5, 0xFFFFFFFFFFFFFFFE)
+      assert_equal 0xFFFFFFFFFFFFFFFE, resp
+      resp = dc.incr('big', 1)
+      assert_equal 0xFFFFFFFFFFFFFFFF, resp
+
+      # rollover the 64-bit value, we'll get something undefined.
+      resp = dc.incr('big', 1)
+      assert_not_equal 0x10000000000000000, resp
+    end
+
     should "pass a simple smoke test" do
       return if $skip
       
@@ -50,16 +89,16 @@ class TestDalli < Test::Unit::TestCase
       resp = dc.flush
       assert_not_nil resp
       assert_equal [true], resp
-      
+
       resp = dc.get('123')
       assert_equal nil, resp
-      
+
       resp = dc.set('123', 'xyz')
       assert_equal true, resp
-      
+
       resp = dc.get('123')
       assert_equal 'xyz', resp
-      
+
       resp = dc.set('123', 'abc')
       assert_equal true, resp
 
@@ -80,7 +119,7 @@ class TestDalli < Test::Unit::TestCase
 
       resp = dc.set('456', 'xyz')
       assert_equal true, resp
-      
+
       resp = dc.prepend '456', '0'
       assert_equal true, resp
 
@@ -89,7 +128,7 @@ class TestDalli < Test::Unit::TestCase
 
       resp = dc.get('456')
       assert_equal '0xyz9', resp
-      
+
       resp = dc.stats
       assert_equal Hash, resp.class
     end

@@ -12,6 +12,7 @@ module Dalli
     # Both weight and port are optional.
     #
     # Options:
+    #   :failover - if a server is down, store the value on another server.  Default: true.
     #   :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     #   :marshal - ensure that the value you store is exactly what is returned.  Otherwise you can see this:
     #        set('abc', 123)
@@ -22,9 +23,8 @@ module Dalli
       @ring = Dalli::Ring.new(
         Array(servers).map do |s| 
           Dalli::Server.new(s)
-        end
+        end, options
       )
-      @ring.threadsafe! unless options[:threadsafe] == false
       self.extend(Dalli::Marshal) unless options[:marshal] == false
     end
     
@@ -64,11 +64,11 @@ module Dalli
     end
 
     def append(key, value)
-      perform(:append, key, value)
+      perform(:append, key, value.to_s)
     end
 
     def prepend(key, value)
-      perform(:prepend, key, value)
+      perform(:prepend, key, value.to_s)
     end
 
     def flush(delay=0)
@@ -80,12 +80,34 @@ module Dalli
       flush(0)
     end
 
-    def incr(key, amt)
-      perform(:incr, key, amt)
+    ##
+    # Incr adds the given amount to the counter on the memcached server.
+    # Amt must be a positive value.
+    # 
+    # memcached counters are unsigned and cannot hold negative values.  Calling
+    # incr on a counter which is 0 will just return 0.
+    #
+    # If default is nil, the counter must already exist or the operation
+    # will fail and will return nil.  Otherwise this method will return
+    # the new value for the counter.
+    def incr(key, amt, ttl=0, default=nil)
+      raise ArgumentError, "Positive values only: #{amt}" if amt < 0
+      perform(:incr, key, amt, ttl, default)
     end
 
-    def decr(key, amt)
-      perform(:decr, key, amt)
+    ##
+    # Decr subtracts the given amount from the counter on the memcached server.
+    # Amt must be a positive value.
+    # 
+    # memcached counters are unsigned and cannot hold negative values.  Calling
+    # decr on a counter which is 0 will just return 0.
+    #
+    # If default is nil, the counter must already exist or the operation
+    # will fail and will return nil.  Otherwise this method will return
+    # the new value for the counter.
+    def decr(key, amt, ttl=0, default=nil)
+      raise ArgumentError, "Positive values only: #{amt}" if amt < 0
+      perform(:decr, key, amt, ttl, default)
     end
 
     def stats
@@ -94,6 +116,7 @@ module Dalli
 
     def close
       @ring.servers.map { |s| s.close }
+      @ring = nil
     end
 
     private
@@ -106,6 +129,7 @@ module Dalli
       value
     end
 
+    # Chokepoint method for instrumentation
     def perform(op, *args)
       key = args.first
       validate_key(key)
