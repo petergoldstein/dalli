@@ -5,6 +5,8 @@ Dalli is a high performance pure Ruby client for accessing memcached servers.  I
 
 The name is a variant of Salvador Dali for his famous painting [The Persistence of Memory](http://en.wikipedia.org/wiki/The_Persistence_of_Memory).
 
+Dalli's development is sponsored by [NorthScale](http://www.northscale.com/).  Many thanks to them!
+
 
 Design
 ------------
@@ -19,7 +21,7 @@ I decided to write Dalli after maintaining memcache-client for the last two year
 So a few notes.  Dalli:
 
  0. uses the exact same algorithm to choose a server so existing memcached clusters with TBs of data will work identically to memcache-client.
- 1. is approximately 2x faster than memcache-client (which itself was heavily optimized) simply due to the decrease in code and use of the new binary protocol.
+ 1. is approximately 20% faster than memcache-client (which itself was heavily optimized) in Ruby 1.9.2.
  2. contains explicit "chokepoint" methods which handle all requests; these can be hooked into by monitoring tools (NewRelic, Rack::Bug, etc) to track memcached usage.
  3. comes with hooks to replace memcache-client in Rails.
 
@@ -59,12 +61,6 @@ I've removed support for key namespaces and automatic pruning of keys longer tha
 By default, Dalli is thread-safe.  Disable thread-safety at your own peril.
 
 Note that Dalli does not require ActiveSupport or Rails.  You can safely use it in your own Ruby projects.
-
-
-Thanks
-------------
-
-Dalli's development is sponsored by [NorthScale](http://www.northscale.com/).  Many thanks to them!
 
 
 Author
