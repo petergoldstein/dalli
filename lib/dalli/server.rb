@@ -44,6 +44,8 @@ module Dalli
     def unlock!
     end
 
+    # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
+
     private
 
     def down!
@@ -237,7 +239,6 @@ module Dalli
             raise Timeout::Error, "IO timeout"
           end
         end
-        raise Errno::EINVAL, "Not enough data to fulfill read request: #{value.inspect}" if value.size != count
         value
       rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF, Errno::EINVAL, Timeout::Error, EOFError
         down!

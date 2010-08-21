@@ -2,23 +2,24 @@ Performance
 ====================
 
 Caching is all about performance, so I carefully track Dalli performance to ensure no regressions.
+Times are from a Unibody MBP 2.4Ghz Core 2 Duo running Snow Leopard.
 
-	Testing 1.8.5 with ruby 1.9.2p0 (2010-08-18 revision 29036) [x86_64-darwin10.4.0]
-	                                     user     system      total        real
-	set:plain:memcache-client        1.600000   0.390000   1.990000 (  2.020491)
-	set:ruby:memcache-client         1.680000   0.390000   2.070000 (  2.108217)
-	get:plain:memcache-client        1.740000   0.250000   1.990000 (  2.018315)
-	get:ruby:memcache-client         1.790000   0.250000   2.040000 (  2.065529)
-	multiget:ruby:memcache-client    0.800000   0.090000   0.890000 (  0.914336)
-	missing:ruby:memcache-client     1.480000   0.250000   1.730000 (  1.761555)
-	mixed:ruby:memcache-client       3.470000   0.640000   4.110000 (  4.195236)
+    Testing 1.8.5 with ruby 1.9.2p0 (2010-08-18 revision 29036) [x86_64-darwin10.4.0]
+                                         user     system      total        real
+    set:plain:memcache-client        2.070000   0.590000   2.660000 (  2.669744)
+    set:ruby:memcache-client         2.150000   0.570000   2.720000 (  2.734616)
+    get:plain:memcache-client        2.240000   0.400000   2.640000 (  2.675747)
+    get:ruby:memcache-client         2.290000   0.380000   2.670000 (  2.682108)
+    multiget:ruby:memcache-client    1.030000   0.140000   1.170000 (  1.174503)
+    missing:ruby:memcache-client     1.900000   0.370000   2.270000 (  2.282264)
+    mixed:ruby:memcache-client       4.430000   0.950000   5.380000 (  5.420251)
 
-	Testing 0.1.0 with ruby 1.9.2p0 (2010-08-18 revision 29036) [x86_64-darwin10.4.0]
-	                                     user     system      total        real
-	set:plain:dalli                  0.430000   0.180000   0.610000 (  1.051395)
-	set:ruby:dalli                   0.490000   0.180000   0.670000 (  1.124848)
-	get:plain:dalli                  0.490000   0.210000   0.700000 (  1.141887)
-	get:ruby:dalli                   0.540000   0.200000   0.740000 (  1.188353)
-	multiget:ruby:dalli              0.510000   0.200000   0.710000 (  0.772860)
-	missing:ruby:dalli               0.450000   0.210000   0.660000 (  1.070748)
-	mixed:ruby:dalli                 1.050000   0.390000   1.440000 (  2.304933)
+    Testing 0.9.0 with ruby 1.9.2p0 (2010-08-18 revision 29036) [x86_64-darwin10.4.0]
+                                         user     system      total        real
+    set:plain:dalli                  1.610000   0.360000   1.970000 (  2.032947)
+    set:ruby:dalli                   1.690000   0.360000   2.050000 (  2.108120)
+    get:plain:dalli                  1.710000   0.400000   2.110000 (  2.123895)
+    get:ruby:dalli                   1.760000   0.390000   2.150000 (  2.170964)
+    multiget:ruby:dalli              0.950000   0.310000   1.260000 (  1.269679)
+    missing:ruby:dalli               1.650000   0.380000   2.030000 (  2.054383)
+    mixed:ruby:dalli                 3.470000   0.750000   4.220000 (  4.323265)

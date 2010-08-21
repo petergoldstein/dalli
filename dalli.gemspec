@@ -13,6 +13,7 @@ Gem::Specification.new do |s|
   s.files = Dir.glob("lib/**/*") + [
      "LICENSE",
      "README.md",
+     "TODO.md",
      "Rakefile",
      "Gemfile",
      "dalli.gemspec",
