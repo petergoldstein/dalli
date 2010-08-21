@@ -15,6 +15,7 @@ Gem::Specification.new do |s|
      "README.md",
      "Rakefile",
      "Gemfile",
+     "dalli.gemspec",
      "Performance.md",
   ]
   s.homepage = %q{http://github.com/mperham/dalli}
