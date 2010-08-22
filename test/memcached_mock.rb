@@ -11,7 +11,6 @@ module MemcachedMock
   def self.delayed_start(port=19123, wait=1, &block)
     server = TCPServer.new("localhost", port)
     sleep wait
-#    session = server.accept
     block.call server
   end
 
@@ -50,8 +49,13 @@ module MemcachedMock
           Memcached.started = true
           (Memcached.pid, _, _, _) = Open4.open4('/usr/local/bin/memcached -p 19122')
           at_exit do
-            Process.kill("TERM", Memcached.pid)
-            Process.wait(Memcached.pid)
+            begin
+              Process.kill("TERM", Memcached.pid)
+              Process.wait(Memcached.pid)
+            rescue Errno::ECHILD
+              # the memcached_mock forks will try to run this at_exit block also
+              # but since they are not the parent process, will get an ECHILD error.
+            end
           end
           sleep 0.1
         rescue Errno::ENOENT
