@@ -10,7 +10,7 @@ class TestBenchmark < Test::Unit::TestCase
     @value = []
     @marshalled = Marshal.dump(@value)
 
-    @servers = ['127.0.0.1:11211', 'localhost:11211']
+    @servers = ['127.0.0.1:19122', 'localhost:19122']
     @key1 = "Short"
     @key2 = "Sym1-2-3::45"*8
     @key3 = "Long"*40
@@ -21,6 +21,8 @@ class TestBenchmark < Test::Unit::TestCase
   end
   
   def test_benchmark
+    return unless memcached
+    
     Benchmark.bm(31) do |x|
 
       n = 2500
