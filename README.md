@@ -5,6 +5,8 @@ Dalli is a high performance pure Ruby client for accessing memcached servers.  I
 
 The name is a variant of Salvador Dali for his famous painting [The Persistence of Memory](http://en.wikipedia.org/wiki/The_Persistence_of_Memory).
 
+![Persistence of Memory](http://www.virtualdali.com/assets/paintings/31PersistenceOfMemory.jpg)
+
 Dalli's development is sponsored by [NorthScale](http://www.northscale.com/).  Many thanks to them!
 
 
