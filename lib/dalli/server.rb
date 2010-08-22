@@ -69,7 +69,7 @@ module Dalli
       write(req)
     end
 
-    def set(key, value, ttl=0)
+    def set(key, value, ttl)
       raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.size > ONE_MB
 
       req = [REQUEST, OPCODES[:set], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:set])
@@ -83,10 +83,10 @@ module Dalli
       generic_response
     end
 
-    def add(key, value, ttl)
+    def add(key, value, ttl, cas)
       raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.size > ONE_MB
 
-      req = [REQUEST, OPCODES[:add], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:add])
+      req = [REQUEST, OPCODES[:add], key.size, 8, 0, 0, value.size + key.size + 8, 0, cas, 0, ttl, key, value].pack(FORMAT[:add])
       write(req)
       generic_response
     end
@@ -151,6 +151,29 @@ module Dalli
       req = [REQUEST, OPCODES[:stat], info.size, 0, 0, 0, info.size, 0, 0, info].pack(FORMAT[:stat])
       write(req)
       keyvalue_response
+    end
+
+    def cas(key)
+      req = [REQUEST, OPCODES[:get], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:get])
+      write(req)
+      cas_response
+    end
+
+    def cas_response
+      header = read(24)
+      raise Dalli::NetworkError, 'No response' if !header
+      (extras, status, count, _, cas) = header.unpack(CAS_HEADER)
+      data = read(count) if count > 0
+      if status == 1
+        nil
+      elsif status != 0
+        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
+      elsif data
+        data = data[extras..-1] if extras != 0
+      else
+        raise Dalli::DalliError, "You're lost, how did you get here?"
+      end
+      [data, cas]
     end
 
     def generic_response
@@ -257,6 +280,7 @@ module Dalli
       end
     end
 
+    CAS_HEADER = '@4vnNNQ'
     NORMAL_HEADER = '@4vnN'
     KV_HEADER = '@2n@6nN'
 

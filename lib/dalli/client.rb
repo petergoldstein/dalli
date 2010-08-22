@@ -46,13 +46,31 @@ module Dalli
         values.inject(values) { |memo, (k,v)| memo[k] = deserialize(v); memo }
       end
     end
-    
+
+    def fetch(key, ttl=0)
+      val = get(key)
+      if val.nil? && block_given?
+        val = yield
+        add(key, val, ttl)
+      end
+      val
+    end
+
+    def cas(key, ttl=0, &block)
+      (value, cas) = perform(:cas, key)
+      value = (!value || value == 'Not found') ? nil : deserialize(value)
+      if value
+        newvalue = block.call(value)
+        perform(:add, key, serialize(newvalue), ttl, cas)
+      end
+    end
+
     def set(key, value, ttl=0)
       perform(:set, key, serialize(value), ttl)
     end
     
     def add(key, value, ttl=0)
-      perform(:add, key, serialize(value), ttl)
+      perform(:add, key, serialize(value), ttl, 0)
     end
 
     def replace(key, value, ttl=0)

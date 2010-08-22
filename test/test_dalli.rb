@@ -23,6 +23,57 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
+    should "support the fetch operation" do
+      memcached do
+        dc = Dalli::Client.new(['localhost:19122', '127.0.0.1:19122'])
+        dc.flush
+
+        expected = { 'blah' => 'blerg!' }
+        executed = false
+        value = dc.fetch('fetch_key') do
+          executed = true
+          expected
+        end
+        assert_equal expected, value
+        assert_equal true, executed
+
+        executed = false
+        value = dc.fetch('fetch_key') do
+          executed = true
+          expected
+        end
+        assert_equal expected, value
+        assert_equal false, executed
+      end
+    end
+
+    should "support the cas operation" do
+      memcached do
+        dc = Dalli::Client.new(['localhost:19122', '127.0.0.1:19122'])
+        dc.flush
+
+        expected = { 'blah' => 'blerg!' }
+
+        resp = dc.cas('cas_key') do |value|
+          fail('Value should not exist')
+        end
+        assert_nil resp
+
+        mutated = { 'blah' => 'foo!' }
+        dc.set('cas_key', expected)
+        resp = dc.cas('cas_key') do |value|
+          assert_equal expected, value
+          mutated
+        end
+        assert_equal true, resp
+        
+        resp = dc.get('cas_key')
+        assert_equal mutated, resp
+        
+        # TODO Need to verify failure when value is mutated between get and add.
+      end
+    end
+
     should "support multi-get" do
       memcached do
         dc = Dalli::Client.new(['localhost:19122', '127.0.0.1:19122'])
