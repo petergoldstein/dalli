@@ -1,5 +1,4 @@
 require "socket"
-require 'open4'
 
 module MemcachedMock
   def self.start(port=19123, &block)
@@ -47,7 +46,7 @@ module MemcachedMock
         begin
           puts "Starting"
           Memcached.started = true
-          (Memcached.pid, _, _, _) = Open4.open4('/usr/local/bin/memcached -p 19122')
+          Memcached.pid = IO.popen('/usr/local/bin/memcached -p 19122').pid
           at_exit do
             begin
               Process.kill("TERM", Memcached.pid)
