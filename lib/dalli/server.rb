@@ -25,8 +25,8 @@ module Dalli
       rescue Dalli::DalliError
         raise
       rescue Exception => ex
-        puts "Unexpected exception: #{ex.class.name}: #{ex.message}"
-        puts ex.backtrace.join("\n")
+        Dalli.logger.error "Unexpected exception in Dalli: #{ex.class.name}: #{ex.message}"
+        Dalli.logger.error ex.backtrace.join("\n\t")
         down!
       end
     end
