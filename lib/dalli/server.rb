@@ -247,7 +247,7 @@ module Dalli
         # end ugly code
 
         sock.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
-        sasl_authentication if need_auth?
+        sasl_authentication(sock) if Dalli::Server.need_auth?
         sock
       end
     end
@@ -338,27 +338,42 @@ module Dalli
     }
     FORMAT = OP_FORMAT.inject({}) { |memo, (k, v)| memo[k] = HEADER + v; memo }
 
-    class Authentication < SASL::Preferences
-      def username
-        ENV['MEMCACHE_USERNAME'].strip
-      end
-      def password
-        ENV['MEMCACHE_PASSWORD'].strip
-      end
-      def has_password?
-        true
-      end
-    end
 
-    def need_auth?
+    #######
+    # SASL authentication support for NorthScale
+    #######
+
+    def self.need_auth?
       !ENV['MEMCACHE_USERNAME'].nil?
     end
+    
+    def init_sasl
+      require 'dalli/sasl/base'
+      require 'dalli/sasl/base64'
+      require 'dalli/sasl/digest_md5'
+    end
 
-    def sasl_authentication
-      require 'sasl'
-      sasl = SASL.new(['DIGEST-MD5'], Dalli::Server::Authentication.new)
-      connection.write(sasl.start)
-      connection.write(sasl.challenge(connection.read))
+    def username
+      ENV['MEMCACHE_USERNAME'].strip
+    end
+
+    def password
+      ENV['MEMCACHE_PASSWORD'].strip
+    end
+
+    def sasl_authentication(socket)
+      init_sasl if !defined?(::SASL)
+      sasl = ::SASL.new
+      s = sasl.start
+      p s
+      socket.write(s.join(''))
+      r = socket.read
+      p r
+      s = sasl.challenge(r)
+      p s
+      socket.write(s.join(''))
+      r = socket.read
+      p r
     end
   end
 end
