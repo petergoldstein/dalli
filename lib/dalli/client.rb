@@ -19,9 +19,9 @@ module Dalli
     #        get('abc') ==> '123'  (Note you set an Integer but got back a String)
     #      Default: true.
     #
-    def initialize(servers, options={})
+    def initialize(servers=nil, options={})
       @ring = Dalli::Ring.new(
-        Array(servers).map do |s| 
+        Array(servers || env_servers).map do |s| 
           Dalli::Server.new(s)
         end, options
       )
@@ -145,6 +145,10 @@ module Dalli
     
     def deserialize(value)
       value
+    end
+
+    def env_servers
+      ENV['MEMCACHE_SERVERS'].split(',')
     end
 
     # Chokepoint method for instrumentation

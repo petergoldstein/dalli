@@ -183,10 +183,12 @@ module Dalli
       data = read(count) if count > 0
       if status == 1
         nil
-      elsif status != 0
-        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
+      elsif status == 2
+        false # Not stored, normal status for add operation
       elsif data
         extras != 0 ? data[extras..-1] : data
+      elsif status != 0
+        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
       else
         true
       end
@@ -245,6 +247,7 @@ module Dalli
         # end ugly code
 
         sock.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
+        sasl_authentication if need_auth?
         sock
       end
     end
@@ -334,6 +337,28 @@ module Dalli
       :prepend => 'a*a*',
     }
     FORMAT = OP_FORMAT.inject({}) { |memo, (k, v)| memo[k] = HEADER + v; memo }
-    
+
+    class Authentication < SASL::Preferences
+      def username
+        ENV['MEMCACHE_USERNAME'].strip
+      end
+      def password
+        ENV['MEMCACHE_PASSWORD'].strip
+      end
+      def has_password?
+        true
+      end
+    end
+
+    def need_auth?
+      !ENV['MEMCACHE_USERNAME'].nil?
+    end
+
+    def sasl_authentication
+      require 'sasl'
+      sasl = SASL.new(['DIGEST-MD5'], Dalli::Server::Authentication.new)
+      connection.write(sasl.start)
+      connection.write(sasl.challenge(connection.read))
+    end
   end
 end

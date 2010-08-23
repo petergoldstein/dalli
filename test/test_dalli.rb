@@ -180,6 +180,49 @@ class TestDalli < Test::Unit::TestCase
         assert_equal Hash, resp.class
       end
     end
+    
+    should "support multithreaded access" do
+      memcached do
+
+        # Use a null logger to verify logging doesn't blow up at runtime
+        cache = Dalli::Client.new(['localhost:11211', '127.0.0.1:11211'])
+        cache.flush
+        workers = []
+
+        cache.set('f', 'zzz')
+        assert_equal true, (cache.cas('f') do |value|
+          value << 'z'
+        end)
+        assert_equal 'zzzz', cache.get('f')
+
+        # Have a bunch of threads perform a bunch of operations at the same time.
+        # Verify the result of each operation to ensure the request and response
+        # are not intermingled between threads.
+        10.times do
+          workers << Thread.new do
+            100.times do
+              cache.set('a', 9)
+              cache.set('b', 11)
+              cache.incr('cat', 10, 0, 10)
+              cache.set('f', 'zzz')
+              assert_not_nil(cache.cas('f') do |value|
+                value << 'z'
+              end)
+              assert_equal false, cache.add('a', 11)
+              assert_equal({ 'a' => 9, 'b' => 11 }, cache.get_multi(['a', 'b']))
+              inc = cache.incr('cat', 10)
+              p inc
+              assert_equal 0, inc % 5
+              dec = cache.decr('cat', 5)
+              assert_equal 11, cache.get('b')
+            end
+          end
+        end
+
+        workers.each { |w| w.join }
+        cache.flush
+      end
+    end
 
   end
 end
