@@ -38,14 +38,14 @@ module SASL
           response['nonce'] = @nonce
           response['charset'] = 'utf-8'
           response['username'] = preferences.username
-          response['realm'] = c['realm']
+          response['realm'] = c['realm'] || preferences.realm
           @cnonce = generate_nonce unless defined? @cnonce
           response['cnonce'] = @cnonce
           @nc = next_nc
           response['nc'] = @nc
           @qop = c['qop'] || 'auth'
           response['qop'] = @qop
-          response['digest-uri'] = "memcached/#{self.hostname}"
+          response['digest-uri'] = preferences.digest_uri #"memcached/#{self.hostname}"
           response['response'] = response_value(response['nonce'], response['nc'], response['cnonce'], response['qop'])
           ['response', encode_response(response)]
         else
