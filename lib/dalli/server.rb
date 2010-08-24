@@ -298,6 +298,7 @@ module Dalli
       4 => 'Invalid arguments',
       5 => 'Item not stored',
       6 => 'Incr/decr on a non-numeric value',
+      0x20 => 'Authentication required',
       0x81 => 'Unknown command',
       0x82 => 'Out of memory',
     }
@@ -317,6 +318,9 @@ module Dalli
       :append => 0x0E,
       :prepend => 0x0F,
       :stat => 0x10,
+      :auth_negotiation => 0x20,
+      :auth_request => 0x21,
+      :auth_continue => 0x22,
     }
     
     HEADER = "CCnCCnNNQ"
@@ -335,6 +339,8 @@ module Dalli
       :stat => 'a*',
       :append => 'a*a*',
       :prepend => 'a*a*',
+      :auth_request => 'a*a*',
+      :auth_continue => 'a*a*',
     }
     FORMAT = OP_FORMAT.inject({}) { |memo, (k, v)| memo[k] = HEADER + v; memo }
 
@@ -363,17 +369,35 @@ module Dalli
 
     def sasl_authentication(socket)
       init_sasl if !defined?(::SASL)
+      
+      # negotiate
+      req = [REQUEST, OPCODES[:auth_negotiation], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
+      socket.write(req)
+      header = read(24)
+      raise Dalli::NetworkError, 'No response' if !header
+      (extras, status, count) = header.unpack(NORMAL_HEADER)
+      raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
+      return Dalli.logger.info("Authentication not required/supported by server") if status == 0x81
+      mechanisms = read(count).split(' ')
+      p mechanisms
+
+      # request
       sasl = ::SASL.new
-      s = sasl.start
-      p s
-      socket.write(s.join(''))
-      r = socket.read
-      p r
-      s = sasl.challenge(r)
-      p s
-      socket.write(s.join(''))
-      r = socket.read
-      p r
+      sasl.start
+      mechanism = 'DIGEST-MD5'
+      req = [REQUEST, OPCODES[:auth_request], mechanism.size, 0, 0, 0, mechanism.size + username.size, 0, 0, mechanism, username].pack(FORMAT[:auth_request])
+      socket.write(req)
+
+      header = read(24)
+      raise Dalli::NetworkError, 'No response' if !header
+      (extras, status, count) = header.unpack(NORMAL_HEADER)
+      raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
+      raise Dalli::NetworkError, "Error authenticating: #{status}" unless status == 0x21
+      content = read(count)
+      (step, msg) = sasl.receive('challenge', content)
+      raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
+
+      
     end
   end
 end

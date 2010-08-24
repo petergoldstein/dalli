@@ -1,4 +1,8 @@
 require 'rubygems'
+
+# require 'simplecov-html'
+# SimpleCov.start
+
 require 'test/unit'
 require 'shoulda'
 require 'memcached_mock'
