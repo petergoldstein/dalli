@@ -32,6 +32,8 @@ So a few notes.  Dalli:
 Installation and Usage
 ------------------------
 
+Remember, Dalli **requires** memcached 1.4+.  You can check the version with `memcached -h`.
+
     gem install dalli
 
     require 'dalli'
