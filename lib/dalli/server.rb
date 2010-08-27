@@ -369,6 +369,7 @@ module Dalli
       require 'dalli/sasl/base'
       require 'dalli/sasl/base64'
       require 'dalli/sasl/digest_md5'
+      require 'dalli/sasl/plain'
     end
 
     def username
@@ -385,22 +386,23 @@ module Dalli
       # negotiate
       req = [REQUEST, OPCODES[:auth_negotiation], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
       socket.write(req)
-      header = read(24)
+      header = socket.read(24)
       raise Dalli::NetworkError, 'No response' if !header
       (extras, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
       return Dalli.logger.info("Authentication not required/supported by server") if status == 0x81
-      mechanisms = read(count).split(' ')
+      mechanisms = socket.read(count).split(' ')
       p mechanisms
 
       # request
-      sasl = ::SASL.new
-      sasl.start
-      mechanism = 'DIGEST-MD5'
-      req = [REQUEST, OPCODES[:auth_request], mechanism.size, 0, 0, 0, mechanism.size + username.size, 0, 0, mechanism, username].pack(FORMAT[:auth_request])
+      sasl = ::SASL.new(mechanisms)
+      msg = sasl.start[1]
+      mechanism = sasl.name
+      p [mechanism, msg]
+      req = [REQUEST, OPCODES[:auth_request], mechanism.size, 0, 0, 0, mechanism.size + msg.size, 0, 0, mechanism, msg].pack(FORMAT[:auth_request])
       socket.write(req)
 
-      header = read(24)
+      header = socket.read(24)
       raise Dalli::NetworkError, 'No response' if !header
       (extras, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0

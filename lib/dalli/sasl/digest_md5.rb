@@ -167,5 +167,8 @@ module SASL
       s
     end
   end
+  
+  MECHANISMS['DIGEST-MD5'] = SASL::DigestMD5
+  
 end
 

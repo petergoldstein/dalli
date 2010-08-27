@@ -230,18 +230,18 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
-    # context 'in an authenticated environment' do
-    #   setup do
-    #     Dalli::Server.any_instance.stubs(:username).returns('mike')
-    #     Dalli::Server.any_instance.stubs(:password).returns('password')
-    #     Dalli::Server.stubs(:need_auth?).returns(true)
-    #   end
-    # 
-    #   should 'support SASL authentication' do
-    #     dc = Dalli::Client.new('localhost:11211')
-    #     p dc.stats
-    #   end
-    # end
+    context 'in an authenticated environment' do
+      setup do
+        Dalli::Server.any_instance.stubs(:username).returns('mike')
+        Dalli::Server.any_instance.stubs(:password).returns('password')
+        Dalli::Server.stubs(:need_auth?).returns(true)
+      end
+    
+      should 'support SASL authentication' do
+        dc = Dalli::Client.new('localhost:11210')
+        p dc.stats
+      end
+    end
 
   end
 end
