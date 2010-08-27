@@ -103,17 +103,24 @@ class TestDalli < Test::Unit::TestCase
         resp = dc.incr('counter', 10)
         assert_equal 10, resp
 
+        current = 10
+        100.times do |x|
+          resp = dc.incr('counter', 10)
+          assert_equal current + ((x+1)*10), resp
+        end
+
+        resp = dc.decr('10billion', 0, 5, 10)
         # go over the 32-bit mark to verify proper (un)packing
-        resp = dc.incr('counter', 10_000_000_000)
+        resp = dc.incr('10billion', 10_000_000_000)
         assert_equal 10_000_000_010, resp
 
-        resp = dc.decr('counter', 1)
+        resp = dc.decr('10billion', 1)
         assert_equal 10_000_000_009, resp
 
-        resp = dc.decr('counter', 0)
+        resp = dc.decr('10billion', 0)
         assert_equal 10_000_000_009, resp
 
-        resp = dc.incr('counter', 0)
+        resp = dc.incr('10billion', 0)
         assert_equal 10_000_000_009, resp
 
         assert_nil dc.incr('DNE', 10)
@@ -203,7 +210,7 @@ class TestDalli < Test::Unit::TestCase
             100.times do
               cache.set('a', 9)
               cache.set('b', 11)
-              cache.incr('cat', 10, 0, 10)
+              inc = cache.incr('cat', 10, 0, 10)
               cache.set('f', 'zzz')
               assert_not_nil(cache.cas('f') do |value|
                 value << 'z'
@@ -211,7 +218,6 @@ class TestDalli < Test::Unit::TestCase
               assert_equal false, cache.add('a', 11)
               assert_equal({ 'a' => 9, 'b' => 11 }, cache.get_multi(['a', 'b']))
               inc = cache.incr('cat', 10)
-              p inc
               assert_equal 0, inc % 5
               dec = cache.decr('cat', 5)
               assert_equal 11, cache.get('b')
@@ -224,18 +230,18 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
-    context 'in an authenticated environment' do
-      setup do
-        Dalli::Server.any_instance.stubs(:username).returns('mike')
-        Dalli::Server.any_instance.stubs(:password).returns('password')
-        Dalli::Server.stubs(:need_auth?).returns(true)
-      end
-
-      should 'support SASL authentication' do
-        dc = Dalli::Client.new('localhost:11211')
-        p dc.stats
-      end
-    end
+    # context 'in an authenticated environment' do
+    #   setup do
+    #     Dalli::Server.any_instance.stubs(:username).returns('mike')
+    #     Dalli::Server.any_instance.stubs(:password).returns('password')
+    #     Dalli::Server.stubs(:need_auth?).returns(true)
+    #   end
+    # 
+    #   should 'support SASL authentication' do
+    #     dc = Dalli::Client.new('localhost:11211')
+    #     p dc.stats
+    #   end
+    # end
 
   end
 end

@@ -106,21 +106,25 @@ module Dalli
     def decr(key, count, ttl, default)
       expiry = default ? ttl : 0xFFFFFFFF
       default ||= 0
-      req = [REQUEST, OPCODES[:decr], key.size, 20, 0, 0, key.size + 20, 0, 0, count, default, expiry, key].pack(FORMAT[:decr])
+      (h, l) = split(count)
+      (dh, dl) = split(default)
+      req = [REQUEST, OPCODES[:decr], key.size, 20, 0, 0, key.size + 20, 0, 0, h, l, dh, dl, expiry, key].pack(FORMAT[:decr])
       write(req)
       body = generic_response
-      body ? body.unpack('Q')[0] : body
+      body ? longlong(*body.unpack('NN')) : body
     end
     
     def incr(key, count, ttl, default)
       expiry = default ? ttl : 0xFFFFFFFF
       default ||= 0
-      req = [REQUEST, OPCODES[:incr], key.size, 20, 0, 0, key.size + 20, 0, 0, count, default, expiry, key].pack(FORMAT[:incr])
+      (h, l) = split(count)
+      (dh, dl) = split(default)
+      req = [REQUEST, OPCODES[:incr], key.size, 20, 0, 0, key.size + 20, 0, 0, h, l, dh, dl, expiry, key].pack(FORMAT[:incr])
       write(req)
       body = generic_response
-      body ? body.unpack('Q')[0] : body
+      body ? longlong(*body.unpack('NN')) : body
     end
-
+    
     # Noop is a keepalive operation but also used to demarcate the end of a set of pipelined commands.
     # We need to read all the responses at once.
     def noop
@@ -283,6 +287,14 @@ module Dalli
       end
     end
 
+    def split(n)
+      [0xFFFFFFFF & n, n >> 32]
+    end
+
+    def longlong(a, b)
+      a | (b << 32)
+    end
+
     CAS_HEADER = '@4vnNNQ'
     NORMAL_HEADER = '@4vnN'
     KV_HEADER = '@2n@6nN'
@@ -330,8 +342,8 @@ module Dalli
       :add => 'NNa*a*',
       :replace => 'NNa*a*',
       :delete => 'a*',
-      :incr => 'QQNa*',
-      :decr => 'QQNa*',
+      :incr => 'NNNNNa*',
+      :decr => 'NNNNNa*',
       :flush => 'N',
       :noop => '',
       :getkq => 'a*',

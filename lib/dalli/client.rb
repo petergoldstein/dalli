@@ -103,7 +103,7 @@ module Dalli
     # Amt must be a positive value.
     # 
     # memcached counters are unsigned and cannot hold negative values.  Calling
-    # incr on a counter which is 0 will just return 0.
+    # decr on a counter which is 0 will just return 0.
     #
     # If default is nil, the counter must already exist or the operation
     # will fail and will return nil.  Otherwise this method will return
