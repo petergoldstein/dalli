@@ -21,99 +21,100 @@ class TestBenchmark < Test::Unit::TestCase
   end
   
   def test_benchmark
-    return unless memcached
+    memcached do
     
-    Benchmark.bm(31) do |x|
+      Benchmark.bm(31) do |x|
 
-      n = 2500
+        n = 2500
 
-      @m = Dalli::Client.new(@servers, :marshal => false)
-      x.report("set:plain:dalli") do
-        n.times do
-          @m.set @key1, @marshalled
-          @m.set @key2, @marshalled
-          @m.set @key3, @marshalled
-          @m.set @key1, @marshalled
-          @m.set @key2, @marshalled
-          @m.set @key3, @marshalled
+        @m = Dalli::Client.new(@servers, :marshal => false)
+        x.report("set:plain:dalli") do
+          n.times do
+            @m.set @key1, @marshalled
+            @m.set @key2, @marshalled
+            @m.set @key3, @marshalled
+            @m.set @key1, @marshalled
+            @m.set @key2, @marshalled
+            @m.set @key3, @marshalled
+          end
         end
-      end
 
-      @m = Dalli::Client.new(@servers)
-      x.report("set:ruby:dalli") do
-        n.times do
-          @m.set @key1, @value
-          @m.set @key2, @value
-          @m.set @key3, @value
-          @m.set @key1, @value
-          @m.set @key2, @value
-          @m.set @key3, @value
+        @m = Dalli::Client.new(@servers)
+        x.report("set:ruby:dalli") do
+          n.times do
+            @m.set @key1, @value
+            @m.set @key2, @value
+            @m.set @key3, @value
+            @m.set @key1, @value
+            @m.set @key2, @value
+            @m.set @key3, @value
+          end
         end
-      end
 
-      @m = Dalli::Client.new(@servers, :marshal => false)
-      x.report("get:plain:dalli") do
-        n.times do
-          @m.get @key1
-          @m.get @key2
-          @m.get @key3
-          @m.get @key1
-          @m.get @key2
-          @m.get @key3
+        @m = Dalli::Client.new(@servers, :marshal => false)
+        x.report("get:plain:dalli") do
+          n.times do
+            @m.get @key1
+            @m.get @key2
+            @m.get @key3
+            @m.get @key1
+            @m.get @key2
+            @m.get @key3
+          end
         end
-      end
 
-      @m = Dalli::Client.new(@servers)
-      x.report("get:ruby:dalli") do
-        n.times do
-          @m.get @key1
-          @m.get @key2
-          @m.get @key3
-          @m.get @key1
-          @m.get @key2
-          @m.get @key3
+        @m = Dalli::Client.new(@servers)
+        x.report("get:ruby:dalli") do
+          n.times do
+            @m.get @key1
+            @m.get @key2
+            @m.get @key3
+            @m.get @key1
+            @m.get @key2
+            @m.get @key3
+          end
         end
-      end
 
-      @m = Dalli::Client.new(@servers)
-      x.report("multiget:ruby:dalli") do
-        n.times do
-          # We don't use the keys array because splat is slow
-          @m.get_multi @key1, @key2, @key3, @key4, @key5, @key6
+        @m = Dalli::Client.new(@servers)
+        x.report("multiget:ruby:dalli") do
+          n.times do
+            # We don't use the keys array because splat is slow
+            @m.get_multi @key1, @key2, @key3, @key4, @key5, @key6
+          end
         end
-      end
 
-      @m = Dalli::Client.new(@servers)
-      x.report("missing:ruby:dalli") do
-        n.times do
-          begin @m.delete @key1; rescue; end
-          begin @m.get @key1; rescue; end
-          begin @m.delete @key2; rescue; end
-          begin @m.get @key2; rescue; end
-          begin @m.delete @key3; rescue; end
-          begin @m.get @key3; rescue; end
+        @m = Dalli::Client.new(@servers)
+        x.report("missing:ruby:dalli") do
+          n.times do
+            begin @m.delete @key1; rescue; end
+            begin @m.get @key1; rescue; end
+            begin @m.delete @key2; rescue; end
+            begin @m.get @key2; rescue; end
+            begin @m.delete @key3; rescue; end
+            begin @m.get @key3; rescue; end
+          end
         end
-      end
 
-      @m = Dalli::Client.new(@servers)
-      x.report("mixed:ruby:dalli") do
-        n.times do
-          @m.set @key1, @value
-          @m.set @key2, @value
-          @m.set @key3, @value
-          @m.get @key1
-          @m.get @key2
-          @m.get @key3
-          @m.set @key1, @value
-          @m.get @key1
-          @m.set @key2, @value
-          @m.get @key2
-          @m.set @key3, @value
-          @m.get @key3
+        @m = Dalli::Client.new(@servers)
+        x.report("mixed:ruby:dalli") do
+          n.times do
+            @m.set @key1, @value
+            @m.set @key2, @value
+            @m.set @key3, @value
+            @m.get @key1
+            @m.get @key2
+            @m.get @key3
+            @m.set @key1, @value
+            @m.get @key1
+            @m.set @key2, @value
+            @m.get @key2
+            @m.set @key3, @value
+            @m.get @key3
+          end
         end
-      end
 
-      assert true
+        assert true
+      end
     end
 
   end

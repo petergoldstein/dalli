@@ -17,7 +17,7 @@ module SASL
     end
 
     def username
-      ENV['MEMCACHE_USERNAME'] || 'mperham'
+      ENV['MEMCACHE_USERNAME']
     end
 
     def has_password?
@@ -29,7 +29,7 @@ module SASL
     end
 
     def password
-      ENV['MEMCACHE_PASSWORD'] || 'password'
+      ENV['MEMCACHE_PASSWORD']
     end
 
     def want_anonymous?

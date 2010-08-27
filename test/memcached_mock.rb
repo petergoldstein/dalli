@@ -63,39 +63,29 @@ module MemcachedMock
       nil
     end
 
-    def memcached
-      if !Memcached.started
+    def memcached(port=19122, args='')
+      Memcached.path ||= find_memcached
+      cmd = "#{Memcached.path}memcached #{args} -p #{port}"
+#      puts "Starting: #{cmd}..."
+      pid = IO.popen(cmd).pid
+      begin
+        sleep 0.1
+        yield
+      ensure
         begin
-          Memcached.path ||= find_memcached
-          Memcached.started = true
-          Memcached.pid = IO.popen("#{Memcached.path}memcached -p 19122").pid
-          at_exit do
-            begin
-              Process.kill("TERM", Memcached.pid)
-              Process.wait(Memcached.pid)
-            rescue Errno::ECHILD
-              # the memcached_mock forks will try to run this at_exit block also
-              # but since they are not the parent process, will get an ECHILD error.
-            end
-          end
-          sleep 0.1
-        rescue Errno::ENOENT
-          puts "Skipping live test as I couldn't start memcached on port 19122.\nInstall memcached 1.4 and ensure it is in the PATH."
+          Process.kill("TERM", pid)
+          Process.wait(pid)
+        rescue Errno::ECHILD
+          # the memcached_mock forks will try to run this at_exit block also
+          # but since they are not the parent process, will get an ECHILD error.
         end
       end
-
-      if Memcached.started && Memcached.pid && block_given?
-        yield
-      end
-      Memcached.started
     end
   end
 end
 
 module Memcached
   class << self
-    attr_accessor :started
-    attr_accessor :pid
     attr_accessor :path
   end
 end

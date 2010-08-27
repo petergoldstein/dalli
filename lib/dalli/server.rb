@@ -390,9 +390,8 @@ module Dalli
       raise Dalli::NetworkError, 'No response' if !header
       (extras, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
-      return Dalli.logger.info("Authentication not required/supported by server") if status == 0x81
+      return (socket.read(count); Dalli.logger.debug("Authentication not required/supported by server")) if status == 0x81
       mechanisms = socket.read(count).split(' ')
-      p mechanisms
 
       # request
       sasl = ::SASL.new(mechanisms)
@@ -407,7 +406,7 @@ module Dalli
       (extras, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
       raise Dalli::NetworkError, "Error authenticating: #{status}" unless status == 0x21
-      content = read(count)
+      content = socket.read(count)
       (step, msg) = sasl.receive('challenge', content)
       raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
 

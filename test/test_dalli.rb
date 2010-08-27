@@ -189,7 +189,7 @@ class TestDalli < Test::Unit::TestCase
     end
     
     should "support multithreaded access" do
-      memcached do
+      memcached(11211) do
 
         # Use a null logger to verify logging doesn't blow up at runtime
         cache = Dalli::Client.new(['localhost:11211', '127.0.0.1:11211'])
@@ -232,14 +232,20 @@ class TestDalli < Test::Unit::TestCase
 
     context 'in an authenticated environment' do
       setup do
-        Dalli::Server.any_instance.stubs(:username).returns('mike')
-        Dalli::Server.any_instance.stubs(:password).returns('password')
-        Dalli::Server.stubs(:need_auth?).returns(true)
+        ENV['MEMCACHE_USERNAME'] = 'mperham'
+        ENV['MEMCACHE_PASSWORD'] = 'password'
       end
-    
+
+      teardown do
+        ENV['MEMCACHE_USERNAME'] = nil
+        ENV['MEMCACHE_PASSWORD'] = nil
+      end
+
       should 'support SASL authentication' do
-        dc = Dalli::Client.new('localhost:11210')
-        p dc.stats
+        memcached(19121, '-S') do
+          dc = Dalli::Client.new('localhost:19121')
+          assert_equal({"localhost:19121"=>{}}, dc.stats)
+        end
       end
     end
 
