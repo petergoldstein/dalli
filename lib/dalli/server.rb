@@ -362,7 +362,7 @@ module Dalli
     #######
 
     def self.need_auth?
-      !ENV['MEMCACHE_USERNAME'].nil?
+      ENV['MEMCACHE_USERNAME']
     end
     
     def init_sasl
@@ -373,11 +373,11 @@ module Dalli
     end
 
     def username
-      ENV['MEMCACHE_USERNAME'].strip
+      ENV['MEMCACHE_USERNAME']
     end
 
     def password
-      ENV['MEMCACHE_PASSWORD'].strip
+      ENV['MEMCACHE_PASSWORD']
     end
 
     def sasl_authentication(socket)

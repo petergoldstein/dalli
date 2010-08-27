@@ -41,12 +41,34 @@ module MemcachedMock
       end
     end
 
+    PATHS = %w(
+      /usr/local/bin/
+      /opt/local/bin/
+      /usr/bin/
+    )
+
+    def find_memcached
+      output = `memcached -h`
+      if output && output =~ /^memcached (\d.\d.\d+)/ && $1 > '1.4'
+        return (puts "Found #{$1} in PATH"; '')
+      end
+      PATHS.each do |path|
+        output = `memcached -h`
+        if output && output =~ /^memcached (\d\.\d\.\d+)/ && $1 > '1.4'
+          return (puts "Found #{$1} in #{path}"; path)
+        end
+      end
+
+      raise Errno::ENOENT, "Unable to find memcached 1.4+ locally"
+      nil
+    end
+
     def memcached
       if !Memcached.started
         begin
-          puts "Starting"
+          Memcached.path ||= find_memcached
           Memcached.started = true
-          Memcached.pid = IO.popen('/usr/local/bin/memcached -p 19122').pid
+          Memcached.pid = IO.popen("#{Memcached.path}memcached -p 19122").pid
           at_exit do
             begin
               Process.kill("TERM", Memcached.pid)
@@ -74,5 +96,6 @@ module Memcached
   class << self
     attr_accessor :started
     attr_accessor :pid
+    attr_accessor :path
   end
 end
