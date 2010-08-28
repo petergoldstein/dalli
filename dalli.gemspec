@@ -7,12 +7,13 @@ Gem::Specification.new do |s|
   s.version = Dalli::VERSION
 
   s.authors = ["Mike Perham"]
-  s.date = %q{2010-08-19}
+  s.date = %q{2010-08-28}
   s.description = %q{High performance memcached client for Ruby}
   s.email = %q{mperham@gmail.com}
   s.files = Dir.glob("lib/**/*") + [
      "LICENSE",
      "README.md",
+     "History.md",
      "TODO.md",
      "Rakefile",
      "Gemfile",
@@ -26,7 +27,7 @@ Gem::Specification.new do |s|
   s.test_files = Dir.glob("test/**/*")
   s.add_development_dependency(%q<shoulda>, [">= 0"])
   s.add_development_dependency(%q<mocha>, [">= 0"])
-  s.add_development_dependency(%q<rails>, [">= 3.0.0.rc"])
+  s.add_development_dependency(%q<rails>, [">= 3.0.0.rc2"])
   s.add_development_dependency(%q<memcache-client>, [">= 1.8.5"])
 end
 
