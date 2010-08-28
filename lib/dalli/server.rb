@@ -174,8 +174,6 @@ module Dalli
         raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
       elsif data
         data = data[extras..-1] if extras != 0
-      else
-        raise Dalli::DalliError, "You're lost, how did you get here?"
       end
       [data, cas]
     end
@@ -189,10 +187,10 @@ module Dalli
         nil
       elsif status == 2
         false # Not stored, normal status for add operation
-      elsif data
-        extras != 0 ? data[extras..-1] : data
       elsif status != 0
         raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
+      elsif data
+        extras != 0 ? data[extras..-1] : data
       else
         true
       end
@@ -390,14 +388,15 @@ module Dalli
       raise Dalli::NetworkError, 'No response' if !header
       (extras, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
-      return (socket.read(count); Dalli.logger.debug("Authentication not required/supported by server")) if status == 0x81
-      mechanisms = socket.read(count).split(' ')
+      content = socket.read(count)
+      return (Dalli.logger.debug("Authentication not required/supported by server")) if status == 0x81
+      mechanisms = content.split(' ')
 
       # request
       sasl = ::SASL.new(mechanisms)
       msg = sasl.start[1]
       mechanism = sasl.name
-      p [mechanism, msg]
+      #p [mechanism, msg]
       req = [REQUEST, OPCODES[:auth_request], mechanism.size, 0, 0, 0, mechanism.size + msg.size, 0, 0, mechanism, msg].pack(FORMAT[:auth_request])
       socket.write(req)
 
@@ -405,8 +404,8 @@ module Dalli
       raise Dalli::NetworkError, 'No response' if !header
       (extras, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
-      raise Dalli::NetworkError, "Error authenticating: #{status}" unless status == 0x21
       content = socket.read(count)
+      raise Dalli::NetworkError, "Error authenticating: #{status}" unless status == 0x21
       (step, msg) = sasl.receive('challenge', content)
       raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
 

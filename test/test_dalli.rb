@@ -5,8 +5,7 @@ class TestDalli < Test::Unit::TestCase
   context 'using a live server' do
 
     should "support huge get/set" do
-      memcached do
-        dc = Dalli::Client.new('localhost:19122')
+      memcached do |dc|
         dc.flush
 
         val1 = "1234567890"*105000
@@ -24,8 +23,7 @@ class TestDalli < Test::Unit::TestCase
     end
 
     should "support the fetch operation" do
-      memcached do
-        dc = Dalli::Client.new(['localhost:19122', '127.0.0.1:19122'])
+      memcached do |dc|
         dc.flush
 
         expected = { 'blah' => 'blerg!' }
@@ -48,8 +46,7 @@ class TestDalli < Test::Unit::TestCase
     end
 
     should "support the cas operation" do
-      memcached do
-        dc = Dalli::Client.new(['localhost:19122', '127.0.0.1:19122'])
+      memcached do |dc|
         dc.flush
 
         expected = { 'blah' => 'blerg!' }
@@ -75,8 +72,7 @@ class TestDalli < Test::Unit::TestCase
     end
 
     should "support multi-get" do
-      memcached do
-        dc = Dalli::Client.new(['localhost:19122', '127.0.0.1:19122'])
+      memcached do |dc|
         dc.flush
         resp = dc.get_multi(%w(a b c d e f))
         assert_equal({}, resp)
@@ -90,8 +86,7 @@ class TestDalli < Test::Unit::TestCase
     end
 
     should "support incr/decr operations" do
-      memcached do
-        dc = Dalli::Client.new(['localhost:19122', '127.0.0.1:19122'])
+      memcached do |dc|
         dc.flush
 
         resp = dc.decr('counter', 100, 5, 0)
@@ -138,11 +133,10 @@ class TestDalli < Test::Unit::TestCase
     end
 
     should "pass a simple smoke test" do
-      memcached do      
-        dc = Dalli::Client.new('localhost:19122')
+      memcached do |dc|
         resp = dc.flush
         assert_not_nil resp
-        assert_equal [true], resp
+        assert_equal [true, true], resp
 
         resp = dc.get('123')
         assert_equal nil, resp
@@ -189,10 +183,7 @@ class TestDalli < Test::Unit::TestCase
     end
     
     should "support multithreaded access" do
-      memcached(11211) do
-
-        # Use a null logger to verify logging doesn't blow up at runtime
-        cache = Dalli::Client.new(['localhost:11211', '127.0.0.1:11211'])
+      memcached(11211) do |cache|
         cache.flush
         workers = []
 
@@ -230,10 +221,23 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
+    should 'gracefully handle authentication failures' do
+      memcached(19122, '-S') do |dc|
+        assert_raise Dalli::DalliError, /32/ do
+          dc.set('abc', 123)
+        end
+      end
+    end
+
+    # OSX: Create a SASL user for the memcached application like so:
+    #
+    # saslpasswd2 -a memcached -c testuser
+    #
+    # with password 'testtest'
     context 'in an authenticated environment' do
       setup do
-        ENV['MEMCACHE_USERNAME'] = 'mperham'
-        ENV['MEMCACHE_PASSWORD'] = 'password'
+        ENV['MEMCACHE_USERNAME'] = 'testuser'
+        ENV['MEMCACHE_PASSWORD'] = 'testtest'
       end
 
       teardown do
@@ -242,8 +246,9 @@ class TestDalli < Test::Unit::TestCase
       end
 
       should 'support SASL authentication' do
-        memcached(19121, '-S') do
-          dc = Dalli::Client.new('localhost:19121')
+        memcached(19121, '-S') do |dc|
+          assert_equal true, dc.set('abc', 123)
+          assert_equal 123, dc.get('abc')
           assert_equal({"localhost:19121"=>{}}, dc.stats)
         end
       end

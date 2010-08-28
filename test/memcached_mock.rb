@@ -48,14 +48,14 @@ module MemcachedMock
     )
 
     def find_memcached
-      output = `memcached -h`
+      output = `memcached -h | head -1`.strip
       if output && output =~ /^memcached (\d.\d.\d+)/ && $1 > '1.4'
-        return (puts "Found #{$1} in PATH"; '')
+        return (puts "Found #{output} in PATH"; '')
       end
       PATHS.each do |path|
-        output = `memcached -h`
+        output = `memcached -h | head -1`.strip
         if output && output =~ /^memcached (\d\.\d\.\d+)/ && $1 > '1.4'
-          return (puts "Found #{$1} in #{path}"; path)
+          return (puts "Found #{output} in #{path}"; path)
         end
       end
 
@@ -69,8 +69,8 @@ module MemcachedMock
 #      puts "Starting: #{cmd}..."
       pid = IO.popen(cmd).pid
       begin
-        sleep 0.1
-        yield
+        sleep 0.3
+        yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"])
       ensure
         begin
           Process.kill("TERM", pid)
