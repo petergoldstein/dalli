@@ -41,6 +41,8 @@ Remember, Dalli **requires** memcached 1.4+.  You can check the version with `me
     dc.set('abc', 123)
     value = dc.get('abc')
 
+The test suite requires memcached 1.4.3+ with SASL enabled (./configure --enable-sasl).  Currently only supports the PLAIN mechanism.
+
 
 Usage with Rails
 ---------------------------

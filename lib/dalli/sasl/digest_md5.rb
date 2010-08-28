@@ -168,7 +168,8 @@ module SASL
     end
   end
   
-  MECHANISMS['DIGEST-MD5'] = SASL::DigestMD5
+  # TODO: need to test
+  #MECHANISMS['DIGEST-MD5'] = SASL::DigestMD5
   
 end
 
