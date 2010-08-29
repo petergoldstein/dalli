@@ -148,7 +148,7 @@ module Dalli
     end
 
     def env_servers
-      ENV['MEMCACHE_SERVERS'].split(',')
+      ENV['MEMCACHE_SERVERS'] ? ENV['MEMCACHE_SERVERS'].split(',') : nil
     end
 
     # Chokepoint method for instrumentation
