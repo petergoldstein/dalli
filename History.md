@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+0.9.2
+----
+
+ - Verify proper operation in Heroku.
+
 0.9.1
 ----
 
