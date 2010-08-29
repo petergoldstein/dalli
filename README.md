@@ -27,6 +27,7 @@ So a few notes.  Dalli:
  2. contains explicit "chokepoint" methods which handle all requests; these can be hooked into by monitoring tools (NewRelic, Rack::Bug, etc) to track memcached usage.
  3. comes with hooks to replace memcache-client in Rails.
  4. is approx 700 lines of Ruby.  memcache-client is approx 1250 lines.
+ 5. supports SASL for use in managed environments, e.g. Heroku.
 
 
 Installation and Usage
