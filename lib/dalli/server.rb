@@ -1,4 +1,5 @@
 require 'socket'
+require 'timeout'
 
 module Dalli
   class Server
@@ -13,7 +14,7 @@ module Dalli
       @weight ||= 1
       @weight = Integer(@weight)
       connection
-      Dalli.logger.info { "#{@hostname}:#{@port} running memcached v#{request(:version)}" }
+      Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{request(:version)}" }
     end
     
     # Chokepoint method for instrumentation
@@ -263,16 +264,16 @@ module Dalli
       end
     end
 
-    def read(count)
+    def read(count, socket=connection)
       begin
         value = ''
         begin
           loop do
-            value << connection.sysread(count)
+            value << socket.sysread(count)
             break if value.size == count
           end
         rescue Errno::EAGAIN, Errno::EWOULDBLOCK
-          if IO.select([connection], nil, nil, TIMEOUT)
+          if IO.select([socket], nil, nil, TIMEOUT)
             retry
           else
             raise Timeout::Error, "IO timeout"
@@ -386,11 +387,11 @@ module Dalli
       # negotiate
       req = [REQUEST, OPCODES[:auth_negotiation], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
       socket.write(req)
-      header = socket.read(24)
+      header = read(24, socket)
       raise Dalli::NetworkError, 'No response' if !header
       (extras, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
-      content = socket.read(count)
+      content = read(count, socket)
       return (Dalli.logger.debug("Authentication not required/supported by server")) if status == 0x81
       mechanisms = content.split(' ')
 
@@ -402,11 +403,12 @@ module Dalli
       req = [REQUEST, OPCODES[:auth_request], mechanism.size, 0, 0, 0, mechanism.size + msg.size, 0, 0, mechanism, msg].pack(FORMAT[:auth_request])
       socket.write(req)
 
-      header = socket.read(24)
+      header = read(24, socket)
       raise Dalli::NetworkError, 'No response' if !header
       (extras, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
-      content = socket.read(count)
+      content = read(count, socket)
+      return if status == 0
       raise Dalli::NetworkError, "Error authenticating: #{status}" unless status == 0x21
       (step, msg) = sasl.receive('challenge', content)
       raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
