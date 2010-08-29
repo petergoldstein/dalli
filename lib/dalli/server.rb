@@ -408,12 +408,11 @@ module Dalli
       (extras, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
       content = read(count, socket)
-      return if status == 0
+      return Dalli.logger.info("Dalli/SASL: #{content}") if status == 0
+
       raise Dalli::NetworkError, "Error authenticating: #{status}" unless status == 0x21
       (step, msg) = sasl.receive('challenge', content)
       raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
-
-      
     end
   end
 end
