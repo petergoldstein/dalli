@@ -15,7 +15,7 @@ class TestNetwork < Test::Unit::TestCase
 
       should 'handle connection reset' do
         memcached_mock(lambda {|sock| sock.close }) do
-          assert_error Dalli::NetworkError, /ECONNRESET/ do
+          assert_error Dalli::NetworkError, /ECONNRESET|EOFError/ do
             dc = Dalli::Client.new('localhost:19123')
             dc.get('abc')
           end
