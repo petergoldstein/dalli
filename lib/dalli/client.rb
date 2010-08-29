@@ -21,7 +21,7 @@ module Dalli
     #
     def initialize(servers=nil, options={})
       @ring = Dalli::Ring.new(
-        Array(servers || env_servers).map do |s| 
+        Array(env_servers || servers).map do |s| 
           Dalli::Server.new(s)
         end, options
       )

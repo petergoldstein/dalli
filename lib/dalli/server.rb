@@ -13,7 +13,7 @@ module Dalli
       @weight ||= 1
       @weight = Integer(@weight)
       connection
-      Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{request(:version)}" }
+      Dalli.logger.info { "#{@hostname}:#{@port} running memcached v#{request(:version)}" }
     end
     
     # Chokepoint method for instrumentation
@@ -381,6 +381,8 @@ module Dalli
     def sasl_authentication(socket)
       init_sasl if !defined?(::SASL)
       
+      Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
+
       # negotiate
       req = [REQUEST, OPCODES[:auth_negotiation], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
       socket.write(req)

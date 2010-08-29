@@ -1,7 +1,7 @@
 require 'helper'
 
 class TestNetwork < Test::Unit::TestCase
-  
+
   context 'assuming a bad network' do
 
     should 'handle connection refused' do
@@ -10,7 +10,7 @@ class TestNetwork < Test::Unit::TestCase
         dc.get 'foo'
       end
     end
-    
+
     context 'with a fake server' do
 
       should 'handle connection reset' do
