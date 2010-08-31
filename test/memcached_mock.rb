@@ -72,13 +72,8 @@ module MemcachedMock
         sleep 0.3
         yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"])
       ensure
-        begin
-          Process.kill("TERM", pid)
-          Process.wait(pid)
-        rescue Errno::ECHILD
-          # the memcached_mock forks will try to run this at_exit block also
-          # but since they are not the parent process, will get an ECHILD error.
-        end
+        Process.kill("TERM", pid)
+        Process.wait(pid)
       end
     end
   end
