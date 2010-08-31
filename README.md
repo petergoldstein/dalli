@@ -78,6 +78,9 @@ In `config/environments/production.rb`:
 Features and Changes
 ------------------------
 
+Dalli is **NOT** 100% API compatible with memcache-client.  If you have code which uses the MemCache
+API directly, it will likely need small tweaks.  Method parameters and return values changed slightly.
+
 memcache-client allowed developers to store either raw or marshalled values with each API call.  I feel this is needless complexity; Dalli allows you to control marshalling per-Client with the `:marshal => false` flag but you cannot explicitly set the raw flag for each API call.  By default, marshalling is enabled.
 
 I've removed support for key namespaces and automatic pruning of keys longer than 250 characters.  ActiveSupport::Cache implements these features so there is little need for Dalli to reinvent them.
