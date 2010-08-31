@@ -33,18 +33,6 @@ class TestDalli < Test::Unit::TestCase
           dvalue = @mc.fetch('some key with spaces', :expires_in => 1.second) { 123 }
           mvalue = @dalli.fetch('some other key with spaces', :expires_in => 1.second) { 123 }
           assert_equal mvalue, dvalue
-
-          o = Object.new
-          o.instance_variable_set :@foo, 'bar'
-          dvalue = @mc.fetch(rand_key, :raw => true) { o }
-          mvalue = @dalli.fetch(rand_key, :raw => true) { o }
-          assert_equal mvalue, dvalue
-          assert_equal o, dvalue
-
-          dvalue = @mc.fetch(rand_key) { o }
-          mvalue = @dalli.fetch(rand_key) { o }
-          assert_equal mvalue, dvalue
-          assert_equal o, dvalue
         end
       end
     end      
