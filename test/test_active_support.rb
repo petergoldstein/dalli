@@ -114,14 +114,12 @@ class TestDalli < Test::Unit::TestCase
             gem 'activesupport', "~> #{version}"
             requires(version)
             yield
-          rescue
+          rescue Gem::LoadError
             puts "Skipping activesupport #{version} test: #{$!.message}"
           end
         end
       ensure
         Process.wait(pid)
-        # if $?.exitstatus != 0
-        # end
       end
     end
   end
