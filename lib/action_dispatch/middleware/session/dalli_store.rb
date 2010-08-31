@@ -4,8 +4,6 @@ module ActionDispatch
   module Session
     class DalliStore < AbstractStore
       def initialize(app, options = {})
-        require 'dalli'
-
         # Support old :expires option
         options[:expire_after] ||= options[:expires]
 
@@ -18,7 +16,12 @@ module ActionDispatch
         }.merge(@default_options)
 
         @pool = options[:cache] || begin
-          store = RAILS_VERSION < '3.0' ? :dalli_store23 : :dalli_store
+          store = if Rails.version < '3.0'
+            require 'active_support/cache/dalli_store23'
+            :dalli_store23
+          else
+            :dalli_store
+          end
           ActiveSupport::Cache.lookup_store(store, @default_options[:memcache_server], @default_options)
         end
         # unless @pool.servers.any? { |s| s.alive? }
