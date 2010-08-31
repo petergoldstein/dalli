@@ -1,6 +1,12 @@
 Dalli Changelog
 =====================
 
+HEAD
+-----
+
+ - Rails 2.3 support (beanieboi)
+
+
 0.9.2
 ----
 

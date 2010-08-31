@@ -45,7 +45,7 @@ Remember, Dalli **requires** memcached 1.4+.  You can check the version with `me
 The test suite requires memcached 1.4.3+ with SASL enabled (./configure --enable-sasl).  Currently only supports the PLAIN mechanism.
 
 
-Usage with Rails
+Usage with Rails 3.0
 ---------------------------
 
 In your Gemfile:
@@ -54,13 +54,25 @@ In your Gemfile:
 
 In `config/environments/production.rb`:
 
-    require 'active_support/cache/dalli_store' # Only needed in Rails < 3.0.0
     config.cache_store = :dalli_store
 
 A more comprehensive example (note that we are setting a reasonable default for maximum cache entry lifetime (one day), enabling compression for large values, and namespacing all entries for this rails app.  Remove the namespace if you have multiple apps which share cached values):
 
     config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com',
         :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true, :compress_threshold => 64.kilobytes
+
+
+Usage with Rails 2.3.x
+----------------------------
+
+In `config/environment.rb`:
+
+    config.gem 'dalli'
+
+In `config/environments/production.rb`:
+
+    require 'active_support/cache/dalli_store23'
+    config.cache_store = :dalli_store
 
 
 Features and Changes
@@ -79,6 +91,12 @@ Helping Out
 -------------
 
 If you have a fix you wish to provide, please fork the code, fix in your local project and then send a pull request on github.  Please ensure that you include a test which verifies your fix and update History.md with a one sentence description of your fix so you get credit as a contributor.
+
+
+Thanks
+------------
+
+Brian Mitchell - for his remix-stash project which was helpful when implementing and testing the binary protocol support.
 
 
 Author

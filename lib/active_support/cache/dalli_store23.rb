@@ -1,0 +1,168 @@
+begin
+  require 'dalli'
+rescue LoadError => e
+  $stderr.puts "You don't have dalli installed in your application: #{e.message}"
+  raise e
+end
+require 'digest/md5'
+
+module ActiveSupport
+  module Cache
+    # A cache store implementation which stores data in Memcached:
+    # http://www.danga.com/memcached/
+    #
+    # DalliStore implements the Strategy::LocalCache strategy which implements
+    # an in memory cache inside of a block.
+    class DalliStore < Store
+      module Response # :nodoc:
+        STORED      = "STORED\r\n"
+        NOT_STORED  = "NOT_STORED\r\n"
+        EXISTS      = "EXISTS\r\n"
+        NOT_FOUND   = "NOT_FOUND\r\n"
+        DELETED     = "DELETED\r\n"
+      end
+
+      ESCAPE_KEY_CHARS = /[\x00-\x20%\x7F-\xFF]/
+
+      def self.build_mem_cache(*addresses)
+        addresses = addresses.flatten
+        options = addresses.extract_options!
+        addresses = ["localhost"] if addresses.empty?
+        Dalli::Client.new(addresses, options)
+      end
+
+      # Creates a new DalliStore object, with the given memcached server
+      # addresses. Each address is either a host name, or a host-with-port string
+      # in the form of "host_name:port". For example:
+      #
+      #   ActiveSupport::Cache::DalliStore.new("localhost", "server-downstairs.localnetwork:8229")
+      #
+      # If no addresses are specified, then DalliStore will connect to
+      # localhost port 11211 (the default memcached port).
+      #
+      def initialize(*addresses)
+        if addresses.first.respond_to?(:get)
+          @data = addresses.first
+        else
+          @data = self.class.build_mem_cache(*addresses)
+        end
+
+        extend Strategy::LocalCache
+      end
+
+      # Reads multiple keys from the cache using a single call to the
+      # servers for all keys. Options can be passed in the last argument.
+      def read_multi(*names)
+        keys_to_names = names.inject({}){|map, name| map[escape_key(name)] = name; map}
+        cache_keys = {}
+        # map keys to servers
+        names.each do |key|
+          cache_key = escape_key key
+          cache_keys[cache_key] = key
+        end
+
+        values = @data.get_multi keys_to_names.keys
+        results = {}
+        values.each do |key, value|
+          results[cache_keys[key]] = Marshal.load value
+        end
+        results
+      end
+
+      # Increment a cached value. This method uses the memcached incr atomic
+      # operator and can only be used on values written with the :raw option.
+      # Calling it on a value not stored with :raw will initialize that value
+      # to zero.
+      def increment(key, amount = 1) # :nodoc:
+        log("incrementing", key, amount)
+
+        response = @data.incr(escape_key(key), amount)
+        response == Response::NOT_FOUND ? nil : response
+      rescue Dalli::DalliError
+        nil
+      end
+      # Decrement a cached value. This method uses the memcached decr atomic
+      # operator and can only be used on values written with the :raw option.
+      # Calling it on a value not stored with :raw will initialize that value
+      # to zero.
+      def decrement(key, amount = 1) # :nodoc:
+        log("decrement", key, amount)
+        response = @data.decr(escape_key(key), amount)
+        response == Response::NOT_FOUND ? nil : response
+      rescue Dalli::DalliError
+        nil
+      end
+
+      # Clear the entire cache on all memcached servers. This method should
+      # be used with care when using a shared cache.
+      def clear
+        @data.flush_all
+      end
+
+      # Get the statistics from the memcached servers.
+      def stats
+        @data.stats
+      end
+
+      # Read an entry from the cache.
+      def read(key, options = nil) # :nodoc:
+        super
+        value = @data.get(escape_key(key))
+        return nil if value.nil?
+        value = Marshal.load value
+        value
+      rescue Dalli::DalliError => e
+        logger.error("DalliError (#{e}): #{e.message}")
+        nil
+      end
+
+      # Writes a value to the cache.
+      #
+      # Possible options:
+      # - +:unless_exist+ - set to true if you don't want to update the cache
+      #   if the key is already set.
+      # - +:expires_in+ - the number of seconds that this value may stay in
+      #   the cache. See ActiveSupport::Cache::Store#write for an example.
+      def write(key, value, options = nil)
+        super
+        method = options && options[:unless_exist] ? :add : :set
+        # memcache-client will break the connection if you send it an integer
+        # in raw mode, so we convert it to a string to be sure it continues working.
+        value = Marshal.dump value
+        @data.send(method, escape_key(key), value, expires_in(options))
+      rescue Dalli::DalliError => e
+        logger.error("DalliError (#{e}): #{e.message}")
+        false
+      end
+
+      def delete(key, options = nil) # :nodoc:
+        super
+        @data.delete(escape_key(key))
+      rescue Dalli::DalliError => e
+        logger.error("DalliError (#{e}): #{e.message}")
+        false
+      end
+
+      def exist?(key, options = nil) # :nodoc:
+        # Doesn't call super, cause exist? in memcache is in fact a read
+        # But who cares? Reading is very fast anyway
+        # Local cache is checked first, if it doesn't know then memcache itself is read from
+        !read(key, options).nil?
+      end
+
+      def delete_matched(matcher, options = nil) # :nodoc:
+        # don't do any local caching at present, just pass
+        # through and let the error happen
+        super
+        raise "Not supported by Memcache"
+      end
+
+      private
+      def escape_key(key)
+        key = key.to_s.gsub(ESCAPE_KEY_CHARS){|match| "%#{match.getbyte(0).to_s(16).upcase}"}
+        key = "#{key[0, 213]}:md5:#{Digest::MD5.hexdigest(key)}" if key.size > 250
+        key
+      end
+    end
+  end
+end
