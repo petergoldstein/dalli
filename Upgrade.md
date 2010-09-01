@@ -3,6 +3,7 @@ Upgrading from memcache-client
 
 Dalli is not meant to be 100% compatible with memcache-client, there are serveral differences in the API.
 
+
 Marshalling
 ---------------
 
@@ -23,6 +24,13 @@ The memcache-client API allowed you to control marshalling on a per-method basis
     cache.get('abc') => 123
 
 Note that the last 'raw' parameter is set to true in the first two API calls and so `get` returns a string, not an integer.  In the second example, we don't provide the raw parameter.  Since it defaults to false, it works exactly like Dalli.
+
+If the code is specifying raw as false, you can simply remove that parameter.  If the code is using raw = true, you will need to use the :marshal option to create a Dalli::Client instance that does not perform marshalling:
+
+    Dalli::Client.new(servers, :marshal => false)
+
+If the code is mixing marshal modes, you will need to use two different client instances.
+
 
 Return Values
 ----------------
