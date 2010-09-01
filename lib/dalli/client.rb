@@ -20,11 +20,8 @@ module Dalli
     #      Default: true.
     #
     def initialize(servers=nil, options={})
-      @ring = Dalli::Ring.new(
-        Array(env_servers || servers).map do |s| 
-          Dalli::Server.new(s)
-        end, options
-      )
+      @servers = servers
+      @options = options
       self.extend(Dalli::Marshal) unless options[:marshal] == false
     end
     
@@ -38,11 +35,11 @@ module Dalli
     end
 
     def get_multi(*keys)
-      @ring.lock do
+      ring.lock do
         keys.flatten.each do |key|
           perform(:getkq, key)
         end
-        values = @ring.servers.inject({}) { |hash, s| hash.merge!(s.request(:noop)); hash }
+        values = ring.servers.inject({}) { |hash, s| hash.merge!(s.request(:noop)); hash }
         values.inject(values) { |memo, (k,v)| memo[k] = deserialize(v); memo }
       end
     end
@@ -91,11 +88,12 @@ module Dalli
 
     def flush(delay=0)
       time = -delay
-      @ring.servers.map { |s| s.request(:flush, time += delay) }
+      ring.servers.map { |s| s.request(:flush, time += delay) }
     end
 
-    def flush_all
-      flush(0)
+    # deprecated, please use #flush.
+    def flush_all(delay=0)
+      flush(delay)
     end
 
     ##
@@ -129,15 +127,27 @@ module Dalli
     end
 
     def stats
-      @ring.servers.inject({}) { |memo, s| memo["#{s.hostname}:#{s.port}"] = s.request(:stats); memo }
+      ring.servers.inject({}) { |memo, s| memo["#{s.hostname}:#{s.port}"] = s.request(:stats); memo }
     end
 
     def close
-      @ring.servers.map { |s| s.close }
+      ring.servers.map { |s| s.close }
       @ring = nil
     end
 
+    def reset
+      close
+    end
+
     private
+
+    def ring
+      @ring ||= Dalli::Ring.new(
+        Array(env_servers || @servers).map do |s| 
+          Dalli::Server.new(s)
+        end, @options
+      )
+    end
 
     def serialize(value)
       value.to_s
@@ -155,7 +165,7 @@ module Dalli
     def perform(op, *args)
       key = args.first
       validate_key(key)
-      server = @ring.server_for_key(key)
+      server = ring.server_for_key(key)
       server.request(op, *args)
     end
     
