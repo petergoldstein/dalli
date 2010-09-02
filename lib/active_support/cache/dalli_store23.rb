@@ -29,7 +29,7 @@ module ActiveSupport
         options = addresses.extract_options!
         addresses = ["localhost"] if addresses.empty?
         # No need to marshal since we marshal here.
-        Dalli::Client.new(addresses, {:marshal => false}.merge(options))
+        Dalli::Client.new(addresses, options)
       end
 
       # Creates a new DalliStore object, with the given memcached server
