@@ -131,13 +131,12 @@ module Dalli
     end
 
     def close
-      ring.servers.map { |s| s.close }
-      @ring = nil
+      if @ring
+        @ring.servers.map { |s| s.close }
+        @ring = nil
+      end
     end
-
-    def reset
-      close
-    end
+    alias_method :reset, :close
 
     private
 
