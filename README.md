@@ -75,6 +75,19 @@ In `config/environments/production.rb`:
     config.cache_store = :dalli_store
 
 
+Usage with Passenger
+------------------------
+
+Put this at the bottom of `config/environment.rb`:
+
+    if defined?(PhusionPassenger)
+      PhusionPassenger.on_event(:starting_worker_process) do |forked|
+        # Only works with DalliStore
+        Rails.cache.reset if forked
+      end
+    end
+
+
 Features and Changes
 ------------------------
 
