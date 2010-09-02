@@ -28,7 +28,8 @@ module ActiveSupport
         addresses = addresses.flatten
         options = addresses.extract_options!
         addresses = ["localhost"] if addresses.empty?
-        Dalli::Client.new(addresses, options)
+        # No need to marshal since we marshal here.
+        Dalli::Client.new(addresses, {:marshal => false}.merge(options))
       end
 
       # Creates a new DalliStore object, with the given memcached server
@@ -130,8 +131,6 @@ module ActiveSupport
       def write(key, value, options = nil)
         super
         method = options && options[:unless_exist] ? :add : :set
-        # memcache-client will break the connection if you send it an integer
-        # in raw mode, so we convert it to a string to be sure it continues working.
         value = Marshal.dump value
         @data.send(method, escape_key(key), value, expires_in(options))
       rescue Dalli::DalliError => e
@@ -162,6 +161,16 @@ module ActiveSupport
       end
 
       private
+
+      # Exists in 2.3.8 but not in 2.3.2 so roll our own version
+      def expires_in(options)
+        expires_in = options && options[:expires_in]
+
+        raise ":expires_in must be a number" if expires_in && !expires_in.is_a?(Numeric)
+
+        expires_in || 0
+      end
+
       def escape_key(key)
         key = key.to_s.gsub(ESCAPE_KEY_CHARS){|match| "%#{match.getbyte(0).to_s(16).upcase}"}
         key = "#{key[0, 213]}:md5:#{Digest::MD5.hexdigest(key)}" if key.size > 250

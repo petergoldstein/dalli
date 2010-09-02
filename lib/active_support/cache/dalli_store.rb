@@ -28,7 +28,7 @@ module ActiveSupport
         addresses = addresses.flatten
         options = addresses.extract_options!
         addresses = ["localhost:11211"] if addresses.empty?
-        Dalli::Client.new(addresses, options)
+        Dalli::Client.new(addresses, {:marshal => false}.merge(options))
       end
 
       # Creates a new DalliStore object, with the given memcached server
@@ -81,7 +81,6 @@ module ActiveSupport
         response = instrument(:increment, name, :amount => amount) do
           @data.incr(escape_key(namespaced_key(name, options)), amount)
         end
-        response == Response::NOT_FOUND ? nil : response.to_i
       rescue Dalli::DalliError
         nil
       end
@@ -95,7 +94,6 @@ module ActiveSupport
         response = instrument(:decrement, name, :amount => amount) do
           @data.decr(escape_key(namespaced_key(name, options)), amount)
         end
-        response == Response::NOT_FOUND ? nil : response.to_i
       rescue Dalli::DalliError
         nil
       end
