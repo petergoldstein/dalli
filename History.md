@@ -1,10 +1,13 @@
 Dalli Changelog
 =====================
 
-HEAD
+0.9.3
 -----
 
  - Rails 2.3 support (beanieboi)
+ - Rails SessionStore support
+ - Passenger integration
+ - memcache-client upgrade docs, see Upgrade.md
 
 
 0.9.2

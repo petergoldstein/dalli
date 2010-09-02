@@ -19,6 +19,7 @@ Gem::Specification.new do |s|
      "Gemfile",
      "dalli.gemspec",
      "Performance.md",
+     "Upgrade.md",
   ]
   s.homepage = %q{http://github.com/mperham/dalli}
   s.rdoc_options = ["--charset=UTF-8"]
