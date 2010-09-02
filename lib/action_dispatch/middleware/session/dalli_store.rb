@@ -1,5 +1,11 @@
 require 'active_support/cache'
+require 'action_dispatch/middleware/session/abstract_store'
+require 'dalli'
 
+# Dalli-based session store for Rails 3.0. Use like so:
+#
+# require 'action_dispatch/middleware/session/dalli_store'
+# config.session_store ActionDispatch::Session::DalliStore, ['cache-1', 'cache-2'], :expire_after => 2.weeks
 module ActionDispatch
   module Session
     class DalliStore < AbstractStore
@@ -16,26 +22,25 @@ module ActionDispatch
         }.merge(@default_options)
 
         @pool = options[:cache] || begin
-          store = if Rails.version < '3.0'
-            require 'active_support/cache/dalli_store23'
-            :dalli_store23
-          else
-            :dalli_store
-          end
-          ActiveSupport::Cache.lookup_store(store, @default_options[:memcache_server], @default_options)
+          Dalli::Client.new( 
+              @default_options[:memcache_server], @default_options)
         end
-        # unless @pool.servers.any? { |s| s.alive? }
-        #   raise "#{self} unable to find server during initialization."
-        # end
-        @mutex = Mutex.new
+        @namespace = @default_options[:namespace]
 
         super
       end
 
       private
+      
+        def session_key(sid)
+          # Dalli does not support namespaces directly so we have
+          # to roll our own.
+          @namespace ? "#{@namespace}:#{sid}" : sid
+        end
+
         def get_session(env, sid)
           begin
-            session = @pool.get(sid) || {}
+            session = @pool.get(session_key(sid)) || {}
           rescue Dalli::DalliError => de
             Rails.logger.warn("Session::DalliStore: #{$!.message}")
             session = {}
@@ -46,7 +51,7 @@ module ActionDispatch
         def set_session(env, sid, session_data)
           options = env['rack.session.options']
           expiry  = options[:expire_after] || 0
-          @pool.set(sid, session_data, expiry)
+          @pool.set(session_key(sid), session_data, expiry)
           sid
         rescue Dalli::DalliError
           Rails.logger.warn("Session::DalliStore: #{$!.message}")
@@ -55,7 +60,7 @@ module ActionDispatch
 
         def destroy(env)
           if sid = current_session_id(env)
-            @pool.delete(sid)
+            @pool.delete(session_key(sid))
           end
         rescue Dalli::DalliError
           Rails.logger.warn("Session::DalliStore: #{$!.message}")
