@@ -1,10 +1,11 @@
 require 'helper'
+require 'rails'
 
 class TestActiveSupport < Test::Unit::TestCase
   context 'active_support caching' do
 
     should 'support fetch' do
-      with_activesupport("2.3.0", "3.0.0") do
+      with_activesupport do
         memcached do
           connect
           dvalue = @mc.fetch('somekeywithoutspaces', :expires_in => 1.second) { 123 }
@@ -27,7 +28,7 @@ class TestActiveSupport < Test::Unit::TestCase
     end
 
     should 'support keys with spaces' do
-      with_activesupport("3.0.0") do
+      with_activesupport do
         memcached do
           connect
           dvalue = @mc.fetch('some key with spaces', :expires_in => 1.second) { 123 }
@@ -38,7 +39,7 @@ class TestActiveSupport < Test::Unit::TestCase
     end      
 
     should 'support read_multi' do
-      with_activesupport("2.3.0", "3.0.0") do
+      with_activesupport do
         memcached do
           connect
           x = rand_key
@@ -56,7 +57,7 @@ class TestActiveSupport < Test::Unit::TestCase
     end
 
     should 'support read, write and delete' do
-      with_activesupport("2.3.0", "3.0.0") do
+      with_activesupport do
         memcached do
           connect
           x = rand_key
@@ -81,7 +82,7 @@ class TestActiveSupport < Test::Unit::TestCase
     end
     
     should 'support other esoteric commands' do
-      with_activesupport("2.3.0", "3.0.0") do
+      with_activesupport do
         memcached do
           connect
           ms = @mc.stats

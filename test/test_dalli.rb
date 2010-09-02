@@ -183,7 +183,7 @@ class TestDalli < Test::Unit::TestCase
     end
     
     should "support multithreaded access" do
-      memcached(11211) do |cache|
+      memcached(19123) do |cache|
         cache.flush
         workers = []
 
