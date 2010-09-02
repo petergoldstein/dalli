@@ -179,7 +179,7 @@ class TestSessionStore < ActionController::IntegrationTest
       end
     end
   rescue LoadError, RuntimeError
-    $stderr.puts "Skipping TestDalliSessionStore tests. Start memcached and try again."
+    $stderr.puts "Skipping TestSessionStore tests. Start memcached and try again."
   end
 
   private

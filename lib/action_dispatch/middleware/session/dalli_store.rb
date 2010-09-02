@@ -30,6 +30,10 @@ module ActionDispatch
         super
       end
 
+      def reset
+        @pool.reset
+      end
+
       private
       
         def session_key(sid)

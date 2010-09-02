@@ -366,8 +366,6 @@ module Dalli
     
     def init_sasl
       require 'dalli/sasl/base'
-      require 'dalli/sasl/base64'
-      require 'dalli/sasl/digest_md5'
       require 'dalli/sasl/plain'
     end
 

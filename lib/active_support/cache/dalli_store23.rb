@@ -93,6 +93,10 @@ module ActiveSupport
         nil
       end
 
+      def reset
+        @pool.reset
+      end
+
       # Clear the entire cache on all memcached servers. This method should
       # be used with care when using a shared cache.
       def clear

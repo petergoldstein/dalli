@@ -111,6 +111,10 @@ module ActiveSupport
         @data.stats
       end
 
+      def reset
+        @pool.reset
+      end
+
       protected
         # Read an entry from the cache.
         def read_entry(key, options) # :nodoc:
