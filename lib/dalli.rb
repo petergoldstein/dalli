@@ -12,7 +12,7 @@ module Dalli
 
   def self.logger
     @logger ||= begin
-      (defined?(Rails) && Rails.logger) ||
+      (defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger) ||
       (defined?(RAILS_DEFAULT_LOGGER) && RAILS_DEFAULT_LOGGER) ||
       default_logger
     end
