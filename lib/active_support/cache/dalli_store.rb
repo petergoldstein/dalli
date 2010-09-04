@@ -1,3 +1,4 @@
+# encoding: ascii
 begin
   require 'dalli'
 rescue LoadError => e
