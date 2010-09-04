@@ -1,6 +1,13 @@
 Dalli Changelog
 =====================
 
+0.9.4
+-----
+
+ - Bug fixes
+ - Dalli support now in the latest version of rack-bug (http://github.com/brynary/rack-bug), give it a try!
+
+
 0.9.3
 -----
 
