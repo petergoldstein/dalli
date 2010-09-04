@@ -40,10 +40,14 @@ module ActiveSupport
       # localhost port 11211 (the default memcached port).
       #
       def initialize(*addresses)
+        addresses = addresses.flatten
+        options = addresses.extract_options!
         if addresses.first.respond_to?(:get)
           @data = addresses.first
         else
-          @data = self.class.build_mem_cache(*addresses)
+          mem_cache_options = options.dup
+          @namespace = mem_cache_options.delete(:namespace)
+          @data = self.class.build_mem_cache(*(addresses + [mem_cache_options]))
         end
 
         extend Strategy::LocalCache
@@ -170,7 +174,8 @@ module ActiveSupport
       end
 
       def escape_key(key)
-        # Rails 3.0 only
+        prefix = @namespace.is_a?(Proc) ? @namespace.call : @namespace
+        key = "#{prefix}:#{key}" if prefix
         key
       end
     end
