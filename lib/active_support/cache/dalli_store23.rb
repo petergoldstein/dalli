@@ -22,8 +22,6 @@ module ActiveSupport
         DELETED     = "DELETED\r\n"
       end
 
-      ESCAPE_KEY_CHARS = /[\x00-\x20%\x7F-\xFF]/
-
       def self.build_mem_cache(*addresses)
         addresses = addresses.flatten
         options = addresses.extract_options!
@@ -172,8 +170,7 @@ module ActiveSupport
       end
 
       def escape_key(key)
-        key = key.to_s.gsub(ESCAPE_KEY_CHARS){|match| "%#{match.getbyte(0).to_s(16).upcase}"}
-        key = "#{key[0, 213]}:md5:#{Digest::MD5.hexdigest(key)}" if key.size > 250
+        # Rails 3.0 only
         key
       end
     end
