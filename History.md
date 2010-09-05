@@ -4,8 +4,9 @@ Dalli Changelog
 0.9.4
 -----
 
+ - Dalli support now in rack-bug (http://github.com/brynary/rack-bug), give it a try!
+ - Namespace support for Rails 2.3 (bpardee)
  - Bug fixes
- - Dalli support now in the latest version of rack-bug (http://github.com/brynary/rack-bug), give it a try!
 
 
 0.9.3

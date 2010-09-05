@@ -69,7 +69,7 @@ module MemcachedMock
 #      puts "Starting: #{cmd}..."
       pid = IO.popen(cmd).pid
       begin
-        sleep 0.3
+        sleep 0.5
         yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"])
       ensure
         Process.kill("TERM", pid)

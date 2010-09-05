@@ -95,7 +95,7 @@ class TestActiveSupport < Test::Unit::TestCase
   end
   
   def connect
-    @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122', :expires_in => 10.seconds)
+    @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122', :expires_in => 10.seconds, :namespace => 'x')
     @mc = ActiveSupport::Cache.lookup_store(:mem_cache_store, 'localhost:19122', :expires_in => 10.seconds, :namespace => 'a')
     @dalli.clear
   end
