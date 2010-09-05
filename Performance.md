@@ -23,3 +23,13 @@ Times are from a Unibody MBP 2.4Ghz Core 2 Duo running Snow Leopard.
     multiget:ruby:dalli              0.950000   0.310000   1.260000 (  1.269679)
     missing:ruby:dalli               1.650000   0.380000   2.030000 (  2.054383)
     mixed:ruby:dalli                 3.470000   0.750000   4.220000 (  4.323265)
+
+    Testing 0.9.4 with ruby 1.9.2p0 (2010-08-18 revision 29036) [x86_64-darwin10.4.0]
+                                         user     system      total        real
+    set:plain:dalli                  1.380000   0.350000   1.730000 (  1.818374)
+    set:ruby:dalli                   1.460000   0.320000   1.780000 (  1.851925)
+    get:plain:dalli                  1.420000   0.350000   1.770000 (  1.866443)
+    get:ruby:dalli                   1.570000   0.380000   1.950000 (  2.028747)
+    multiget:ruby:dalli              0.870000   0.300000   1.170000 (  1.295592)
+    missing:ruby:dalli               1.420000   0.370000   1.790000 (  1.925094)
+    mixed:ruby:dalli                 2.800000   0.680000   3.480000 (  3.820694)
