@@ -251,6 +251,8 @@ class TestDalli < Test::Unit::TestCase
 
       should 'support SASL authentication' do
         memcached(19121, '-S') do |dc|
+          # I get "Dalli::NetworkError: Error authenticating: 32" in OSX
+          # but SASL works on Heroku servers. YMMV.
           assert_equal true, dc.set('abc', 123)
           assert_equal 123, dc.get('abc')
           assert_equal({"localhost:19121"=>{}}, dc.stats)
