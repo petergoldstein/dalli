@@ -86,6 +86,31 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
+    should 'support raw incr/decr' do
+      memcached do |dc|
+        client = Dalli::Client.new('localhost:11211', :marshal => false)
+        client.flush
+
+        resp = client.incr('mycounter', 1, 0, 2)
+        assert_equal 2, resp
+        resp = client.incr('mycounter', 1)
+        assert_equal 3, resp
+
+        resp = client.set('rawcounter', 10)
+        assert_equal true, resp
+
+        resp = client.get('rawcounter')
+        assert_equal '10', resp
+
+        # This should not work.  Incr does not work on a previously set value
+        # when using the binary protocol.  Counters have to be initialized with
+        # the incr() operation, not set().
+        resp = client.incr('rawcounter', 1)
+        # XXX I think this value is undefined so this might fail on Linux, FreeBSD, etc.
+        assert_equal 42949672961, resp
+      end
+    end
+
     should "support incr/decr operations" do
       memcached do |dc|
         dc.flush

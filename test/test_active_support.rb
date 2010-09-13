@@ -89,6 +89,8 @@ class TestActiveSupport < Test::Unit::TestCase
           ds = @dalli.stats
           assert_equal ms.keys.sort, ds.keys.sort
           assert_equal ms[ms.keys.first].keys.sort, ds[ds.keys.first].keys.sort
+
+          @dalli.reset
         end
       end
     end

@@ -15,13 +15,6 @@ module ActiveSupport
     # DalliStore implements the Strategy::LocalCache strategy which implements
     # an in memory cache inside of a block.
     class DalliStore < Store
-      module Response # :nodoc:
-        STORED      = "STORED\r\n"
-        NOT_STORED  = "NOT_STORED\r\n"
-        EXISTS      = "EXISTS\r\n"
-        NOT_FOUND   = "NOT_FOUND\r\n"
-        DELETED     = "DELETED\r\n"
-      end
 
       ESCAPE_KEY_CHARS = /[\x00-\x20%\x7F-\xFF]/
 
@@ -46,13 +39,9 @@ module ActiveSupport
         options = addresses.extract_options!
         super(options)
 
-        if addresses.first.respond_to?(:get)
-          @data = addresses.first
-        else
-          mem_cache_options = options.dup
-          UNIVERSAL_OPTIONS.each{|name| mem_cache_options.delete(name)}
-          @data = self.class.build_mem_cache(*(addresses + [mem_cache_options]))
-        end
+        mem_cache_options = options.dup
+        UNIVERSAL_OPTIONS.each{|name| mem_cache_options.delete(name)}
+        @data = self.class.build_mem_cache(*(addresses + [mem_cache_options]))
 
         extend Strategy::LocalCache
         extend LocalCacheWithRaw
@@ -111,7 +100,7 @@ module ActiveSupport
       end
 
       def reset
-        @pool.reset
+        @data.reset
       end
 
       protected

@@ -14,13 +14,6 @@ module ActiveSupport
     # DalliStore implements the Strategy::LocalCache strategy which implements
     # an in memory cache inside of a block.
     class DalliStore < Store
-      module Response # :nodoc:
-        STORED      = "STORED\r\n"
-        NOT_STORED  = "NOT_STORED\r\n"
-        EXISTS      = "EXISTS\r\n"
-        NOT_FOUND   = "NOT_FOUND\r\n"
-        DELETED     = "DELETED\r\n"
-      end
 
       def self.build_mem_cache(*addresses)
         addresses = addresses.flatten
@@ -42,13 +35,10 @@ module ActiveSupport
       def initialize(*addresses)
         addresses = addresses.flatten
         options = addresses.extract_options!
-        if addresses.first.respond_to?(:get)
-          @data = addresses.first
-        else
-          mem_cache_options = options.dup
-          @namespace = mem_cache_options.delete(:namespace)
-          @data = self.class.build_mem_cache(*(addresses + [mem_cache_options]))
-        end
+
+        mem_cache_options = options.dup
+        @namespace = mem_cache_options.delete(:namespace)
+        @data = self.class.build_mem_cache(*(addresses + [mem_cache_options]))
 
         extend Strategy::LocalCache
       end
@@ -97,7 +87,7 @@ module ActiveSupport
       end
 
       def reset
-        @pool.reset
+        @data.reset
       end
 
       # Clear the entire cache on all memcached servers. This method should
