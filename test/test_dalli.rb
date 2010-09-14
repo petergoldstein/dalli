@@ -91,6 +91,9 @@ class TestDalli < Test::Unit::TestCase
         client = Dalli::Client.new('localhost:11211', :marshal => false)
         client.flush
 
+        resp = client.incr('mycounter', 0)
+        assert_nil resp
+
         resp = client.incr('mycounter', 1, 0, 2)
         assert_equal 2, resp
         resp = client.incr('mycounter', 1)
