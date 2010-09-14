@@ -18,6 +18,7 @@ class TestBenchmark < Test::Unit::TestCase
     # 5 and 6 are only used for multiget miss test
     @key5 = "Medium2"*8
     @key6 = "Long3"*40
+    @counter = 'counter'
   end
   
   def test_benchmark
@@ -113,7 +114,18 @@ class TestBenchmark < Test::Unit::TestCase
           end
         end
 
-        assert true
+        @m = Dalli::Client.new(@servers)
+        x.report("incr:ruby:dalli") do
+          n.times do
+            @m.incr @counter, 1, 0, 1
+          end
+          n.times do
+            @m.decr @counter, 1
+          end
+
+          assert_equal 0, @m.incr(@counter, 0)
+        end
+
       end
     end
 
