@@ -3,5 +3,5 @@ source :rubygems
 gemspec
 
 group :test do
-  gem 'simplecov-html'
+  gem 'simplecov'
 end

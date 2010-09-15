@@ -1,5 +1,5 @@
 require 'rubygems'
-# require 'simplecov-html'
+# require 'simplecov'
 # SimpleCov.start
 
 require 'test/unit'

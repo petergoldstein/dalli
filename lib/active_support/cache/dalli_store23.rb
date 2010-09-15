@@ -19,7 +19,6 @@ module ActiveSupport
         addresses = addresses.flatten
         options = addresses.extract_options!
         addresses = ["localhost"] if addresses.empty?
-        # No need to marshal since we marshal here.
         Dalli::Client.new(addresses, options)
       end
 
@@ -104,7 +103,7 @@ module ActiveSupport
       # Read an entry from the cache.
       def read(key, options = nil) # :nodoc:
         super
-        value = @data.get(escape_key(key))
+        value = @data.get(escape_key(key), options)
         return nil if value.nil?
         value = Marshal.load value
         value
@@ -124,7 +123,7 @@ module ActiveSupport
         super
         method = options && options[:unless_exist] ? :add : :set
         value = Marshal.dump value
-        @data.send(method, escape_key(key), value, expires_in(options))
+        @data.send(method, escape_key(key), value, expires_in(options), options)
       rescue Dalli::DalliError => e
         logger.error("DalliError (#{e}): #{e.message}")
         false
