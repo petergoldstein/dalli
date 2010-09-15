@@ -87,8 +87,7 @@ class TestDalli < Test::Unit::TestCase
     end
 
     should 'support raw incr/decr' do
-      memcached do |dc|
-        client = Dalli::Client.new('localhost:11211')
+      memcached do |client|
         client.flush
 
         assert_equal true, client.set('fakecounter', 0, 0, :raw => true)
