@@ -91,9 +91,7 @@ Put this at the bottom of `config/environment.rb`:
 Features and Changes
 ------------------------
 
-Dalli is **NOT** 100% API compatible with memcache-client.  If you have code which uses the MemCache
-API directly, it will likely need small tweaks.  Method parameters and return values changed slightly.  
-See Upgrade.md for more detail.
+Dalli is **NOT** 100% API compatible with memcache-client.  If you have code which uses the MemCache API directly, it will likely need small tweaks.  Method parameters and return values changed slightly.  See Upgrade.md for more detail.
 
 I've removed support for key namespaces and automatic pruning of keys longer than 250 characters.  ActiveSupport::Cache implements these features so there is little need for Dalli to reinvent them.
 
@@ -112,6 +110,10 @@ Thanks
 ------------
 
 Brian Mitchell - for his remix-stash project which was helpful when implementing and testing the binary protocol support.
+
+[NorthScale](http://northscale.com) - for their project sponsorship
+
+[Bootspring](http://bootspring.com) is my Ruby and Rails consulting company.  We specialize in Ruby infrastructure, performance and scalability tuning for Rails applications.  If you need help, please [contact us](mailto:info#&64;bootspring.com) today.
 
 
 Author

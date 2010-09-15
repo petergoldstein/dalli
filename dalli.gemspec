@@ -7,7 +7,7 @@ Gem::Specification.new do |s|
   s.version = Dalli::VERSION
 
   s.authors = ["Mike Perham"]
-  s.date = %q{2010-08-28}
+  s.date = Time.now.utc.strftime("%Y-%m-%d")
   s.description = %q{High performance memcached client for Ruby}
   s.email = %q{mperham@gmail.com}
   s.files = Dir.glob("lib/**/*") + [
