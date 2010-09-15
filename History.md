@@ -1,13 +1,14 @@
 Dalli Changelog
 =====================
 
-HEAD
+0.9.5
 -----
 
  - Major design change - raw support is back to maximize compatibility with Rails
  and the increment/decrement operations.  You can now pass :raw => true to most methods
  to bypass (un)marshalling.
  - Support symbols as keys (ddollar)
+ - Rails 2.3 bug fixes
 
 
 0.9.4
