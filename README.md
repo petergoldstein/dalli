@@ -113,7 +113,7 @@ Brian Mitchell - for his remix-stash project which was helpful when implementing
 
 [NorthScale](http://northscale.com) - for their project sponsorship
 
-[Bootspring](http://bootspring.com) is my Ruby and Rails consulting company.  We specialize in Ruby infrastructure, performance and scalability tuning for Rails applications.  If you need help, please [contact us](mailto:info#&64;bootspring.com) today.
+[Bootspring](http://bootspring.com) is my Ruby and Rails consulting company.  We specialize in Ruby infrastructure, performance and scalability tuning for Rails applications.  If you need help, please [contact us](mailto:info&#64;bootspring.com) today.
 
 
 Author
