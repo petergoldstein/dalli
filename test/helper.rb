@@ -1,6 +1,9 @@
 require 'rubygems'
 # require 'simplecov'
 # SimpleCov.start
+RAILS_VERSION = ENV['RAILS_VERSION'] || '~> 3.0.0'
+#puts "Testing with Rails #{RAILS_VERSION}"
+gem 'rails', RAILS_VERSION
 
 require 'test/unit'
 require 'shoulda'
@@ -12,25 +15,29 @@ require 'dalli'
 class Test::Unit::TestCase
   include MemcachedMock::Helper
 
+  def rails3?
+    RAILS_VERSION =~ /3\.0\./
+  end
+
   def assert_error(error, regexp=nil, &block)
     ex = assert_raise(error, &block)
     assert_match(regexp, ex.message, "#{ex.class.name}: #{ex.message}\n#{ex.backtrace.join("\n\t")}")
   end
 
   def with_activesupport
-    case Rails.version
-    when '3.0.0'
+    case 
+    when rails3?
       require 'active_support/all'
-    # when '2.3.0'
-    #   require 'active_support'
-    #   require 'active_support/cache/dalli_store23'
+    else
+      require 'active_support'
+      require 'active_support/cache/dalli_store23'
     end
     yield
   end
 
   def with_actionpack
-    case Rails.version
-    when '3.0.0'
+    case
+    when rails3?
       require 'action_dispatch'
       require 'action_controller'
     # when '2.3.0'

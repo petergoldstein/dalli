@@ -1,5 +1,4 @@
 require 'helper'
-require 'rails'
 
 class TestActiveSupport < Test::Unit::TestCase
   context 'active_support caching' do
@@ -27,13 +26,23 @@ class TestActiveSupport < Test::Unit::TestCase
       end
     end
 
-    should 'support keys with spaces' do
+    should 'support keys with spaces on Rails3' do
       with_activesupport do
         memcached do
           connect
-          dvalue = @mc.fetch('some key with spaces', :expires_in => 1.second) { 123 }
-          mvalue = @dalli.fetch('some other key with spaces', :expires_in => 1.second) { 123 }
-          assert_equal mvalue, dvalue
+          case 
+          when rails3?
+            dvalue = @mc.fetch('some key with spaces', :expires_in => 1.second) { 123 }
+            mvalue = @dalli.fetch('some other key with spaces', :expires_in => 1.second) { 123 }
+            assert_equal mvalue, dvalue
+          else
+            assert_raises ArgumentError do
+              @mc.fetch('some key with spaces', :expires_in => 1.second) { 123 }
+            end
+            assert_raises ArgumentError do
+              @dalli.fetch('some other key with spaces', :expires_in => 1.second) { 123 }
+            end
+          end
         end
       end
     end      

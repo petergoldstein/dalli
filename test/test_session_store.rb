@@ -1,5 +1,9 @@
 require 'helper'
 
+if RAILS_VERSION =~ /3\.0\./
+  # Session testing is complex enough that I can't test it in both Rails
+  # 3.0 and 2.3.  Help is welcome.
+
 require 'abstract_unit'
 require 'action_dispatch/middleware/session/dalli_store'
 
@@ -197,4 +201,5 @@ class TestSessionStore < ActionController::IntegrationTest
         yield
       end
     end
+end
 end

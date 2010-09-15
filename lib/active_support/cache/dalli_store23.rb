@@ -67,21 +67,21 @@ module ActiveSupport
       # to zero.
       def increment(key, amount = 1) # :nodoc:
         log("incrementing", key, amount)
-
-        response = @data.incr(escape_key(key), amount)
-        response == Response::NOT_FOUND ? nil : response
+        @data.incr(escape_key(key), amount)
       rescue Dalli::DalliError
+        logger.error("DalliError (#{e}): #{e.message}")
         nil
       end
+
       # Decrement a cached value. This method uses the memcached decr atomic
       # operator and can only be used on values written with the :raw option.
       # Calling it on a value not stored with :raw will initialize that value
       # to zero.
       def decrement(key, amount = 1) # :nodoc:
         log("decrement", key, amount)
-        response = @data.decr(escape_key(key), amount)
-        response == Response::NOT_FOUND ? nil : response
+        @data.decr(escape_key(key), amount)
       rescue Dalli::DalliError
+        logger.error("DalliError (#{e}): #{e.message}")
         nil
       end
 
@@ -105,7 +105,7 @@ module ActiveSupport
         super
         value = @data.get(escape_key(key), options)
         return nil if value.nil?
-        value = Marshal.load value
+        value = options && options[:raw] ? value : Marshal.load(value)
         value
       rescue Dalli::DalliError => e
         logger.error("DalliError (#{e}): #{e.message}")
@@ -122,7 +122,7 @@ module ActiveSupport
       def write(key, value, options = nil)
         super
         method = options && options[:unless_exist] ? :add : :set
-        value = Marshal.dump value
+        value = options && options[:raw] ? value.to_s : Marshal.dump(value)
         @data.send(method, escape_key(key), value, expires_in(options), options)
       rescue Dalli::DalliError => e
         logger.error("DalliError (#{e}): #{e.message}")

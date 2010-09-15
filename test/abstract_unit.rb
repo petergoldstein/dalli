@@ -1,4 +1,3 @@
-require 'rails'
 # Used to test the full Rails stack.
 # Stolen from the Rails 3.0 source.
 # Needed for the session store tests.

@@ -10,3 +10,8 @@ Rake::TestTask.new(:bench) do |test|
 end
 
 task :default => :test
+
+task :test_all do
+  system('rake test RAILS_VERSION="~> 2.3.0"')
+  system('rake test RAILS_VERSION="~> 3.0.0"')
+end
