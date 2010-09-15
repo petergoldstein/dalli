@@ -7,6 +7,8 @@ HEAD
  - Major design change - raw support is back to maximize compatibility with Rails
  and the increment/decrement operations.  You can now pass :raw => true to most methods
  to bypass (un)marshalling.
+ - Support symbols as keys (ddollar)
+
 
 0.9.4
 -----
@@ -29,6 +31,7 @@ HEAD
 ----
 
  - Verify proper operation in Heroku.
+
 
 0.9.1
 ----
