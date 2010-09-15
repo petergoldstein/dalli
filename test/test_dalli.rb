@@ -88,8 +88,15 @@ class TestDalli < Test::Unit::TestCase
 
     should 'support raw incr/decr' do
       memcached do |dc|
-        client = Dalli::Client.new('localhost:11211', :marshal => false)
+        client = Dalli::Client.new('localhost:11211')
         client.flush
+
+        assert_equal true, client.set('fakecounter', 0, 0, :raw => true)
+        assert_equal 1, client.incr('fakecounter', 1)
+        assert_equal 2, client.incr('fakecounter', 1)
+        assert_equal 3, client.incr('fakecounter', 1)
+        assert_equal 1, client.decr('fakecounter', 2)
+        assert_equal "1", client.get('fakecounter', :raw => true)
 
         resp = client.incr('mycounter', 0)
         assert_nil resp
@@ -99,18 +106,14 @@ class TestDalli < Test::Unit::TestCase
         resp = client.incr('mycounter', 1)
         assert_equal 3, resp
 
-        resp = client.set('rawcounter', 10)
+        resp = client.set('rawcounter', 10, 0, :raw => true)
         assert_equal true, resp
 
-        resp = client.get('rawcounter')
+        resp = client.get('rawcounter', :raw => true)
         assert_equal '10', resp
 
-        # This should not work.  Incr does not work on a previously set value
-        # when using the binary protocol.  Counters have to be initialized with
-        # the incr() operation, not set().
         resp = client.incr('rawcounter', 1)
-        # XXX I think this value is undefined so this might fail on Linux, FreeBSD, etc.
-        assert_equal 42949672961, resp
+        assert_equal 11, resp
       end
     end
 
@@ -180,22 +183,19 @@ class TestDalli < Test::Unit::TestCase
         resp = dc.set('123', 'abc')
         assert_equal true, resp
 
-        assert_raises Dalli::DalliError do
-          dc.prepend('123', '0')
-        end
+        dc.prepend('123', '0')
+        dc.append('123', '0')
 
         assert_raises Dalli::DalliError do
-          dc.append('123', '0')
+          resp = dc.get('123')
         end
 
-        resp = dc.get('123')
-        assert_equal 'abc', resp
         dc.close
         dc = nil
 
-        dc = Dalli::Client.new('localhost:19122', :marshal => false)
+        dc = Dalli::Client.new('localhost:19122')
 
-        resp = dc.set('456', 'xyz')
+        resp = dc.set('456', 'xyz', 0, :raw => true)
         assert_equal true, resp
 
         resp = dc.prepend '456', '0'
@@ -204,7 +204,7 @@ class TestDalli < Test::Unit::TestCase
         resp = dc.append '456', '9'
         assert_equal true, resp
 
-        resp = dc.get('456')
+        resp = dc.get('456', :raw => true)
         assert_equal '0xyz9', resp
 
         resp = dc.stats

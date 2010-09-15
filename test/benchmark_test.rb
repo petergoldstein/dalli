@@ -28,15 +28,15 @@ class TestBenchmark < Test::Unit::TestCase
 
         n = 2500
 
-        @m = Dalli::Client.new(@servers, :marshal => false)
+        @m = Dalli::Client.new(@servers)
         x.report("set:plain:dalli") do
           n.times do
-            @m.set @key1, @marshalled
-            @m.set @key2, @marshalled
-            @m.set @key3, @marshalled
-            @m.set @key1, @marshalled
-            @m.set @key2, @marshalled
-            @m.set @key3, @marshalled
+            @m.set @key1, @marshalled, 0, :raw => true
+            @m.set @key2, @marshalled, 0, :raw => true
+            @m.set @key3, @marshalled, 0, :raw => true
+            @m.set @key1, @marshalled, 0, :raw => true
+            @m.set @key2, @marshalled, 0, :raw => true
+            @m.set @key3, @marshalled, 0, :raw => true
           end
         end
 
@@ -52,15 +52,15 @@ class TestBenchmark < Test::Unit::TestCase
           end
         end
 
-        @m = Dalli::Client.new(@servers, :marshal => false)
+        @m = Dalli::Client.new(@servers)
         x.report("get:plain:dalli") do
           n.times do
-            @m.get @key1
-            @m.get @key2
-            @m.get @key3
-            @m.get @key1
-            @m.get @key2
-            @m.get @key3
+            @m.get @key1, :raw => true
+            @m.get @key2, :raw => true
+            @m.get @key3, :raw => true
+            @m.get @key1, :raw => true
+            @m.get @key2, :raw => true
+            @m.get @key3, :raw => true
           end
         end
 

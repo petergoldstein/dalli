@@ -53,7 +53,7 @@ module ActiveSupport
         options = names.extract_options!
         options = merged_options(options)
         keys_to_names = names.inject({}){|map, name| map[escape_key(namespaced_key(name, options))] = name; map}
-        raw_values = @data.get_multi(keys_to_names.keys)
+        raw_values = @data.get_multi(keys_to_names.keys, options)
         values = {}
         raw_values.each do |key, value|
           entry = deserialize_entry(value)
@@ -106,7 +106,7 @@ module ActiveSupport
       protected
         # Read an entry from the cache.
         def read_entry(key, options) # :nodoc:
-          deserialize_entry(@data.get(escape_key(key)))
+          deserialize_entry(@data.get(escape_key(key), options))
         rescue Dalli::DalliError => e
           logger.error("DalliError (#{e}): #{e.message}") if logger
           nil
@@ -121,7 +121,7 @@ module ActiveSupport
             # Set the memcache expire a few minutes in the future to support race condition ttls on read
             expires_in += 5.minutes
           end
-          @data.send(method, escape_key(key), value, expires_in)
+          @data.send(method, escape_key(key), value, expires_in, options)
         rescue Dalli::DalliError => e
           logger.error("DalliError (#{e}): #{e.message}") if logger
           false

@@ -81,6 +81,25 @@ class TestActiveSupport < Test::Unit::TestCase
       end
     end
     
+    should 'support increment/decrement commands' do
+      with_activesupport do
+        memcached do
+          connect
+          assert_equal true, @mc.write('counter', 0, :raw => true)
+          assert_equal 1, @mc.increment('counter')
+          assert_equal 2, @mc.increment('counter')
+          assert_equal 1, @mc.decrement('counter')
+          assert_equal "1", @mc.read('counter', :raw => true)
+
+          assert_equal true, @dalli.write('counter', 0, :raw => true)
+          assert_equal 1, @dalli.increment('counter')
+          assert_equal 2, @dalli.increment('counter')
+          assert_equal 1, @dalli.decrement('counter')
+          assert_equal "1", @dalli.read('counter', :raw => true)
+        end
+      end
+    end
+
     should 'support other esoteric commands' do
       with_activesupport do
         memcached do

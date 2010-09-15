@@ -1,37 +1,26 @@
 Upgrading from memcache-client
 ========
 
-Dalli is not meant to be 100% compatible with memcache-client, there are serveral differences in the API.
+Dalli is not meant to be 100% compatible with memcache-client, there are a few minor differences in the API.
 
 
 Marshalling
 ---------------
 
-Dalli has removed support for specifying the marshalling behavior for each operation.
-
-Take this typical operation:
+Dalli has changed the raw parameter to a :raw option.  The memcache-client API allowed you to control marshalling on a per-method basis using a boolean 'raw' parameter to several of the API methods:
 
     cache = MemCache.new
-    cache.set('abc', 123)
-
-Technically 123 is an Integer and presumably you want `cache.get('abc')` to return an Integer.  Since memcached stores values as binary blobs, Dalli will serialize the value to a binary blob for storage.  When you get() the value back, Ruby will deserialize it properly to an Integer and all will be well.  Without marshalling, Dalli will convert values to Strings and so get() would return a String, not an Integer.
-
-The memcache-client API allowed you to control marshalling on a per-method basis using a boolean 'raw' parameter to several of the API methods:
-
-	cache = MemCache.new
     cache.set('abc', 123, 0, true)
     cache.get('abc', true) => '123'
-  
+
     cache.set('abc', 123, 0)
     cache.get('abc') => 123
 
-Note that the last 'raw' parameter is set to true in the first two API calls and so `get` returns a string, not an integer.  In the second example, we don't provide the raw parameter.  Since it defaults to false, it works exactly like Dalli.
+Note that the last parameter is set to true in the first two API calls and so `get` returns a string, not an integer.  In the second example, we don't provide the raw parameter.  Since it defaults to false, it works exactly like Dalli.
 
-If the code specifies raw as false, you can simply remove that parameter.  If the code is using raw = true, you will need to use the :marshal option to create a Dalli::Client instance that does not perform marshalling:
+If the code specifies raw as false, you can simply remove that parameter.  If the code is using raw = true, you will need to use the :raw option:
 
-    cache = Dalli::Client.new(servers, :marshal => false)
-
-If the code is mixing marshal modes (performing operations where raw is both true and false), you will need to use two different client instances.
+    cache.set('abc', 123, 0, :raw => true)
 
 
 Return Values

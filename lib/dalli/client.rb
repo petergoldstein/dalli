@@ -6,7 +6,7 @@ module Dalli
     # the memcached server.  Usage:
     # <pre>
     # Dalli::Client.new(['localhost:11211:10', 'cache-2.example.com:11211:5', '192.168.0.1:22122:5'], 
-    #                   :threadsafe => false, :marshal => false)
+    #                   :threadsafe => true, :failover => true)
     # </pre>
     # servers is an Array of "host:port:weight" where weight allows you to distribute cache unevenly.
     # Both weight and port are optional.
@@ -14,64 +14,62 @@ module Dalli
     # Options:
     #   :failover - if a server is down, store the value on another server.  Default: true.
     #   :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
-    #   :marshal - ensure that the value you store is exactly what is returned.  Otherwise you can see this:
-    #        set('abc', 123)
-    #        get('abc') ==> '123'  (Note you set an Integer but got back a String)
-    #      Default: true.
     #
     def initialize(servers=nil, options={})
       @servers = servers
       @options = options
-      self.extend(Dalli::Marshal) unless options[:marshal] == false
     end
     
     #
     # The standard memcached instruction set
     #
 
-    def get(key)
+    def get(key, options=nil)
       resp = perform(:get, key)
-      (!resp || resp == 'Not found') ? nil : deserialize(resp)
+      (!resp || resp == 'Not found') ? nil : deserialize(resp, options)
     end
 
     def get_multi(*keys)
+      return {} if keys.empty?
+      options = nil
+      options = keys.pop if keys.last.is_a?(Hash)
       ring.lock do
         keys.flatten.each do |key|
           perform(:getkq, key)
         end
         values = ring.servers.inject({}) { |hash, s| hash.merge!(s.request(:noop)); hash }
-        values.inject(values) { |memo, (k,v)| memo[k] = deserialize(v); memo }
+        values.inject(values) { |memo, (k,v)| memo[k] = deserialize(v, options); memo }
       end
     end
 
-    def fetch(key, ttl=0)
-      val = get(key)
+    def fetch(key, ttl=0, options=nil)
+      val = get(key, options)
       if val.nil? && block_given?
         val = yield
-        add(key, val, ttl)
+        add(key, val, ttl, options)
       end
       val
     end
 
-    def cas(key, ttl=0, &block)
+    def cas(key, ttl=0, options=nil, &block)
       (value, cas) = perform(:cas, key)
-      value = (!value || value == 'Not found') ? nil : deserialize(value)
+      value = (!value || value == 'Not found') ? nil : deserialize(value, options)
       if value
         newvalue = block.call(value)
-        perform(:add, key, serialize(newvalue), ttl, cas)
+        perform(:add, key, serialize(newvalue, options), ttl, cas)
       end
     end
 
-    def set(key, value, ttl=0)
-      perform(:set, key, serialize(value), ttl)
+    def set(key, value, ttl=0, options=nil)
+      perform(:set, key, serialize(value, options), ttl)
     end
     
-    def add(key, value, ttl=0)
-      perform(:add, key, serialize(value), ttl, 0)
+    def add(key, value, ttl=0, options=nil)
+      perform(:add, key, serialize(value, options), ttl, 0)
     end
 
-    def replace(key, value, ttl=0)
-      perform(:replace, key, serialize(value), ttl)
+    def replace(key, value, ttl=0, options=nil)
+      perform(:replace, key, serialize(value, options), ttl)
     end
 
     def delete(key)
@@ -148,12 +146,14 @@ module Dalli
       )
     end
 
-    def serialize(value)
-      value.to_s
+    def serialize(value, options)
+      options && options[:raw] ? value.to_s : ::Marshal.dump(value)
     end
-    
-    def deserialize(value)
-      value
+
+    def deserialize(value, options)
+      options && options[:raw] ? value : ::Marshal.load(value)
+    rescue TypeError
+      raise Dalli::DalliError, "Invalid marshalled data in memcached: #{value}"
     end
 
     def env_servers

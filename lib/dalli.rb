@@ -11,11 +11,12 @@ module Dalli
   class NetworkError < DalliError; end
 
   def self.logger
-    @logger ||= begin
-      (defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger) ||
-      (defined?(RAILS_DEFAULT_LOGGER) && RAILS_DEFAULT_LOGGER) ||
-      default_logger
-    end
+    @logger ||= (rails_logger || default_logger)
+  end
+
+  def self.rails_logger
+    (defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger) ||
+    (defined?(RAILS_DEFAULT_LOGGER) && RAILS_DEFAULT_LOGGER.respond_to?(:debug) && RAILS_DEFAULT_LOGGER)
   end
 
   def self.default_logger

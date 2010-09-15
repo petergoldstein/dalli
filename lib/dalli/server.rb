@@ -167,7 +167,7 @@ module Dalli
     def cas_response
       header = read(24)
       raise Dalli::NetworkError, 'No response' if !header
-      (extras, status, count, _, cas) = header.unpack(CAS_HEADER)
+      (extras, type, status, count, _, cas) = header.unpack(CAS_HEADER)
       data = read(count) if count > 0
       if status == 1
         nil
@@ -182,7 +182,7 @@ module Dalli
     def generic_response
       header = read(24)
       raise Dalli::NetworkError, 'No response' if !header
-      (extras, status, count) = header.unpack(NORMAL_HEADER)
+      (extras, type, status, count) = header.unpack(NORMAL_HEADER)
       data = read(count) if count > 0
       if status == 1
         nil
@@ -287,15 +287,15 @@ module Dalli
     end
 
     def split(n)
-      [0xFFFFFFFF & n, n >> 32]
+      [n >> 32, 0xFFFFFFFF & n]
     end
 
     def longlong(a, b)
-      a | (b << 32)
+      (a << 32) | b
     end
 
-    CAS_HEADER = '@4vnNNQ'
-    NORMAL_HEADER = '@4vnN'
+    CAS_HEADER = '@4CCnNNQ'
+    NORMAL_HEADER = '@4CCnN'
     KV_HEADER = '@2n@6nN'
 
     REQUEST = 0x80
@@ -379,7 +379,7 @@ module Dalli
 
     def sasl_authentication(socket)
       init_sasl if !defined?(::SASL)
-      
+
       Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
 
       # negotiate
@@ -387,7 +387,7 @@ module Dalli
       socket.write(req)
       header = read(24, socket)
       raise Dalli::NetworkError, 'No response' if !header
-      (extras, status, count) = header.unpack(NORMAL_HEADER)
+      (extras, type, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
       content = read(count, socket)
       return (Dalli.logger.debug("Authentication not required/supported by server")) if status == 0x81
@@ -403,7 +403,7 @@ module Dalli
 
       header = read(24, socket)
       raise Dalli::NetworkError, 'No response' if !header
-      (extras, status, count) = header.unpack(NORMAL_HEADER)
+      (extras, type, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
       content = read(count, socket)
       return Dalli.logger.info("Dalli/SASL: #{content}") if status == 0
