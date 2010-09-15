@@ -260,6 +260,13 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
+    should 'handle symbols as keys' do
+      memcached(19124) do |cache|
+        cache.set(:foo, 'bar')
+        assert_equal 'bar', cache.get(:foo)
+      end
+    end
+
     # OSX: Create a SASL user for the memcached application like so:
     #
     # saslpasswd2 -a memcached -c testuser

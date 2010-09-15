@@ -162,10 +162,10 @@ module Dalli
 
     # Chokepoint method for instrumentation
     def perform(op, *args)
-      key = args.first
+      key = args.shift.to_s
       validate_key(key)
       server = ring.server_for_key(key)
-      server.request(op, *args)
+      server.request(op, *(args.unshift(key)))
     end
     
     def validate_key(key)
