@@ -13,6 +13,7 @@ module Dalli
       @port = Integer(@port)
       @weight ||= 1
       @weight = Integer(@weight)
+      @down_at = nil
       connection
       Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{request(:version)}" }
     end

@@ -9,6 +9,7 @@ module Dalli
     
     def initialize(servers, options)
       @servers = servers
+      @continuum = nil
       if servers.size > 1
         total_weight = servers.inject(0) { |memo, srv| memo + srv.weight }
         continuum = []
