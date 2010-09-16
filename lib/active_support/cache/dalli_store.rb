@@ -64,27 +64,35 @@ module ActiveSupport
 
       # Increment a cached value. This method uses the memcached incr atomic
       # operator and can only be used on values written with the :raw option.
-      # Calling it on a value not stored with :raw will initialize that value
-      # to zero.
+      # Calling it on a value not stored with :raw will fail.
+      # :initial defaults to the amount passed in, as if the counter was initially zero.
+      # memcached counters cannot hold negative values.
       def increment(name, amount = 1, options = nil) # :nodoc:
         options = merged_options(options)
+        initial = options[:initial] || amount
+        expires_in = options[:expires_in].to_i
         response = instrument(:increment, name, :amount => amount) do
-          @data.incr(escape_key(namespaced_key(name, options)), amount)
+          @data.incr(escape_key(namespaced_key(name, options)), amount, expires_in, initial)
         end
-      rescue Dalli::DalliError
+      rescue Dalli::DalliError => e
+        logger.error("DalliError (#{e}): #{e.message}") if logger
         nil
       end
 
       # Decrement a cached value. This method uses the memcached decr atomic
       # operator and can only be used on values written with the :raw option.
-      # Calling it on a value not stored with :raw will initialize that value
-      # to zero.
+      # Calling it on a value not stored with :raw will fail.
+      # :initial defaults to zero, as if the counter was initially zero.
+      # memcached counters cannot hold negative values.
       def decrement(name, amount = 1, options = nil) # :nodoc:
         options = merged_options(options)
+        initial = options[:initial] || 0
+        expires_in = options[:expires_in].to_i
         response = instrument(:decrement, name, :amount => amount) do
-          @data.decr(escape_key(namespaced_key(name, options)), amount)
+          @data.decr(escape_key(namespaced_key(name, options)), amount, expires_in, initial)
         end
-      rescue Dalli::DalliError
+      rescue Dalli::DalliError => e
+        logger.error("DalliError (#{e}): #{e.message}") if logger
         nil
       end
 
@@ -106,7 +114,7 @@ module ActiveSupport
       protected
         # Read an entry from the cache.
         def read_entry(key, options) # :nodoc:
-          deserialize_entry(@data.get(escape_key(key), options))
+          deserialize_entry(@data.get(escape_key(key), :raw => true))
         rescue Dalli::DalliError => e
           logger.error("DalliError (#{e}): #{e.message}") if logger
           nil
