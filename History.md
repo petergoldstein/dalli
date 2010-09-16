@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+0.9.6
+-----
+
+ - Patches for Rails 3.0.1 integration.
+
 0.9.5
 -----
 
