@@ -15,7 +15,7 @@ module Dalli
       @weight = Integer(@weight)
       @down_at = nil
       connection
-      detect_old_version
+      detect_memcached_version
       raise NotImplementedError, "Dalli does not support memcached versions < 1.4.0, found #{@version} at #{@hostname}:#{@port}" if @version < '1.4.0'
       Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{@version}" }
     end
@@ -54,6 +54,10 @@ module Dalli
     private
 
     def detect_memcached_version
+      # HACK, the server does not appear to have a way to negotiate the protocol.
+      # If you ask for the version in text, the socket is immediately locked to the text
+      # protocol.  All we can do is use binary and handle the failure if the server is old.
+      # Alternative suggestions welcome.
       @version = begin
         binary_version
       rescue Dalli::NetworkError

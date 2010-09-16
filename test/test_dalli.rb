@@ -2,6 +2,27 @@ require 'helper'
 require 'memcached_mock'
 
 class TestDalli < Test::Unit::TestCase
+
+  should "default to localhost:11211" do
+    dc = Dalli::Client.new
+    ring = dc.send(:ring)
+    s1 = ring.servers.first.hostname
+    assert_equal 1, ring.servers.size
+
+    dc = Dalli::Client.new('localhost:11211')
+    ring = dc.send(:ring)
+    s2 = ring.servers.first.hostname
+    assert_equal 1, ring.servers.size
+
+    dc = Dalli::Client.new(['localhost:11211'])
+    ring = dc.send(:ring)
+    s3 = ring.servers.first.hostname
+    assert_equal 1, ring.servers.size
+
+    assert_equal s1, s2
+    assert_equal s2, s3
+  end
+
   context 'using a live server' do
 
     should "support huge get/set" do
