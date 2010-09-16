@@ -15,7 +15,9 @@ module Dalli
       @weight = Integer(@weight)
       @down_at = nil
       connection
-      Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{request(:version)}" }
+      detect_old_version
+      raise NotImplementedError, "Dalli does not support memcached versions < 1.4.0, found #{@version} at #{@hostname}:#{@port}" if @version < '1.4.0'
+      Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{@version}" }
     end
     
     # Chokepoint method for instrumentation
@@ -50,6 +52,15 @@ module Dalli
     # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
 
     private
+
+    def detect_memcached_version
+      @version = begin
+        binary_version
+      rescue Dalli::NetworkError
+        sleep 1
+        text_version
+      end
+    end
 
     def down!
       close
@@ -147,12 +158,6 @@ module Dalli
       generic_response
     end
 
-    def version
-      req = [REQUEST, OPCODES[:version], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
-      write(req)
-      generic_response
-    end
-
     def stats(info='')
       req = [REQUEST, OPCODES[:stat], info.size, 0, 0, 0, info.size, 0, 0, info].pack(FORMAT[:stat])
       write(req)
@@ -163,6 +168,18 @@ module Dalli
       req = [REQUEST, OPCODES[:get], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:get])
       write(req)
       cas_response
+    end
+
+    def binary_version
+      req = [REQUEST, OPCODES[:version], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
+      write(req)
+      generic_response
+    end
+
+    def text_version
+      write("version\r\n")
+      connection.gets =~ /VERSION (.*)\r\n/
+      $1
     end
 
     def cas_response
