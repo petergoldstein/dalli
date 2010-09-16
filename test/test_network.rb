@@ -12,6 +12,9 @@ class TestNetwork < Test::Unit::TestCase
     end
 
     context 'with a fake server' do
+      setup do
+        Dalli::Server.any_instance.expects(:detect_memcached_version).returns('1.4.5')
+      end
 
       should 'handle connection reset' do
         memcached_mock(lambda {|sock| sock.close }) do

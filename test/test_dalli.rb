@@ -8,16 +8,19 @@ class TestDalli < Test::Unit::TestCase
     ring = dc.send(:ring)
     s1 = ring.servers.first.hostname
     assert_equal 1, ring.servers.size
+    dc.close
 
     dc = Dalli::Client.new('localhost:11211')
     ring = dc.send(:ring)
     s2 = ring.servers.first.hostname
     assert_equal 1, ring.servers.size
+    dc.close
 
     dc = Dalli::Client.new(['localhost:11211'])
     ring = dc.send(:ring)
     s3 = ring.servers.first.hostname
     assert_equal 1, ring.servers.size
+    dc.close
 
     assert_equal s1, s2
     assert_equal s2, s3
