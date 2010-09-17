@@ -104,7 +104,7 @@ module Dalli
     # If default is nil, the counter must already exist or the operation
     # will fail and will return nil.  Otherwise this method will return
     # the new value for the counter.
-    def incr(key, amt, ttl=0, default=nil)
+    def incr(key, amt=1, ttl=0, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
       perform(:incr, key, amt, ttl, default)
     end
@@ -119,7 +119,7 @@ module Dalli
     # If default is nil, the counter must already exist or the operation
     # will fail and will return nil.  Otherwise this method will return
     # the new value for the counter.
-    def decr(key, amt, ttl=0, default=nil)
+    def decr(key, amt=1, ttl=0, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
       perform(:decr, key, amt, ttl, default)
     end
