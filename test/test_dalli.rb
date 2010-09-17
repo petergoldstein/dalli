@@ -28,7 +28,7 @@ class TestDalli < Test::Unit::TestCase
 
   context 'using a live server' do
 
-    should "support huge get/set" do
+    should "support get/set" do
       memcached do |dc|
         dc.flush
 
@@ -43,6 +43,9 @@ class TestDalli < Test::Unit::TestCase
         dc.set('a', val1)
         val2 = dc.get('a')
         assert_equal val1, val2
+        
+        assert_equal true, dc.set('a', nil)
+        assert_nil dc.get('a')
       end
     end
 
