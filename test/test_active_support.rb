@@ -118,6 +118,15 @@ class TestActiveSupport < Test::Unit::TestCase
           assert_equal ms.keys.sort, ds.keys.sort
           assert_equal ms[ms.keys.first].keys.sort, ds[ds.keys.first].keys.sort
 
+          assert_equal true, @dalli.write(:foo, 'a')
+          assert_equal true, @mc.write(:foo, 'a')
+
+          assert_equal true, @mc.exist?(:foo)
+          assert_equal true, @dalli.exist?(:foo)
+
+          assert_equal false, @mc.exist?(:bar)
+          assert_equal false, @dalli.exist?(:bar)
+
           @dalli.reset
         end
       end
