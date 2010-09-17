@@ -1,6 +1,12 @@
 Dalli Changelog
 =====================
 
+0.9.7
+-----
+
+ - Small fix for NewRelic integration.
+ - Detect and fail on older memcached servers (pre-1.4).
+
 0.9.6
 -----
 
