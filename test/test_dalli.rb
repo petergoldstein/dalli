@@ -244,7 +244,7 @@ class TestDalli < Test::Unit::TestCase
     end
     
     should "support multithreaded access" do
-      memcached(19123) do |cache|
+      memcached do |cache|
         cache.flush
         workers = []
 
@@ -283,7 +283,7 @@ class TestDalli < Test::Unit::TestCase
     end
 
     should 'gracefully handle authentication failures' do
-      memcached(19122, '-S') do |dc|
+      memcached(19124, '-S') do |dc|
         assert_raise Dalli::DalliError, /32/ do
           dc.set('abc', 123)
         end
@@ -307,7 +307,7 @@ class TestDalli < Test::Unit::TestCase
       end
 
       should 'support SASL authentication' do
-        memcached(19121, '-S') do |dc|
+        memcached(19124, '-S') do |dc|
           # I get "Dalli::NetworkError: Error authenticating: 32" in OSX
           # but SASL works on Heroku servers. YMMV.
           assert_equal true, dc.set('abc', 123)

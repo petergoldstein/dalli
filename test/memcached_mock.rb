@@ -1,5 +1,7 @@
 require "socket"
 
+$started = {}
+
 module MemcachedMock
   def self.start(port=19123, &block)
     server = TCPServer.new("localhost", port)
@@ -31,7 +33,7 @@ module MemcachedMock
           end
         end
 
-        sleep 0.5 # Give time for the socket to start listening.
+        sleep 0.3 # Give time for the socket to start listening.
         yield
       ensure
         if pid
@@ -66,15 +68,21 @@ module MemcachedMock
     def memcached(port=19122, args='')
       Memcached.path ||= find_memcached
       cmd = "#{Memcached.path}memcached #{args} -p #{port}"
-#      puts "Starting: #{cmd}..."
-      pid = IO.popen(cmd).pid
-      begin
-        sleep 0.5
-        yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"])
-      ensure
-        Process.kill("TERM", pid)
-        Process.wait(pid)
+      $started[port] ||= begin
+        #puts "Starting: #{cmd}..."
+        pid = IO.popen(cmd).pid
+        at_exit do
+          begin
+            Process.kill("TERM", pid)
+            Process.wait(pid)
+          rescue Errno::ECHILD
+          end
+        end
+        sleep 0.2
+        pid
       end
+
+      yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"])
     end
   end
 end

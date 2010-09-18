@@ -6,7 +6,7 @@ class TestNetwork < Test::Unit::TestCase
 
     should 'handle connection refused' do
       assert_raise Dalli::NetworkError do
-        dc = Dalli::Client.new 'localhost:19123'
+        dc = Dalli::Client.new 'localhost:19333'
         dc.get 'foo'
       end
     end
