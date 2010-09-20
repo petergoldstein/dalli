@@ -208,7 +208,7 @@ module Dalli
       data = read(count) if count > 0
       if status == 1
         nil
-      elsif status == 2
+      elsif status == 2 || status == 5
         false # Not stored, normal status for add operation
       elsif status != 0
         raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"

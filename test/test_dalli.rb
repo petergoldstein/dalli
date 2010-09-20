@@ -191,6 +191,23 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
+    should 'support the append and prepend operations' do
+      memcached do |dc|
+        resp = dc.flush
+        assert_equal true, dc.set('456', 'xyz', 0, :raw => true)
+        assert_equal true, dc.prepend('456', '0')
+        assert_equal true, dc.append('456', '9')
+        assert_equal '0xyz9', dc.get('456', :raw => true)
+
+        assert_raises Dalli::DalliError do
+          assert_equal '0xyz9', dc.get('456')
+        end
+
+        assert_equal false, dc.append('nonexist', 'abc')
+        assert_equal false, dc.prepend('nonexist', 'abc')
+      end
+    end
+
     should "pass a simple smoke test" do
       memcached do |dc|
         resp = dc.flush
