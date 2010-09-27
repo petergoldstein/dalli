@@ -68,8 +68,8 @@ module ActiveSupport
       def increment(key, amount = 1) # :nodoc:
         log("incrementing", key, amount)
         @data.incr(escape_key(key), amount)
-      rescue Dalli::DalliError
-        logger.error("DalliError (#{e}): #{e.message}")
+      rescue Dalli::DalliError => e
+        logger.error("DalliError (#{e}): #{e.message}") if logger
         nil
       end
 
@@ -80,8 +80,8 @@ module ActiveSupport
       def decrement(key, amount = 1) # :nodoc:
         log("decrement", key, amount)
         @data.decr(escape_key(key), amount)
-      rescue Dalli::DalliError
-        logger.error("DalliError (#{e}): #{e.message}")
+      rescue Dalli::DalliError => e
+        logger.error("DalliError (#{e}): #{e.message}") if logger
         nil
       end
 
