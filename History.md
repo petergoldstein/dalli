@@ -1,6 +1,13 @@
 Dalli Changelog
 =====================
 
+0.9.8
+-----
+
+ - Implement namespace support
+ - Misc fixes
+
+
 0.9.7
 -----
 

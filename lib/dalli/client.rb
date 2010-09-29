@@ -167,7 +167,7 @@ module Dalli
         key = key.to_s
         args[0] = key
       end
-      validate_key(key)
+      args[0] = key = validate_key(key)
       server = ring.server_for_key(key)
       server.request(op, *args)
     end
@@ -176,6 +176,7 @@ module Dalli
       raise ArgumentError, "illegal character in key #{key.inspect}" if key =~ /\s/
       raise ArgumentError, "key cannot be blank" if key.nil? || key.strip.size == 0
       raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
+      @options[:namespace] ? "#{@options[:namespace]}:#{key}" : key
     end
   end
 end

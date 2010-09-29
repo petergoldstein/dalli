@@ -307,6 +307,17 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
+    should "handle namespaced keys" do
+      memcached do |dc|
+        dc = Dalli::Client.new('localhost:19122', :namespace => 'a')
+        dc.set('namespaced', 1)
+        dc2 = Dalli::Client.new('localhost:19122', :namespace => 'b')
+        dc2.set('namespaced', 2)
+        assert_equal 1, dc.get('namespaced')
+        assert_equal 2, dc2.get('namespaced')
+      end
+    end
+
     # OSX: Create a SASL user for the memcached application like so:
     #
     # saslpasswd2 -a memcached -c testuser
