@@ -1,6 +1,21 @@
 Dalli Changelog
 =====================
 
+HEAD
+----
+
+ - Add support for *_multi operations for add, set, replace and delete.  This implements
+   pipelined network operations; Dalli disables network replies so we're not limited by
+   latency, allowing for much higher thoroughput.
+
+   dc = Dalli::Client.new
+   dc.multi do
+     dc.set 'a', 1
+     dc.set 'b', 2
+     dc.set 'c', 3
+     dc.delete 'd'
+   end
+
 0.9.8
 -----
 

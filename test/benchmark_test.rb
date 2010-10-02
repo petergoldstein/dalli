@@ -41,6 +41,20 @@ class TestBenchmark < Test::Unit::TestCase
         end
 
         @m = Dalli::Client.new(@servers)
+        x.report("setq:plain:dalli") do
+          @m.multi do
+            n.times do
+              @m.set @key1, @marshalled, 0, :raw => true
+              @m.set @key2, @marshalled, 0, :raw => true
+              @m.set @key3, @marshalled, 0, :raw => true
+              @m.set @key1, @marshalled, 0, :raw => true
+              @m.set @key2, @marshalled, 0, :raw => true
+              @m.set @key3, @marshalled, 0, :raw => true
+            end
+          end
+        end
+
+        @m = Dalli::Client.new(@servers)
         x.report("set:ruby:dalli") do
           n.times do
             @m.set @key1, @value
@@ -111,6 +125,29 @@ class TestBenchmark < Test::Unit::TestCase
             @m.get @key2
             @m.set @key3, @value
             @m.get @key3
+          end
+        end
+
+        @m = Dalli::Client.new(@servers)
+        x.report("mixedq:ruby:dalli") do
+          @m.multi do
+            n.times do
+              @m.set @key1, @value
+              @m.set @key2, @value
+              @m.set @key3, @value
+              @m.get @key1
+              @m.get @key2
+              @m.get @key3
+              @m.set @key1, @value
+              @m.get @key1
+              @m.set @key2, @value
+              @m.replace @key2, @value
+              @m.delete @key3
+              @m.add @key3, @value
+              @m.get @key2
+              @m.set @key3, @value
+              @m.get @key3
+            end
           end
         end
 

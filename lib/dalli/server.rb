@@ -73,6 +73,10 @@ module Dalli
       nil
     end
 
+    def multi?
+      Thread.current[:multi]
+    end
+
     ONE_MB = 1024 * 1024
 
     def get(key)
@@ -89,9 +93,9 @@ module Dalli
     def set(key, value, ttl)
       raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.size > ONE_MB
 
-      req = [REQUEST, OPCODES[:set], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:set])
+      req = [REQUEST, OPCODES[multi? ? :setq : :set], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:set])
       write(req)
-      generic_response
+      generic_response unless multi?
     end
 
     def flush(ttl)
@@ -103,9 +107,9 @@ module Dalli
     def add(key, value, ttl, cas)
       raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.size > ONE_MB
 
-      req = [REQUEST, OPCODES[:add], key.size, 8, 0, 0, value.size + key.size + 8, 0, cas, 0, ttl, key, value].pack(FORMAT[:add])
+      req = [REQUEST, OPCODES[multi? ? :addq : :add], key.size, 8, 0, 0, value.size + key.size + 8, 0, cas, 0, ttl, key, value].pack(FORMAT[:add])
       write(req)
-      generic_response
+      generic_response unless multi?
     end
     
     def append(key, value)
@@ -115,9 +119,9 @@ module Dalli
     end
     
     def delete(key)
-      req = [REQUEST, OPCODES[:delete], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:delete])
+      req = [REQUEST, OPCODES[multi? ? :deleteq : :delete], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:delete])
       write(req)
-      generic_response
+      generic_response unless multi?
     end
 
     def decr(key, count, ttl, default)
@@ -157,9 +161,9 @@ module Dalli
     end
 
     def replace(key, value, ttl)
-      req = [REQUEST, OPCODES[:replace], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:replace])
+      req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:replace])
       write(req)
-      generic_response
+      generic_response unless multi?
     end
 
     def stats(info='')
@@ -351,6 +355,12 @@ module Dalli
       :append => 0x0E,
       :prepend => 0x0F,
       :stat => 0x10,
+      :setq => 0x11,
+      :addq => 0x12,
+      :replaceq => 0x13,
+      :deleteq => 0x14,
+      :incrq => 0x15,
+      :decrq => 0x16,
       :auth_negotiation => 0x20,
       :auth_request => 0x21,
       :auth_continue => 0x22,

@@ -24,6 +24,18 @@ module Dalli
     # The standard memcached instruction set
     #
 
+    ##
+    # Turn on quiet aka noreply support.
+    # All relevant operations within this block with be effectively
+    # pipelined as Dalli will use 'quiet' operations where possible.
+    # Currently supports the set, add, replace and delete operations.
+    def multi
+      Thread.current[:multi] = true
+      yield
+    ensure
+      Thread.current[:multi] = nil
+    end
+
     def get(key, options=nil)
       resp = perform(:get, key)
       (!resp || resp == 'Not found') ? nil : deserialize(resp, options)
