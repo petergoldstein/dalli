@@ -175,7 +175,7 @@ module Dalli
     # Chokepoint method for instrumentation
     def perform(op, *args)
       key = args.first
-      if key.is_a?(Symbol)
+      if !key.is_a?(String)
         key = key.to_s
         args[0] = key
       end

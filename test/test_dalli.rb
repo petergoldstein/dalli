@@ -110,6 +110,19 @@ class TestDalli < Test::Unit::TestCase
         dc.set('c', %w(a b c))
         resp = dc.get_multi(%w(a b c d e f))
         assert_equal({ 'a' => 'foo', 'b' => 123, 'c' => %w(a b c) }, resp)
+
+        # Perform a huge multi-get with 10,000 elements.
+        arr = []
+        dc.multi do
+          10_000.times do |idx|
+            dc.set idx, idx
+            arr << idx
+          end
+        end
+
+        result = dc.get_multi(arr)
+        assert_equal(10_000, result.size)
+        assert_equal(1000, result['1000'])
       end
     end
 
