@@ -20,8 +20,7 @@ module Dalli
             continuum << Dalli::Ring::Entry.new(value, server)
           end
         end
-        continuum.sort { |a, b| a.value <=> b.value }
-        @continuum = continuum
+        @continuum = continuum.sort { |a, b| a.value <=> b.value }
       end
 
       threadsafe! unless options[:threadsafe] == false

@@ -15,6 +15,7 @@ HEAD
       dc.set 'c', 3
       dc.delete 'd'
     end
+ - Minor fix to set the continuum sorted by value
 
 0.9.8
 -----
