@@ -61,6 +61,11 @@ A more comprehensive example (note that we are setting a reasonable default for 
     config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com',
         :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true, :compress_threshold => 64.kilobytes
 
+In `config/initializers/session_store.rb`:
+
+    require 'action_dispatch/middleware/session/dalli_store'
+    Rails.application.config.session_store :dalli_store, :key => ...
+
 
 Usage with Rails 2.3.x
 ----------------------------
@@ -74,9 +79,12 @@ In `config/environments/production.rb`:
     # Object cache
     require 'active_support/cache/dalli_store23'
     config.cache_store = :dalli_store
+
+In `config/initializers/session_store.rb`:
+
     # Session cache
     require 'action_controller/session/dalli_store'
-    config.session_store = :dalli_store
+    ActionController::Base.session_store = :dalli_store
 
 
 Usage with Passenger
