@@ -1,6 +1,12 @@
 Dalli Changelog
 =====================
 
+HEAD
+----
+
+ - Rails 3.1 compatibility (gucki)
+
+
 0.9.9
 ----
 
@@ -15,7 +21,7 @@ Dalli Changelog
       dc.set 'c', 3
       dc.delete 'd'
     end
- - Minor fix to set the continuum sorted by value.
+ - Minor fix to set the continuum sorted by value (kangster)
  - Implement session store with Rails 2.3.  Update docs.
 
 0.9.8
