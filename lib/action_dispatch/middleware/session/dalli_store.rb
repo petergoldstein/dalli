@@ -18,7 +18,6 @@ module ActionDispatch
         @default_options = {
           :namespace => 'rack:session',
           :memcache_server => 'localhost:11211',
-          :expires_in => options[:expire_after]
         }.merge(@default_options)
 
         @pool = options[:cache] || begin
@@ -36,15 +35,9 @@ module ActionDispatch
 
       private
       
-        def session_key(sid)
-          # Dalli does not support namespaces directly so we have
-          # to roll our own.
-          @namespace ? "#{@namespace}:#{sid}" : sid
-        end
-
         def get_session(env, sid)
           begin
-            session = @pool.get(session_key(sid)) || {}
+            session = @pool.get(sid) || {}
           rescue Dalli::DalliError => de
             Rails.logger.warn("Session::DalliStore: #{$!.message}")
             session = {}
@@ -55,7 +48,7 @@ module ActionDispatch
         def set_session(env, sid, session_data)
           options = env['rack.session.options']
           expiry  = options[:expire_after] || 0
-          @pool.set(session_key(sid), session_data, expiry)
+          @pool.set(sid, session_data, expiry)
           sid
         rescue Dalli::DalliError
           Rails.logger.warn("Session::DalliStore: #{$!.message}")
@@ -64,7 +57,7 @@ module ActionDispatch
 
         def destroy(env)
           if sid = current_session_id(env)
-            @pool.delete(session_key(sid))
+            @pool.delete(sid)
           end
         rescue Dalli::DalliError
           Rails.logger.warn("Session::DalliStore: #{$!.message}")

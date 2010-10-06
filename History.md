@@ -6,7 +6,7 @@ HEAD
 
  - Add support for *_multi operations for add, set, replace and delete.  This implements
    pipelined network operations; Dalli disables network replies so we're not limited by
-   latency, allowing for much higher thoroughput.
+   latency, allowing for much higher throughput.
 
     dc = Dalli::Client.new
     dc.multi do
@@ -15,7 +15,8 @@ HEAD
       dc.set 'c', 3
       dc.delete 'd'
     end
- - Minor fix to set the continuum sorted by value
+ - Minor fix to set the continuum sorted by value.
+ - Implement session store with Rails 2.3.  Update docs.
 
 0.9.8
 -----

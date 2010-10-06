@@ -71,8 +71,12 @@ In `config/environment.rb`:
 
 In `config/environments/production.rb`:
 
+    # Object cache
     require 'active_support/cache/dalli_store23'
     config.cache_store = :dalli_store
+    # Session cache
+    require 'action_controller/session/dalli_store'
+    config.session_store = :dalli_store
 
 
 Usage with Passenger
