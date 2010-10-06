@@ -1,0 +1,35 @@
+PATH
+  remote: /Users/mike/git/dalli
+  specs:
+    dalli (0.9.8)
+
+GEM
+  specs:
+    actionmailer (2.3.9)
+      actionpack (= 2.3.9)
+    actionpack (2.3.9)
+      activesupport (= 2.3.9)
+      rack (~> 1.1.0)
+    activerecord (2.3.9)
+      activesupport (= 2.3.9)
+    activeresource (2.3.9)
+      activesupport (= 2.3.9)
+    activesupport (2.3.9)
+    rack (1.1.0)
+    rails (2.3.9)
+      actionmailer (= 2.3.9)
+      actionpack (= 2.3.9)
+      activerecord (= 2.3.9)
+      activeresource (= 2.3.9)
+      activesupport (= 2.3.9)
+      rake (>= 0.8.3)
+    rake (0.8.7)
+    sqlite3-ruby (1.3.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  dalli!
+  rails (= 2.3.9)
+  sqlite3-ruby

@@ -1,0 +1,4 @@
+
+gem 'rails', '2.3.9'
+gem 'dalli', :path => '..'
+gem 'sqlite3-ruby'
