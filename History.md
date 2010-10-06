@@ -1,7 +1,7 @@
 Dalli Changelog
 =====================
 
-HEAD
+0.9.9
 ----
 
  - Add support for *_multi operations for add, set, replace and delete.  This implements

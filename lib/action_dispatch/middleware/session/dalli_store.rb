@@ -36,9 +36,10 @@ module ActionDispatch
       private
       
         def get_session(env, sid)
+          sid ||= generate_sid
           begin
             session = @pool.get(sid) || {}
-          rescue Dalli::DalliError => de
+          rescue Dalli::DalliError
             Rails.logger.warn("Session::DalliStore: #{$!.message}")
             session = {}
           end
