@@ -45,8 +45,7 @@ module Dalli
         true
       rescue Dalli::NetworkError => dne
         Dalli.logger.info("Unable to connect to #{hostname}:#{port}: #{dne.message}")
-        @down_at = Time.now.to_i
-        false
+        down!
       end
     end
 
