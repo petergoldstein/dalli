@@ -295,7 +295,7 @@ module Dalli
         value = ''
         begin
           loop do
-            value << socket.sysread(count)
+            value << socket.sysread(count - value.size)
             break if value.size == count
           end
         rescue Errno::EAGAIN, Errno::EWOULDBLOCK

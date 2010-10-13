@@ -35,7 +35,7 @@ module Dalli
       20.times do |try|
         entryidx = self.class.binary_search(@continuum, hkey)
         server = @continuum[entryidx].server
-        return server if server.alive?
+        return server # if server.alive?
         break unless @failover
         hkey = hash_for("#{try}#{key}")
       end
