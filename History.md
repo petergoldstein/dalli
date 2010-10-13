@@ -1,9 +1,10 @@
 Dalli Changelog
 =====================
 
-HEAD
+0.9.10
 ----
 
+ - Better server retry logic (next2you)
  - Rails 3.1 compatibility (gucki)
 
 
