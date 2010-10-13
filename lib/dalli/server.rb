@@ -36,7 +36,18 @@ module Dalli
     end
 
     def alive?
-      @sock && !@sock.closed?
+      return true if @sock && !@sock.closed?
+      return false if @down_at && @down_at == Time.now.to_i
+
+      begin
+        # try to reconnect at most once per second
+        connection
+        true
+      rescue Dalli::NetworkError => dne
+        Dalli.logger.info("Unable to connect to #{hostname}:#{port}: #{dne.message}")
+        @down_at = Time.now.to_i
+        false
+      end
     end
 
     def close
@@ -295,7 +306,7 @@ module Dalli
         value = ''
         begin
           loop do
-            value << socket.sysread(count)
+            value << socket.sysread(count - value.size)
             break if value.size == count
           end
         rescue Errno::EAGAIN, Errno::EWOULDBLOCK
