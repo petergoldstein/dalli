@@ -45,6 +45,8 @@ module ActiveSupport
       # Reads multiple keys from the cache using a single call to the
       # servers for all keys. Options can be passed in the last argument.
       def read_multi(*names)
+        options = RAW
+        options = names.pop if names.last.is_a?(Hash)
         keys_to_names = names.inject({}){|map, name| map[escape_key(name)] = name; map}
         cache_keys = {}
         # map keys to servers
@@ -53,7 +55,7 @@ module ActiveSupport
           cache_keys[cache_key] = key
         end
 
-        values = @data.get_multi keys_to_names.keys
+        values = @data.get_multi(keys_to_names.keys, options)
         results = {}
         values.each do |key, value|
           results[cache_keys[key]] = Marshal.load value
@@ -99,11 +101,13 @@ module ActiveSupport
       def stats
         @data.stats
       end
+      
+      RAW = { :raw => true }
 
       # Read an entry from the cache.
       def read(key, options = nil) # :nodoc:
         super
-        value = @data.get(escape_key(key), options)
+        value = @data.get(escape_key(key), RAW.merge(options))
         return nil if value.nil?
         value = options && options[:raw] ? value : Marshal.load(value)
         value
@@ -123,7 +127,7 @@ module ActiveSupport
         super
         method = options && options[:unless_exist] ? :add : :set
         value = options && options[:raw] ? value.to_s : Marshal.dump(value)
-        @data.send(method, escape_key(key), value, expires_in(options), options)
+        @data.send(method, escape_key(key), value, expires_in(options), RAW.merge(options))
       rescue Dalli::DalliError => e
         logger.error("DalliError (#{e}): #{e.message}")
         false
@@ -141,7 +145,7 @@ module ActiveSupport
         # Doesn't call super, cause exist? in memcache is in fact a read
         # But who cares? Reading is very fast anyway
         # Local cache is checked first, if it doesn't know then memcache itself is read from
-        !read(key, options).nil?
+        !read(key, RAW.merge(options)).nil?
       end
 
       def delete_matched(matcher, options = nil) # :nodoc:
