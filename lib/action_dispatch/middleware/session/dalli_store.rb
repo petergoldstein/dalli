@@ -2,10 +2,7 @@ require 'active_support/cache'
 require 'action_dispatch/middleware/session/abstract_store'
 require 'dalli'
 
-# Dalli-based session store for Rails 3.0. Use like so:
-#
-# require 'action_dispatch/middleware/session/dalli_store'
-# config.session_store ActionDispatch::Session::DalliStore, ['cache-1', 'cache-2'], :expire_after => 2.weeks
+# Dalli-based session store for Rails 3.0.
 module ActionDispatch
   module Session
     class DalliStore < AbstractStore
@@ -40,7 +37,7 @@ module ActionDispatch
           begin
             session = @pool.get(sid) || {}
           rescue Dalli::DalliError
-            Rails.logger.warn("Session::DalliStore: #{$!.message}")
+            Rails.logger.warn("Session::DalliStore#get: #{$!.message}")
             session = {}
           end
           [sid, session]
@@ -52,7 +49,7 @@ module ActionDispatch
           @pool.set(sid, session_data, expiry)
           sid
         rescue Dalli::DalliError
-          Rails.logger.warn("Session::DalliStore: #{$!.message}")
+          Rails.logger.warn("Session::DalliStore#set: #{$!.message}")
           false
         end
 
@@ -61,7 +58,7 @@ module ActionDispatch
             @pool.delete(sid)
           end
         rescue Dalli::DalliError
-          Rails.logger.warn("Session::DalliStore: #{$!.message}")
+          Rails.logger.warn("Session::DalliStore#delete: #{$!.message}")
           false
         end
 
