@@ -2,7 +2,7 @@ require 'helper'
 require 'memcached_mock'
 
 class TestDalli < Test::Unit::TestCase
-
+  
   should "default to localhost:11211" do
     dc = Dalli::Client.new
     ring = dc.send(:ring)
@@ -323,13 +323,6 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
-    should 'gracefully handle authentication failures' do
-      memcached(19124, '-S') do |dc|
-        assert_raise Dalli::DalliError, /32/ do
-          dc.set('abc', 123)
-        end
-      end
-    end
 
     should "handle namespaced keys" do
       memcached do |dc|
@@ -339,6 +332,22 @@ class TestDalli < Test::Unit::TestCase
         dc2.set('namespaced', 2)
         assert_equal 1, dc.get('namespaced')
         assert_equal 2, dc2.get('namespaced')
+      end
+    end
+
+    context 'without authentication credentials' do
+      setup do
+        # SASL mode automatically forces the binary protocol, which means
+        # using the text protocol to find the version will break.
+        Dalli::Server.any_instance.expects(:detect_memcached_version).at_least(1).returns('1.4.5')
+      end
+
+      should 'gracefully handle authentication failures' do
+        memcached(19124, '-S') do |dc|
+          assert_raise Dalli::DalliError, /32/ do
+            dc.set('abc', 123)
+          end
+        end
       end
     end
 

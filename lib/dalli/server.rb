@@ -64,17 +64,23 @@ module Dalli
     def detect_memcached_version
       # HACK, the server does not appear to have a way to negotiate the protocol.
       # If you ask for the version in text, the socket is immediately locked to the text
-      # protocol.  But if we use binary, an old remote server will not respond.
-      # We use text to determine the remote version, close the socket and open it back up.
-      # Alternative suggestions welcome.
-      version = text_version
-      if version < '1.4.0'
-        Dalli.logger.error "Dalli does not support memcached versions < 1.4.0, found #{version} at #{@hostname}:#{@port}"
-        raise NotImplementedError, "Dalli does not support memcached versions < 1.4.0, found #{version} at #{@hostname}:#{@port}"
+      # protocol.  But if we use binary, an old remote server will not respond.  If
+      # the server is using SASL, it will not respond to the text protocol.  Sigh.
+      if username
+        # using SASL, assume the binary protocol will work.
+        binary_version
+      else
+        # Use text to determine the remote version, close the socket and open it back up.
+        # Alternative suggestions welcome.
+        version = text_version
+        if version < '1.4.0'
+          Dalli.logger.error "Dalli does not support memcached versions < 1.4.0, found #{version} at #{@hostname}:#{@port}"
+          raise NotImplementedError, "Dalli does not support memcached versions < 1.4.0, found #{version} at #{@hostname}:#{@port}"
+        end
+        close
+        connection
+        version
       end
-      close
-      connection
-      version
     end
 
     def down!
@@ -193,6 +199,12 @@ module Dalli
       write("version\r\n")
       connection.gets =~ /VERSION (.*)\r\n/
       $1
+    end
+
+    def binary_version
+      req = [REQUEST, OPCODES[:version], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
+      write(req)
+      generic_response
     end
 
     def cas_response
