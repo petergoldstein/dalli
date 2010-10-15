@@ -337,9 +337,13 @@ class TestDalli < Test::Unit::TestCase
 
     context 'without authentication credentials' do
       setup do
-        # SASL mode automatically forces the binary protocol, which means
-        # using the text protocol to find the version will break.
-        Dalli::Server.any_instance.expects(:detect_memcached_version).at_least(1).returns('1.4.5')
+        ENV['MEMCACHE_USERNAME'] = 'testuser'
+        ENV['MEMCACHE_PASSWORD'] = 'wrongpwd'
+      end
+
+      teardown do
+        ENV['MEMCACHE_USERNAME'] = nil
+        ENV['MEMCACHE_PASSWORD'] = nil
       end
 
       should 'gracefully handle authentication failures' do
@@ -369,7 +373,7 @@ class TestDalli < Test::Unit::TestCase
 
       should 'support SASL authentication' do
         memcached(19124, '-S') do |dc|
-          # I get "Dalli::NetworkError: Error authenticating: 32" in OSX
+          # I get "Dalli::DalliError: Error authenticating: 32" in OSX
           # but SASL works on Heroku servers. YMMV.
           assert_equal true, dc.set('abc', 123)
           assert_equal 123, dc.get('abc')

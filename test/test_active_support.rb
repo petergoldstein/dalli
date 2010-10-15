@@ -7,19 +7,20 @@ class TestActiveSupport < Test::Unit::TestCase
       with_activesupport do
         memcached do
           connect
-          dvalue = @mc.fetch('somekeywithoutspaces', :expires_in => 1.second) { 123 }
-          mvalue = @dalli.fetch('someotherkeywithoutspaces', :expires_in => 1.second) { 123 }
+          mvalue = @mc.fetch('somekeywithoutspaces', :expires_in => 1.second) { 123 }
+          dvalue = @dalli.fetch('someotherkeywithoutspaces', :expires_in => 1.second) { 123 }
+          assert_equal 123, dvalue
           assert_equal mvalue, dvalue
 
           o = Object.new
           o.instance_variable_set :@foo, 'bar'
-          dvalue = @mc.fetch(rand_key, :raw => true) { o }
-          mvalue = @dalli.fetch(rand_key, :raw => true) { o }
+          mvalue = @mc.fetch(rand_key, :raw => true) { o }
+          dvalue = @dalli.fetch(rand_key, :raw => true) { o }
           assert_equal mvalue, dvalue
-          assert_equal o, dvalue
+          assert_equal o, mvalue
 
-          dvalue = @mc.fetch(rand_key) { o }
-          mvalue = @dalli.fetch(rand_key) { o }
+          mvalue = @mc.fetch(rand_key) { o }
+          dvalue = @dalli.fetch(rand_key) { o }
           assert_equal mvalue, dvalue
           assert_equal o, dvalue
         end
@@ -61,6 +62,33 @@ class TestActiveSupport < Test::Unit::TestCase
           @mc.write(y, 123)
           assert_equal({ x => '123', y => 123 }, @dalli.read_multi(x, y))
           assert_equal({ x => '123', y => 123 }, @mc.read_multi(x, y))
+        end
+      end
+    end
+
+    should 'support raw read_multi' do
+      with_activesupport do
+        memcached do
+          connect
+          @mc.write("abc", 5, :raw => true)
+          @mc.write("cba", 5, :raw => true)
+          if RAILS_VERSION < '3.0.0'
+            assert_raise ArgumentError do
+              @mc.read_multi("abc", "cba")
+            end
+          else
+            assert_equal({'abc' => '5', 'cba' => '5' }, @mc.read_multi("abc", "cba"))
+          end
+
+          @dalli.write("abc", 5, :raw => true)
+          @dalli.write("cba", 5, :raw => true)
+          if RAILS_VERSION < '3.0.0'
+            assert_raise ArgumentError do
+              @dalli.read_multi("abc", "cba")
+            end
+          else
+            assert_equal({'abc' => '5', 'cba' => '5' }, @dalli.read_multi("abc", "cba"))
+          end
         end
       end
     end

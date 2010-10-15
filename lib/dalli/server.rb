@@ -62,6 +62,8 @@ module Dalli
     private
 
     def detect_memcached_version
+      return "(unknown)" if ENV['SKIP_MEMCACHE_VERSION_CHECK']
+
       # HACK, the server does not appear to have a way to negotiate the protocol.
       # If you ask for the version in text, the socket is immediately locked to the text
       # protocol.  But if we use binary, an old remote server will not respond.  If
@@ -457,9 +459,10 @@ module Dalli
       content = read(count, socket)
       return Dalli.logger.info("Dalli/SASL: #{content}") if status == 0
 
-      raise Dalli::NetworkError, "Error authenticating: #{status}" unless status == 0x21
-      (step, msg) = sasl.receive('challenge', content)
-      raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
+      raise Dalli::DalliError, "Error authenticating: #{status}" unless status == 0x21
+      raise NotImplementedError, "No two-step authentication mechanisms supported"
+      # (step, msg) = sasl.receive('challenge', content)
+      # raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
     end
   end
 end
