@@ -14,9 +14,7 @@ module Dalli
       @weight ||= 1
       @weight = Integer(@weight)
       @down_at = nil
-      connection
       @version = detect_memcached_version
-      raise NotImplementedError, "Dalli does not support memcached versions < 1.4.0, found #{@version} at #{@hostname}:#{@port}" if @version < '1.4.0'
       Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{@version}" }
     end
     
@@ -64,15 +62,26 @@ module Dalli
     private
 
     def detect_memcached_version
+      return "(unknown)" if ENV['SKIP_MEMCACHE_VERSION_CHECK']
+
       # HACK, the server does not appear to have a way to negotiate the protocol.
       # If you ask for the version in text, the socket is immediately locked to the text
-      # protocol.  All we can do is use binary and handle the failure if the server is old.
-      # Alternative suggestions welcome.
-      begin
+      # protocol.  But if we use binary, an old remote server will not respond.  If
+      # the server is using SASL, it will not respond to the text protocol.  Sigh.
+      if username
+        # using SASL, assume the binary protocol will work.
         binary_version
-      rescue Dalli::NetworkError
-        sleep 1
-        text_version
+      else
+        # Use text to determine the remote version, close the socket and open it back up.
+        # Alternative suggestions welcome.
+        version = text_version
+        if version < '1.4.0'
+          Dalli.logger.error "Dalli does not support memcached versions < 1.4.0, found #{version} at #{@hostname}:#{@port}"
+          raise NotImplementedError, "Dalli does not support memcached versions < 1.4.0, found #{version} at #{@hostname}:#{@port}"
+        end
+        close
+        connection
+        version
       end
     end
 
@@ -188,16 +197,16 @@ module Dalli
       cas_response
     end
 
-    def binary_version
-      req = [REQUEST, OPCODES[:version], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
-      write(req)
-      generic_response
-    end
-
     def text_version
       write("version\r\n")
       connection.gets =~ /VERSION (.*)\r\n/
       $1
+    end
+
+    def binary_version
+      req = [REQUEST, OPCODES[:version], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
+      write(req)
+      generic_response
     end
 
     def cas_response
@@ -450,9 +459,10 @@ module Dalli
       content = read(count, socket)
       return Dalli.logger.info("Dalli/SASL: #{content}") if status == 0
 
-      raise Dalli::NetworkError, "Error authenticating: #{status}" unless status == 0x21
-      (step, msg) = sasl.receive('challenge', content)
-      raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
+      raise Dalli::DalliError, "Error authenticating: #{status}" unless status == 0x21
+      raise NotImplementedError, "No two-step authentication mechanisms supported"
+      # (step, msg) = sasl.receive('challenge', content)
+      # raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
     end
   end
 end

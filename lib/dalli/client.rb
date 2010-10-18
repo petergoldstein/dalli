@@ -44,7 +44,7 @@ module Dalli
     def get_multi(*keys)
       return {} if keys.empty?
       options = nil
-      options = keys.pop if keys.last.is_a?(Hash)
+      options = keys.pop if keys.last.is_a?(Hash) || keys.last.nil?
       ring.lock do
         keys.flatten.each do |key|
           perform(:getkq, key)

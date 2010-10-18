@@ -78,7 +78,7 @@ module MemcachedMock
           rescue Errno::ECHILD
           end
         end
-        sleep 0.2
+        sleep 0.1
         pid
       end
 

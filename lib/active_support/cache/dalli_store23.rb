@@ -45,7 +45,7 @@ module ActiveSupport
       # Reads multiple keys from the cache using a single call to the
       # servers for all keys. Options can be passed in the last argument.
       def read_multi(*names)
-        options = RAW
+        options = nil
         options = names.pop if names.last.is_a?(Hash)
         keys_to_names = names.inject({}){|map, name| map[escape_key(name)] = name; map}
         cache_keys = {}
@@ -58,61 +58,21 @@ module ActiveSupport
         values = @data.get_multi(keys_to_names.keys, options)
         results = {}
         values.each do |key, value|
-          results[cache_keys[key]] = Marshal.load value
+          results[cache_keys[key]] = value
         end
         results
-      end
-
-      # Increment a cached value. This method uses the memcached incr atomic
-      # operator and can only be used on values written with the :raw option.
-      # Calling it on a value not stored with :raw will initialize that value
-      # to zero.
-      def increment(key, amount = 1) # :nodoc:
-        log("incrementing", key, amount)
-        @data.incr(escape_key(key), amount)
-      rescue Dalli::DalliError => e
-        logger.error("DalliError (#{e}): #{e.message}") if logger
-        nil
-      end
-
-      # Decrement a cached value. This method uses the memcached decr atomic
-      # operator and can only be used on values written with the :raw option.
-      # Calling it on a value not stored with :raw will initialize that value
-      # to zero.
-      def decrement(key, amount = 1) # :nodoc:
-        log("decrement", key, amount)
-        @data.decr(escape_key(key), amount)
-      rescue Dalli::DalliError => e
-        logger.error("DalliError (#{e}): #{e.message}") if logger
-        nil
       end
 
       def reset
         @data.reset
       end
 
-      # Clear the entire cache on all memcached servers. This method should
-      # be used with care when using a shared cache.
-      def clear
-        @data.flush_all
-      end
-
-      # Get the statistics from the memcached servers.
-      def stats
-        @data.stats
-      end
-      
-      RAW = { :raw => true }
-
       # Read an entry from the cache.
       def read(key, options = nil) # :nodoc:
         super
-        value = @data.get(escape_key(key), RAW.merge(options))
-        return nil if value.nil?
-        value = options && options[:raw] ? value : Marshal.load(value)
-        value
+        @data.get(escape_key(key), options)
       rescue Dalli::DalliError => e
-        logger.error("DalliError (#{e}): #{e.message}")
+        logger.error("DalliError: #{e.message}")
         nil
       end
 
@@ -125,11 +85,11 @@ module ActiveSupport
       #   the cache. See ActiveSupport::Cache::Store#write for an example.
       def write(key, value, options = nil)
         super
+        value = value.to_s if options && options[:raw]
         method = options && options[:unless_exist] ? :add : :set
-        value = options && options[:raw] ? value.to_s : Marshal.dump(value)
-        @data.send(method, escape_key(key), value, expires_in(options), RAW.merge(options))
+        @data.send(method, escape_key(key), value, expires_in(options), options)
       rescue Dalli::DalliError => e
-        logger.error("DalliError (#{e}): #{e.message}")
+        logger.error("DalliError: #{e.message}")
         false
       end
 
@@ -137,7 +97,7 @@ module ActiveSupport
         super
         @data.delete(escape_key(key))
       rescue Dalli::DalliError => e
-        logger.error("DalliError (#{e}): #{e.message}")
+        logger.error("DalliError: #{e.message}")
         false
       end
 
@@ -145,7 +105,31 @@ module ActiveSupport
         # Doesn't call super, cause exist? in memcache is in fact a read
         # But who cares? Reading is very fast anyway
         # Local cache is checked first, if it doesn't know then memcache itself is read from
-        !read(key, RAW.merge(options)).nil?
+        !read(key, options).nil?
+      end
+
+      # Increment a cached value. This method uses the memcached incr atomic
+      # operator and can only be used on values written with the :raw option.
+      # Calling it on a value not stored with :raw will initialize that value
+      # to zero.
+      def increment(key, amount = 1) # :nodoc:
+        log("incrementing", key, amount)
+        @data.incr(escape_key(key), amount)
+      rescue Dalli::DalliError => e
+        logger.error("DalliError: #{e.message}") if logger
+        nil
+      end
+
+      # Decrement a cached value. This method uses the memcached decr atomic
+      # operator and can only be used on values written with the :raw option.
+      # Calling it on a value not stored with :raw will initialize that value
+      # to zero.
+      def decrement(key, amount = 1) # :nodoc:
+        log("decrement", key, amount)
+        @data.decr(escape_key(key), amount)
+      rescue Dalli::DalliError => e
+        logger.error("DalliError: #{e.message}") if logger
+        nil
       end
 
       def delete_matched(matcher, options = nil) # :nodoc:
@@ -153,6 +137,17 @@ module ActiveSupport
         # through and let the error happen
         super
         raise "Not supported by Memcache"
+      end
+
+      # Clear the entire cache on all memcached servers. This method should
+      # be used with care when using a shared cache.
+      def clear
+        @data.flush_all
+      end
+
+      # Get the statistics from the memcached servers.
+      def stats
+        @data.stats
       end
 
       private

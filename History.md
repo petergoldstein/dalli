@@ -1,6 +1,18 @@
 Dalli Changelog
 =====================
 
+0.10.0
+======
+
+Warning: this release changed how Rails marshals data with Dalli.  Unfortunately previous versions double marshalled values.  It is possible that data stored with previous versions of Dalli will not work with this version.
+
+IT IS HIGHLY RECOMMENDED YOU FLUSH YOUR CACHE BEFORE UPGRADING.
+
+ - Rework how the Rails cache store does value marshalling.
+ - Rework old server version detection to avoid a socket read hang.
+ - Refactor the Rails 2.3 :dalli\_store to be closer to :mem\_cache\_store.
+ - Better documentation for session store config (plukevdh)
+
 0.9.10
 ----
 

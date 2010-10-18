@@ -2,7 +2,7 @@ require 'helper'
 require 'memcached_mock'
 
 class TestDalli < Test::Unit::TestCase
-
+  
   should "default to localhost:11211" do
     dc = Dalli::Client.new
     ring = dc.send(:ring)
@@ -323,13 +323,6 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
-    should 'gracefully handle authentication failures' do
-      memcached(19124, '-S') do |dc|
-        assert_raise Dalli::DalliError, /32/ do
-          dc.set('abc', 123)
-        end
-      end
-    end
 
     should "handle namespaced keys" do
       memcached do |dc|
@@ -339,6 +332,26 @@ class TestDalli < Test::Unit::TestCase
         dc2.set('namespaced', 2)
         assert_equal 1, dc.get('namespaced')
         assert_equal 2, dc2.get('namespaced')
+      end
+    end
+
+    context 'without authentication credentials' do
+      setup do
+        ENV['MEMCACHE_USERNAME'] = 'testuser'
+        ENV['MEMCACHE_PASSWORD'] = 'wrongpwd'
+      end
+
+      teardown do
+        ENV['MEMCACHE_USERNAME'] = nil
+        ENV['MEMCACHE_PASSWORD'] = nil
+      end
+
+      should 'gracefully handle authentication failures' do
+        memcached(19124, '-S') do |dc|
+          assert_raise Dalli::DalliError, /32/ do
+            dc.set('abc', 123)
+          end
+        end
       end
     end
 
@@ -360,7 +373,7 @@ class TestDalli < Test::Unit::TestCase
 
       should 'support SASL authentication' do
         memcached(19124, '-S') do |dc|
-          # I get "Dalli::NetworkError: Error authenticating: 32" in OSX
+          # I get "Dalli::DalliError: Error authenticating: 32" in OSX
           # but SASL works on Heroku servers. YMMV.
           assert_equal true, dc.set('abc', 123)
           assert_equal 123, dc.get('abc')

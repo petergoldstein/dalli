@@ -61,10 +61,10 @@ A more comprehensive example (note that we are setting a reasonable default for 
     config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com',
         { :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true, :compress_threshold => 64*1024 }
 
-In `config/initializers/session_store.rb`:
+To use Dalli for Rails session storage, in `config/initializers/session_store.rb`:
 
     require 'action_dispatch/middleware/session/dalli_store'
-    Rails.application.config.session_store :dalli_store, :key => ...
+    Rails.application.config.session_store :dalli_store, :memcache_server => ['host1', 'host2'], :namespace => 'sessions', :key => '_foundation_session', :expire_after => 30.minutes
 
 
 Usage with Rails 2.3.x
