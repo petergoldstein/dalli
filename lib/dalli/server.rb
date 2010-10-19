@@ -99,20 +99,20 @@ module Dalli
     ONE_MB = 1024 * 1024
 
     def get(key)
-      req = [REQUEST, OPCODES[:get], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:get])
+      req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
       write(req)
       generic_response
     end
 
     def getkq(key)
-      req = [REQUEST, OPCODES[:getkq], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:getkq])
+      req = [REQUEST, OPCODES[:getkq], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:getkq])
       write(req)
     end
 
     def set(key, value, ttl)
-      raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.size > ONE_MB
+      raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.bytesize > ONE_MB
 
-      req = [REQUEST, OPCODES[multi? ? :setq : :set], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:set])
+      req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:set])
       write(req)
       generic_response unless multi?
     end
@@ -124,21 +124,21 @@ module Dalli
     end
 
     def add(key, value, ttl, cas)
-      raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.size > ONE_MB
+      raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.bytesize > ONE_MB
 
-      req = [REQUEST, OPCODES[multi? ? :addq : :add], key.size, 8, 0, 0, value.size + key.size + 8, 0, cas, 0, ttl, key, value].pack(FORMAT[:add])
+      req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, 0, ttl, key, value].pack(FORMAT[:add])
       write(req)
       generic_response unless multi?
     end
     
     def append(key, value)
-      req = [REQUEST, OPCODES[:append], key.size, 0, 0, 0, value.size + key.size, 0, 0, key, value].pack(FORMAT[:append])
+      req = [REQUEST, OPCODES[:append], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[:append])
       write(req)
       generic_response
     end
     
     def delete(key)
-      req = [REQUEST, OPCODES[multi? ? :deleteq : :delete], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:delete])
+      req = [REQUEST, OPCODES[multi? ? :deleteq : :delete], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:delete])
       write(req)
       generic_response unless multi?
     end
@@ -148,7 +148,7 @@ module Dalli
       default ||= 0
       (h, l) = split(count)
       (dh, dl) = split(default)
-      req = [REQUEST, OPCODES[:decr], key.size, 20, 0, 0, key.size + 20, 0, 0, h, l, dh, dl, expiry, key].pack(FORMAT[:decr])
+      req = [REQUEST, OPCODES[:decr], key.bytesize, 20, 0, 0, key.bytesize + 20, 0, 0, h, l, dh, dl, expiry, key].pack(FORMAT[:decr])
       write(req)
       body = generic_response
       body ? longlong(*body.unpack('NN')) : body
@@ -159,7 +159,7 @@ module Dalli
       default ||= 0
       (h, l) = split(count)
       (dh, dl) = split(default)
-      req = [REQUEST, OPCODES[:incr], key.size, 20, 0, 0, key.size + 20, 0, 0, h, l, dh, dl, expiry, key].pack(FORMAT[:incr])
+      req = [REQUEST, OPCODES[:incr], key.bytesize, 20, 0, 0, key.bytesize + 20, 0, 0, h, l, dh, dl, expiry, key].pack(FORMAT[:incr])
       write(req)
       body = generic_response
       body ? longlong(*body.unpack('NN')) : body
@@ -174,25 +174,25 @@ module Dalli
     end
 
     def prepend(key, value)
-      req = [REQUEST, OPCODES[:prepend], key.size, 0, 0, 0, value.size + key.size, 0, 0, key, value].pack(FORMAT[:prepend])
+      req = [REQUEST, OPCODES[:prepend], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[:prepend])
       write(req)
       generic_response
     end
 
     def replace(key, value, ttl)
-      req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.size, 8, 0, 0, value.size + key.size + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:replace])
+      req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:replace])
       write(req)
       generic_response unless multi?
     end
 
     def stats(info='')
-      req = [REQUEST, OPCODES[:stat], info.size, 0, 0, 0, info.size, 0, 0, info].pack(FORMAT[:stat])
+      req = [REQUEST, OPCODES[:stat], info.bytesize, 0, 0, 0, info.bytesize, 0, 0, info].pack(FORMAT[:stat])
       write(req)
       keyvalue_response
     end
 
     def cas(key)
-      req = [REQUEST, OPCODES[:get], key.size, 0, 0, 0, key.size, 0, 0, key].pack(FORMAT[:get])
+      req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
       write(req)
       cas_response
     end
@@ -314,8 +314,8 @@ module Dalli
         value = ''
         begin
           loop do
-            value << socket.sysread(count - value.size)
-            break if value.size == count
+            value << socket.sysread(count - value.bytesize)
+            break if value.bytesize == count
           end
         rescue Errno::EAGAIN, Errno::EWOULDBLOCK
           if IO.select([socket], nil, nil, TIMEOUT)
@@ -449,7 +449,7 @@ module Dalli
       msg = sasl.start[1]
       mechanism = sasl.name
       #p [mechanism, msg]
-      req = [REQUEST, OPCODES[:auth_request], mechanism.size, 0, 0, 0, mechanism.size + msg.size, 0, 0, mechanism, msg].pack(FORMAT[:auth_request])
+      req = [REQUEST, OPCODES[:auth_request], mechanism.bytesize, 0, 0, 0, mechanism.bytesize + msg.bytesize, 0, 0, mechanism, msg].pack(FORMAT[:auth_request])
       socket.write(req)
 
       header = read(24, socket)

@@ -1,6 +1,12 @@
 Dalli Changelog
 =====================
 
+0.10.1
+======
+
+ - Better handling of non-ASCII values (size -> bytesize)
+ - Assert that keys are ASCII only
+
 0.10.0
 ======
 
