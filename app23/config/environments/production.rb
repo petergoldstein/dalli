@@ -16,8 +16,8 @@ config.action_view.cache_template_loading            = true
 # config.logger = SyslogLogger.new
 
 # Use a different cache store in production
-config.cache_store = :dalli_store
-config.session_store = :dalli_store
+# config.cache_store = :dalli_store
+# config.session_store = :dalli_store
 
 # Enable serving of images, stylesheets, and javascripts from an asset server
 # config.action_controller.asset_host = "http://assets.example.com"

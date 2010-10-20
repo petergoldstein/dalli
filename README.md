@@ -83,6 +83,14 @@ In `config/environments/production.rb`:
 In `config/initializers/session_store.rb`:
 
     # Session cache
+    ActionController::Base.session = {
+      :namespace   => 'sessions',
+      :expire_after => 20.minutes.to_i,
+      :memcache_server => ['server-1:11211', 'server-2:11211'],
+      :key         => ...,
+      :secret      => ...
+    }
+    
     require 'action_controller/session/dalli_store'
     ActionController::Base.session_store = :dalli_store
 

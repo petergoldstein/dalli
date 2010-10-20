@@ -1,9 +1,10 @@
 PATH
-  remote: /Users/mike/git/dalli
+  remote: ..
   specs:
-    dalli (0.9.8)
+    dalli (0.10.0)
 
 GEM
+  remote: http://rubygems.org/
   specs:
     actionmailer (2.3.9)
       actionpack (= 2.3.9)

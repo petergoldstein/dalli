@@ -17,6 +17,8 @@ begin
             :memcache_server => 'localhost:11211'
           }.merge(@default_options)
 
+          Rails.logger.debug("Using Dalli #{Dalli::VERSION} for session store at #{@default_options[:memcache_server].inspect}")
+
           @pool = Dalli::Client.new(@default_options[:memcache_server], @default_options)
           super
         end
@@ -27,6 +29,7 @@ begin
             begin
               session = @pool.get(sid) || {}
             rescue Dalli::DalliError
+              Rails.logger.warn("Session::DalliStore#get: #{$!.message}")
               session = {}
             end
             [sid, session]
@@ -38,6 +41,7 @@ begin
             @pool.set(sid, session_data, expiry)
             return true
           rescue Dalli::DalliError
+            Rails.logger.warn("Session::DalliStore#set: #{$!.message}")
             return false
           end
           
@@ -46,6 +50,7 @@ begin
               @pool.delete(sid)
             end
           rescue Dalli::DalliError
+            Rails.logger.warn("Session::DalliStore#destroy: #{$!.message}")
             false
           end
           
