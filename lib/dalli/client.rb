@@ -16,7 +16,7 @@ module Dalli
     #   :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     #
     def initialize(servers=nil, options={})
-      @servers = servers || env_servers || 'localhost:11211'
+      @servers = env_servers || servers || 'localhost:11211'
       @options = options
     end
     
