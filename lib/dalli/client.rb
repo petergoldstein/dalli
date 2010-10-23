@@ -30,10 +30,10 @@ module Dalli
     # pipelined as Dalli will use 'quiet' operations where possible.
     # Currently supports the set, add, replace and delete operations.
     def multi
-      Thread.current[:multi] = true
+      old, Thread.current[:dalli_multi] = Thread.current[:dalli_multi], true
       yield
     ensure
-      Thread.current[:multi] = nil
+      Thread.current[:dalli_multi] = old
     end
 
     def get(key, options=nil)

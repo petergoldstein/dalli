@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+1.0.0
+======
+
+ - multi() now works reentrantly.
+
 0.10.1
 ======
 
