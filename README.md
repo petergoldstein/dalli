@@ -113,8 +113,6 @@ Features and Changes
 
 Dalli is **NOT** 100% API compatible with memcache-client.  If you have code which uses the MemCache API directly, it will likely need small tweaks.  Method parameters and return values changed slightly.  See Upgrade.md for more detail.
 
-I've removed support for key namespaces and automatic pruning of keys longer than 250 characters.  ActiveSupport::Cache implements these features so there is little need for Dalli to reinvent them.
-
 By default, Dalli is thread-safe.  Disable thread-safety at your own peril.
 
 Note that Dalli does not require ActiveSupport or Rails.  You can safely use it in your own Ruby projects.
