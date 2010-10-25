@@ -1,9 +1,15 @@
 Dalli Changelog
 =====================
 
+1.0.0
+======
+
+ - multi() now works reentrantly.
+
 0.10.1
 ======
 
+ - Prefer server config from environment, fixes Heroku session store issues (thanks JoshMcKin)
  - Better handling of non-ASCII values (size -> bytesize)
  - Assert that keys are ASCII only
 

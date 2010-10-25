@@ -93,7 +93,7 @@ module Dalli
     end
 
     def multi?
-      Thread.current[:multi]
+      Thread.current[:dalli_multi]
     end
 
     ONE_MB = 1024 * 1024
