@@ -5,6 +5,7 @@ Dalli Changelog
 ======
 
  - multi() now works reentrantly.
+ - Added new Dalli::Client option for default TTLs, :expires_in
 
 0.10.1
 ======
