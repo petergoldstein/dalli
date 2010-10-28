@@ -4,20 +4,23 @@ module Dalli
     ##
     # Dalli::Client is the main class which developers will use to interact with
     # the memcached server.  Usage:
-    # <pre>
-    # Dalli::Client.new(['localhost:11211:10', 'cache-2.example.com:11211:5', '192.168.0.1:22122:5'], 
-    #                   :threadsafe => true, :failover => true)
-    # </pre>
+    # 
+    #   Dalli::Client.new(['localhost:11211:10', 'cache-2.example.com:11211:5', '192.168.0.1:22122:5'], 
+    #                   :threadsafe => true, :failover => true, :expires_in => 300)
+    # 
     # servers is an Array of "host:port:weight" where weight allows you to distribute cache unevenly.
-    # Both weight and port are optional.
+    # Both weight and port are optional.  If you pass in nil, Dalli will default to 'localhost:11211'.
+    # Note that the <tt>MEMCACHE_SERVERS</tt> environment variable will override the servers parameter for use
+    # in managed environments like Heroku.
     #
     # Options:
-    #   :failover - if a server is down, store the value on another server.  Default: true.
-    #   :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
+    # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.
+    # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
+    # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
     #
     def initialize(servers=nil, options={})
       @servers = env_servers || servers || 'localhost:11211'
-      @options = options
+      @options = { :expires_in => 0 }.merge(options)
     end
     
     #
@@ -54,7 +57,8 @@ module Dalli
       end
     end
 
-    def fetch(key, ttl=0, options=nil)
+    def fetch(key, ttl=nil, options=nil)
+      ttl ||= @options[:expires_in]
       val = get(key, options)
       if val.nil? && block_given?
         val = yield
@@ -63,7 +67,8 @@ module Dalli
       val
     end
 
-    def cas(key, ttl=0, options=nil, &block)
+    def cas(key, ttl=nil, options=nil, &block)
+      ttl ||= @options[:expires_in]
       (value, cas) = perform(:cas, key)
       value = (!value || value == 'Not found') ? nil : deserialize(value, options)
       if value
@@ -72,15 +77,18 @@ module Dalli
       end
     end
 
-    def set(key, value, ttl=0, options=nil)
+    def set(key, value, ttl=nil, options=nil)
+      ttl ||= @options[:expires_in]
       perform(:set, key, serialize(value, options), ttl)
     end
     
-    def add(key, value, ttl=0, options=nil)
+    def add(key, value, ttl=nil, options=nil)
+      ttl ||= @options[:expires_in]
       perform(:add, key, serialize(value, options), ttl, 0)
     end
 
-    def replace(key, value, ttl=0, options=nil)
+    def replace(key, value, ttl=nil, options=nil)
+      ttl ||= @options[:expires_in]
       perform(:replace, key, serialize(value, options), ttl)
     end
 
@@ -116,8 +124,9 @@ module Dalli
     # If default is nil, the counter must already exist or the operation
     # will fail and will return nil.  Otherwise this method will return
     # the new value for the counter.
-    def incr(key, amt=1, ttl=0, default=nil)
+    def incr(key, amt=1, ttl=nil, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
+      ttl ||= @options[:expires_in]
       perform(:incr, key, amt, ttl, default)
     end
 
@@ -131,8 +140,9 @@ module Dalli
     # If default is nil, the counter must already exist or the operation
     # will fail and will return nil.  Otherwise this method will return
     # the new value for the counter.
-    def decr(key, amt=1, ttl=0, default=nil)
+    def decr(key, amt=1, ttl=nil, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
+      ttl ||= @options[:expires_in]
       perform(:decr, key, amt, ttl, default)
     end
 
