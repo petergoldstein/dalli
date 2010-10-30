@@ -222,10 +222,7 @@ class TestDalli < Test::Unit::TestCase
         assert_equal true, dc.prepend('456', '0')
         assert_equal true, dc.append('456', '9')
         assert_equal '0xyz9', dc.get('456', :raw => true)
-
-        assert_raises Dalli::DalliError do
-          assert_equal '0xyz9', dc.get('456')
-        end
+        assert_equal '0xyz9', dc.get('456')
 
         assert_equal false, dc.append('nonexist', 'abc')
         assert_equal false, dc.prepend('nonexist', 'abc')
