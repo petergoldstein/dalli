@@ -320,7 +320,6 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
-
     should "handle namespaced keys" do
       memcached do |dc|
         dc = Dalli::Client.new('localhost:19122', :namespace => 'a')
@@ -329,6 +328,20 @@ class TestDalli < Test::Unit::TestCase
         dc2.set('namespaced', 2)
         assert_equal 1, dc.get('namespaced')
         assert_equal 2, dc2.get('namespaced')
+      end
+    end
+
+    context 'with compression' do
+      should 'allow large values' do
+        memcached do |dc|
+          dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), :compression => true)
+
+          value = "0"*1024*1024
+          assert_raise Dalli::DalliError, /too large/ do
+            dc.set('verylarge', value)
+          end
+          dalli.set('verylarge', value)
+        end
       end
     end
 
@@ -377,6 +390,47 @@ class TestDalli < Test::Unit::TestCase
           assert_equal({"localhost:19121"=>{}}, dc.stats)
         end
       end
+    end
+
+    context 'in low memory conditions' do
+
+      should 'handle error response correctly' do
+        memcached(19125, '-m 1 -M') do |dc|
+          failed = false
+          value = "1234567890"*100
+          1_000.times do |idx|
+            begin
+              assert_equal true, dc.set(idx, value)
+            rescue Dalli::DalliError
+              # Assume that a set op will fail somewhere between 3500 and 4000 times.
+              failed = true
+              assert((800..900).include?(idx), "unexpected failure on iteration #{idx}")
+              break
+            end
+          end
+          assert failed, 'did not fail under low memory conditions'
+        end
+      end
+
+      should 'fit more values with compression' do
+        memcached(19126, '-m 1 -M') do |dc|
+          dalli = Dalli::Client.new('localhost:19126', :compression => true)
+          failed = false
+          value = "1234567890"*1000
+          10_000.times do |idx|
+            begin
+              assert_equal true, dalli.set(idx, value)
+            rescue Dalli::DalliError
+              # Assume that a set op will fail somewhere around 35000 times.
+              failed = true
+              assert((6000..7000).include?(idx), "unexpected failure on iteration #{idx}")
+              break
+            end
+          end
+          assert failed, 'did not fail under low memory conditions'
+        end
+      end
+
     end
 
   end

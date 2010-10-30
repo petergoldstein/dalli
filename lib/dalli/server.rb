@@ -213,8 +213,12 @@ module Dalli
     end
 
     COMPRESSION_MIN_SIZE = 100
-    FLAG_COMPRESSED = 0x4
-    FLAG_MARSHALLED = 0x8
+
+    # http://www.hjp.at/zettel/m/memcached_flags.rxml
+    # Looks like most clients use bit 0 to indicate native language serialization
+    # and bit 1 to indicate gzip compression.
+    FLAG_MARSHALLED = 0x1
+    FLAG_COMPRESSED = 0x2
 
     def serialize(value, options=nil)
       marshalled = false
