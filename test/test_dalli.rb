@@ -402,7 +402,6 @@ class TestDalli < Test::Unit::TestCase
             begin
               assert_equal true, dc.set(idx, value)
             rescue Dalli::DalliError
-              # Assume that a set op will fail somewhere between 3500 and 4000 times.
               failed = true
               assert((800..900).include?(idx), "unexpected failure on iteration #{idx}")
               break
@@ -421,7 +420,6 @@ class TestDalli < Test::Unit::TestCase
             begin
               assert_equal true, dalli.set(idx, value)
             rescue Dalli::DalliError
-              # Assume that a set op will fail somewhere around 35000 times.
               failed = true
               assert((6000..7000).include?(idx), "unexpected failure on iteration #{idx}")
               break
