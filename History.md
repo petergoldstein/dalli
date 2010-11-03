@@ -9,7 +9,7 @@ Warning: this release changes how Dalli marshals data.  I do not guarantee compa
 IT IS HIGHLY RECOMMENDED YOU FLUSH YOUR CACHE BEFORE UPGRADING.
 
  - multi() now works reentrantly.
- - Added new Dalli::Client option for default TTLs, :expires_in
+ - Added new Dalli::Client option for default TTLs, :expires_in, defaults to 0 (aka forever).
  - Added new Dalli::Client option, :compression, to enable auto-compression of values.
  - Refactor how Dalli stores data on the server.  Values are now tagged
    as "marshalled" or "compressed" so they can be automatically deserialized
