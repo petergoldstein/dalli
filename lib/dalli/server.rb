@@ -30,8 +30,9 @@ module Dalli
         raise
       rescue Exception => ex
         Dalli.logger.error "Unexpected exception in Dalli: #{ex.class.name}: #{ex.message}"
+        Dalli.logger.error "This is a bug in Dalli, please enter an issue in Github if it does not already exist."
         Dalli.logger.error ex.backtrace.join("\n\t")
-        down!
+        down!(true)
       end
     end
 
@@ -44,8 +45,8 @@ module Dalli
         connection
         true
       rescue Dalli::NetworkError => dne
-        Dalli.logger.info("Unable to connect to #{hostname}:#{port}: #{dne.message}")
-        down!
+        Dalli.logger.info(dne.message)
+        false
       end
     end
 
@@ -87,11 +88,17 @@ module Dalli
       end
     end
 
-    def down!
+    def down!(toss_exception=false)
       close
       @down_at = Time.now.to_i
-      @msg = $!.message
+      @msg = @msg || ($! && $!.message) || ''
+      raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{@msg}" if toss_exception
       nil
+    end
+
+    def up!
+      @down_at = nil
+      @msg = nil
     end
 
     def multi?
@@ -327,24 +334,26 @@ module Dalli
         end
 
         # All this ugly code to ensure proper Socket connect timeout
-        addr = Socket.getaddrinfo(self.hostname, nil)
-        sock = Socket.new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
         begin
-          sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
-        rescue Errno::EINPROGRESS
-          resp = IO.select(nil, [sock], nil, TIMEOUT)
+          addr = Socket.getaddrinfo(self.hostname, nil)
+          sock = Socket.new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
           begin
             sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
-          rescue Errno::EISCONN
-            ;
-          rescue
-            raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{$!.message}"
+          rescue Errno::EINPROGRESS
+            resp = IO.select(nil, [sock], nil, TIMEOUT)
+            begin
+              sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
+            rescue Errno::EISCONN
+            end
           end
+        rescue
+          down!(true)
         end
         # end ugly code
 
         sock.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
         sasl_authentication(sock) if Dalli::Server.need_auth?
+        up!
         sock
       end
     end
@@ -353,8 +362,7 @@ module Dalli
       begin
         connection.write(bytes)
       rescue SystemCallError
-        down!
-        raise Dalli::NetworkError, $!.class.name
+        down!(true)
       end
     end
 
@@ -375,8 +383,7 @@ module Dalli
         end
         value
       rescue SystemCallError, Timeout::Error, EOFError
-        down!
-        raise Dalli::NetworkError, "#{$!.class.name}: #{$!.message}"
+        down!(true)
       end
     end
 
