@@ -4,7 +4,7 @@ require 'dalli/server'
 require 'dalli/version'
 require 'dalli/options'
 
-unless String.respond_to?(:bytesize)
+unless ''.respond_to?(:bytesize)
   class String
     alias_method :bytesize, :size
   end
