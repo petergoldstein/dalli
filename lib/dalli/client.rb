@@ -17,6 +17,8 @@ module Dalli
     # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
+    # - :compression - defaults to false, if true Dalli will compress values larger than 100 bytes before
+    #    sending them to memcached.
     #
     def initialize(servers=nil, options={})
       @servers = env_servers || servers || 'localhost:11211'
@@ -73,23 +75,23 @@ module Dalli
       value = (!value || value == 'Not found') ? nil : deserialize(value, options)
       if value
         newvalue = block.call(value)
-        perform(:add, key, serialize(newvalue, options), ttl, cas)
+        perform(:add, key, serialize(newvalue, options), ttl, cas, options)
       end
     end
 
     def set(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in]
-      perform(:set, key, serialize(value, options), ttl)
+      perform(:set, key, serialize(value, options), ttl, options)
     end
     
     def add(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in]
-      perform(:add, key, serialize(value, options), ttl, 0)
+      perform(:add, key, serialize(value, options), ttl, 0, options)
     end
 
     def replace(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in]
-      perform(:replace, key, serialize(value, options), ttl)
+      perform(:replace, key, serialize(value, options), ttl, options)
     end
 
     def delete(key)
@@ -163,19 +165,21 @@ module Dalli
     def ring
       @ring ||= Dalli::Ring.new(
         Array(@servers).map do |s|
-          Dalli::Server.new(s)
+          Dalli::Server.new(s, @options)
         end, @options
       )
     end
 
     def serialize(value, options)
-      options && options[:raw] ? value.to_s : ::Marshal.dump(value)
+      value
+#      options && options[:raw] ? value.to_s : ::Marshal.dump(value)
     end
 
     def deserialize(value, options)
-      options && options[:raw] ? value : ::Marshal.load(value)
-    rescue TypeError
-      raise Dalli::DalliError, "Invalid marshalled data in memcached: #{value}"
+      value
+    #   options && options[:raw] ? value : ::Marshal.load(value)
+    # rescue TypeError
+    #   raise Dalli::DalliError, "Invalid marshalled data in memcached: #{value}"
     end
 
     def env_servers

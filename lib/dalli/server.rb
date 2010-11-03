@@ -1,5 +1,6 @@
 require 'socket'
 require 'timeout'
+require 'zlib'
 
 module Dalli
   class Server
@@ -7,7 +8,7 @@ module Dalli
     attr_accessor :port
     attr_accessor :weight
     
-    def initialize(attribs)
+    def initialize(attribs, options=nil)
       (@hostname, @port, @weight) = attribs.split(':')
       @port ||= 11211
       @port = Integer(@port)
@@ -15,6 +16,7 @@ module Dalli
       @weight = Integer(@weight)
       @down_at = nil
       @version = detect_memcached_version
+      @options = options
       Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{@version}" }
     end
     
@@ -101,7 +103,7 @@ module Dalli
     def get(key)
       req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
       write(req)
-      generic_response
+      generic_response(true)
     end
 
     def getkq(key)
@@ -109,10 +111,31 @@ module Dalli
       write(req)
     end
 
-    def set(key, value, ttl)
-      raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.bytesize > ONE_MB
+    def set(key, value, ttl, options)
+      (value, flags) = serialize(value, options)
 
-      req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:set])
+      req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:set])
+      write(req)
+      generic_response unless multi?
+    end
+
+    def add(key, value, ttl, cas, options)
+      (value, flags) = serialize(value, options)
+
+      req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:add])
+      write(req)
+      generic_response unless multi?
+    end
+    
+    def replace(key, value, ttl, options)
+      (value, flags) = serialize(value, options)
+      req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:replace])
+      write(req)
+      generic_response unless multi?
+    end
+
+    def delete(key)
+      req = [REQUEST, OPCODES[multi? ? :deleteq : :delete], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:delete])
       write(req)
       generic_response unless multi?
     end
@@ -121,26 +144,6 @@ module Dalli
       req = [REQUEST, OPCODES[:flush], 0, 4, 0, 0, 4, 0, 0, 0].pack(FORMAT[:flush])
       write(req)
       generic_response
-    end
-
-    def add(key, value, ttl, cas)
-      raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.bytesize > ONE_MB
-
-      req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, 0, ttl, key, value].pack(FORMAT[:add])
-      write(req)
-      generic_response unless multi?
-    end
-    
-    def append(key, value)
-      req = [REQUEST, OPCODES[:append], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[:append])
-      write(req)
-      generic_response
-    end
-    
-    def delete(key)
-      req = [REQUEST, OPCODES[multi? ? :deleteq : :delete], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:delete])
-      write(req)
-      generic_response unless multi?
     end
 
     def decr(key, count, ttl, default)
@@ -173,16 +176,16 @@ module Dalli
       multi_response
     end
 
-    def prepend(key, value)
-      req = [REQUEST, OPCODES[:prepend], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[:prepend])
+    def append(key, value)
+      req = [REQUEST, OPCODES[:append], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[:append])
       write(req)
       generic_response
     end
 
-    def replace(key, value, ttl)
-      req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, 0, ttl, key, value].pack(FORMAT[:replace])
+    def prepend(key, value)
+      req = [REQUEST, OPCODES[:prepend], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[:prepend])
       write(req)
-      generic_response unless multi?
+      generic_response
     end
 
     def stats(info='')
@@ -209,6 +212,44 @@ module Dalli
       generic_response
     end
 
+    COMPRESSION_MIN_SIZE = 100
+
+    # http://www.hjp.at/zettel/m/memcached_flags.rxml
+    # Looks like most clients use bit 0 to indicate native language serialization
+    # and bit 1 to indicate gzip compression.
+    FLAG_MARSHALLED = 0x1
+    FLAG_COMPRESSED = 0x2
+
+    def serialize(value, options=nil)
+      marshalled = false
+      value = unless options && options[:raw]
+        marshalled = true
+        Marshal.dump(value)
+      else
+        value.to_s
+      end
+      compressed = false
+      if @options[:compression] && value.bytesize >= COMPRESSION_MIN_SIZE
+        value = Zlib::Deflate.deflate(value)
+        compressed = true
+      end
+      raise Dalli::DalliError, "Value too large, memcached can only store 1MB of data per key" if value.bytesize > ONE_MB
+      flags = 0
+      flags |= FLAG_COMPRESSED if compressed
+      flags |= FLAG_MARSHALLED if marshalled
+      [value, flags]
+    end
+
+    def deserialize(value, flags)
+      value = Zlib::Inflate.inflate(value) if (flags & FLAG_COMPRESSED) != 0
+      value = Marshal.load(value) if (flags & FLAG_MARSHALLED) != 0
+      value
+    rescue TypeError
+      raise DalliError, "Unable to unmarshal value: '#{value}'"
+    rescue Zlib::Error
+      raise DalliError, "Unable to uncompress value: '#{value}'"      
+    end
+
     def cas_response
       header = read(24)
       raise Dalli::NetworkError, 'No response' if !header
@@ -219,12 +260,18 @@ module Dalli
       elsif status != 0
         raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
       elsif data
-        data = data[extras..-1] if extras != 0
+        flags = data[0...extras].unpack('N')[0]
+        value = data[extras..-1]
+        data = deserialize(value, flags)
       end
       [data, cas]
     end
 
-    def generic_response
+    CAS_HEADER = '@4CCnNNQ'
+    NORMAL_HEADER = '@4CCnN'
+    KV_HEADER = '@2n@6nN'
+
+    def generic_response(unpack=false)
       header = read(24)
       raise Dalli::NetworkError, 'No response' if !header
       (extras, type, status, count) = header.unpack(NORMAL_HEADER)
@@ -236,7 +283,9 @@ module Dalli
       elsif status != 0
         raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
       elsif data
-        extras != 0 ? data[extras..-1] : data
+        flags = data[0...extras].unpack('N')[0]
+        value = data[extras..-1]
+        unpack ? deserialize(value, flags) : value
       else
         true
       end
@@ -262,10 +311,10 @@ module Dalli
         raise Dalli::NetworkError, 'No response' if !header
         (key_length, status, body_length) = header.unpack(KV_HEADER)
         return hash if key_length == 0
-        read(4)
+        flags = read(4).unpack('N')[0]
         key = read(key_length)
         value = read(body_length - key_length - 4) if body_length - key_length - 4 > 0
-        hash[key] = value
+        hash[key] = deserialize(value, flags)
       end
     end
 
@@ -303,7 +352,7 @@ module Dalli
     def write(bytes)
       begin
         connection.write(bytes)
-      rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF
+      rescue SystemCallError
         down!
         raise Dalli::NetworkError, $!.class.name
       end
@@ -325,7 +374,7 @@ module Dalli
           end
         end
         value
-      rescue Errno::ECONNRESET, Errno::EPIPE, Errno::ECONNABORTED, Errno::EBADF, Errno::EINVAL, Timeout::Error, EOFError
+      rescue SystemCallError, Timeout::Error, EOFError
         down!
         raise Dalli::NetworkError, "#{$!.class.name}: #{$!.message}"
       end
@@ -338,10 +387,6 @@ module Dalli
     def longlong(a, b)
       (a << 32) | b
     end
-
-    CAS_HEADER = '@4CCnNNQ'
-    NORMAL_HEADER = '@4CCnN'
-    KV_HEADER = '@2n@6nN'
 
     REQUEST = 0x80
     RESPONSE = 0x81

@@ -1,11 +1,19 @@
 Dalli Changelog
 =====================
 
-1.0.0
+0.11.0
 ======
+
+Warning: this release changes how Dalli marshals data.  I do not guarantee compatibility until 1.0 but I will increment the minor version every time a release breaks compatibility until 1.0.
+
+IT IS HIGHLY RECOMMENDED YOU FLUSH YOUR CACHE BEFORE UPGRADING.
 
  - multi() now works reentrantly.
  - Added new Dalli::Client option for default TTLs, :expires_in
+ - Added new Dalli::Client option, :compression, to enable auto-compression of values.
+ - Refactor how Dalli stores data on the server.  Values are now tagged
+   as "marshalled" or "compressed" so they can be automatically deserialized
+   without the client having to know how they were stored.
 
 0.10.1
 ======
