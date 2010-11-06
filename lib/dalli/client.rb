@@ -1,3 +1,4 @@
+# encoding: ascii
 module Dalli
   class Client
     
