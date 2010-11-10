@@ -1,7 +1,7 @@
 PATH
-  remote: ..
+  remote: /Users/mike/git/dalli
   specs:
-    dalli (0.10.0)
+    dalli (0.11.0)
 
 GEM
   remote: http://rubygems.org/

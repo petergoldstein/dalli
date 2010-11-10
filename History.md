@@ -1,7 +1,7 @@
 Dalli Changelog
 =====================
 
-HEAD
+1.0.0
 ======
 
  - Minor fixes, doc updates.

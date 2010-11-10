@@ -44,6 +44,8 @@ Remember, Dalli **requires** memcached 1.4+.  You can check the version with `me
 
 The test suite requires memcached 1.4.3+ with SASL enabled (./configure --enable-sasl).  Currently only supports the PLAIN mechanism.
 
+Dalli has no runtime dependencies and never will.
+
 
 Usage with Rails 3.0
 ---------------------------
