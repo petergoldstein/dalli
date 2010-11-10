@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+HEAD
+======
+
+ - Minor fixes, doc updates.
+
 0.11.0
 ======
 

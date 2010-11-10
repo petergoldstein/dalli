@@ -44,9 +44,12 @@ module Dalli
 
     def get(key, options=nil)
       resp = perform(:get, key)
-      (!resp || resp == 'Not found') ? nil : deserialize(resp, options)
+      (!resp || resp == 'Not found') ? nil : resp
     end
 
+    ##
+    # Fetch multiple keys efficiently.
+    # Returns a hash of { 'key' => 'value', 'key2' => 'value1' }
     def get_multi(*keys)
       return {} if keys.empty?
       options = nil
@@ -56,7 +59,7 @@ module Dalli
           perform(:getkq, key)
         end
         values = ring.servers.inject({}) { |hash, s| hash.merge!(s.request(:noop)); hash }
-        values.inject(values) { |memo, (k,v)| memo[k] = deserialize(v, options); memo }
+        values.inject(values) { |memo, (k,v)| memo[k] = v; memo }
       end
     end
 
@@ -70,29 +73,46 @@ module Dalli
       val
     end
 
+    ##
+    # compare and swap values using optimistic locking.
+    # Fetch the existing value for key.
+    # If it exists, yield the value to the block.
+    # Add the block's return value as the new value for the key.
+    # Add will fail if someone else changed the value.
+    #
+    # Returns:
+    # - nil if the key did not exist.
+    # - false if the value was changed by someone else.
+    # - true if the value was successfully updated.
     def cas(key, ttl=nil, options=nil, &block)
       ttl ||= @options[:expires_in]
       (value, cas) = perform(:cas, key)
-      value = (!value || value == 'Not found') ? nil : deserialize(value, options)
+      value = (!value || value == 'Not found') ? nil : value
       if value
         newvalue = block.call(value)
-        perform(:add, key, serialize(newvalue, options), ttl, cas, options)
+        perform(:add, key, newvalue, ttl, cas, options)
       end
     end
 
     def set(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in]
-      perform(:set, key, serialize(value, options), ttl, options)
-    end
-    
-    def add(key, value, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in]
-      perform(:add, key, serialize(value, options), ttl, 0, options)
+      perform(:set, key, value, ttl, options)
     end
 
+    ##
+    # Conditionally add a key/value pair, if the key does not already exist
+    # on the server.  Returns true if the operation succeeded.
+    def add(key, value, ttl=nil, options=nil)
+      ttl ||= @options[:expires_in]
+      perform(:add, key, value, ttl, 0, options)
+    end
+
+    ##
+    # Conditionally add a key/value pair, only if the key already exists
+    # on the server.  Returns true if the operation succeeded.
     def replace(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in]
-      perform(:replace, key, serialize(value, options), ttl, options)
+      perform(:replace, key, value, ttl, options)
     end
 
     def delete(key)
@@ -149,10 +169,16 @@ module Dalli
       perform(:decr, key, amt, ttl, default)
     end
 
+    ##
+    # Collect the stats for each server.
+    # Returns a hash like { 'hostname:port' => { 'stat1' => 'value1', ... }, 'hostname2:port' => { ... } }
     def stats
       ring.servers.inject({}) { |memo, s| memo["#{s.hostname}:#{s.port}"] = s.request(:stats); memo }
     end
 
+    ##
+    # Close our connection to each server.
+    # If you perform another operation after this, the connections will be re-established.
     def close
       if @ring
         @ring.servers.map { |s| s.close }
@@ -169,18 +195,6 @@ module Dalli
           Dalli::Server.new(s, @options)
         end, @options
       )
-    end
-
-    def serialize(value, options)
-      value
-#      options && options[:raw] ? value.to_s : ::Marshal.dump(value)
-    end
-
-    def deserialize(value, options)
-      value
-    #   options && options[:raw] ? value : ::Marshal.load(value)
-    # rescue TypeError
-    #   raise Dalli::DalliError, "Invalid marshalled data in memcached: #{value}"
     end
 
     def env_servers
