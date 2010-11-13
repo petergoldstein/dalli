@@ -91,14 +91,22 @@ module Dalli
     def down!(toss_exception=false)
       close
       @down_at = Time.now.to_i
-      @msg = @msg || ($! && $!.message) || ''
-      raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{@msg}" if toss_exception
+      @error = $! && $!.class.name
+      @msg = @msg || ($! && $!.message && !$!.message.empty? && $!.message)
+      @trace = @trace || $!.backtrace
+
+      if toss_exception
+        x = Dalli::NetworkError.new("#{self.hostname}:#{self.port} is currently down: #{@error} #{@msg}")
+        x.set_backtrace @trace
+        raise x
+      end
       nil
     end
 
     def up!
       @down_at = nil
       @msg = nil
+      @trace = nil
     end
 
     def multi?
@@ -325,42 +333,9 @@ module Dalli
       end
     end
 
-    TIMEOUT = 0.5
-
-    def connection
-      @sock ||= begin
-        if @down_at && @down_at == Time.now.to_i
-          raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{@msg}"
-        end
-
-        # All this ugly code to ensure proper Socket connect timeout
-        begin
-          addr = Socket.getaddrinfo(self.hostname, nil)
-          sock = Socket.new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
-          begin
-            sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
-          rescue Errno::EINPROGRESS
-            resp = IO.select(nil, [sock], nil, TIMEOUT)
-            begin
-              sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
-            rescue Errno::EISCONN
-            end
-          end
-        rescue
-          down!(true)
-        end
-        # end ugly code
-
-        sock.setsockopt Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1
-        sasl_authentication(sock) if Dalli::Server.need_auth?
-        up!
-        sock
-      end
-    end
-
-    def write(bytes)
+    def write(bytes, socket=connection)
       begin
-        connection.write(bytes)
+        socket.write(bytes)
       rescue SystemCallError
         down!(true)
       end
@@ -368,22 +343,26 @@ module Dalli
 
     def read(count, socket=connection)
       begin
-        value = ''
-        begin
-          loop do
-            value << socket.sysread(count - value.bytesize)
-            break if value.bytesize == count
-          end
-        rescue Errno::EAGAIN, Errno::EWOULDBLOCK
-          if IO.select([socket], nil, nil, TIMEOUT)
-            retry
-          else
-            raise Timeout::Error, "IO timeout"
-          end
-        end
-        value
+        socket.readfull(count)
       rescue SystemCallError, Timeout::Error, EOFError
         down!(true)
+      end
+    end
+
+    def connection
+      @sock ||= begin
+        if @down_at && @down_at == Time.now.to_i
+          raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{@msg}"
+        end
+
+        begin
+          sock = KSocket.open(hostname, port)
+        rescue
+          down!(true)
+        end
+        sasl_authentication(sock) if Dalli::Server.need_auth?
+        up!
+        sock
       end
     end
 
@@ -487,7 +466,7 @@ module Dalli
 
       # negotiate
       req = [REQUEST, OPCODES[:auth_negotiation], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
-      socket.write(req)
+      write(req, socket)
       header = read(24, socket)
       raise Dalli::NetworkError, 'No response' if !header
       (extras, type, status, count) = header.unpack(NORMAL_HEADER)

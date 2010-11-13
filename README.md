@@ -44,7 +44,8 @@ Remember, Dalli **requires** memcached 1.4+.  You can check the version with `me
 
 The test suite requires memcached 1.4.3+ with SASL enabled (./configure --enable-sasl).  Currently only supports the PLAIN mechanism.
 
-Dalli has no runtime dependencies and never will.
+Dalli has no runtime dependencies and never will.  You can optionally install the 'kgio' gem to
+give Dalli a 10-15% performance boost.
 
 
 Usage with Rails 3.0
@@ -128,6 +129,8 @@ If you have a fix you wish to provide, please fork the code, fix in your local p
 
 Thanks
 ------------
+
+Eric Wong - for help using his [kgio](http://unicorn.bogomips.org/kgio/index.html) library.
 
 Brian Mitchell - for his remix-stash project which was helpful when implementing and testing the binary protocol support.
 

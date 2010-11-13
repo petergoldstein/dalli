@@ -1,6 +1,7 @@
 require 'dalli/client'
 require 'dalli/ring'
 require 'dalli/server'
+require 'dalli/socket'
 require 'dalli/version'
 require 'dalli/options'
 

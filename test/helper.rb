@@ -1,3 +1,4 @@
+$TESTING = true
 require 'rubygems'
 # require 'simplecov'
 # SimpleCov.start

@@ -5,6 +5,7 @@ Dalli Changelog
 ======
 
  - Minor fixes, doc updates.
+ - Add optional support for kgio sockets, gives a 10-15% performance boost.
 
 0.11.0
 ======
