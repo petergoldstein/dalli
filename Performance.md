@@ -4,6 +4,10 @@ Performance
 Caching is all about performance, so I carefully track Dalli performance to ensure no regressions.
 Times are from a Unibody MBP 2.4Ghz Core 2 Duo running Snow Leopard.
 
+You can optionally use kgio to give Dalli a small, 10-20% performance boost: gem install kgio.
+
+*memcache-client*:
+
     Testing 1.8.5 with ruby 1.9.2p0 (2010-08-18 revision 29036) [x86_64-darwin10.4.0]
                                          user     system      total        real
     set:plain:memcache-client        2.070000   0.590000   2.660000 (  2.669744)
@@ -13,6 +17,8 @@ Times are from a Unibody MBP 2.4Ghz Core 2 Duo running Snow Leopard.
     multiget:ruby:memcache-client    1.030000   0.140000   1.170000 (  1.174503)
     missing:ruby:memcache-client     1.900000   0.370000   2.270000 (  2.282264)
     mixed:ruby:memcache-client       4.430000   0.950000   5.380000 (  5.420251)
+
+*dalli*:
 
     Testing 0.9.0 with ruby 1.9.2p0 (2010-08-18 revision 29036) [x86_64-darwin10.4.0]
                                          user     system      total        real
@@ -34,7 +40,21 @@ Times are from a Unibody MBP 2.4Ghz Core 2 Duo running Snow Leopard.
     missing:ruby:dalli               1.420000   0.370000   1.790000 (  1.925094)
     mixed:ruby:dalli                 2.800000   0.680000   3.480000 (  3.820694)
 
-    Testing 1.0.0 with ruby 1.9.2p0 (2010-08-18 revision 29036) [x86_64-darwin10.4.0]
+    Testing 0.11.1 with ruby 1.9.2p0 (2010-08-18 revision 29036) [x86_64-darwin10.4.0]
+    Using standard socket IO
+                                         user     system      total        real
+    set:plain:dalli                  1.570000   0.380000   1.950000 (  1.990252)
+    setq:plain:dalli                 0.460000   0.140000   0.600000 (  0.600362)
+    set:ruby:dalli                   1.630000   0.380000   2.010000 (  2.050056)
+    get:plain:dalli                  1.710000   0.410000   2.120000 (  2.156428)
+    get:ruby:dalli                   1.680000   0.410000   2.090000 (  2.120228)
+    multiget:ruby:dalli              0.860000   0.310000   1.170000 (  1.182857)
+    missing:ruby:dalli               1.540000   0.390000   1.930000 (  1.976637)
+    mixed:ruby:dalli                 3.300000   0.810000   4.110000 (  4.166230)
+    mixedq:ruby:dalli                2.530000   0.640000   3.170000 (  3.214916)
+    incr:ruby:dalli                  0.540000   0.140000   0.680000 (  0.691829)
+
+    Testing 0.11.1 with ruby 1.9.2p0 (2010-08-18 revision 29036) [x86_64-darwin10.4.0]
     Using kgio socket IO
                                          user     system      total        real
     set:plain:dalli                  0.800000   0.370000   1.170000 (  1.694842)

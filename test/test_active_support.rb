@@ -72,7 +72,7 @@ class TestActiveSupport < Test::Unit::TestCase
           connect
           @mc.write("abc", 5, :raw => true)
           @mc.write("cba", 5, :raw => true)
-          if RAILS_VERSION < '3.0.0'
+          if RAILS_VERSION =~ /2\.3/
             assert_raise ArgumentError do
               @mc.read_multi("abc", "cba")
             end
@@ -82,13 +82,9 @@ class TestActiveSupport < Test::Unit::TestCase
 
           @dalli.write("abc", 5, :raw => true)
           @dalli.write("cba", 5, :raw => true)
-          if RAILS_VERSION < '3.0.0'
-            assert_raise ArgumentError do
-              @dalli.read_multi("abc", "cba")
-            end
-          else
-            assert_equal({'abc' => '5', 'cba' => '5' }, @dalli.read_multi("abc", "cba"))
-          end
+          # XXX: API difference between m-c and dalli.  Dalli is smarter about
+          # what it needs to unmarshal.
+          assert_equal({'abc' => '5', 'cba' => '5' }, @dalli.read_multi("abc", "cba"))
         end
       end
     end
