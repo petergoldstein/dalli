@@ -14,7 +14,6 @@ Gem::Specification.new do |s|
      "LICENSE",
      "README.md",
      "History.md",
-     "TODO.md",
      "Rakefile",
      "Gemfile",
      "dalli.gemspec",
