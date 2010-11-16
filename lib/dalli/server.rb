@@ -95,18 +95,23 @@ module Dalli
     end
 
     def down!
-      Dalli.logger.debug { "down! #{@hostname}:#{@port}" }
+      Dalli.logger.warn { "memcached server is down: #{@hostname}:#{@port}" }
 
       close
       @down_at = Time.now.to_i
       @error = $! && $!.class.name
       @msg = @msg || ($! && $!.message && !$!.message.empty? && $!.message)
 
-      raise Dalli::NetworkError, "#{@hostname}:#{@port} is currently down: #{@error} #{@msg}"
+      raise Dalli::NetworkError, "#{@hostname}:#{@port} is down: #{@error} #{@msg}"
     end
 
     def up!
-      Dalli.logger.debug { "up! #{@hostname}:#{@port}" }
+      if @down_at
+        seconds = Time.now.to_i-@down_at
+        Dalli.logger.warn { "memcached server is back up: #{@hostname}:#{@port} (downtime was #{downtime} seconds)" }
+      else
+        Dalli.logger.debug { "memcached server is up: #{@hostname}:#{@port}" }
+      end
 
       @down_at = nil
       @msg = nil
