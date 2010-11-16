@@ -7,7 +7,7 @@ The name is a variant of Salvador Dali for his famous painting [The Persistence 
 
 ![Persistence of Memory](http://www.virtualdali.com/assets/paintings/31PersistenceOfMemory.jpg)
 
-Dalli's development is sponsored by [NorthScale](http://www.northscale.com/).  Many thanks to them!
+Dalli's development is sponsored by [Membase](http://www.membase.com/).  Many thanks to them!
 
 
 Design
