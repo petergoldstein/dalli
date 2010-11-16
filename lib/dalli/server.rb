@@ -16,6 +16,7 @@ module Dalli
       @weight = Integer(@weight)
       @fail_count = 0
       @down_at = nil
+      @last_down_at = nil
       @options = options.dup
       @version = nil
       set_default_options
@@ -109,11 +110,13 @@ module Dalli
     end
     
     def down!
+      @last_down_at = Time.now.to_i
+
       if @down_at
         time = Time.now.to_i-@down_at
         Dalli.logger.warn { "memcached server is still down: #{@hostname}:#{@port} (for #{time} seconds now)" }
       else
-        @down_at = Time.now.to_i
+        @down_at = @last_down_at
         Dalli.logger.warn { "memcached server is down: #{@hostname}:#{@port}" }
       end
 
@@ -134,6 +137,7 @@ module Dalli
 
       @fail_count = 0
       @down_at = nil
+      @last_down_at = nil
       @msg = nil
     end
 
@@ -382,8 +386,8 @@ module Dalli
     def ensure_valid_socket
       return if @sock
 
-      if @down_at && @down_at+@options[:down_retry_delay] >= Time.now.to_i
-        wait = @down_at+@options[:down_retry_delay]-Time.now.to_i
+      if @last_down_at && @last_down_at+@options[:down_retry_delay] >= Time.now.to_i
+        wait = @last_down_at+@options[:down_retry_delay]-Time.now.to_i
         Dalli.logger.debug { "own_retry_delay not reached for #{@hostname}:#{@port} (#{wait} seconds left)" }
         return
       end
