@@ -27,7 +27,7 @@ class TestNetwork < Test::Unit::TestCase
 
       should 'handle malformed response' do
         memcached_mock(lambda {|sock| sock.write('123') }) do
-          assert_error Dalli::NetworkError, /EOFError/ do
+          assert_error Dalli::NetworkError, /Connection reset|EOFError/ do
             dc = Dalli::Client.new('localhost:19123')
             dc.get('abc')
           end
