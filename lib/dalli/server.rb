@@ -16,15 +16,15 @@ module Dalli
       @weight = Integer(@weight)
       @down_at = nil
       @options = options
-      @options[:retry_timeout] = 3
-      @options[:retry_timeout] = [1, @options[:retry_timeout]].max
+      @options[:down_retry_delay] ||= 3
+      @options[:down_retry_delay] = [1, @options[:down_retry_delay]].max
       @version = nil
     end
     
     # Chokepoint method for instrumentation
     def request(op, *args)
       begin
-        ensure_connection
+        ensure_valid_socket
         send(op, *args)
       rescue Dalli::NetworkError
         raise
@@ -40,7 +40,7 @@ module Dalli
 
     def alive?
       Dalli.logger.debug { "alive? #{@hostname}:#{@port}" }
-      ensure_connection rescue Dalli::NetworkError
+      ensure_valid_socket rescue Dalli::NetworkError
       @sock && !@sock.closed?
     end
 
@@ -95,7 +95,6 @@ module Dalli
       @down_at = Time.now.to_i
       @error = $! && $!.class.name
       @msg = @msg || ($! && $!.message && !$!.message.empty? && $!.message)
-      @trace = @trace || $!.backtrace
 
       raise Dalli::NetworkError, "#{@hostname}:#{@port} is currently down: #{@error} #{@msg}"
     end
@@ -105,7 +104,6 @@ module Dalli
 
       @down_at = nil
       @msg = nil
-      @trace = nil
     end
 
     def multi?
@@ -348,16 +346,20 @@ module Dalli
       end
     end
     
-    def ensure_connection
-      connect(true) unless @sock
+    def ensure_valid_socket
+      return if @sock
+
+      if @down_at && @down_at+@options[:down_retry_delay] >= Time.now.to_i
+        wait = @down_at+@options[:down_retry_delay]-Time.now.to_i
+        Dalli.logger.debug { "own_retry_delay not reached for #{@hostname}:#{@port} (#{wait} seconds left)" }
+        return
+      end
+
+      connect(true)
     end
 
     def connect(check_memcached_version)
       Dalli.logger.debug { "connect #{@hostname}:#{@port}" }
-
-      if @down_at && @down_at+@options[:retry_timeout] >= Time.now.to_i
-        raise Dalli::NetworkError, "retry timeout not reached for #{@hostname}:#{@port}: #{@msg}"
-      end
 
       begin
         @sock = KSocket.open(hostname, port)
