@@ -84,6 +84,18 @@ module MemcachedMock
 
       yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"])
     end
+    
+    def memcached_kill(port)
+      pid = $started[port]
+      if pid
+        begin
+          Process.kill("TERM", pid)
+          Process.wait(pid)
+        rescue Errno::ECHILD
+        end
+        $started.delete(port)
+      end
+    end
   end
 end
 
