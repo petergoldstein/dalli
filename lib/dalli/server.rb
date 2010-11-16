@@ -14,6 +14,7 @@ module Dalli
       @port = Integer(@port)
       @weight ||= 1
       @weight = Integer(@weight)
+      @fail_count = 0
       @down_at = nil
       @options = options.dup
       @version = nil
@@ -24,7 +25,9 @@ module Dalli
       @options[:down_retry_delay] ||= 3
       @options[:down_retry_delay] = [1, @options[:down_retry_delay]].max
 
-      @options[:socket_timeout] ||= 0.5
+      @options[:socket_timeout] ||= 0.1
+      @options[:socket_retries] ||= 2
+      @options[:socket_retry_delay] ||= 0.1
     end
     
     # Chokepoint method for instrumentation
@@ -94,6 +97,17 @@ module Dalli
       version
     end
 
+    def failure!
+      Dalli.logger.warn { "memcached server failed: #{@hostname}:#{@port} (fail_count: #{@fail_count})" }
+
+      @fail_count += 1
+      if @fail_count > @options[:socket_retries]
+        down!
+      end
+      
+      sleep(@options[:socket_retry_delay])
+    end
+    
     def down!
       Dalli.logger.warn { "memcached server is down: #{@hostname}:#{@port}" }
 
@@ -113,6 +127,7 @@ module Dalli
         Dalli.logger.debug { "memcached server is up: #{@hostname}:#{@port}" }
       end
 
+      @fail_count = 0
       @down_at = nil
       @msg = nil
     end
@@ -345,7 +360,8 @@ module Dalli
       begin
         @sock.write(bytes)
       rescue SystemCallError
-        down!
+        failure!
+        retry
       end
     end
 
@@ -353,7 +369,8 @@ module Dalli
       begin
         @sock.readfull(count)
       rescue SystemCallError, Timeout::Error, EOFError
-        down!
+        failure!
+        retry
       end
     end
     
@@ -380,7 +397,8 @@ module Dalli
         sasl_authentication(sock) if Dalli::Server.need_auth?
         up!
       rescue
-        down!
+        failure!
+        retry
       end
     end
 
