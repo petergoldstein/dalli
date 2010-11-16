@@ -3,19 +3,20 @@ begin
   puts "Using kgio socket IO" if $TESTING
 
   class Dalli::Server::KSocket < Kgio::Socket
-    TIMEOUT = 0.5
-
+    attr_accessor :options
+    
     def wait_readable
-      IO.select([self], nil, nil, TIMEOUT) || raise(Timeout::Error, "IO timeout")
+      IO.select([self], nil, nil, options[:timeout]) || raise(Timeout::Error, "IO timeout")
     end
 
     def wait_writable
-      IO.select(nil, [self], nil, TIMEOUT) || raise(Timeout::Error, "IO timeout")
+      IO.select(nil, [self], nil, options[:timeout]) || raise(Timeout::Error, "IO timeout")
     end
 
-    def self.open(host, port)
+    def self.open(host, port, options = {})
       addr = Socket.pack_sockaddr_in(port, host)
       sock = start(addr)
+      sock.options = options
       sock.wait_writable
       sock
     end
@@ -40,16 +41,17 @@ rescue LoadError
   puts "Using standard socket IO" if $TESTING
 
   class Dalli::Server::KSocket < Socket
-    TIMEOUT = 0.5
-
-    def self.open(host, port)
+    attr_accessor :options
+    
+    def self.open(host, port, options = {})
       # All this ugly code to ensure proper Socket connect timeout
       addr = Socket.getaddrinfo(host, nil)
       sock = new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
+      sock.options = options
       begin
         sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
       rescue Errno::EINPROGRESS
-        resp = IO.select(nil, [sock], nil, TIMEOUT)
+        resp = IO.select(nil, [sock], nil, sock.options[:timeout])
         begin
           sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
         rescue Errno::EISCONN
@@ -66,7 +68,7 @@ rescue LoadError
           break if value.bytesize == count
         end
       rescue Errno::EAGAIN, Errno::EWOULDBLOCK
-        if IO.select([self], nil, nil, TIMEOUT)
+        if IO.select([self], nil, nil, options[:timeout])
           retry
         else
           raise Timeout::Error, "IO timeout"

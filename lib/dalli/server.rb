@@ -15,10 +15,16 @@ module Dalli
       @weight ||= 1
       @weight = Integer(@weight)
       @down_at = nil
-      @options = options
+      @options = options.dup
+      @version = nil
+      set_default_options
+    end
+    
+    def set_default_options
       @options[:down_retry_delay] ||= 3
       @options[:down_retry_delay] = [1, @options[:down_retry_delay]].max
-      @version = nil
+
+      @options[:socket_timeout] ||= 0.5
     end
     
     # Chokepoint method for instrumentation
@@ -362,7 +368,9 @@ module Dalli
       Dalli.logger.debug { "connect #{@hostname}:#{@port}" }
 
       begin
-        @sock = KSocket.open(hostname, port)
+        @sock = KSocket.open(hostname, port, {
+          :timeout => @options[:socket_timeout], 
+        })
         memcached_version if check_memcached_version
         sasl_authentication(sock) if Dalli::Server.need_auth?
         up!
