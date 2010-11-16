@@ -22,7 +22,7 @@ module Dalli
     end
     
     def set_default_options
-      @options[:down_retry_delay] ||= 3
+      @options[:down_retry_delay] ||= 30
       @options[:down_retry_delay] = [1, @options[:down_retry_delay]].max
 
       @options[:socket_timeout] ||= 0.1
