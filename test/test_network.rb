@@ -18,7 +18,7 @@ class TestNetwork < Test::Unit::TestCase
 
       should 'handle connection reset' do
         memcached_mock(lambda {|sock| sock.close }) do
-          assert_error Dalli::NetworkError, /Connection reset|EOFError/ do
+          assert_raise Dalli::RingError, :message => "No server available" do
             dc = Dalli::Client.new('localhost:19123')
             dc.get('abc')
           end
@@ -27,7 +27,7 @@ class TestNetwork < Test::Unit::TestCase
 
       should 'handle malformed response' do
         memcached_mock(lambda {|sock| sock.write('123') }) do
-          assert_error Dalli::NetworkError, /Connection reset|EOFError/ do
+          assert_raise Dalli::RingError, :message => "No server available" do
             dc = Dalli::Client.new('localhost:19123')
             dc.get('abc')
           end
@@ -36,7 +36,7 @@ class TestNetwork < Test::Unit::TestCase
 
       should 'handle connect timeouts' do
         memcached_mock(lambda {|sock| sleep(0.6); sock.close }, :delayed_start) do
-          assert_error Dalli::NetworkError, /IO timeout/ do
+          assert_raise Dalli::RingError, :message => "No server available" do
             dc = Dalli::Client.new('localhost:19123')
             dc.get('abc')
           end
@@ -45,7 +45,7 @@ class TestNetwork < Test::Unit::TestCase
 
       should 'handle read timeouts' do
         memcached_mock(lambda {|sock| sleep(0.6); sock.write('giraffe') }) do
-          assert_error Dalli::NetworkError, /IO timeout/ do
+          assert_raise Dalli::RingError, :message => "No server available" do
             dc = Dalli::Client.new('localhost:19123')
             dc.get('abc')
           end
