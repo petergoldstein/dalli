@@ -75,7 +75,7 @@ module MemcachedMock
           begin
             Process.kill("TERM", pid)
             Process.wait(pid)
-          rescue Errno::ECHILD
+          rescue Errno::ECHILD, Errno::ESRCH
           end
         end
         sleep 0.1
@@ -91,7 +91,7 @@ module MemcachedMock
         begin
           Process.kill("TERM", pid)
           Process.wait(pid)
-        rescue Errno::ECHILD
+        rescue Errno::ECHILD, Errno::ESRCH
         end
         $started.delete(port)
       end

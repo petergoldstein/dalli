@@ -209,8 +209,14 @@ module Dalli
         args[0] = key
       end
       args[0] = key = validate_key(key)
-      server = ring.server_for_key(key)
-      server.request(op, *args)
+      begin
+        server = ring.server_for_key(key)
+        server.request(op, *args)
+      rescue NetworkError => e
+        Dalli.logger.debug { "server #{server.hostname}:#{server.port} failed: #{e.message}" }
+        Dalli.logger.debug { "retrying request with new server" }
+        retry
+      end
     end
     
     def validate_key(key)

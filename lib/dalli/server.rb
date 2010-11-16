@@ -37,6 +37,7 @@ module Dalli
     end
 
     def alive?
+      Dalli.logger.debug { "alive? #{@hostname}:#{@port}" }
       ensure_connection rescue Dalli::NetworkError
       @sock && !@sock.closed?
     end
@@ -86,18 +87,22 @@ module Dalli
     end
 
     def down!
+      Dalli.logger.debug { "down! #{@hostname}:#{@port}" }
+
       close
       @down_at = Time.now.to_i
       @error = $! && $!.class.name
       @msg = @msg || ($! && $!.message && !$!.message.empty? && $!.message)
       @trace = @trace || $!.backtrace
 
-      x = Dalli::NetworkError.new("#{self.hostname}:#{self.port} is currently down: #{@error} #{@msg}")
+      x = Dalli::NetworkError.new("#{@hostname}:#{@port} is currently down: #{@error} #{@msg}")
       x.set_backtrace @trace
       raise x
     end
 
     def up!
+      Dalli.logger.debug { "up! #{@hostname}:#{@port}" }
+
       @down_at = nil
       @msg = nil
       @trace = nil
@@ -348,10 +353,10 @@ module Dalli
     end
 
     def connect(check_memcached_version)
-      Dalli.logger.debug { "connect to #{@hostname}:#{@port}" }
+      Dalli.logger.debug { "connect #{@hostname}:#{@port}" }
 
       if @down_at && @down_at == Time.now.to_i
-        raise Dalli::NetworkError, "retry timeout not reached for #{self.hostname}:#{self.port}: #{@msg}"
+        raise Dalli::NetworkError, "retry timeout not reached for #{@hostname}:#{@port}: #{@msg}"
       end
 
       begin
