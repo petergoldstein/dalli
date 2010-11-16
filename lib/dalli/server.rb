@@ -109,10 +109,15 @@ module Dalli
     end
     
     def down!
-      Dalli.logger.warn { "memcached server is down: #{@hostname}:#{@port}" }
+      if @down_at
+        time = Time.now.to_i-@down_at
+        Dalli.logger.warn { "memcached server is still down: #{@hostname}:#{@port} (for #{time} seconds now)" }
+      else
+        @down_at = Time.now.to_i
+        Dalli.logger.warn { "memcached server is down: #{@hostname}:#{@port}" }
+      end
 
       close
-      @down_at = Time.now.to_i
       @error = $! && $!.class.name
       @msg = @msg || ($! && $!.message && !$!.message.empty? && $!.message)
 
