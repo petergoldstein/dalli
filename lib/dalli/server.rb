@@ -8,7 +8,7 @@ module Dalli
     attr_accessor :port
     attr_accessor :weight
     
-    def initialize(attribs, options=nil)
+    def initialize(attribs, options = {})
       (@hostname, @port, @weight) = attribs.split(':')
       @port ||= 11211
       @port = Integer(@port)
@@ -16,6 +16,8 @@ module Dalli
       @weight = Integer(@weight)
       @down_at = nil
       @options = options
+      @options[:retry_timeout] = 3
+      @options[:retry_timeout] = [1, @options[:retry_timeout]].max
       @version = nil
     end
     
@@ -95,9 +97,7 @@ module Dalli
       @msg = @msg || ($! && $!.message && !$!.message.empty? && $!.message)
       @trace = @trace || $!.backtrace
 
-      x = Dalli::NetworkError.new("#{@hostname}:#{@port} is currently down: #{@error} #{@msg}")
-      x.set_backtrace @trace
-      raise x
+      raise Dalli::NetworkError, "#{@hostname}:#{@port} is currently down: #{@error} #{@msg}"
     end
 
     def up!
@@ -355,7 +355,7 @@ module Dalli
     def connect(check_memcached_version)
       Dalli.logger.debug { "connect #{@hostname}:#{@port}" }
 
-      if @down_at && @down_at == Time.now.to_i
+      if @down_at && @down_at+@options[:retry_timeout] >= Time.now.to_i
         raise Dalli::NetworkError, "retry timeout not reached for #{@hostname}:#{@port}: #{@msg}"
       end
 
