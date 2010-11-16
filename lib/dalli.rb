@@ -16,6 +16,8 @@ module Dalli
   class DalliError < RuntimeError; end
   # socket/server communication error
   class NetworkError < DalliError; end
+  # no server available/alive error
+  class RingError < DalliError; end
 
   def self.logger
     @logger ||= (rails_logger || default_logger)

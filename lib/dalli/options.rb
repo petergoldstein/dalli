@@ -1,4 +1,5 @@
 require 'thread'
+require 'monitor'
 
 module Dalli
 

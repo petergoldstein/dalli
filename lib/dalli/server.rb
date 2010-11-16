@@ -15,14 +15,14 @@ module Dalli
       @weight ||= 1
       @weight = Integer(@weight)
       @down_at = nil
-      @version = detect_memcached_version
       @options = options
-      Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{@version}" }
+      @version = nil
     end
     
     # Chokepoint method for instrumentation
     def request(op, *args)
       begin
+        ensure_connection
         send(op, *args)
       rescue Dalli::NetworkError
         raise
@@ -32,22 +32,13 @@ module Dalli
         Dalli.logger.error "Unexpected exception in Dalli: #{ex.class.name}: #{ex.message}"
         Dalli.logger.error "This is a bug in Dalli, please enter an issue in Github if it does not already exist."
         Dalli.logger.error ex.backtrace.join("\n\t")
-        down!(true)
+        down!
       end
     end
 
     def alive?
-      return true if @sock && !@sock.closed?
-      return false if @down_at && @down_at == Time.now.to_i
-
-      begin
-        # try to reconnect at most once per second
-        connection
-        true
-      rescue Dalli::NetworkError => dne
-        Dalli.logger.info(dne.message)
-        false
-      end
+      ensure_connection rescue Dalli::NetworkError
+      @sock && !@sock.closed?
     end
 
     def close
@@ -58,6 +49,10 @@ module Dalli
     end
 
     def unlock!
+    end
+    
+    def memcached_version
+      @memcached_version ||= detect_memcached_version
     end
 
     # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
@@ -71,9 +66,10 @@ module Dalli
       # If you ask for the version in text, the socket is immediately locked to the text
       # protocol.  But if we use binary, an old remote server will not respond.  If
       # the server is using SASL, it will not respond to the text protocol.  Sigh.
+      version = nil
       if username
         # using SASL, assume the binary protocol will work.
-        binary_version
+        version = binary_version
       else
         # Use text to determine the remote version, close the socket and open it back up.
         # Alternative suggestions welcome.
@@ -83,24 +79,22 @@ module Dalli
           raise NotImplementedError, "Dalli does not support memcached versions < 1.4.0, found #{version} at #{@hostname}:#{@port}"
         end
         close
-        connection
-        version
+        connect(false)
       end
+      Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{version}" }
+      version
     end
 
-    def down!(toss_exception=false)
+    def down!
       close
       @down_at = Time.now.to_i
       @error = $! && $!.class.name
       @msg = @msg || ($! && $!.message && !$!.message.empty? && $!.message)
       @trace = @trace || $!.backtrace
 
-      if toss_exception
-        x = Dalli::NetworkError.new("#{self.hostname}:#{self.port} is currently down: #{@error} #{@msg}")
-        x.set_backtrace @trace
-        raise x
-      end
-      nil
+      x = Dalli::NetworkError.new("#{self.hostname}:#{self.port} is currently down: #{@error} #{@msg}")
+      x.set_backtrace @trace
+      raise x
     end
 
     def up!
@@ -217,7 +211,7 @@ module Dalli
 
     def text_version
       write("version\r\n")
-      connection.gets =~ /VERSION (.*)\r\n/
+      @sock.gets =~ /VERSION (.*)\r\n/
       $1
     end
 
@@ -333,36 +327,40 @@ module Dalli
       end
     end
 
-    def write(bytes, socket=connection)
+    def write(bytes)
       begin
-        socket.write(bytes)
+        @sock.write(bytes)
       rescue SystemCallError
-        down!(true)
+        down!
       end
     end
 
-    def read(count, socket=connection)
+    def read(count)
       begin
-        socket.readfull(count)
+        @sock.readfull(count)
       rescue SystemCallError, Timeout::Error, EOFError
-        down!(true)
+        down!
       end
     end
+    
+    def ensure_connection
+      connect(true) unless @sock
+    end
 
-    def connection
-      @sock ||= begin
-        if @down_at && @down_at == Time.now.to_i
-          raise Dalli::NetworkError, "#{self.hostname}:#{self.port} is currently down: #{@msg}"
-        end
+    def connect(check_memcached_version)
+      Dalli.logger.debug { "connect to #{@hostname}:#{@port}" }
 
-        begin
-          sock = KSocket.open(hostname, port)
-        rescue
-          down!(true)
-        end
+      if @down_at && @down_at == Time.now.to_i
+        raise Dalli::NetworkError, "retry timeout not reached for #{self.hostname}:#{self.port}: #{@msg}"
+      end
+
+      begin
+        @sock = KSocket.open(hostname, port)
+        memcached_version if check_memcached_version
         sasl_authentication(sock) if Dalli::Server.need_auth?
         up!
-        sock
+      rescue
+        down!
       end
     end
 

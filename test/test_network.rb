@@ -4,8 +4,8 @@ class TestNetwork < Test::Unit::TestCase
 
   context 'assuming a bad network' do
 
-    should 'handle connection refused' do
-      assert_raise Dalli::NetworkError do
+    should 'handle no server available' do
+      assert_raise Dalli::RingError, :message => "No server available" do
         dc = Dalli::Client.new 'localhost:19333'
         dc.get 'foo'
       end

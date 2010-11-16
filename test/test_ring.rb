@@ -17,10 +17,9 @@ class TestRing < Test::Unit::TestCase
 
     should 'raise when no servers are available/ defined' do
       ring = Dalli::Ring.new([], {})
-      message = assert_raise Dalli::NetworkError do
+      assert_raise Dalli::RingError, :message => "No server available" do
         ring.server_for_key('test')
       end
-      assert_equal "No server available", message
     end
 
     context 'containing only a single server' do
@@ -29,20 +28,19 @@ class TestRing < Test::Unit::TestCase
           Dalli::Server.new("localhost:12345"),
         ]
         ring = Dalli::Ring.new(servers, {})
-        message = assert_raise Dalli::NetworkError do
+        assert_raise Dalli::RingError, :message => "No server available" do
           ring.server_for_key('test')
         end
-        assert_equal "No server available", message
       end
 
       should "return the server when it's alive" do
         servers = [
-          Dalli::Server.new("localhost:19122"),
+          Dalli::Server.new("localhost:19191"),
         ]
         ring = Dalli::Ring.new(servers, {})
-        memcached do |cache|
-          ring = cache.send(:ring)
-          assert_same ring.servers.first, ring.server_for_key('test')
+        memcached(19191) do |mc|
+          ring = mc.send(:ring)
+          assert_equal ring.servers.first.port, ring.server_for_key('test').port
         end
       end
     end
@@ -54,21 +52,20 @@ class TestRing < Test::Unit::TestCase
           Dalli::Server.new("localhost:12346"),
         ]
         ring = Dalli::Ring.new(servers, {})
-        message = assert_raise Dalli::NetworkError do
+        assert_raise Dalli::RingError, :message => "No server available" do
           ring.server_for_key('test')
         end
-        assert_equal "No server available", message
       end
 
       should "return an alive server when at least one is alive" do
         servers = [
           Dalli::Server.new("localhost:12346"),
-          Dalli::Server.new("localhost:19122"),
+          Dalli::Server.new("localhost:19191"),
         ]
         ring = Dalli::Ring.new(servers, {})
-        memcached do |cache|
-          ring = cache.send(:ring)
-          assert_same ring.servers.first, ring.server_for_key('test')
+        memcached(19191) do |mc|
+          ring = mc.send(:ring)
+          assert_equal ring.servers.first.port, ring.server_for_key('test').port
         end
       end
     end

@@ -28,19 +28,21 @@ module Dalli
     end
     
     def server_for_key(key)
-      return @servers.first unless @continuum
-
-      hkey = hash_for(key)
-
-      20.times do |try|
-        entryidx = self.class.binary_search(@continuum, hkey)
-        server = @continuum[entryidx].server
-        return server if server.alive?
-        break unless @failover
-        hkey = hash_for("#{try}#{key}")
+      if @continuum
+        hkey = hash_for(key)
+        20.times do |try|
+          entryidx = self.class.binary_search(@continuum, hkey)
+          server = @continuum[entryidx].server
+          return server if server.alive?
+          break unless @failover
+          hkey = hash_for("#{try}#{key}")
+        end
+      else
+        server = @servers.first
+        return server if server && server.alive?
       end
 
-      raise Dalli::NetworkError, "No server available"
+      raise Dalli::RingError, "No server available"
     end
     
     def lock
