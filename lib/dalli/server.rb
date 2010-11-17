@@ -14,10 +14,10 @@ module Dalli
       :down_retry_delay => 1,
       # connect/read/write timeout for socket operations
       :socket_timeout => 0.5,
-      # times to retry an operation before considering the server dead
-      :socket_retries => 2,
-      # amount of time to sleep between retries
-      :socket_retry_delay => 0.01
+      # times a socket operation may fail before considering the server dead
+      :socket_max_failures => 2,
+      # amount of time to sleep between retries when a failure occured
+      :socket_failure_delay => 0.01
     }
 
     def initialize(attribs, options = {})
@@ -109,10 +109,10 @@ module Dalli
       Dalli.logger.info { "#{hostname}:#{port} failed (count: #{@fail_count})" }
 
       @fail_count += 1
-      if @fail_count >= options[:socket_retries]
+      if @fail_count >= options[:socket_max_failures]
         down!
       else
-        sleep(options[:socket_retry_delay])
+        sleep(options[:socket_failure_delay])
       end
     end
     

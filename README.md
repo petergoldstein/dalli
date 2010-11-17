@@ -116,15 +116,13 @@ Configuration
 ------------------------
 Dalli accepts the following options. All times are in seconds and maybe fractional.
 
-**socket_timeout**: Timeout for all socket operations (connect, read, write). Default is 0.1.
+**socket_timeout**: Timeout for all socket operations (connect, read, write). Default is 0.5.
 
-**socket_retries**: When a socket operation fails after socket_timeout, the same operation is retried that many times. this is to not immediately mark a server down when there's a very slight network problem. Default is 2.
+**socket_max_failures**: When a socket operation fails after socket_timeout, the same operation is retried. This is to not immediately mark a server down when there's a very slight network problem. Default is 2.
 
-**socket_retry_delay**: Before retrying a socket operation, the process sleeps for this amount of time. default is 0.1.
+**socket_failure_delay**: Before retrying a socket operation, the process sleeps for this amount of time. Default is 0.01.
 
 **down_retry_delay**: When a server has been marked down due to many failures, the server will be checked again for being alive only after this amount of time. Don't set this value to low, otherwise each request which tries the failed server might hang for the maximum timeout (see below). Default is 30 seconds.
-
-The default settings produce a maximum timeout of 0.5 seconds in case a server is down: socket_timeout+socket_retries\*(socket_timeout+socket_retry_delay) = 0.1+2\*(0.1+0.1) = 0.5.
 
 
 Features and Changes
