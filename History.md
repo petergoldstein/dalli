@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+0.11.2
+=======
+
+ - Major reworking of socket error and failover handling (gucki)
+
 0.11.1
 ======
 

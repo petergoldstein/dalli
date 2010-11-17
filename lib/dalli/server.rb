@@ -13,7 +13,7 @@ module Dalli
       # seconds between trying to contact a remote server
       :down_retry_delay => 1,
       # connect/read/write timeout for socket operations
-      :socket_timeout => 0.1,
+      :socket_timeout => 0.5,
       # times to retry an operation before considering the server dead
       :socket_retries => 2,
       # amount of time to sleep between retries
