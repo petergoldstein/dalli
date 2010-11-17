@@ -7,7 +7,19 @@ module Dalli
     attr_accessor :hostname
     attr_accessor :port
     attr_accessor :weight
+    attr_accessor :options
     
+    DEFAULTS = {
+      # seconds between trying to contact a remote server
+      :down_retry_delay => 1,
+      # connect/read/write timeout for socket operations
+      :socket_timeout => 0.1,
+      # times to retry an operation before considering the server dead
+      :socket_retries => 2,
+      # amount of time to sleep between retries
+      :socket_retry_delay => 0.01
+    }
+
     def initialize(attribs, options = {})
       (@hostname, @port, @weight) = attribs.split(':')
       @port ||= 11211
@@ -17,18 +29,8 @@ module Dalli
       @fail_count = 0
       @down_at = nil
       @last_down_at = nil
-      @options = options.dup
+      @options = DEFAULTS.merge(options)
       @version = nil
-      set_default_options
-    end
-    
-    def set_default_options
-      @options[:down_retry_delay] ||= 30
-      @options[:down_retry_delay] = [1, @options[:down_retry_delay]].max
-
-      @options[:socket_timeout] ||= 0.1
-      @options[:socket_retries] ||= 2
-      @options[:socket_retry_delay] ||= 0.1
     end
     
     # Chokepoint method for instrumentation
@@ -49,7 +51,7 @@ module Dalli
     end
 
     def alive?
-      Dalli.logger.debug { "alive? #{@hostname}:#{@port}" }
+      Dalli.logger.debug { "alive? #{hostname}:#{port}" }
       ensure_valid_socket rescue Dalli::NetworkError
       @sock && !@sock.closed?
     end
@@ -65,7 +67,7 @@ module Dalli
     end
     
     def memcached_version
-      @memcached_version ||= detect_memcached_version
+      @version ||= detect_memcached_version
     end
 
     # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
@@ -88,25 +90,25 @@ module Dalli
         # Alternative suggestions welcome.
         version = text_version
         if version < '1.4.0'
-          Dalli.logger.error "Dalli does not support memcached versions < 1.4.0, found #{version} at #{@hostname}:#{@port}"
-          raise NotImplementedError, "Dalli does not support memcached versions < 1.4.0, found #{version} at #{@hostname}:#{@port}"
+          Dalli.logger.error "Dalli does not support memcached versions < 1.4.0, found #{version} at #{hostname}:#{port}"
+          raise NotImplementedError, "Dalli does not support memcached versions < 1.4.0, found #{version} at #{hostname}:#{port}"
         end
         close
         connect(false)
       end
-      Dalli.logger.debug { "#{@hostname}:#{@port} running memcached v#{version}" }
+      Dalli.logger.debug { "#{hostname}:#{port} running memcached v#{version}" }
       version
     end
 
     def failure!
-      Dalli.logger.warn { "memcached server failed: #{@hostname}:#{@port} (fail_count: #{@fail_count})" }
+      Dalli.logger.warn { "memcached server failed: #{hostname}:#{port} (fail_count: #{@fail_count})" }
 
       @fail_count += 1
-      if @fail_count > @options[:socket_retries]
+      if @fail_count > options[:socket_retries]
         down!
       end
       
-      sleep(@options[:socket_retry_delay])
+      sleep(options[:socket_retry_delay])
     end
     
     def down!
@@ -114,31 +116,32 @@ module Dalli
 
       if @down_at
         time = Time.now.to_i-@down_at
-        Dalli.logger.warn { "memcached server is still down: #{@hostname}:#{@port} (for #{time} seconds now)" }
+        Dalli.logger.info { "memcached server is still down: #{hostname}:#{port} (for #{time} seconds now)" }
       else
         @down_at = @last_down_at
-        Dalli.logger.warn { "memcached server is down: #{@hostname}:#{@port}" }
+        Dalli.logger.warn { "memcached server is down: #{hostname}:#{port}" }
       end
 
       close
       @error = $! && $!.class.name
       @msg = @msg || ($! && $!.message && !$!.message.empty? && $!.message)
 
-      raise Dalli::NetworkError, "#{@hostname}:#{@port} is down: #{@error} #{@msg}"
+      raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}"
     end
 
     def up!
       if @down_at
         seconds = Time.now.to_i-@down_at
-        Dalli.logger.warn { "memcached server is back up: #{@hostname}:#{@port} (downtime was #{downtime} seconds)" }
+        Dalli.logger.warn { "memcached server is back up: #{hostname}:#{port} (downtime was #{downtime} seconds)" }
       else
-        Dalli.logger.debug { "memcached server is up: #{@hostname}:#{@port}" }
+        Dalli.logger.debug { "memcached server is up: #{hostname}:#{port}" }
       end
 
       @fail_count = 0
       @down_at = nil
       @last_down_at = nil
       @msg = nil
+      @error = nil
     end
 
     def multi?
@@ -386,23 +389,23 @@ module Dalli
     def ensure_valid_socket
       return if @sock
 
-      if @last_down_at && @last_down_at+@options[:down_retry_delay] >= Time.now.to_i
-        wait = @last_down_at+@options[:down_retry_delay]-Time.now.to_i
-        Dalli.logger.debug { "own_retry_delay not reached for #{@hostname}:#{@port} (#{wait} seconds left)" }
+      if @last_down_at && @last_down_at+options[:down_retry_delay] >= Time.now.to_i
+        wait = @last_down_at+options[:down_retry_delay]-Time.now.to_i
+        Dalli.logger.debug { "down_retry_delay not reached for #{hostname}:#{port} (#{wait} seconds left)" }
         return
       end
 
       connect(true)
     end
 
-    def connect(check_memcached_version)
-      Dalli.logger.debug { "connect #{@hostname}:#{@port}" }
+    def connect(check_version)
+      Dalli.logger.debug { "connect #{hostname}:#{port}" }
 
       begin
         @sock = KSocket.open(hostname, port, {
-          :timeout => @options[:socket_timeout], 
+          :timeout => options[:socket_timeout],
         })
-        memcached_version if check_memcached_version
+        memcached_version if check_version
         sasl_authentication(sock) if Dalli::Server.need_auth?
         up!
       rescue
