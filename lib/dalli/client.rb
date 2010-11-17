@@ -58,8 +58,12 @@ module Dalli
         keys.flatten.each do |key|
           perform(:getkq, key)
         end
-        values = ring.servers.inject({}) { |hash, s| hash.merge!(s.request(:noop)); hash }
-        values.inject(values) { |memo, (k,v)| memo[k] = v; memo }
+
+        values = {}
+        ring.servers.each do |server|
+          values.merge!(server.request(:noop)) if server.alive?
+        end
+        values
       end
     end
 
@@ -173,7 +177,11 @@ module Dalli
     # Collect the stats for each server.
     # Returns a hash like { 'hostname:port' => { 'stat1' => 'value1', ... }, 'hostname2:port' => { ... } }
     def stats
-      ring.servers.inject({}) { |memo, s| memo["#{s.hostname}:#{s.port}"] = s.request(:stats); memo }
+      values = {}
+      ring.servers.each do |server|
+        values["#{server.hostname}:#{server.port}"] = server.alive? ? server.request(:stats) : nil
+      end
+      values
     end
 
     ##

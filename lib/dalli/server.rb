@@ -53,14 +53,16 @@ module Dalli
     def alive?
       begin
         ensure_valid_socket
-        @sock && !@sock.closed?
+        !@sock.closed?
       rescue Dalli::NetworkError
         false
       end
     end
 
     def close
-      (@sock.close rescue nil; @sock = nil) if @sock
+      return unless @sock
+      @sock.close rescue nil
+      @sock = nil
     end
 
     def lock!
@@ -395,7 +397,7 @@ module Dalli
       if @last_down_at && @last_down_at+options[:down_retry_delay] >= Time.now.to_i
         wait = @last_down_at+options[:down_retry_delay]-Time.now.to_i
         Dalli.logger.debug { "down_retry_delay not reached for #{hostname}:#{port} (#{wait} seconds left)" }
-        return
+        raise Dalli::NetworkError, "still down, down_retry_delay not reached"
       end
 
       connect(true)
