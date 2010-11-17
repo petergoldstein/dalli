@@ -15,7 +15,7 @@ class TestRing < Test::Unit::TestCase
       end
     end
 
-    should 'raise when no servers are available/ defined' do
+    should 'raise when no servers are available/defined' do
       ring = Dalli::Ring.new([], {})
       assert_raise Dalli::RingError, :message => "No server available" do
         ring.server_for_key('test')

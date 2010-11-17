@@ -51,9 +51,12 @@ module Dalli
     end
 
     def alive?
-      Dalli.logger.debug { "alive? #{hostname}:#{port}" }
-      ensure_valid_socket rescue Dalli::NetworkError
-      @sock && !@sock.closed?
+      begin
+        ensure_valid_socket
+        @sock && !@sock.closed?
+      rescue Dalli::NetworkError
+        false
+      end
     end
 
     def close
@@ -101,14 +104,14 @@ module Dalli
     end
 
     def failure!
-      Dalli.logger.warn { "memcached server failed: #{hostname}:#{port} (fail_count: #{@fail_count})" }
+      Dalli.logger.info { "#{hostname}:#{port} failed (count: #{@fail_count})" }
 
       @fail_count += 1
-      if @fail_count > options[:socket_retries]
+      if @fail_count >= options[:socket_retries]
         down!
+      else
+        sleep(options[:socket_retry_delay])
       end
-      
-      sleep(options[:socket_retry_delay])
     end
     
     def down!
@@ -116,15 +119,15 @@ module Dalli
 
       if @down_at
         time = Time.now.to_i-@down_at
-        Dalli.logger.info { "memcached server is still down: #{hostname}:#{port} (for #{time} seconds now)" }
+        Dalli.logger.info { "#{hostname}:#{port} is still down (for #{time} seconds now)" }
       else
         @down_at = @last_down_at
-        Dalli.logger.warn { "memcached server is down: #{hostname}:#{port}" }
+        Dalli.logger.warn { "#{hostname}:#{port} is down" }
       end
 
-      close
       @error = $! && $!.class.name
       @msg = @msg || ($! && $!.message && !$!.message.empty? && $!.message)
+      close
 
       raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}"
     end
@@ -132,9 +135,9 @@ module Dalli
     def up!
       if @down_at
         seconds = Time.now.to_i-@down_at
-        Dalli.logger.warn { "memcached server is back up: #{hostname}:#{port} (downtime was #{downtime} seconds)" }
+        Dalli.logger.warn { "#{hostname}:#{port} is up (downtime was #{downtime} seconds)" }
       else
-        Dalli.logger.debug { "memcached server is up: #{hostname}:#{port}" }
+        Dalli.logger.debug { "#{hostname}:#{port} is up" }
       end
 
       @fail_count = 0
@@ -406,9 +409,11 @@ module Dalli
           :timeout => options[:socket_timeout],
         })
         memcached_version if check_version
-        sasl_authentication(sock) if Dalli::Server.need_auth?
+        sasl_authentication if Dalli::Server.need_auth?
         up!
-      rescue
+      rescue Dalli::DalliError # SASL auth failure
+        raise
+      rescue SystemCallError, Timeout::Error, EOFError
         failure!
         retry
       end
@@ -507,19 +512,19 @@ module Dalli
       ENV['MEMCACHE_PASSWORD']
     end
 
-    def sasl_authentication(socket)
+    def sasl_authentication
       init_sasl if !defined?(::SASL)
 
       Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
 
       # negotiate
       req = [REQUEST, OPCODES[:auth_negotiation], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
-      write(req, socket)
-      header = read(24, socket)
+      write(req)
+      header = read(24)
       raise Dalli::NetworkError, 'No response' if !header
       (extras, type, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
-      content = read(count, socket)
+      content = read(count)
       return (Dalli.logger.debug("Authentication not required/supported by server")) if status == 0x81
       mechanisms = content.split(' ')
 
@@ -529,13 +534,13 @@ module Dalli
       mechanism = sasl.name
       #p [mechanism, msg]
       req = [REQUEST, OPCODES[:auth_request], mechanism.bytesize, 0, 0, 0, mechanism.bytesize + msg.bytesize, 0, 0, mechanism, msg].pack(FORMAT[:auth_request])
-      socket.write(req)
+      write(req)
 
-      header = read(24, socket)
+      header = read(24)
       raise Dalli::NetworkError, 'No response' if !header
       (extras, type, status, count) = header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
-      content = read(count, socket)
+      content = read(count)
       return Dalli.logger.info("Dalli/SASL: #{content}") if status == 0
 
       raise Dalli::DalliError, "Error authenticating: #{status}" unless status == 0x21

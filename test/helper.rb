@@ -12,6 +12,10 @@ require 'memcached_mock'
 require 'mocha'
 
 require 'dalli'
+require 'logger'
+
+Dalli.logger = Logger.new(STDOUT)
+Dalli.logger.level = Logger::ERROR
 
 class Test::Unit::TestCase
   include MemcachedMock::Helper

@@ -86,16 +86,16 @@ module MemcachedMock
     end
     
     def memcached_kill(port)
-      pid = $started[port]
+      pid = $started.delete(port)
       if pid
         begin
           Process.kill("TERM", pid)
           Process.wait(pid)
         rescue Errno::ECHILD, Errno::ESRCH
         end
-        $started.delete(port)
       end
     end
+
   end
 end
 
