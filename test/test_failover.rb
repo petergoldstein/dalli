@@ -64,6 +64,8 @@ class TestFailover < Test::Unit::TestCase
           result = dc.stats
           assert_instance_of NilClass, result['localhost:29125']
           assert_instance_of Hash, result['localhost:29126']
+
+          memcached_kill(29126)
         end
       end
     end

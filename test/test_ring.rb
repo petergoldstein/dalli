@@ -69,5 +69,21 @@ class TestRing < Test::Unit::TestCase
         end
       end
     end
+
+    should 'detect when a dead server is up again' do
+      memcached(29125) do
+        down_retry_delay = 0.5
+        dc = Dalli::Client.new(['localhost:29125', 'localhost:29126'], :down_retry_delay => down_retry_delay)
+        assert_equal 1, dc.stats.values.compact.count
+
+        memcached(29126) do
+          assert_equal 1, dc.stats.values.compact.count
+         
+          sleep(down_retry_delay+0.1)
+
+          assert_equal 2, dc.stats.values.compact.count
+        end
+      end
+    end
   end
 end

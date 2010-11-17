@@ -117,11 +117,11 @@ module Dalli
     end
     
     def down!
-      @last_down_at = Time.now.to_i
+      @last_down_at = Time.now
 
       if @down_at
-        time = Time.now.to_i-@down_at
-        Dalli.logger.info { "#{hostname}:#{port} is still down (for #{time} seconds now)" }
+        time = Time.now-@down_at
+        Dalli.logger.info { "#{hostname}:#{port} is still down (for %.3f seconds now)"%[time] }
       else
         @down_at = @last_down_at
         Dalli.logger.warn { "#{hostname}:#{port} is down" }
@@ -136,8 +136,8 @@ module Dalli
 
     def up!
       if @down_at
-        seconds = Time.now.to_i-@down_at
-        Dalli.logger.warn { "#{hostname}:#{port} is up (downtime was #{downtime} seconds)" }
+        time = Time.now-@down_at
+        Dalli.logger.warn { "#{hostname}:#{port} is up (downtime was %.3f seconds)"%[time] }
       else
         Dalli.logger.debug { "#{hostname}:#{port} is up" }
       end
@@ -394,9 +394,9 @@ module Dalli
     def ensure_valid_socket
       return if @sock
 
-      if @last_down_at && @last_down_at+options[:down_retry_delay] >= Time.now.to_i
-        wait = @last_down_at+options[:down_retry_delay]-Time.now.to_i
-        Dalli.logger.debug { "down_retry_delay not reached for #{hostname}:#{port} (#{wait} seconds left)" }
+      if @last_down_at && @last_down_at+options[:down_retry_delay] >= Time.now
+        time = @last_down_at+options[:down_retry_delay]-Time.now
+        Dalli.logger.debug { "down_retry_delay not reached for #{hostname}:#{port} (%.3f seconds left)"%[time] }
         raise Dalli::NetworkError, "still down, down_retry_delay not reached"
       end
 
