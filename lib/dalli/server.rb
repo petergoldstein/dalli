@@ -35,8 +35,8 @@ module Dalli
     
     # Chokepoint method for instrumentation
     def request(op, *args)
+      raise Dalli::NetworkError unless alive?
       begin
-        ensure_valid_socket
         send(op, *args)
       rescue Dalli::NetworkError
         raise
@@ -51,12 +51,19 @@ module Dalli
     end
 
     def alive?
-      begin
-        ensure_valid_socket
-        !@sock.closed?
-      rescue Dalli::NetworkError
-        false
+      unless @sock
+        if @last_down_at && @last_down_at+options[:down_retry_delay] >= Time.now
+          time = @last_down_at+options[:down_retry_delay]-Time.now
+          Dalli.logger.debug { "down_retry_delay not reached for #{hostname}:#{port} (%.3f seconds left)"%[time] }
+          return false
+        end
+
+        connect(true)
       end
+
+      !@sock.closed?
+    rescue Dalli::NetworkError
+      false
     end
 
     def close
@@ -389,18 +396,6 @@ module Dalli
         failure!
         retry
       end
-    end
-    
-    def ensure_valid_socket
-      return if @sock
-
-      if @last_down_at && @last_down_at+options[:down_retry_delay] >= Time.now
-        time = @last_down_at+options[:down_retry_delay]-Time.now
-        Dalli.logger.debug { "down_retry_delay not reached for #{hostname}:#{port} (%.3f seconds left)"%[time] }
-        raise Dalli::NetworkError, "still down, down_retry_delay not reached"
-      end
-
-      connect(true)
     end
 
     def connect(check_version)
