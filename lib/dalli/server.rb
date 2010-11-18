@@ -30,7 +30,6 @@ module Dalli
       @down_at = nil
       @last_down_at = nil
       @options = DEFAULTS.merge(options)
-      @version = nil
     end
     
     # Chokepoint method for instrumentation
@@ -58,7 +57,7 @@ module Dalli
           return false
         end
 
-        connect(true)
+        connect
       end
 
       !@sock.closed?
@@ -77,40 +76,10 @@ module Dalli
 
     def unlock!
     end
-    
-    def memcached_version
-      @version ||= detect_memcached_version
-    end
 
     # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
 
     private
-
-    def detect_memcached_version
-      return "(unknown)" if ENV['SKIP_MEMCACHE_VERSION_CHECK']
-
-      # HACK, the server does not appear to have a way to negotiate the protocol.
-      # If you ask for the version in text, the socket is immediately locked to the text
-      # protocol.  But if we use binary, an old remote server will not respond.  If
-      # the server is using SASL, it will not respond to the text protocol.  Sigh.
-      version = nil
-      if username
-        # using SASL, assume the binary protocol will work.
-        version = binary_version
-      else
-        # Use text to determine the remote version, close the socket and open it back up.
-        # Alternative suggestions welcome.
-        version = text_version
-        if version < '1.4.0'
-          Dalli.logger.error "Dalli does not support memcached versions < 1.4.0, found #{version} at #{hostname}:#{port}"
-          raise NotImplementedError, "Dalli does not support memcached versions < 1.4.0, found #{version} at #{hostname}:#{port}"
-        end
-        close
-        connect(false)
-      end
-      Dalli.logger.debug { "#{hostname}:#{port} running memcached v#{version}" }
-      version
-    end
 
     def failure!
       Dalli.logger.info { "#{hostname}:#{port} failed (count: #{@fail_count})" }
@@ -124,6 +93,8 @@ module Dalli
     end
     
     def down!
+      close
+
       @last_down_at = Time.now
 
       if @down_at
@@ -136,8 +107,6 @@ module Dalli
 
       @error = $! && $!.class.name
       @msg = @msg || ($! && $!.message && !$!.message.empty? && $!.message)
-      close
-
       raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}"
     end
 
@@ -146,7 +115,7 @@ module Dalli
         time = Time.now-@down_at
         Dalli.logger.warn { "#{hostname}:#{port} is up (downtime was %.3f seconds)"%[time] }
       else
-        Dalli.logger.debug { "#{hostname}:#{port} is up" }
+        Dalli.logger.debug { "#{hostname}:#{port} is up (running v#{@version})" }
       end
 
       @fail_count = 0
@@ -262,13 +231,7 @@ module Dalli
       cas_response
     end
 
-    def text_version
-      write("version\r\n")
-      @sock.gets =~ /VERSION (.*)\r\n/
-      $1
-    end
-
-    def binary_version
+    def version
       req = [REQUEST, OPCODES[:version], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
       write(req)
       generic_response
@@ -398,14 +361,14 @@ module Dalli
       end
     end
 
-    def connect(check_version)
+    def connect
       Dalli.logger.debug { "connect #{hostname}:#{port}" }
 
       begin
         @sock = KSocket.open(hostname, port, {
           :timeout => options[:socket_timeout],
         })
-        memcached_version if check_version
+        @version = version # trigger actual connect
         sasl_authentication if Dalli::Server.need_auth?
         up!
       rescue Dalli::DalliError # SASL auth failure
