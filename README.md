@@ -7,7 +7,7 @@ The name is a variant of Salvador Dali for his famous painting [The Persistence 
 
 ![Persistence of Memory](http://www.virtualdali.com/assets/paintings/31PersistenceOfMemory.jpg)
 
-Dalli's development is sponsored by [NorthScale](http://www.northscale.com/).  Many thanks to them!
+Dalli's development is sponsored by [Membase](http://www.membase.com/).  Many thanks to them!
 
 
 Design
@@ -148,7 +148,7 @@ Eric Wong - for help using his [kgio](http://unicorn.bogomips.org/kgio/index.htm
 
 Brian Mitchell - for his remix-stash project which was helpful when implementing and testing the binary protocol support.
 
-[NorthScale](http://northscale.com) - for their project sponsorship
+[Membase](http://membase.com) - for their project sponsorship
 
 [Bootspring](http://bootspring.com) is my Ruby and Rails consulting company.  We specialize in Ruby infrastructure, performance and scalability tuning for Rails applications.  If you need help, please [contact us](mailto:info@bootspring.com) today.
 
