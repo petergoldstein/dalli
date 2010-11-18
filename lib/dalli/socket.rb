@@ -5,11 +5,11 @@ begin
   class Dalli::Server::KSocket < Kgio::Socket
     attr_accessor :options
     
-    def wait_readable
+    def kgio_wait_readable
       IO.select([self], nil, nil, options[:timeout]) || raise(Timeout::Error, "IO timeout")
     end
 
-    def wait_writable
+    def kgio_wait_writable
       IO.select(nil, [self], nil, options[:timeout]) || raise(Timeout::Error, "IO timeout")
     end
 
@@ -17,7 +17,7 @@ begin
       addr = Socket.pack_sockaddr_in(port, host)
       sock = start(addr)
       sock.options = options
-      sock.wait_writable
+      sock.kgio_wait_writable
       sock
     end
 
@@ -34,8 +34,10 @@ begin
 
   end
 
-  ::Kgio.wait_readable = :wait_readable
-  ::Kgio.wait_writable = :wait_writable
+  if ::Kgio.respond_to?(:wait_readable=)
+    ::Kgio.wait_readable = :kgio_wait_readable
+    ::Kgio.wait_writable = :kgio_wait_writable
+  end
 
 rescue LoadError
   puts "Using standard socket IO" if $TESTING
