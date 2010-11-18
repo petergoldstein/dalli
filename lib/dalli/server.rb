@@ -16,7 +16,7 @@ module Dalli
       :socket_timeout => 0.5,
       # times a socket operation may fail before considering the server dead
       :socket_max_failures => 2,
-      # amount of time to sleep between retries when a failure occured
+      # amount of time to sleep between retries when a failure occurs
       :socket_failure_delay => 0.01
     }
 
@@ -34,7 +34,7 @@ module Dalli
     
     # Chokepoint method for instrumentation
     def request(op, *args)
-      raise Dalli::NetworkError unless alive?
+      raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}" unless alive?
       begin
         send(op, *args)
       rescue Dalli::NetworkError
@@ -50,17 +50,16 @@ module Dalli
     end
 
     def alive?
-      unless @sock
-        if @last_down_at && @last_down_at+options[:down_retry_delay] >= Time.now
-          time = @last_down_at+options[:down_retry_delay]-Time.now
-          Dalli.logger.debug { "down_retry_delay not reached for #{hostname}:#{port} (%.3f seconds left)"%[time] }
-          return false
-        end
+      return true if @sock
 
-        connect
+      if @last_down_at && @last_down_at + options[:down_retry_delay] >= Time.now
+        time = @last_down_at + options[:down_retry_delay] - Time.now
+        Dalli.logger.debug { "down_retry_delay not reached for #{hostname}:#{port} (%.3f seconds left)" % time }
+        return false
       end
 
-      !@sock.closed?
+      connect
+      @sock
     rescue Dalli::NetworkError
       false
     end
@@ -88,7 +87,7 @@ module Dalli
       if @fail_count >= options[:socket_max_failures]
         down!
       else
-        sleep(options[:socket_failure_delay])
+        sleep(options[:socket_failure_delay]) if options[:socket_failure_delay]
       end
     end
     
@@ -98,8 +97,8 @@ module Dalli
       @last_down_at = Time.now
 
       if @down_at
-        time = Time.now-@down_at
-        Dalli.logger.info { "#{hostname}:#{port} is still down (for %.3f seconds now)"%[time] }
+        time = Time.now - @down_at
+        Dalli.logger.debug { "#{hostname}:#{port} is still down (for %.3f seconds now)" % time }
       else
         @down_at = @last_down_at
         Dalli.logger.warn { "#{hostname}:#{port} is down" }
@@ -112,10 +111,8 @@ module Dalli
 
     def up!
       if @down_at
-        time = Time.now-@down_at
-        Dalli.logger.warn { "#{hostname}:#{port} is up (downtime was %.3f seconds)"%[time] }
-      else
-        Dalli.logger.debug { "#{hostname}:#{port} is up (running v#{@version})" }
+        time = Time.now - @down_at
+        Dalli.logger.warn { "#{hostname}:#{port} is back (downtime was %.3f seconds)" % time }
       end
 
       @fail_count = 0
@@ -362,12 +359,10 @@ module Dalli
     end
 
     def connect
-      Dalli.logger.debug { "connect #{hostname}:#{port}" }
+      Dalli.logger.debug { "Dalli::Server#connect #{hostname}:#{port}" }
 
       begin
-        @sock = KSocket.open(hostname, port, {
-          :timeout => options[:socket_timeout],
-        })
+        @sock = KSocket.open(hostname, port, :timeout => options[:socket_timeout])
         @version = version # trigger actual connect
         sasl_authentication if Dalli::Server.need_auth?
         up!
