@@ -41,8 +41,8 @@ begin
 
 rescue LoadError
 
-  puts "Using standard socket IO (#{RUBY_ENGINE})" if $TESTING
-  if RUBY_ENGINE == 'jruby'
+  puts "Using standard socket IO (#{RUBY_DESCRIPTION})" if $TESTING
+  if defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
 
     class Dalli::Server::KSocket < TCPSocket
       def self.open(host, port, options = {})
