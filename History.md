@@ -1,10 +1,18 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+
+Welcome gucki as a Dalli committer!
+
+ - Fix network and namespace issues in get_multi (gucki)
+
 0.11.2
 =======
 
  - Major reworking of socket error and failover handling (gucki)
+ - Add basic JRuby support (mperham)
 
 0.11.1
 ======
