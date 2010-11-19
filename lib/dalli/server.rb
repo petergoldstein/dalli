@@ -59,7 +59,7 @@ module Dalli
       end
 
       connect
-      @sock
+      !!@sock
     rescue Dalli::NetworkError
       false
     end
