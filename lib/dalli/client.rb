@@ -245,7 +245,7 @@ module Dalli
     end
 
     def key_without_namespace(key)
-      @options[:namespace] ? key[(@options[:namespace].length+1)..-1] : key
+      @options[:namespace] ? key.gsub(%r(\A#{@options[:namespace]}:), '') : key
     end
   end
 end
