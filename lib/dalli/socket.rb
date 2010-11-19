@@ -40,43 +40,72 @@ begin
   end
 
 rescue LoadError
-  puts "Using standard socket IO" if $TESTING
 
-  class Dalli::Server::KSocket < Socket
-    attr_accessor :options
-    
-    def self.open(host, port, options = {})
-      # All this ugly code to ensure proper Socket connect timeout
-      addr = Socket.getaddrinfo(host, nil)
-      sock = new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
-      sock.options = options
-      begin
-        sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
-      rescue Errno::EINPROGRESS
-        resp = IO.select(nil, [sock], nil, sock.options[:timeout])
+  puts "Using standard socket IO (#{RUBY_ENGINE})" if $TESTING
+  if RUBY_ENGINE == 'jruby'
+
+    class Dalli::Server::KSocket < TCPSocket
+      def self.open(host, port, options = {})
+        new(host, port)
+      end
+
+      def readfull(count)
+        value = ''
+        begin
+          loop do
+            value << sysread(count - value.bytesize)
+            break if value.bytesize == count
+          end
+        rescue Errno::EAGAIN, Errno::EWOULDBLOCK
+          if IO.select([self], nil, nil, options[:timeout])
+            retry
+          else
+            raise Timeout::Error, "IO timeout"
+          end
+        end
+        value
+      end
+
+    end
+
+  else
+
+    class Dalli::Server::KSocket < Socket
+      attr_accessor :options
+
+      def self.open(host, port, options = {})
+        # All this ugly code to ensure proper Socket connect timeout
+        addr = Socket.getaddrinfo(host, nil)
+        sock = new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
+        sock.options = options
         begin
           sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
-        rescue Errno::EISCONN
+        rescue Errno::EINPROGRESS
+          resp = IO.select(nil, [sock], nil, sock.options[:timeout])
+          begin
+            sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
+          rescue Errno::EISCONN
+          end
         end
+        sock
       end
-      sock
-    end
-  
-    def readfull(count)
-      value = ''
-      begin
-        loop do
-          value << sysread(count - value.bytesize)
-          break if value.bytesize == count
+
+      def readfull(count)
+        value = ''
+        begin
+          loop do
+            value << sysread(count - value.bytesize)
+            break if value.bytesize == count
+          end
+        rescue Errno::EAGAIN, Errno::EWOULDBLOCK
+          if IO.select([self], nil, nil, options[:timeout])
+            retry
+          else
+            raise Timeout::Error, "IO timeout"
+          end
         end
-      rescue Errno::EAGAIN, Errno::EWOULDBLOCK
-        if IO.select([self], nil, nil, options[:timeout])
-          retry
-        else
-          raise Timeout::Error, "IO timeout"
-        end
+        value
       end
-      value
     end
 
   end
