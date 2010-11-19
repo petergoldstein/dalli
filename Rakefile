@@ -9,6 +9,14 @@ Rake::TestTask.new(:bench) do |test|
   test.pattern = 'test/benchmark_test.rb'
 end
 
+begin
+  require 'metric_fu'
+  MetricFu::Configuration.run do |config|
+    config.rcov[:rcov_opts] << "-Itest:lib"
+  end
+rescue LoadError
+end
+
 task :default => :test
 
 task :test_all do
