@@ -25,6 +25,22 @@ class TestFailover < Test::Unit::TestCase
       end
     end
 
+    should 'handle them gracefully in get_multi' do
+      memcached(29125) do
+        memcached(29126) do
+          dc = Dalli::Client.new ['localhost:29125', 'localhost:29126']
+          dc.set 'a', 'a1'
+          result = dc.get_multi ['a']
+          assert_equal result, {'a' => 'a1'}
+          
+          memcached_kill(29125)
+
+          result = dc.get_multi ['a']
+          assert_equal result, {'a' => 'a1'}
+        end
+      end
+    end
+
     should 'handle graceful failover in get_multi' do
       memcached(29125) do
         memcached(29126) do
