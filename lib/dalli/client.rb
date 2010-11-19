@@ -61,7 +61,10 @@ module Dalli
 
         values = {}
         ring.servers.each do |server|
-          values.merge!(server.request(:noop)) if server.alive?
+          next unless server.alive?
+          server.request(:noop).each_pair do |key, value|
+            values[key_without_namespace(key)] = value
+          end
         end
         values
       end
@@ -210,16 +213,13 @@ module Dalli
     end
 
     # Chokepoint method for instrumentation
-    def perform(op, *args)
-      key = args.first
-      if !key.is_a?(String)
-        key = key.to_s
-        args[0] = key
-      end
-      args[0] = key = validate_key(key)
+    def perform(op, key, *args)
+      key = key.to_s
+      validate_key(key)
+      key = key_with_namespace(key)
       begin
         server = ring.server_for_key(key)
-        server.request(op, *args)
+        server.request(op, key, *args)
       rescue NetworkError => e
         Dalli.logger.debug { e.message }
         Dalli.logger.debug { "retrying request with new server" }
@@ -233,7 +233,14 @@ module Dalli
       raise ArgumentError, "illegal character in key #{key}" if key =~ /[\x00-\x20\x80-\xFF]/
       raise ArgumentError, "key cannot be blank" if key.nil? || key.strip.size == 0
       raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
+    end
+    
+    def key_with_namespace(key)
       @options[:namespace] ? "#{@options[:namespace]}:#{key}" : key
+    end
+
+    def key_without_namespace(key)
+      @options[:namespace] ? key[(@options[:namespace].length+1)..-1] : key
     end
   end
 end

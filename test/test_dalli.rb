@@ -320,6 +320,15 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
+    should "handle namespaced keys in multi_get" do
+      memcached do |dc|
+        dc = Dalli::Client.new('localhost:19122', :namespace => 'a')
+        dc.set('a', 1)
+        dc.set('b', 2)
+        assert_equal({'a' => 1, 'b' => 2}, dc.get_multi('a', 'b'))
+      end
+    end
+
     context 'with compression' do
       should 'allow large values' do
         memcached do |dc|
