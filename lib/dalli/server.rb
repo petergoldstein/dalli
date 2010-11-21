@@ -266,10 +266,10 @@ module Dalli
       value = Zlib::Inflate.inflate(value) if (flags & FLAG_COMPRESSED) != 0
       value = Marshal.load(value) if (flags & FLAG_MARSHALLED) != 0
       value
-    rescue TypeError
-      raise DalliError, "Unable to unmarshal value: '#{value}'"
+    rescue TypeError, ArgumentError
+      raise DalliError, "Unable to unmarshal value: #{$!.message}"
     rescue Zlib::Error
-      raise DalliError, "Unable to uncompress value: '#{value}'"      
+      raise DalliError, "Unable to uncompress value: #{$!.message}"
     end
 
     def cas_response
