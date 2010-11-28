@@ -234,7 +234,7 @@ module Dalli
       generic_response
     end
 
-    COMPRESSION_MIN_SIZE = 100
+    COMPRESSION_MIN_SIZE = 1024
 
     # http://www.hjp.at/zettel/m/memcached_flags.rxml
     # Looks like most clients use bit 0 to indicate native language serialization

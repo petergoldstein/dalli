@@ -114,15 +114,21 @@ Put this at the bottom of `config/environment.rb`:
 
 Configuration
 ------------------------
-Dalli accepts the following options. All times are in seconds and maybe fractional.
+Dalli::Client accepts the following options. All times are in seconds.
+
+**expires_in**: Global default for key TTL.  No default.
+
+**failover**: Boolean, if true Dalli will failover to another server if the main server for a key is down.
+
+**compression**: Boolean, if true Dalli will gzip-compress values larger than 1K.
 
 **socket_timeout**: Timeout for all socket operations (connect, read, write). Default is 0.5.
 
 **socket_max_failures**: When a socket operation fails after socket_timeout, the same operation is retried. This is to not immediately mark a server down when there's a very slight network problem. Default is 2.
 
-**socket_failure_delay**: Before retrying a socket operation, the process sleeps for this amount of time. Default is 0.01.
+**socket_failure_delay**: Before retrying a socket operation, the process sleeps for this amount of time. Default is 0.01.  Set to nil for no delay.
 
-**down_retry_delay**: When a server has been marked down due to many failures, the server will be checked again for being alive only after this amount of time. Don't set this value to low, otherwise each request which tries the failed server might hang for the maximum timeout (see below). Default is 30 seconds.
+**down_retry_delay**: When a server has been marked down due to many failures, the server will be checked again for being alive only after this amount of time. Don't set this value to low, otherwise each request which tries the failed server might hang for the maximum timeout (see below). Default is 1 second.
 
 
 Features and Changes

@@ -1,12 +1,13 @@
 Dalli Changelog
 =====================
 
-HEAD
+1.0.0
 =======
 
 Welcome gucki as a Dalli committer!
 
  - Fix network and namespace issues in get_multi (gucki)
+ - Better handling of unmarshalling errors (mperham)
 
 0.11.2
 =======
