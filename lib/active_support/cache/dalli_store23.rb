@@ -37,6 +37,7 @@ module ActiveSupport
 
         mem_cache_options = options.dup
         @namespace = mem_cache_options.delete(:namespace)
+        @expires_in = mem_cache_options[:expires_in]
         @data = self.class.build_mem_cache(*(addresses + [mem_cache_options]))
 
         extend Strategy::LocalCache
@@ -154,7 +155,7 @@ module ActiveSupport
 
       # Exists in 2.3.8 but not in 2.3.2 so roll our own version
       def expires_in(options)
-        expires_in = options && options[:expires_in]
+        expires_in = (options && options[:expires_in]) || @expires_in
 
         raise ":expires_in must be a number" if expires_in && !expires_in.is_a?(Numeric)
 
