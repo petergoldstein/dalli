@@ -255,7 +255,6 @@ module Dalli
         value = Zlib::Deflate.deflate(value)
         compressed = true
       end
-#      raise Dalli::DalliError, "Value too large, memcached can only store #{((options && options[:value_max_bytes]) || @options[:value_max_bytes])} of data per key" if value.bytesize > ((options && options[:value_max_bytes]) || @options[:value_max_bytes])
       raise Dalli::DalliError, "Value too large, memcached can only store #{@options[:value_max_bytes]} of data per key" if value.bytesize > @options[:value_max_bytes]
       flags = 0
       flags |= FLAG_COMPRESSED if compressed
