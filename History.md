@@ -4,6 +4,7 @@ Dalli Changelog
 HEAD
 =======
 
+ - Add support for >1MB values with :value_max_bytes option (r-stu31)
  - Add support for default TTL, :expires_in, in Rails 2.3. (Steven Novotny)
    config.cache_store = :dalli_store, 'localhost:11211', {:expires_in => 4.hours}
 

@@ -130,6 +130,7 @@ Dalli::Client accepts the following options. All times are in seconds.
 
 **down_retry_delay**: When a server has been marked down due to many failures, the server will be checked again for being alive only after this amount of time. Don't set this value to low, otherwise each request which tries the failed server might hang for the maximum timeout (see below). Default is 1 second.
 
+**value_max_bytes**: The maximum size of a value in memcached.  Defaults to 1MB, this can be increased with memcached's -I parameter.  You must also configure Dalli to allow the larger size here.
 
 Features and Changes
 ------------------------
