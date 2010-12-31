@@ -456,11 +456,6 @@ module Dalli
       @options[:username] || ENV['MEMCACHE_USERNAME']
     end
     
-    def init_sasl
-      require 'dalli/sasl/base'
-      require 'dalli/sasl/plain'
-    end
-
     def username
       @options[:username] || ENV['MEMCACHE_USERNAME']
     end
@@ -470,8 +465,6 @@ module Dalli
     end
 
     def sasl_authentication
-      init_sasl if !defined?(::SASL)
-
       Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
 
       # negotiate
@@ -484,12 +477,11 @@ module Dalli
       content = read(count)
       return (Dalli.logger.debug("Authentication not required/supported by server")) if status == 0x81
       mechanisms = content.split(' ')
+      raise NotImplementedError, "Dalli only supports the PLAIN authentication mechanism" if !mechanisms.include?('PLAIN')
 
       # request
-      sasl = ::SASL.new(mechanisms)
-      msg = sasl.start[1]
-      mechanism = sasl.name
-      #p [mechanism, msg]
+      mechanism = 'PLAIN'
+      msg = "\x0#{username}\x0#{password}"
       req = [REQUEST, OPCODES[:auth_request], mechanism.bytesize, 0, 0, 0, mechanism.bytesize + msg.bytesize, 0, 0, mechanism, msg].pack(FORMAT[:auth_request])
       write(req)
 
