@@ -6,7 +6,7 @@ class TestSasl < Test::Unit::TestCase
 
     context 'without authentication credentials' do
       setup do
-        ENV['MEMCACHE_USERNAME'] = 'testuser'
+        ENV['MEMCACHE_USERNAME'] = 'foo'
         ENV['MEMCACHE_PASSWORD'] = 'wrongpwd'
       end
 
@@ -40,13 +40,37 @@ class TestSasl < Test::Unit::TestCase
         ENV['MEMCACHE_PASSWORD'] = nil
       end
 
-      should 'support SASL authentication' do
+      should 'pass SASL authentication' do
         memcached(19124, '-S') do |dc|
           # I get "Dalli::DalliError: Error authenticating: 32" in OSX
           # but SASL works on Heroku servers. YMMV.
           assert_equal true, dc.set('abc', 123)
           assert_equal 123, dc.get('abc')
-          assert_equal({"localhost:19121"=>{}}, dc.stats)
+          results = dc.stats
+          assert_equal 1, results.size
+          assert_equal 38, results.values.first.size
+        end
+      end
+    end
+
+    should 'pass SASL authentication with options' do
+      memcached(19124, '-S') do |dc|
+        dc = Dalli::Client.new('localhost:11211', :username => 'testuser', :password => 'testtest')
+        # I get "Dalli::DalliError: Error authenticating: 32" in OSX
+        # but SASL works on Heroku servers. YMMV.
+        assert_equal true, dc.set('abc', 123)
+        assert_equal 123, dc.get('abc')
+        results = dc.stats
+        assert_equal 1, results.size
+        assert_equal 38, results.values.first.size
+      end
+    end
+
+    should 'fail SASL authentication with wrong options' do
+      memcached(19124, '-S') do |dc|
+        dc = Dalli::Client.new('localhost:11211', :username => 'foo', :password => 'wrongpwd')
+        assert_raise Dalli::DalliError, /32/ do
+          dc.set('abc', 123)
         end
       end
     end

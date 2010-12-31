@@ -20,6 +20,8 @@ module Dalli
       :socket_failure_delay => 0.01,
       # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
       :value_max_bytes => 1024 * 1024,
+      :username => nil,
+      :password => nil,
     }
 
     def initialize(attribs, options = {})
@@ -364,7 +366,7 @@ module Dalli
       begin
         @sock = KSocket.open(hostname, port, :timeout => options[:socket_timeout])
         @version = version # trigger actual connect
-        sasl_authentication if Dalli::Server.need_auth?
+        sasl_authentication if need_auth?
         up!
       rescue Dalli::DalliError # SASL auth failure
         raise
@@ -450,8 +452,8 @@ module Dalli
     # SASL authentication support for NorthScale
     #######
 
-    def self.need_auth?
-      ENV['MEMCACHE_USERNAME']
+    def need_auth?
+      @options[:username] || ENV['MEMCACHE_USERNAME']
     end
     
     def init_sasl
@@ -460,11 +462,11 @@ module Dalli
     end
 
     def username
-      ENV['MEMCACHE_USERNAME']
+      @options[:username] || ENV['MEMCACHE_USERNAME']
     end
 
     def password
-      ENV['MEMCACHE_PASSWORD']
+      @options[:password] || ENV['MEMCACHE_PASSWORD']
     end
 
     def sasl_authentication
