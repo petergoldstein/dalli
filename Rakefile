@@ -23,3 +23,8 @@ task :test_all do
   system('rake test RAILS_VERSION="~> 2.3.0"')
   system('rake test RAILS_VERSION="~> 3.0.0"')
 end
+
+require 'rake/rdoctask'
+Rake::RDocTask.new do |rd|
+  rd.rdoc_files.include("lib/**/*.rb")
+end

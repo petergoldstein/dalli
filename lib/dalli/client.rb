@@ -19,7 +19,7 @@ module Dalli
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
     # - :compression - defaults to false, if true Dalli will compress values larger than 100 bytes before
-    #    sending them to memcached.
+    #   sending them to memcached.
     #
     def initialize(servers=nil, options={})
       @servers = env_servers || servers || 'localhost:11211'
@@ -145,9 +145,7 @@ module Dalli
     end
 
     # deprecated, please use #flush.
-    def flush_all(delay=0)
-      flush(delay)
-    end
+    alias_method :flush_all, :flush
 
     ##
     # Incr adds the given amount to the counter on the memcached server.
