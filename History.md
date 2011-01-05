@@ -1,7 +1,7 @@
 Dalli Changelog
 =====================
 
-HEAD
+1.0.1
 =======
 
  - Explicitly handle application marshalling bugs, GH-56
