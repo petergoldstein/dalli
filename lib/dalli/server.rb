@@ -45,6 +45,11 @@ module Dalli
         raise
       rescue Dalli::DalliError
         raise
+      rescue TypeError => ex
+        Dalli.logger.error "Application bug: #{ex.class.name}: #{ex.message}"
+        Dalli.logger.error "You are trying to cache a Ruby object which cannot be serialized to memcached."
+        Dalli.logger.error ex.backtrace.join("\n\t")
+        false
       rescue Exception => ex
         Dalli.logger.error "Unexpected exception in Dalli: #{ex.class.name}: #{ex.message}"
         Dalli.logger.error "This is a bug in Dalli, please enter an issue in Github if it does not already exist."

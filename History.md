@@ -4,6 +4,7 @@ Dalli Changelog
 HEAD
 =======
 
+ - Explicitly handle application marshalling bugs, GH-56
  - Add support for username/password as options, to allow multiple bucket access
    from the same Ruby process, GH-52
  - Add support for >1MB values with :value_max_bytes option, GH-54 (r-stu31)

@@ -329,6 +329,18 @@ class TestDalli < Test::Unit::TestCase
       end
     end
 
+    should "handle application marshalling issues" do
+      memcached do |dc|
+        old = Dalli.logger
+        Dalli.logger = Logger.new(nil)
+        begin
+          assert_equal false, dc.set('a', Proc.new { true })
+        ensure
+          Dalli.logger = old
+        end
+      end
+    end
+
     context 'with compression' do
       should 'allow large values' do
         memcached do |dc|
