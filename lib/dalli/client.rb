@@ -107,6 +107,10 @@ module Dalli
     end
 
     def set(key, value, ttl=nil, options=nil)
+      if options == true
+        Dalli.logger.warn "DEPRECATED: You passed in boolean value instead of the options hash Dalli was expecting.  We created an options hash for you as {:raw => true}."
+        options = {:raw => true}
+      end
       ttl ||= @options[:expires_in]
       perform(:set, key, value, ttl, options)
     end
