@@ -29,6 +29,7 @@ So a few notes.  Dalli:
  4. is approx 700 lines of Ruby.  memcache-client is approx 1250 lines.
  5. supports SASL for use in managed environments, e.g. Heroku.
  6. provides proper failover with recovery and adjustable timeouts
+ 7. has a backwards-compatibility mode for people migrating from memcache-client (see Upgrade.md).
 
 
 Installation and Usage
