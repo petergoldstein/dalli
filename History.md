@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+
+ - Add backwards compatibility module for memcache-client, require 'dalli/memcache-client'
+
 1.0.1
 =======
 
