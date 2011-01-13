@@ -4,6 +4,14 @@ Upgrading from memcache-client
 Dalli is not meant to be 100% compatible with memcache-client, there are a few minor differences in the API.
 
 
+Compatibility Layer
+----------------------
+
+    require 'dalli/memcache-client'
+
+Prints out warnings if your code is using the old memcache-client API style, explained below.
+
+
 Marshalling
 ---------------
 
@@ -31,3 +39,4 @@ In memcache-client, `set(key, value)` normally returns "STORED\r\n".  This is an
     set
     add
     replace
+    delete
