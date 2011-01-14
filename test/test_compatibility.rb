@@ -1,13 +1,15 @@
 require 'helper'
-require 'dalli/memcache-client'
 
 class TestCompatibility < Test::Unit::TestCase
+
+  def setup
+    require 'dalli/memcache-client'
+  end
 
   context 'dalli in memcache-client mode' do
 
     should 'handle old raw flag to set/add/replace' do
       memcached do |dc|
-        dc.extend(Dalli::Client::MemcacheClientCompatibility)
         assert_equal "STORED\r\n", dc.set('abc', 123, 5, true)
         assert_equal '123', dc.get('abc', true)
 
@@ -16,10 +18,16 @@ class TestCompatibility < Test::Unit::TestCase
 
         assert_equal "STORED\r\n", dc.replace('abc', 456, 5, false)
         assert_equal 456, dc.get('abc', false)
-        
+
         assert_equal "DELETED\r\n", dc.delete('abc')
         assert_equal "NOT_DELETED\r\n", dc.delete('abc')
       end
     end
+
   end
+
+  def teardown
+    Dalli::Client.compatibility_mode = false
+  end
+
 end

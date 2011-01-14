@@ -4,6 +4,7 @@ require 'dalli/server'
 require 'dalli/socket'
 require 'dalli/version'
 require 'dalli/options'
+require 'dalli/memcache_client_compatibility'
 
 unless ''.respond_to?(:bytesize)
   class String

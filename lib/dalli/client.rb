@@ -24,6 +24,18 @@ module Dalli
     def initialize(servers=nil, options={})
       @servers = env_servers || servers || 'localhost:11211'
       @options = { :expires_in => 0 }.merge(options)
+      self.extend(Dalli::Client::MemcacheClientCompatibility) if Dalli::Client.compatibility_mode
+    end
+
+    ##
+    # Turn on compatibility mode, which mixes in methods in memcache_client_compatibility.rb
+    # This value is set to true in memcache-client.rb.
+    def self.compatibility_mode
+      @compatibility_mode ||= false
+    end
+
+    def self.compatibility_mode=(compatibility_mode)
+      @compatibility_mode = compatibility_mode
     end
     
     #
