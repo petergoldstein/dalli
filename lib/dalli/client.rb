@@ -35,6 +35,7 @@ module Dalli
     end
 
     def self.compatibility_mode=(compatibility_mode)
+      require 'dalli/compatibility'
       @compatibility_mode = compatibility_mode
     end
     

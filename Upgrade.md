@@ -7,9 +7,12 @@ Dalli is not meant to be 100% compatible with memcache-client, there are a few m
 Compatibility Layer
 ----------------------
 
+Enable memcache-client compatibility in your application when upgrading by requiring this when
+initalizing your app:
+
     require 'dalli/memcache-client'
 
-Prints out warnings if your code is using the old memcache-client API style, explained below.
+This will print out warnings if your code is using the old memcache-client API style, explained below.
 
 
 Marshalling
