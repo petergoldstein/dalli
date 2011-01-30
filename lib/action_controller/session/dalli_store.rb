@@ -37,7 +37,7 @@ begin
 
           def set_session(env, sid, session_data)
             options = env['rack.session.options']
-            expiry  = options[:expire_after] || 0
+            expiry  = options[:expire_after]
             @pool.set(sid, session_data, expiry)
             return true
           rescue Dalli::DalliError

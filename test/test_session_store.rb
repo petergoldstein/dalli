@@ -182,19 +182,44 @@ class TestSessionStore < ActionController::IntegrationTest
         assert_not_equal session_id, cookies['_session_id']
       end
     end
+
+    def test_expire_after
+      with_test_route_set(:expire_after => 1) do
+        get '/set_session_value'
+        assert_match /expires/, @response.headers['Set-Cookie']
+
+        sleep(1)
+
+        get '/get_session_value'
+        assert_equal 'foo: nil', response.body
+      end
+    end
+
+    def test_expires_in
+      with_test_route_set(:expires_in => 1) do
+        get '/set_session_value'
+        assert_no_match /expires/, @response.headers['Set-Cookie']
+
+        sleep(1)
+
+        get '/get_session_value'
+        assert_equal 'foo: nil', response.body
+      end
+    end
   rescue LoadError, RuntimeError
     $stderr.puts "Skipping TestSessionStore tests. Start memcached and try again."
   end
 
   private
-    def with_test_route_set
+    def with_test_route_set(options = {})
+      options = {:key => '_session_id'}.merge(options)
       with_routing do |set|
         set.draw do |map|
           match ':action', :to => ::TestSessionStore::TestController
         end
 
         @app = self.class.build_app(set) do |middleware|
-          middleware.use ActionDispatch::Session::DalliStore, :key => '_session_id'
+          middleware.use ActionDispatch::Session::DalliStore, options
           middleware.delete "ActionDispatch::ShowExceptions"
         end
 
