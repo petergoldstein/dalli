@@ -1,7 +1,7 @@
 Dalli Changelog
 =====================
 
-HEAD
+1.0.2
 =======
 
  - Allow browser session cookies (blindsey)
