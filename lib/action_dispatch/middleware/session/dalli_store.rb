@@ -45,7 +45,7 @@ module ActionDispatch
 
         def set_session(env, sid, session_data, options = nil)
           options ||= env[ENV_SESSION_OPTIONS_KEY]
-          expiry  = options[:expire_after] || 0
+          expiry  = options[:expire_after]
           @pool.set(sid, session_data, expiry)
           sid
         rescue Dalli::DalliError
