@@ -4,6 +4,7 @@ Dalli Changelog
 HEAD
 =======
 
+ - Allow browser session cookies (blindsey)
  - Compatibility fixes (mwynholds)
  - Add backwards compatibility module for memcache-client, require 'dalli/memcache-client'.  It makes
    Dalli more compatible with memcache-client and prints out a warning any time you do something that 
