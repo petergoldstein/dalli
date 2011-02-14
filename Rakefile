@@ -28,3 +28,7 @@ require 'rake/rdoctask'
 Rake::RDocTask.new do |rd|
   rd.rdoc_files.include("lib/**/*.rb")
 end
+
+require 'rake/clean'
+CLEAN.include "**/*.rbc"
+CLEAN.include "**/.DS_Store"
