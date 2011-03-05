@@ -43,13 +43,13 @@ module Dalli
         send(op, *args)
       rescue Dalli::NetworkError
         raise
-      rescue Dalli::DalliError
-        raise
-      rescue TypeError => ex
-        Dalli.logger.error "Application bug: #{ex.class.name}: #{ex.message}"
+      rescue Dalli::MarshalError => ex
+        Dalli.logger.error "Marshalling error for key '#{args.first}': #{ex.message}"
         Dalli.logger.error "You are trying to cache a Ruby object which cannot be serialized to memcached."
         Dalli.logger.error ex.backtrace.join("\n\t")
         false
+      rescue Dalli::DalliError
+        raise
       rescue Exception => ex
         Dalli.logger.error "Unexpected exception in Dalli: #{ex.class.name}: #{ex.message}"
         Dalli.logger.error "This is a bug in Dalli, please enter an issue in Github if it does not already exist."
@@ -253,7 +253,15 @@ module Dalli
       marshalled = false
       value = unless options && options[:raw]
         marshalled = true
-        Marshal.dump(value)
+        begin
+          Marshal.dump(value)
+        rescue => ex
+          # Marshalling can throw several different types of generic Ruby exceptions.
+          # Convert to a specific exception so we can special case it higher up the stack.
+          exc = Dalli::MarshalError.new(ex.message)
+          exc.set_backtrace ex.backtrace
+          raise exc
+        end
       else
         value.to_s
       end
