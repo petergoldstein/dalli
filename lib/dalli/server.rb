@@ -34,6 +34,8 @@ module Dalli
       @down_at = nil
       @last_down_at = nil
       @options = DEFAULTS.merge(options)
+      @sock = nil
+      @msg = nil
     end
     
     # Chokepoint method for instrumentation

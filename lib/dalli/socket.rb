@@ -1,6 +1,6 @@
 begin
   require 'kgio'
-  puts "Using kgio socket IO" if $TESTING
+  puts "Using kgio socket IO" if defined?($TESTING)
 
   class Dalli::Server::KSocket < Kgio::Socket
     attr_accessor :options
@@ -41,7 +41,7 @@ begin
 
 rescue LoadError
 
-  puts "Using standard socket IO (#{RUBY_DESCRIPTION})" if $TESTING
+  puts "Using standard socket IO (#{RUBY_DESCRIPTION})" if defined?($TESTING)
   if defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
 
     class Dalli::Server::KSocket < TCPSocket
