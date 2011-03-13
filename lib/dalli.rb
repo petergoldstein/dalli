@@ -18,6 +18,8 @@ module Dalli
   class NetworkError < DalliError; end
   # no server available/alive error
   class RingError < DalliError; end
+  # application error in marshalling
+  class MarshalError < DalliError; end
 
   def self.logger
     @logger ||= (rails_logger || default_logger)

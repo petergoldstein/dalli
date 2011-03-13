@@ -25,6 +25,7 @@ module Dalli
       @servers = env_servers || servers || 'localhost:11211'
       @options = { :expires_in => 0 }.merge(options)
       self.extend(Dalli::Client::MemcacheClientCompatibility) if Dalli::Client.compatibility_mode
+      @ring = nil
     end
 
     ##
