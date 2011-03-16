@@ -5,6 +5,7 @@ HEAD
 =======
 
 - Better handling of application marshalling errors
+- Work around jruby IO#sysread compatibility issue
 
 
 1.0.2
