@@ -45,22 +45,26 @@ rescue LoadError
   if defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
 
     class Dalli::Server::KSocket < TCPSocket
+      attr_accessor :options
+
       def self.open(host, port, options = {})
-        new(host, port)
+        sock = new(host, port)
+        sock.options = { :host => host, :port => port }.merge(options)
+        sock
       end
 
       def readfull(count)
         value = ''
         begin
           loop do
-            value << sysread(count - value.bytesize)
+            value << read_nonblock(count - value.bytesize)
             break if value.bytesize == count
           end
         rescue Errno::EAGAIN, Errno::EWOULDBLOCK
           if IO.select([self], nil, nil, options[:timeout])
             retry
           else
-            raise Timeout::Error, "IO timeout"
+            raise Timeout::Error, "IO timeout: #{options.inspect}"
           end
         end
         value
@@ -77,7 +81,7 @@ rescue LoadError
         # All this ugly code to ensure proper Socket connect timeout
         addr = Socket.getaddrinfo(host, nil)
         sock = new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
-        sock.options = options
+        sock.options = { :host => host, :port => port }.merge(options)
         begin
           sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
         rescue Errno::EINPROGRESS
@@ -101,7 +105,7 @@ rescue LoadError
           if IO.select([self], nil, nil, options[:timeout])
             retry
           else
-            raise Timeout::Error, "IO timeout"
+            raise Timeout::Error, "IO timeout: #{options.inspect}"
           end
         end
         value
