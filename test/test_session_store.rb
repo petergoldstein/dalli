@@ -52,7 +52,7 @@ class TestSessionStore < ActionController::IntegrationTest
 
   begin
     require 'dalli'
-    memcache = Dalli::Client.new('localhost:11211')
+    memcache = Dalli::Client.new('127.0.0.1:11211')
     memcache.set('ping', '')
 
     def test_setting_and_getting_session_value
@@ -207,12 +207,12 @@ class TestSessionStore < ActionController::IntegrationTest
       end
     end
   rescue LoadError, RuntimeError
-    $stderr.puts "Skipping TestSessionStore tests. Start memcached and try again."
+    $stderr.puts "Skipping TestSessionStore tests. Start memcached and try again: #{$!.message}"
   end
 
   private
     def with_test_route_set(options = {})
-      options = {:key => '_session_id'}.merge(options)
+      options = {:key => '_session_id', :memcache_server => '127.0.0.1:11211'}.merge(options)
       with_routing do |set|
         set.draw do |map|
           match ':action', :to => ::TestSessionStore::TestController
