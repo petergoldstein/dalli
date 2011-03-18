@@ -1,7 +1,7 @@
 Dalli Changelog
 =====================
 
-HEAD
+1.0.3
 =======
 
 - Better handling of application marshalling errors
