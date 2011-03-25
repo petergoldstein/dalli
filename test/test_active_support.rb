@@ -1,3 +1,4 @@
+# encoding: utf-8
 require 'helper'
 
 class TestActiveSupport < Test::Unit::TestCase
@@ -161,6 +162,20 @@ class TestActiveSupport < Test::Unit::TestCase
 
           @dalli.reset
         end
+      end
+    end
+  end
+
+  should 'handle crazy characters from far-away lands' do
+    with_activesupport do
+      memcached do
+        connect
+        key = "fooƒ"
+        value = 'bafƒ'
+#        assert_equal true, @mc.write(key, value)
+        assert_equal true, @dalli.write(key, value)
+#        assert_equal true, @mc.read(key, value)
+        assert_equal value, @dalli.read(key)
       end
     end
   end

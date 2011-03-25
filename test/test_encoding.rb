@@ -30,5 +30,14 @@ class TestEncoding < Test::Unit::TestCase
       end
     end
 
+    should 'not allow non-ASCII keys' do
+      memcached do |dc|
+        key = 'fooƒ'
+        assert_raise ArgumentError do
+          dc.set(key, 'bar')
+        end
+      end
+    end
+
   end
 end
