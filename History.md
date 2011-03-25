@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+
+- Handle non-ASCII key content in dalli_store
+
 1.0.3
 =======
 
