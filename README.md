@@ -64,7 +64,7 @@ In `config/environments/production.rb`:
 A more comprehensive example (note that we are setting a reasonable default for maximum cache entry lifetime (one day), enabling compression for large values, and namespacing all entries for this rails app.  Remove the namespace if you have multiple apps which share cached values):
 
     config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com',
-        { :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true, :compress_threshold => 64*1024 }
+        { :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true }
 
 To use Dalli for Rails session storage, in `config/initializers/session_store.rb`:
 
