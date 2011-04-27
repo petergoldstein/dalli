@@ -210,7 +210,7 @@ module Dalli
     # If you perform another operation after this, the connections will be re-established.
     def close
       if @ring
-        @ring.servers.map { |s| s.close }
+        @ring.servers.each { |s| s.close }
         @ring = nil
       end
     end
