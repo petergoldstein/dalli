@@ -5,6 +5,7 @@ HEAD
 =======
 
 - Handle non-ASCII key content in dalli_store
+- Accept key array for read_multi in dalli_store
 
 1.0.3
 =======

@@ -53,7 +53,7 @@ module ActiveSupport
       def read_multi(*names)
         options = names.extract_options!
         options = merged_options(options)
-        keys_to_names = names.inject({}){|map, name| map[escape_key(namespaced_key(name, options))] = name; map}
+        keys_to_names = names.flatten.inject({}){|map, name| map[escape_key(namespaced_key(name, options))] = name; map}
         raw_values = @data.get_multi(keys_to_names.keys, RAW)
         values = {}
         raw_values.each do |key, value|

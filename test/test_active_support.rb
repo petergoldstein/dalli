@@ -66,6 +66,27 @@ class TestActiveSupport < Test::Unit::TestCase
         end
       end
     end
+    
+    should 'support read_multi with an array' do
+      with_activesupport do
+        memcached do
+          connect
+          case
+          when rails3?
+            x = rand_key
+            y = rand_key
+            assert_equal({}, @mc.read_multi([x, y]))
+            assert_equal({}, @dalli.read_multi([x, y]))
+            @dalli.write(x, '123')
+            @dalli.write(y, 123)
+            @mc.write(x, '123')
+            @mc.write(y, 123)
+            assert_equal({ x => '123', y => 123 }, @dalli.read_multi([x, y]))
+            assert_equal({}, @mc.read_multi([x,y]))
+          end
+        end
+      end
+    end
 
     should 'support raw read_multi' do
       with_activesupport do
