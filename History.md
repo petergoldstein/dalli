@@ -6,6 +6,7 @@ HEAD
 
 - Handle non-ASCII key content in dalli_store
 - Accept key array for read_multi in dalli_store
+- Fix multithreaded race condition in creation of mutex
 
 1.0.3
 =======

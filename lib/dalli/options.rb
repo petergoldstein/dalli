@@ -9,36 +9,38 @@ module Dalli
   # Dalli::Server.extend(Dalli::Threadsafe)
   #
   module Threadsafe
+    def self.extended(obj)
+      obj.init_threadsafe
+    end
+
     def request(op, *args)
-      lock.synchronize do
+      @lock.synchronize do
         super
       end
     end
 
     def alive?
-      lock.synchronize do
+      @lock.synchronize do
         super
       end
     end
 
     def close
-      lock.synchronize do
+      @lock.synchronize do
         super
       end
     end
 
     def lock!
-      lock.mon_enter
+      @lock.mon_enter
     end
 
     def unlock!
-      lock.mon_exit
+      @lock.mon_exit
     end
 
-    private
-    def lock
-      @lock ||= Monitor.new
+    def init_threadsafe
+      @lock = Monitor.new
     end
-
   end
 end
