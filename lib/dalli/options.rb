@@ -9,6 +9,13 @@ module Dalli
   # Dalli::Server.extend(Dalli::Threadsafe)
   #
   module Threadsafe
+    attr_reader :lock
+    private :lock
+
+    def self.extended(base)
+      base.instance_variable_set(:@lock, Monitor.new)
+    end
+
     def request(op, *args)
       lock.synchronize do
         super
@@ -33,11 +40,6 @@ module Dalli
 
     def unlock!
       lock.mon_exit
-    end
-
-    private
-    def lock
-      @lock ||= Monitor.new
     end
 
   end
