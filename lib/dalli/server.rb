@@ -8,7 +8,7 @@ module Dalli
     attr_accessor :port
     attr_accessor :weight
     attr_accessor :options
-    
+
     DEFAULTS = {
       # seconds between trying to contact a remote server
       :down_retry_delay => 1,
@@ -37,7 +37,7 @@ module Dalli
       @sock = nil
       @msg = nil
     end
-    
+
     # Chokepoint method for instrumentation
     def request(op, *args)
       raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}" unless alive?
@@ -65,7 +65,7 @@ module Dalli
 
       if @last_down_at && @last_down_at + options[:down_retry_delay] >= Time.now
         time = @last_down_at + options[:down_retry_delay] - Time.now
-        Dalli.logger.debug { "down_retry_delay not reached for #{hostname}:#{port} (%.3f seconds left)" % time }
+        Dalli.logger.debug("down_retry_delay not reached for #{hostname}:#{port} (%.3f seconds left)" % time )
         return false
       end
 
@@ -92,7 +92,7 @@ module Dalli
     private
 
     def failure!
-      Dalli.logger.info { "#{hostname}:#{port} failed (count: #{@fail_count})" }
+      Dalli.logger.info("#{hostname}:#{port} failed (count: #{@fail_count})")
 
       @fail_count += 1
       if @fail_count >= options[:socket_max_failures]
@@ -101,7 +101,7 @@ module Dalli
         sleep(options[:socket_failure_delay]) if options[:socket_failure_delay]
       end
     end
-    
+
     def down!
       close
 
@@ -109,10 +109,10 @@ module Dalli
 
       if @down_at
         time = Time.now - @down_at
-        Dalli.logger.debug { "#{hostname}:#{port} is still down (for %.3f seconds now)" % time }
+        Dalli.logger.debug("#{hostname}:#{port} is still down (for %.3f seconds now)" % time)
       else
         @down_at = @last_down_at
-        Dalli.logger.warn { "#{hostname}:#{port} is down" }
+        Dalli.logger.warn("#{hostname}:#{port} is down")
       end
 
       @error = $! && $!.class.name
@@ -123,7 +123,7 @@ module Dalli
     def up!
       if @down_at
         time = Time.now - @down_at
-        Dalli.logger.warn { "#{hostname}:#{port} is back (downtime was %.3f seconds)" % time }
+        Dalli.logger.warn("#{hostname}:#{port} is back (downtime was %.3f seconds)" % time)
       end
 
       @fail_count = 0
@@ -163,7 +163,7 @@ module Dalli
       write(req)
       generic_response unless multi?
     end
-    
+
     def replace(key, value, ttl, options)
       (value, flags) = serialize(key, value, options)
       req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:replace])
@@ -193,7 +193,7 @@ module Dalli
       body = generic_response
       body ? longlong(*body.unpack('NN')) : body
     end
-    
+
     def incr(key, count, ttl, default)
       expiry = default ? ttl : 0xFFFFFFFF
       default ||= 0
@@ -204,7 +204,7 @@ module Dalli
       body = generic_response
       body ? longlong(*body.unpack('NN')) : body
     end
-    
+
     # Noop is a keepalive operation but also used to demarcate the end of a set of pipelined commands.
     # We need to read all the responses at once.
     def noop
@@ -376,7 +376,7 @@ module Dalli
     end
 
     def connect
-      Dalli.logger.debug { "Dalli::Server#connect #{hostname}:#{port}" }
+      Dalli.logger.debug("Dalli::Server#connect #{hostname}:#{port}")
 
       begin
         @sock = KSocket.open(hostname, port, :timeout => options[:socket_timeout])
@@ -401,7 +401,7 @@ module Dalli
 
     REQUEST = 0x80
     RESPONSE = 0x81
-    
+
     RESPONSE_CODES = {
       0 => 'No error',
       1 => 'Key not found',
@@ -414,7 +414,7 @@ module Dalli
       0x81 => 'Unknown command',
       0x82 => 'Out of memory',
     }
-    
+
     OPCODES = {
       :get => 0x00,
       :set => 0x01,
@@ -440,7 +440,7 @@ module Dalli
       :auth_request => 0x21,
       :auth_continue => 0x22,
     }
-    
+
     HEADER = "CCnCCnNNQ"
     OP_FORMAT = {
       :get => 'a*',
@@ -470,7 +470,7 @@ module Dalli
     def need_auth?
       @options[:username] || ENV['MEMCACHE_USERNAME']
     end
-    
+
     def username
       @options[:username] || ENV['MEMCACHE_USERNAME']
     end
@@ -480,7 +480,7 @@ module Dalli
     end
 
     def sasl_authentication
-      Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
+      Dalli.logger.info("Dalli/SASL authenticating as #{username}")
 
       # negotiate
       req = [REQUEST, OPCODES[:auth_negotiation], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
