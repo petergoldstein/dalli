@@ -1,6 +1,4 @@
-lib = File.expand_path('../lib/', __FILE__)
-$:.unshift lib unless $:.include?(lib)
-require 'dalli/version'
+require './lib/dalli/version'
 
 Gem::Specification.new do |s|
   s.name = %q{dalli}
@@ -27,7 +25,7 @@ Gem::Specification.new do |s|
   s.test_files = Dir.glob("test/**/*")
   s.add_development_dependency(%q<shoulda>, [">= 0"])
   s.add_development_dependency(%q<mocha>, [">= 0"])
-  s.add_development_dependency(%q<rails>, [">= 3.0.1"])
+  s.add_development_dependency(%q<rails>, [">= 0"])
   s.add_development_dependency(%q<memcache-client>, [">= 1.8.5"])
 end
 
