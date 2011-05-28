@@ -1,9 +1,4 @@
 require 'helper'
-
-if RAILS_VERSION =~ /3\.0\./
-  # Session testing is complex enough that I can't test it in both Rails
-  # 3.0 and 2.3.  Help is welcome.
-
 require 'abstract_unit'
 require 'action_dispatch/middleware/session/dalli_store'
 
@@ -207,24 +202,24 @@ class TestSessionStore < ActionController::IntegrationTest
       end
     end
   rescue LoadError, RuntimeError
-    $stderr.puts "Skipping TestSessionStore tests. Start memcached and try again: #{$!.message}"
+    $stderr.puts "Skipping SessionStore tests. Start memcached and try again: #{$!.message}"
   end
 
   private
-    def with_test_route_set(options = {})
-      options = {:key => '_session_id', :memcache_server => '127.0.0.1:11211'}.merge(options)
-      with_routing do |set|
-        set.draw do |map|
-          match ':action', :to => ::TestSessionStore::TestController
-        end
 
-        @app = self.class.build_app(set) do |middleware|
-          middleware.use ActionDispatch::Session::DalliStore, options
-          middleware.delete "ActionDispatch::ShowExceptions"
-        end
-
-        yield
+  def with_test_route_set(options = {})
+    options = {:key => '_session_id', :memcache_server => '127.0.0.1:11211'}.merge(options)
+    with_routing do |set|
+      set.draw do
+        match ':action', :to => ::TestSessionStore::TestController
       end
+
+      @app = self.class.build_app(set) do |middleware|
+        middleware.use ActionDispatch::Session::DalliStore, options
+        middleware.delete "ActionDispatch::ShowExceptions"
+      end
+
+      yield
     end
-end
+  end
 end

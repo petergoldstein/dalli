@@ -50,7 +50,7 @@ Dalli has no runtime dependencies and never will.  You can optionally install th
 give Dalli a 10-20% performance boost.
 
 
-Usage with Rails 3.0
+Usage with Rails 3.x
 ---------------------------
 
 In your Gemfile:
@@ -75,29 +75,7 @@ To use Dalli for Rails session storage, in `config/initializers/session_store.rb
 Usage with Rails 2.3.x
 ----------------------------
 
-In `config/environment.rb`:
-
-    config.gem 'dalli'
-
-In `config/environments/production.rb`:
-
-    # Object cache
-    require 'active_support/cache/dalli_store23'
-    config.cache_store = :dalli_store
-
-In `config/initializers/session_store.rb`:
-
-    # Session cache
-    ActionController::Base.session = {
-      :namespace   => 'sessions',
-      :expire_after => 20.minutes.to_i,
-      :memcache_server => ['server-1:11211', 'server-2:11211'],
-      :key         => ...,
-      :secret      => ...
-    }
-    
-    require 'action_controller/session/dalli_store'
-    ActionController::Base.session_store = :dalli_store
+Dalli v1.1+ does not support Rails 2.3.  Please use an earlier version: gem install dalli -v "~> 1.0.4"
 
 
 Usage with Passenger

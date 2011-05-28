@@ -32,19 +32,9 @@ class TestActiveSupport < Test::Unit::TestCase
       with_activesupport do
         memcached do
           connect
-          case 
-          when rails3?
-            dvalue = @mc.fetch('some key with spaces', :expires_in => 1.second) { 123 }
-            mvalue = @dalli.fetch('some other key with spaces', :expires_in => 1.second) { 123 }
-            assert_equal mvalue, dvalue
-          else
-            assert_raises ArgumentError do
-              @mc.fetch('some key with spaces', :expires_in => 1.second) { 123 }
-            end
-            assert_raises ArgumentError do
-              @dalli.fetch('some other key with spaces', :expires_in => 1.second) { 123 }
-            end
-          end
+          dvalue = @mc.fetch('some key with spaces', :expires_in => 1.second) { 123 }
+          mvalue = @dalli.fetch('some other key with spaces', :expires_in => 1.second) { 123 }
+          assert_equal mvalue, dvalue
         end
       end
     end      
@@ -71,19 +61,16 @@ class TestActiveSupport < Test::Unit::TestCase
       with_activesupport do
         memcached do
           connect
-          case
-          when rails3?
-            x = rand_key
-            y = rand_key
-            assert_equal({}, @mc.read_multi([x, y]))
-            assert_equal({}, @dalli.read_multi([x, y]))
-            @dalli.write(x, '123')
-            @dalli.write(y, 123)
-            @mc.write(x, '123')
-            @mc.write(y, 123)
-            assert_equal({ x => '123', y => 123 }, @dalli.read_multi([x, y]))
-            assert_equal({}, @mc.read_multi([x,y]))
-          end
+          x = rand_key
+          y = rand_key
+          assert_equal({}, @mc.read_multi([x, y]))
+          assert_equal({}, @dalli.read_multi([x, y]))
+          @dalli.write(x, '123')
+          @dalli.write(y, 123)
+          @mc.write(x, '123')
+          @mc.write(y, 123)
+          assert_equal({ x => '123', y => 123 }, @dalli.read_multi([x, y]))
+          assert_equal({}, @mc.read_multi([x,y]))
         end
       end
     end
@@ -94,13 +81,7 @@ class TestActiveSupport < Test::Unit::TestCase
           connect
           @mc.write("abc", 5, :raw => true)
           @mc.write("cba", 5, :raw => true)
-          if RAILS_VERSION =~ /2\.3/
-            assert_raise ArgumentError do
-              @mc.read_multi("abc", "cba")
-            end
-          else
-            assert_equal({'abc' => '5', 'cba' => '5' }, @mc.read_multi("abc", "cba"))
-          end
+          assert_equal({'abc' => '5', 'cba' => '5' }, @mc.read_multi("abc", "cba"))
 
           @dalli.write("abc", 5, :raw => true)
           @dalli.write("cba", 5, :raw => true)

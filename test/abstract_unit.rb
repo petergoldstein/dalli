@@ -93,14 +93,12 @@ module ActiveSupport
     # Hold off drawing routes until all the possible controller classes
     # have been loaded.
     setup_once do
-      SharedTestRoutes.draw do |map|
-        # FIXME: match ':controller(/:action(/:id))'
-        map.connect ':controller/:action/:id'
+      SharedTestRoutes.draw do
+        match ':controller(/:action(/:id))'
       end
 
-      ActionController::IntegrationTest.app.routes.draw do |map|
-        # FIXME: match ':controller(/:action(/:id))'
-        map.connect ':controller/:action/:id'
+      ActionController::IntegrationTest.app.routes.draw do
+        match ':controller(/:action(/:id))'
       end
     end
   end

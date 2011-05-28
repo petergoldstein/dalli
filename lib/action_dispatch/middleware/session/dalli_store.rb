@@ -53,12 +53,19 @@ module ActionDispatch
           false
         end
 
+        def destroy_session(env, session_id, options)
+          @pool.delete(session_id)
+        rescue Dalli::DalliError
+          Rails.logger.warn("Session::DalliStore#destroy_session: #{$!.message}")
+          false
+        end
+
         def destroy(env)
           if sid = current_session_id(env)
             @pool.delete(sid)
           end
         rescue Dalli::DalliError
-          Rails.logger.warn("Session::DalliStore#delete: #{$!.message}")
+          Rails.logger.warn("Session::DalliStore#destroy: #{$!.message}")
           false
         end
 

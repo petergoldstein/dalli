@@ -41,3 +41,7 @@ module Dalli
     @logger = logger
   end
 end
+
+if defined?(RAILS_VERSION) && RAILS_VERSION < '3'
+  raise Dalli::DalliError, "Dalli #{Dalli::VERSION} does not support Rails version < 3.0"
+end

@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+1.1.0
+=======
+
+- Remove support for Rails 2.3, add support for Rails 3.1
+
 1.0.4
 =======
 
