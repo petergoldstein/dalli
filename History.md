@@ -7,6 +7,11 @@ Dalli Changelog
 - Remove support for Rails 2.3, add support for Rails 3.1
 - Fix socket failure retry logic, now you can restart memcached and Dalli won't complain!
 
+1.0.5
+=======
+
+- Fix socket failure retry logic, now you can restart memcached and Dalli won't complain!
+
 1.0.4
 =======
 
