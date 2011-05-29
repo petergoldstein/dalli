@@ -77,10 +77,6 @@ class TestRing < Test::Unit::TestCase
         assert_equal 1, dc.stats.values.compact.count
 
         memcached(29126) do
-          assert_equal 1, dc.stats.values.compact.count
-         
-          sleep(down_retry_delay+0.1)
-
           assert_equal 2, dc.stats.values.compact.count
         end
       end

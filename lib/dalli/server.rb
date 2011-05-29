@@ -98,7 +98,9 @@ module Dalli
       if @fail_count >= options[:socket_max_failures]
         down!
       else
+        close
         sleep(options[:socket_failure_delay]) if options[:socket_failure_delay]
+        raise Dalli::NetworkError, "Socket operation failed, retrying..."
       end
     end
     
