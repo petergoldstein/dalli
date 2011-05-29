@@ -2,19 +2,38 @@ require 'helper'
 
 class TestFailover < Test::Unit::TestCase
   context 'assuming some bad servers' do
+
+    should 'silently reconnect if server hiccups' do
+      memcached(29125) do
+        dc = Dalli::Client.new ['localhost:29125']
+        dc.set 'foo', 'bar'
+        foo = dc.get 'foo'
+        assert_equal foo, 'bar'
+
+        memcached_kill(29125)
+        memcached(29125) do
+
+          foo = dc.get 'foo'
+          assert_nil foo
+
+          memcached_kill(29125)
+        end
+      end
+    end
+
     should 'handle graceful failover' do
       memcached(29125) do
         memcached(29126) do
           dc = Dalli::Client.new ['localhost:29125', 'localhost:29126']
           dc.set 'foo', 'bar'
           foo = dc.get 'foo'
-          assert foo, 'bar'
+          assert_equal foo, 'bar'
           
           memcached_kill(29125)
 
           dc.set 'foo', 'bar'
           foo = dc.get 'foo'
-          assert foo, 'bar'
+          assert_equal foo, 'bar'
 
           memcached_kill(29126)
 
