@@ -146,10 +146,16 @@ module Dalli
       perform(:delete, key)
     end
 
+    ##
+    # Append value to the value already stored on the server for 'key'.
+    # Appending only works for values stored with :raw => true.
     def append(key, value)
       perform(:append, key, value.to_s)
     end
 
+    ##
+    # Prepend value to the value already stored on the server for 'key'.
+    # Prepending only works for values stored with :raw => true.
     def prepend(key, value)
       perform(:prepend, key, value.to_s)
     end
