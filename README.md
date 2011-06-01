@@ -26,10 +26,9 @@ So a few notes.  Dalli:
  1. is approximately 20% faster than memcache-client (which itself was heavily optimized) in Ruby 1.9.2.
  2. contains explicit "chokepoint" methods which handle all requests; these can be hooked into by monitoring tools (NewRelic, Rack::Bug, etc) to track memcached usage.
  3. comes with hooks to replace memcache-client in Rails.
- 4. is approx 700 lines of Ruby.  memcache-client is approx 1250 lines.
- 5. supports SASL for use in managed environments, e.g. Heroku.
- 6. provides proper failover with recovery and adjustable timeouts
- 7. has a backwards-compatibility mode for people migrating from memcache-client (see Upgrade.md).
+ 4. supports SASL for use in managed environments, e.g. Heroku.
+ 5. provides proper failover with recovery and adjustable timeouts
+ 6. has a backwards-compatibility mode for people migrating from memcache-client (see Upgrade.md).
 
 
 Installation and Usage
