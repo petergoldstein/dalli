@@ -115,3 +115,36 @@ rescue LoadError
   end
 
 end
+
+begin
+  require 'em-synchrony'
+  puts "Defining alternate em-synchrony socket IO" if defined?($TESTING) && $TESTING
+  
+  class Dalli::Server::AsyncSocket < EventMachine::Synchrony::TCPSocket
+    # XXX. need to somehow implement the timeout option.
+    # EM::Synchrony::TCPsocket does give you any timeouts. To implement it we'd have
+    # to change that class to take a timeout parameter that it would then set on
+    # the Deferrable objects it waits on.
+    attr_accessor :options
+
+    def self.open(host, port, options = {})
+      sock = new(host, port)
+      sock.options = { :host => host, :port => port }.merge(options)
+      sock
+    end
+
+    def readfull(count)
+      value = ''
+      loop do
+        value << read(count - value.bytesize)
+        break if value.bytesize == count
+      end
+      value
+    end
+
+  end
+
+rescue LoadError
+  puts "Could not define alternate em-synchrony socket IO" if defined?($TESTING) && $TESTING
+end
+

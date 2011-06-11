@@ -20,6 +20,7 @@ module Dalli
     # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
     # - :compression - defaults to false, if true Dalli will compress values larger than 100 bytes before
     #   sending them to memcached.
+    # - :async - assume its running inside the EM reactor. Requires em-synchrony to be installed. Default: false.
     #
     def initialize(servers=nil, options={})
       @servers = env_servers || servers || 'localhost:11211'
