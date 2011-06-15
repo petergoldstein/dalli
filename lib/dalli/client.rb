@@ -46,7 +46,7 @@ module Dalli
 
     ##
     # Turn on quiet aka noreply support.
-    # All relevant operations within this block with be effectively
+    # All relevant operations within this block will be effectively
     # pipelined as Dalli will use 'quiet' operations where possible.
     # Currently supports the set, add, replace and delete operations.
     def multi
