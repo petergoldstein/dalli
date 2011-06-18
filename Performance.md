@@ -6,9 +6,11 @@ Times are from a Unibody MBP 2.4Ghz Core i5 running Snow Leopard.
 
 You can optionally use kgio to give Dalli a small, 10-20% performance boost: gem install kgio.
 
-*memcache-client*:
+memcache-client
+---------------
 
-	Testing 1.8.5 with ruby 1.9.2p136 (2010-12-25 revision 30365) [x86_64-darwin10.6.0]
+Testing 1.8.5 with ruby 1.9.2p136 (2010-12-25 revision 30365) [x86_64-darwin10.6.0]
+
 	                                     user     system      total        real
 	set:plain:memcache               2.070000   0.340000   2.410000 (  2.611709)
 	set:ruby:memcache                1.990000   0.330000   2.320000 (  2.869653)
@@ -19,9 +21,11 @@ You can optionally use kgio to give Dalli a small, 10-20% performance boost: gem
 	mixed:ruby:memcache              4.390000   0.670000   5.060000 (  5.721000)
 	incr:ruby:memcache               0.700000   0.120000   0.820000 (  0.842896)
 
-*libmemcached*:
+libmemcached
+------------
 
-	Testing 1.1.2 with ruby 1.9.2p136 (2010-12-25 revision 30365) [x86_64-darwin10.6.0]
+Testing 1.1.2 with ruby 1.9.2p136 (2010-12-25 revision 30365) [x86_64-darwin10.6.0]
+
 	                                     user     system      total        real
 	set:plain:libm                   0.120000   0.220000   0.340000 (  0.847521)
 	setq:plain:libm                  0.030000   0.000000   0.030000 (  0.126944)
@@ -34,10 +38,12 @@ You can optionally use kgio to give Dalli a small, 10-20% performance boost: gem
 	mixedq:ruby:libm                 0.410000   0.360000   0.770000 (  1.516718)
 	incr:ruby:libm                   0.080000   0.340000   0.420000 (  1.685931)
 
-*dalli*:
+dalli
+-----
 
-	Using kgio socket IO
-	Testing 1.0.2 with ruby 1.9.2p136 (2010-12-25 revision 30365) [x86_64-darwin10.6.0]
+Using kgio socket IO
+Testing 1.0.2 with ruby 1.9.2p136 (2010-12-25 revision 30365) [x86_64-darwin10.6.0]
+
 	                                     user     system      total        real
 	set:plain:dalli                  0.850000   0.320000   1.170000 (  1.691393)
 	setq:plain:dalli                 0.500000   0.130000   0.630000 (  0.651227)
@@ -51,6 +57,7 @@ You can optionally use kgio to give Dalli a small, 10-20% performance boost: gem
 	incr:ruby:dalli                  0.310000   0.120000   0.430000 (  0.616465)
 
 Testing 1.0.2 with rubinius 1.3.0dev (1.8.7 382e813f xxxx-xx-xx JI) [x86_64-apple-darwin10.6.0]
+
 	                                     user     system      total        real
 	set:plain:dalli                  2.800581   0.329360   3.129941 (  5.186546)
 	setq:plain:dalli                 1.064253   0.138044   1.202297 (  1.280355)
@@ -64,6 +71,7 @@ Testing 1.0.2 with rubinius 1.3.0dev (1.8.7 382e813f xxxx-xx-xx JI) [x86_64-appl
 	incr:ruby:dalli                  0.691467   0.091475   0.782942 (  0.931674)
 
 Testing 1.0.2 with rubinius 1.2.0 (1.8.7 release 2010-12-21 JI) [x86_64-apple-darwin10.6.0]
+
 	                                     user     system      total        real
 	set:plain:dalli                  6.586927   0.331545   6.918472 (  4.628652)
 	setq:plain:dalli                 0.930905   0.129008   1.059913 (  1.016105)
