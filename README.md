@@ -114,12 +114,16 @@ Dalli::Client accepts the following options. All times are in seconds.
 
 **password**: The password to use for authenticating this client instance against a SASL-enabled memcached server.  Heroku users should not need to use this normally.
 
+**async**: Boolean, if true Dalli will assume its running inside the EventMachine reactor and use EM through the em-synchrony gem.  Currently disables the socket_timeout option. Default is false.
+
 Features and Changes
 ------------------------
 
 Dalli is **NOT** 100% API compatible with memcache-client.  If you have code which uses the MemCache API directly, it will likely need small tweaks.  Method parameters and return values changed slightly.  See Upgrade.md for more detail.
 
 By default, Dalli is thread-safe.  Disable thread-safety at your own peril.
+
+Multi-threaded use will fail if used with EventMachine.
 
 Note that Dalli does not require ActiveSupport or Rails.  You can safely use it in your own Ruby projects.
 

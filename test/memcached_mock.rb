@@ -65,7 +65,7 @@ module MemcachedMock
       nil
     end
 
-    def memcached(port=19122, args='')
+    def memcached(port=19122, args='', options={})
       Memcached.path ||= find_memcached
       cmd = "#{Memcached.path}memcached #{args} -p #{port}"
       $started[port] ||= begin
@@ -82,7 +82,7 @@ module MemcachedMock
         pid
       end
 
-      yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"])
+      yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
     end
     
     def memcached_kill(port)
