@@ -24,10 +24,10 @@ class TestSynchrony < Test::Unit::TestCase
           dc.set('a', val1)
           val2 = dc.get('a')
           assert_equal val1, val2
-        
+
           assert_equal true, dc.set('a', nil)
           assert_nil dc.get('a')
-          
+
           done
         end
       end
@@ -54,7 +54,7 @@ class TestSynchrony < Test::Unit::TestCase
           end
           assert_equal expected, value
           assert_equal false, executed
-          
+
           done
         end
       end
@@ -79,10 +79,10 @@ class TestSynchrony < Test::Unit::TestCase
             mutated
           end
           assert_equal true, resp
-        
+
           resp = dc.get('cas_key')
           assert_equal mutated, resp
-        
+
           # TODO Need to verify failure when value is mutated between get and add.
           done
         end
@@ -115,7 +115,7 @@ class TestSynchrony < Test::Unit::TestCase
           result = dc.get_multi(arr)
           assert_equal(10_000, result.size)
           assert_equal(1000, result['1000'])
-          
+
           done
         end
       end
@@ -149,7 +149,7 @@ class TestSynchrony < Test::Unit::TestCase
 
           resp = client.incr('rawcounter', 1)
           assert_equal 11, resp
-          
+
           done
         end
       end
@@ -201,7 +201,7 @@ class TestSynchrony < Test::Unit::TestCase
           resp = dc.incr('big', 1)
           assert_not_equal 0x10000000000000000, resp
           dc.reset
-          
+
           done
         end
       end
@@ -219,7 +219,7 @@ class TestSynchrony < Test::Unit::TestCase
 
           assert_equal false, dc.append('nonexist', 'abc')
           assert_equal false, dc.prepend('nonexist', 'abc')
-          
+
           done
         end
       end
@@ -280,7 +280,7 @@ class TestSynchrony < Test::Unit::TestCase
         end
       end
     end
-    
+
     should "handle namespaced keys" do
       em do
         memcached(19122,'',:async => true) do |dc|
@@ -290,7 +290,7 @@ class TestSynchrony < Test::Unit::TestCase
           dc2.set('namespaced', 2)
           assert_equal 1, dc.get('namespaced')
           assert_equal 2, dc2.get('namespaced')
-          
+
           done
         end
       end
@@ -320,7 +320,7 @@ class TestSynchrony < Test::Unit::TestCase
             Dalli.logger = old
           end
         end
-        
+
         done
       end
     end
@@ -337,7 +337,7 @@ class TestSynchrony < Test::Unit::TestCase
             end
             dalli.set('verylarge', value)
           end
-          
+
           done
         end
       end
@@ -361,7 +361,7 @@ class TestSynchrony < Test::Unit::TestCase
             end
             assert failed, 'did not fail under low memory conditions'
           end
-          
+
           done
         end
       end
@@ -382,7 +382,7 @@ class TestSynchrony < Test::Unit::TestCase
               end
             end
             assert failed, 'did not fail under low memory conditions'
-            
+
             done
           end
         end
