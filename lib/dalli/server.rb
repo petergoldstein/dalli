@@ -363,7 +363,7 @@ module Dalli
     def write(bytes)
       begin
         @sock.write(bytes)
-      rescue SystemCallError
+      rescue SystemCallError, Timeout::Error
         failure!
         retry
       end
