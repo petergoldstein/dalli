@@ -4,7 +4,7 @@ begin
 
   class Dalli::Server::KSocket < Kgio::Socket
     attr_accessor :options
-    
+
     def kgio_wait_readable
       IO.select([self], nil, nil, options[:timeout]) || raise(Timeout::Error, "IO timeout")
     end
