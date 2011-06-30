@@ -7,6 +7,7 @@ Dalli Changelog
 - Remove support for Rails 2.3, add support for Rails 3.1
 - Fix socket failure retry logic, now you can restart memcached and Dalli won't complain!
 - Add support for fibered operation via em-synchrony (eliaslevy)
+- Gracefully handle write timeouts
 
 1.0.5
 =======
