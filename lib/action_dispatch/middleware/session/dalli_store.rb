@@ -12,10 +12,7 @@ module ActionDispatch
 
         super
 
-        @default_options = {
-          :namespace => 'rack:session',
-          :memcache_server => 'localhost:11211',
-        }.merge(@default_options)
+        @default_options = { :namespace => 'rack:session' }.merge(@default_options)
 
         @pool = options[:cache] || begin
           Dalli::Client.new( 
