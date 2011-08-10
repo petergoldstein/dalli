@@ -9,6 +9,7 @@ Dalli Changelog
 - Add support for fibered operation via em-synchrony (eliaslevy)
 - Gracefully handle write timeouts, GH-99
 - Only issue bug warning for unexpected StandardErrors, GH-102
+- Add travis-ci build support (ryanlecompte)
 
 1.0.5
 =======

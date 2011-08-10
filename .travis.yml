@@ -5,4 +5,4 @@ rvm:
 branches:
   only:
     - master
-env: JRUBY_OPTS='--1.9 -X+O -J-Djruby.launch.inproc=false'
+env: JRUBY_OPTS='--1.9'
