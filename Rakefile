@@ -25,9 +25,13 @@ task :test_all do
 end
 
 # 'gem install rdoc' to upgrade RDoc if this is giving you errors
-require 'rdoc/task'
-RDoc::Task.new do |rd|
-  rd.rdoc_files.include("lib/**/*.rb")
+begin
+  require 'rdoc/task'
+  RDoc::Task.new do |rd|
+    rd.rdoc_files.include("lib/**/*.rb")
+  end
+rescue LoadError
+  puts "Unable to load rdoc, run 'gem install rdoc' to fix this."
 end
 
 require 'rake/clean'

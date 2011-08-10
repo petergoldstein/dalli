@@ -1,6 +1,7 @@
 require 'helper'
 require 'memcached_mock'
-require 'em-synchrony'
+if RUBY_ENGINE != 'jruby'
+begin
 require 'em-spec/test'
 
 class TestSynchrony < Test::Unit::TestCase
@@ -60,35 +61,6 @@ class TestSynchrony < Test::Unit::TestCase
       end
     end
 
-    should "support the cas operation" do
-      em do
-        memcached(19122,'',:async => true) do |dc|
-          dc.flush
-
-          expected = { 'blah' => 'blerg!' }
-
-          resp = dc.cas('cas_key') do |value|
-            fail('Value should not exist')
-          end
-          assert_nil resp
-
-          mutated = { 'blah' => 'foo!' }
-          dc.set('cas_key', expected)
-          resp = dc.cas('cas_key') do |value|
-            assert_equal expected, value
-            mutated
-          end
-          assert_equal true, resp
-
-          resp = dc.get('cas_key')
-          assert_equal mutated, resp
-
-          # TODO Need to verify failure when value is mutated between get and add.
-          done
-        end
-      end
-    end
-
     should "support multi-get" do
       em do
         memcached(19122,'',:async => true) do |dc|
@@ -115,110 +87,6 @@ class TestSynchrony < Test::Unit::TestCase
           result = dc.get_multi(arr)
           assert_equal(10_000, result.size)
           assert_equal(1000, result['1000'])
-
-          done
-        end
-      end
-    end
-
-    should 'support raw incr/decr' do
-      em do
-        memcached(19122,'',:async => true) do |client|
-          client.flush
-
-          assert_equal true, client.set('fakecounter', 0, 0, :raw => true)
-          assert_equal 1, client.incr('fakecounter', 1)
-          assert_equal 2, client.incr('fakecounter', 1)
-          assert_equal 3, client.incr('fakecounter', 1)
-          assert_equal 1, client.decr('fakecounter', 2)
-          assert_equal "1", client.get('fakecounter', :raw => true)
-
-          resp = client.incr('mycounter', 0)
-          assert_nil resp
-
-          resp = client.incr('mycounter', 1, 0, 2)
-          assert_equal 2, resp
-          resp = client.incr('mycounter', 1)
-          assert_equal 3, resp
-
-          resp = client.set('rawcounter', 10, 0, :raw => true)
-          assert_equal true, resp
-
-          resp = client.get('rawcounter', :raw => true)
-          assert_equal '10', resp
-
-          resp = client.incr('rawcounter', 1)
-          assert_equal 11, resp
-
-          done
-        end
-      end
-    end
-
-    should "support incr/decr operations" do
-      em do
-        memcached(19122,'',:async => true) do |dc|
-          dc.flush
-
-          resp = dc.decr('counter', 100, 5, 0)
-          assert_equal 0, resp
-
-          resp = dc.decr('counter', 10)
-          assert_equal 0, resp
-
-          resp = dc.incr('counter', 10)
-          assert_equal 10, resp
-
-          current = 10
-          100.times do |x|
-            resp = dc.incr('counter', 10)
-            assert_equal current + ((x+1)*10), resp
-          end
-
-          resp = dc.decr('10billion', 0, 5, 10)
-          # go over the 32-bit mark to verify proper (un)packing
-          resp = dc.incr('10billion', 10_000_000_000)
-          assert_equal 10_000_000_010, resp
-
-          resp = dc.decr('10billion', 1)
-          assert_equal 10_000_000_009, resp
-
-          resp = dc.decr('10billion', 0)
-          assert_equal 10_000_000_009, resp
-
-          resp = dc.incr('10billion', 0)
-          assert_equal 10_000_000_009, resp
-
-          assert_nil dc.incr('DNE', 10)
-          assert_nil dc.decr('DNE', 10)
-
-          resp = dc.incr('big', 100, 5, 0xFFFFFFFFFFFFFFFE)
-          assert_equal 0xFFFFFFFFFFFFFFFE, resp
-          resp = dc.incr('big', 1)
-          assert_equal 0xFFFFFFFFFFFFFFFF, resp
-
-          # rollover the 64-bit value, we'll get something undefined.
-          resp = dc.incr('big', 1)
-          assert_not_equal 0x10000000000000000, resp
-          dc.reset
-
-          done
-        end
-      end
-    end
-
-    should 'support the append and prepend operations' do
-      em do
-        memcached(19122,'',:async => true) do |dc|
-          resp = dc.flush
-          assert_equal true, dc.set('456', 'xyz', 0, :raw => true)
-          assert_equal true, dc.prepend('456', '0')
-          assert_equal true, dc.append('456', '9')
-          assert_equal '0xyz9', dc.get('456', :raw => true)
-          assert_equal '0xyz9', dc.get('456')
-
-          assert_equal false, dc.append('nonexist', 'abc')
-          assert_equal false, dc.prepend('nonexist', 'abc')
 
           done
         end
@@ -275,53 +143,9 @@ class TestSynchrony < Test::Unit::TestCase
           assert_equal Hash, resp.class
 
           dc.close
-          
-          done
-        end
-      end
-    end
-
-    should "handle namespaced keys" do
-      em do
-        memcached(19122,'',:async => true) do |dc|
-          dc = Dalli::Client.new('localhost:19122', :namespace => 'a', :async => true)
-          dc.set('namespaced', 1)
-          dc2 = Dalli::Client.new('localhost:19122', :namespace => 'b', :async => true)
-          dc2.set('namespaced', 2)
-          assert_equal 1, dc.get('namespaced')
-          assert_equal 2, dc2.get('namespaced')
 
           done
         end
-      end
-    end
-
-    should "handle namespaced keys in multi_get" do
-      em do
-        memcached(19122,'',:async => true) do |dc|
-          dc = Dalli::Client.new('localhost:19122', :namespace => 'a', :async => true)
-          dc.set('a', 1)
-          dc.set('b', 2)
-          assert_equal({'a' => 1, 'b' => 2}, dc.get_multi('a', 'b'))
-
-          done
-        end
-      end
-    end
-
-    should "handle application marshalling issues" do
-      em do
-        memcached(19122,'',:async => true) do |dc|
-          old = Dalli.logger
-          Dalli.logger = Logger.new(nil)
-          begin
-            assert_equal false, dc.set('a', Proc.new { true })
-          ensure
-            Dalli.logger = old
-          end
-        end
-
-        done
       end
     end
 
@@ -343,52 +167,9 @@ class TestSynchrony < Test::Unit::TestCase
       end
     end
 
-    context 'in low memory conditions' do
-
-      should 'handle error response correctly' do
-        em do
-          memcached(19125, '-m 1 -M', :async => true) do |dc|
-            failed = false
-            value = "1234567890"*100
-            1_000.times do |idx|
-              begin
-                assert_equal true, dc.set(idx, value)
-              rescue Dalli::DalliError
-                failed = true
-                assert((800..900).include?(idx), "unexpected failure on iteration #{idx}")
-                break
-              end
-            end
-            assert failed, 'did not fail under low memory conditions'
-          end
-
-          done
-        end
-      end
-
-      should 'fit more values with compression' do
-        em do
-          memcached(19126, '-m 1 -M', :async => true ) do |dc|
-            dalli = Dalli::Client.new('localhost:19126', :compression => true, :async => true)
-            failed = false
-            value = "1234567890"*1000
-            10_000.times do |idx|
-              begin
-                assert_equal true, dalli.set(idx, value)
-              rescue Dalli::DalliError
-                failed = true
-                assert((6000..7000).include?(idx), "unexpected failure on iteration #{idx}")
-                break
-              end
-            end
-            assert failed, 'did not fail under low memory conditions'
-
-            done
-          end
-        end
-      end
-
-    end
-
   end
+end
+rescue LoadError
+  puts "Skipping em-synchrony tests"
+end
 end

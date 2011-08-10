@@ -15,6 +15,10 @@ class TestSasl < Test::Unit::TestCase
         ENV['MEMCACHE_PASSWORD'] = nil
       end
 
+      should 'provide one test that passes' do
+        assert true
+      end
+
       should_eventually 'gracefully handle authentication failures' do
         memcached(19124, '-S') do |dc|
           assert_raise Dalli::DalliError, /32/ do
