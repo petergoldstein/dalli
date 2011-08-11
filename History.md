@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+2.0.2
+=======
+
+- Increment and decrement with :initial => nil now return nil (lawrencepit, #112)
+
 2.0.1
 =======
 

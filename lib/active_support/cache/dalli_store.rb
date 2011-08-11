@@ -95,7 +95,7 @@ module ActiveSupport
       # :initial defaults to the amount passed in, as if the counter was initially zero.
       # memcached counters cannot hold negative values.
       def increment(name, amount = 1, options={}) # :nodoc:
-        initial = options[:initial] || amount
+        initial = options.has_key?(:initial) ? options[:initial] : amount
         expires_in = options[:expires_in]
         instrument(:increment, name, :amount => amount) do
           @data.incr(name, amount, expires_in, initial)
@@ -111,7 +111,7 @@ module ActiveSupport
       # :initial defaults to zero, as if the counter was initially zero.
       # memcached counters cannot hold negative values.
       def decrement(name, amount = 1, options={}) # :nodoc:
-        initial = options[:initial] || 0
+        initial = options.has_key?(:initial) ? options[:initial] : 0
         expires_in = options[:expires_in]
         instrument(:decrement, name, :amount => amount) do
           @data.decr(name, amount, expires_in, initial)
