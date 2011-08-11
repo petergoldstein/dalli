@@ -28,7 +28,7 @@ class TestFailover < Test::Unit::TestCase
           dc.set 'foo', 'bar'
           foo = dc.get 'foo'
           assert_equal foo, 'bar'
-          
+
           memcached_kill(29125)
 
           dc.set 'foo', 'bar'
@@ -51,7 +51,7 @@ class TestFailover < Test::Unit::TestCase
           dc.set 'a', 'a1'
           result = dc.get_multi ['a']
           assert_equal result, {'a' => 'a1'}
-          
+
           memcached_kill(29125)
 
           result = dc.get_multi ['a']
@@ -68,7 +68,7 @@ class TestFailover < Test::Unit::TestCase
           dc.set 'bar', 'bar1'
           result = dc.get_multi ['foo', 'bar']
           assert_equal result, {'foo' => 'foo1', 'bar' => 'bar1'}
-          
+
           memcached_kill(29125)
 
           dc.set 'foo', 'foo1'
@@ -92,7 +92,7 @@ class TestFailover < Test::Unit::TestCase
           result = dc.stats
           assert_instance_of Hash, result['localhost:29125']
           assert_instance_of Hash, result['localhost:29126']
-          
+
           memcached_kill(29125)
 
           dc = Dalli::Client.new ['localhost:29125', 'localhost:29126']

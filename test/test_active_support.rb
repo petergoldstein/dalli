@@ -37,7 +37,7 @@ class TestActiveSupport < Test::Unit::TestCase
           assert_equal mvalue, dvalue
         end
       end
-    end      
+    end
 
     should 'support read_multi' do
       with_activesupport do
@@ -56,7 +56,7 @@ class TestActiveSupport < Test::Unit::TestCase
         end
       end
     end
-    
+
     should 'support read_multi with an array' do
       with_activesupport do
         memcached do
@@ -85,8 +85,6 @@ class TestActiveSupport < Test::Unit::TestCase
 
           @dalli.write("abc", 5, :raw => true)
           @dalli.write("cba", 5, :raw => true)
-          # XXX: API difference between m-c and dalli.  Dalli is smarter about
-          # what it needs to unmarshal.
           assert_equal({'abc' => '5', 'cba' => '5' }, @dalli.read_multi("abc", "cba"))
         end
       end
@@ -108,7 +106,7 @@ class TestActiveSupport < Test::Unit::TestCase
           dres = @dalli.read(y)
           assert_equal mres, dres
           assert_equal 123, dres
-      
+
           mres = @mc.delete(x)
           dres = @dalli.delete(y)
           assert_equal mres, dres
@@ -116,7 +114,7 @@ class TestActiveSupport < Test::Unit::TestCase
         end
       end
     end
-    
+
     should 'support increment/decrement commands' do
       with_activesupport do
         memcached do
@@ -181,7 +179,7 @@ class TestActiveSupport < Test::Unit::TestCase
       end
     end
   end
-  
+
   def connect
     @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122', :expires_in => 10.seconds, :namespace => 'x')
     @mc = ActiveSupport::Cache.lookup_store(:mem_cache_store, 'localhost:19122', :expires_in => 10.seconds, :namespace => 'a')

@@ -24,7 +24,7 @@ module MemcachedMock
     #     end
     #
     def memcached_mock(proc, meth = :start)
-      return if RUBY_ENGINE == 'jruby'
+      return unless supports_fork?
       begin
         pid = fork do
           trap("TERM") { exit }
@@ -67,7 +67,7 @@ module MemcachedMock
     end
 
     def memcached(port=19122, args='', options={})
-      return if RUBY_ENGINE == 'jruby'
+      return unless supports_fork?
       Memcached.path ||= find_memcached
       cmd = "#{Memcached.path}memcached #{args} -p #{port}"
       $started[port] ||= begin
@@ -85,6 +85,10 @@ module MemcachedMock
       end
 
       yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
+    end
+
+    def supports_fork?
+      RUBY_ENGINE != 'jruby'
     end
 
     def memcached_kill(port)
