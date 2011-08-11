@@ -43,7 +43,7 @@ class TestDalli < Test::Unit::TestCase
         dc.set('a', val1)
         val2 = dc.get('a')
         assert_equal val1, val2
-        
+
         assert_equal true, dc.set('a', nil)
         assert_nil dc.get('a')
       end
@@ -90,11 +90,9 @@ class TestDalli < Test::Unit::TestCase
           mutated
         end
         assert_equal true, resp
-        
+
         resp = dc.get('cas_key')
         assert_equal mutated, resp
-        
-        # TODO Need to verify failure when value is mutated between get and add.
       end
     end
 
@@ -269,7 +267,7 @@ class TestDalli < Test::Unit::TestCase
         dc.close
       end
     end
-    
+
     should "support multithreaded access" do
       memcached do |cache|
         cache.flush
@@ -366,7 +364,7 @@ class TestDalli < Test::Unit::TestCase
               assert_equal true, dc.set(idx, value)
             rescue Dalli::DalliError
               failed = true
-              assert((800..900).include?(idx), "unexpected failure on iteration #{idx}")
+              assert((800..960).include?(idx), "unexpected failure on iteration #{idx}")
               break
             end
           end
@@ -384,7 +382,7 @@ class TestDalli < Test::Unit::TestCase
               assert_equal true, dalli.set(idx, value)
             rescue Dalli::DalliError
               failed = true
-              assert((6000..7000).include?(idx), "unexpected failure on iteration #{idx}")
+              assert((6000..7800).include?(idx), "unexpected failure on iteration #{idx}")
               break
             end
           end
