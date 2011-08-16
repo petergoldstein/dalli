@@ -1,7 +1,7 @@
 # encoding: ascii
 module Dalli
   class Client
-    
+
     ##
     # Dalli::Client is the main class which developers will use to interact with
     # the memcached server.  Usage:
@@ -40,7 +40,7 @@ module Dalli
       require 'dalli/compatibility'
       @compatibility_mode = compatibility_mode
     end
-    
+
     #
     # The standard memcached instruction set
     #
@@ -117,14 +117,14 @@ module Dalli
       value = (!value || value == 'Not found') ? nil : value
       if value
         newvalue = block.call(value)
-        perform(:add, key, newvalue, ttl, cas, options)
+        perform(:set, key, newvalue, ttl, cas, options)
       end
     end
 
     def set(key, value, ttl=nil, options=nil)
       raise "Invalid API usage, please require 'dalli/memcache-client' for compatibility, see Upgrade.md" if options == true
       ttl ||= @options[:expires_in]
-      perform(:set, key, value, ttl, options)
+      perform(:set, key, value, ttl, 0, options)
     end
 
     ##
@@ -132,7 +132,7 @@ module Dalli
     # on the server.  Returns true if the operation succeeded.
     def add(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in]
-      perform(:add, key, value, ttl, 0, options)
+      perform(:add, key, value, ttl, options)
     end
 
     ##
