@@ -1,7 +1,6 @@
 rvm:
   - 1.9.2
   - jruby
-  - rbx-2.0
 branches:
   only:
     - master
