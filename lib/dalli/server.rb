@@ -393,7 +393,8 @@ module Dalli
         up!
       rescue Dalli::DalliError # SASL auth failure
         raise
-      rescue SystemCallError, Timeout::Error, EOFError
+      rescue SystemCallError, Timeout::Error, EOFError, SocketError
+        # SocketError = DNS resolution failure
         failure!
         retry
       end
