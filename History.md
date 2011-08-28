@@ -10,6 +10,7 @@ Dalli Changelog
 - Gracefully handle write timeouts, GH-99
 - Only issue bug warning for unexpected StandardErrors, GH-102
 - Add travis-ci build support (ryanlecompte)
+- Gracefully handle errors in get_multi (michaelfairley)
 - Misc fixes from crash2burn, fphilipe, igreg, raggi
 
 1.0.5
