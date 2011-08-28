@@ -71,7 +71,12 @@ module Dalli
       options = keys.pop if keys.last.is_a?(Hash) || keys.last.nil?
       ring.lock do
         keys.flatten.each do |key|
-          perform(:getkq, key)
+          begin
+            perform(:getkq, key)
+          rescue Dalli::DalliError => e
+            Dalli.logger.debug { e.message }
+            Dalli.logger.debug { "unable to get key #{key}" }
+          end
         end
 
         values = {}
