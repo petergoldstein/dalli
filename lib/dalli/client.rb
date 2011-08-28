@@ -81,7 +81,7 @@ module Dalli
             server.request(:noop).each_pair do |key, value|
               values[key_without_namespace(key)] = value
             end
-          rescue NetworkError => e
+          rescue DalliError, NetworkError => e
             Dalli.logger.debug { e.message }
             Dalli.logger.debug { "results from this server will be missing" }
           end
