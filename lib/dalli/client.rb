@@ -73,7 +73,7 @@ module Dalli
         keys.flatten.each do |key|
           begin
             perform(:getkq, key)
-          rescue Dalli::DalliError => e
+          rescue DalliError, NetworkError => e
             Dalli.logger.debug { e.message }
             Dalli.logger.debug { "unable to get key #{key}" }
           end
