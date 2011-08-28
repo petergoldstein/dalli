@@ -78,9 +78,8 @@ class TestFailover < Test::Unit::TestCase
 
           memcached_kill(29126)
 
-          assert_raise Dalli::RingError, :message => "No server available" do
-            dc.get_multi ['foo', 'bar']
-          end
+          result = dc.get_multi ['foo', 'bar']
+          assert_equal result, {}
         end
       end
     end
