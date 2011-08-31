@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+1.1.1
+=======
+
+v1.1.0 was a bad release.  Yanked.
+
 1.1.0
 =======
 
