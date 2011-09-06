@@ -1,6 +1,6 @@
 require 'helper'
 require 'memcached_mock'
-if RUBY_ENGINE != 'jruby'
+if defined?(RUBY_ENGINE) && RUBY_ENGINE != 'jruby'
 begin
 require 'em-spec/test'
 
