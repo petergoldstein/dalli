@@ -31,10 +31,27 @@ So a few notes.  Dalli:
  6. has a backwards-compatibility mode for people migrating from memcache-client (see Upgrade.md).
 
 
+Supported Ruby versions and implementations
+------------------------------------------------
+
+Dalli is geared towards 1.9.2+ but known to work on
+
+ * Ruby 1.9.2
+ * Ruby 1.9.3
+ * Ruby 1.8.7
+ * Rubinius 2.0 Preview
+
+
 Installation and Usage
 ------------------------
 
-Remember, Dalli **requires** memcached 1.4+.  You can check the version with `memcached -h`.
+Remember, Dalli **requires** memcached 1.4+. You can check the version with `memcached -h`. Please note that memcached that Mac OS X Snow Leopard ships with is 1.2.8 and
+won't work. Install 1.4.x using Homebrew with
+
+    brew install memcached
+
+
+You can verify your installation using this piece of code:
 
     gem install dalli
 
