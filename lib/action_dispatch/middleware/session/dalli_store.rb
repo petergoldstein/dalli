@@ -28,43 +28,46 @@ module ActionDispatch
       end
 
       private
-      
-        def get_session(env, sid)
-          sid ||= generate_sid
-          begin
-            session = @pool.get(sid) || {}
-          rescue Dalli::DalliError
-            Rails.logger.warn("Session::DalliStore#get: #{$!.message}")
-            session = {}
-          end
-          [sid, session]
-        end
 
-        def set_session(env, sid, session_data, options = nil)
-          options ||= env[ENV_SESSION_OPTIONS_KEY]
-          expiry  = options[:expire_after]
-          @pool.set(sid, session_data, expiry)
-          sid
+      def get_session(env, sid)
+        sid ||= generate_sid
+        begin
+          session = @pool.get(sid) || {}
         rescue Dalli::DalliError
-          Rails.logger.warn("Session::DalliStore#set: #{$!.message}")
-          false
+          Rails.logger.warn("Session::DalliStore#get: #{$!.message}")
+          session = {}
         end
+        [sid, session]
+      end
 
-        def destroy_session(env, session_id, options)
+      def set_session(env, sid, session_data, options = nil)
+        options ||= env[ENV_SESSION_OPTIONS_KEY]
+        expiry  = options[:expire_after]
+        @pool.set(sid, session_data, expiry)
+        sid
+      rescue Dalli::DalliError
+        Rails.logger.warn("Session::DalliStore#set: #{$!.message}")
+        false
+      end
+
+      def destroy_session(env, session_id, options)
+        begin
           @pool.delete(session_id)
         rescue Dalli::DalliError
           Rails.logger.warn("Session::DalliStore#destroy_session: #{$!.message}")
-          false
         end
+        return nil if options[:drop]
+        generate_sid
+      end
 
-        def destroy(env)
-          if sid = current_session_id(env)
-            @pool.delete(sid)
-          end
-        rescue Dalli::DalliError
-          Rails.logger.warn("Session::DalliStore#destroy: #{$!.message}")
-          false
+      def destroy(env)
+        if sid = current_session_id(env)
+          @pool.delete(sid)
         end
+      rescue Dalli::DalliError
+        Rails.logger.warn("Session::DalliStore#destroy: #{$!.message}")
+        false
+      end
 
     end
   end

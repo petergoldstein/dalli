@@ -1,6 +1,12 @@
 Dalli Changelog
 =====================
 
+1.1.2
+=======
+
+- Fix incompatibility with latest Rack session API when destroying
+  sessions, thanks @twinge!
+
 1.1.1
 =======
 
