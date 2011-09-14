@@ -26,6 +26,16 @@ class TestDalli < Test::Unit::TestCase
     assert_equal s2, s3
   end
 
+  should "accept unix sockets" do
+    dc = Dalli::Client.new('unix:tmp.sock')
+    ring = dc.send(:ring)
+    assert ring.servers.first.unix_socket
+
+    dc = Dalli::Client.new('localhost:11211')
+    ring = dc.send(:ring)
+    assert !ring.servers.first.unix_socket
+  end
+
   context 'using a live server' do
 
     should "support get/set" do

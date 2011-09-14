@@ -14,6 +14,10 @@ module Dalli
     # Note that the <tt>MEMCACHE_SERVERS</tt> environment variable will override the servers parameter for use
     # in managed environments like Heroku.
     #
+    # You can also provide UNIX Socket as an argument, for example:
+    #
+    #   Dalli::Client.new("unix:/tmp/memcached.sock")
+    #
     # Options:
     # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
