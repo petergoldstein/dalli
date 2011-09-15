@@ -28,7 +28,7 @@ module Dalli
 
     def initialize(attribs, options = {})
       if (@unix_socket = is_unix_socket?(attribs))
-        @hostname = attribs.match(/^unix:(.+)$/)[1]
+        @hostname = attribs.match(/^(\/.+)$/)[1]
       else
         (@hostname, @port, @weight) = attribs.split(':')
         @port ||= 11211
@@ -98,7 +98,7 @@ module Dalli
     private
 
     def is_unix_socket?(string)
-      !!(/^unix:(.+)$/ =~ string)
+      !!(/^\/(.+)$/ =~ string)
     end
 
     def failure!
