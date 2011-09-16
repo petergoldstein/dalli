@@ -15,6 +15,10 @@ module MemcachedMock
     block.call server
   end
 
+  def self.tmp_socket_path
+    "#{Dir.pwd}/tmp.sock"
+  end
+ 
   module Helper
     # Forks the current process and starts a new mock Memcached server on
     # port 22122.
@@ -69,7 +73,13 @@ module MemcachedMock
     def memcached(port=19122, args='', options={})
       return unless supports_fork?
       Memcached.path ||= find_memcached
-      cmd = "#{Memcached.path}memcached #{args} -p #{port}"
+
+      cmd = if options[:unix] 
+        "#{Memcached.path}memcached #{args} -s #{MemcachedMock.tmp_socket_path}"
+      else
+        "#{Memcached.path}memcached #{args} -p #{port}"
+      end
+
       $started[port] ||= begin
         #puts "Starting: #{cmd}..."
         pid = IO.popen(cmd).pid
@@ -77,14 +87,18 @@ module MemcachedMock
           begin
             Process.kill("TERM", pid)
             Process.wait(pid)
+            File.delete(MemcachedMock.tmp_socket_path) if options[:unix]
           rescue Errno::ECHILD, Errno::ESRCH
           end
         end
         sleep 0.1
         pid
       end
-
-      yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
+      if options[:unix]
+        yield Dalli::Client.new(MemcachedMock.tmp_socket_path)
+      else
+        yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
+      end
     end
 
     def supports_fork?

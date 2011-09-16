@@ -34,6 +34,8 @@ begin
 
   end
 
+
+
   if ::Kgio.respond_to?(:wait_readable=)
     ::Kgio.wait_readable = :kgio_wait_readable
     ::Kgio.wait_writable = :kgio_wait_writable
@@ -147,3 +149,13 @@ rescue LoadError
   puts "Could not define alternate em-synchrony socket IO" if defined?($TESTING) && $TESTING
 end
 
+class Dalli::Server::USocket < UNIXSocket
+  def readfull(count)
+    value = ''
+    loop do
+      value << read(count - value.bytesize)
+      break if value.bytesize == count
+    end 
+    value
+  end
+end

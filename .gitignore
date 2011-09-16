@@ -2,3 +2,4 @@
 .idea
 Gemfile.lock
 tmtags
+tmp.sock
