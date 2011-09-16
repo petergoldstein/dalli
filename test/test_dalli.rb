@@ -26,16 +26,6 @@ class TestDalli < Test::Unit::TestCase
     assert_equal s2, s3
   end
 
-  should "accept unix sockets" do
-    dc = Dalli::Client.new(MemcachedMock.tmp_socket_path)
-    ring = dc.send(:ring)
-    assert ring.servers.first.unix_socket
-
-    dc = Dalli::Client.new('localhost:11211')
-    ring = dc.send(:ring)
-    assert !ring.servers.first.unix_socket
-  end
-
   context 'using unix sockets' do
     should 'pass smoke test' do
       memcached(nil,'',{:unix => true}) do |dc|
@@ -53,7 +43,7 @@ class TestDalli < Test::Unit::TestCase
         # delete
         dc.delete(:a)
         assert_nil dc.get(:a)
-        
+
         # fetch
         executed, expected = false, 1
 
