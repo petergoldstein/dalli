@@ -5,18 +5,21 @@ module Dalli
     ##
     # Dalli::Client is the main class which developers will use to interact with
     # the memcached server.  Usage:
-    # 
+    #
     #   Dalli::Client.new(['localhost:11211:10', 'cache-2.example.com:11211:5', '192.168.0.1:22122:5'], 
     #                   :threadsafe => true, :failover => true, :expires_in => 300)
-    # 
+    #
     # servers is an Array of "host:port:weight" where weight allows you to distribute cache unevenly.
     # Both weight and port are optional.  If you pass in nil, Dalli will default to 'localhost:11211'.
     # Note that the <tt>MEMCACHE_SERVERS</tt> environment variable will override the servers parameter for use
     # in managed environments like Heroku.
     #
-    # You can also provide UNIX Socket as an argument, for example:
+    # You can also provide a Unix socket as an argument, for example:
     #
-    #   Dalli::Client.new("unix:/tmp/memcached.sock")
+    #   Dalli::Client.new("/tmp/memcached.sock")
+    #
+    # Initial testing shows that Unix sockets are about twice as fast as TCP sockets
+    # but Unix sockets only work on localhost.
     #
     # Options:
     # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.

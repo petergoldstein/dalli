@@ -8,7 +8,6 @@ module Dalli
     attr_accessor :port
     attr_accessor :weight
     attr_accessor :options
-    attr_accessor :unix_socket
 
     DEFAULTS = {
       # seconds between trying to contact a remote server
@@ -27,15 +26,11 @@ module Dalli
     }
 
     def initialize(attribs, options = {})
-      if (@unix_socket = is_unix_socket?(attribs))
-        @hostname = attribs.match(/^(\/.+)$/)[1]
-      else
-        (@hostname, @port, @weight) = attribs.split(':')
-        @port ||= 11211
-        @port = Integer(@port)
-        @weight ||= 1
-        @weight = Integer(@weight)
-      end
+      (@hostname, @port, @weight) = attribs.split(':')
+      @port ||= 11211
+      @port = Integer(@port)
+      @weight ||= 1
+      @weight = Integer(@weight)
       @fail_count = 0
       @down_at = nil
       @last_down_at = nil
@@ -391,7 +386,7 @@ module Dalli
       Dalli.logger.debug { "Dalli::Server#connect #{hostname}:#{port}" }
 
       begin
-        if @unix_socket
+        if @hostname =~ /^\//
           @sock = USocket.new(hostname)
         elsif options[:async]
           raise Dalli::DalliError, "EM support not enabled, as em-synchrony is not installed." if not defined?(AsyncSocket)

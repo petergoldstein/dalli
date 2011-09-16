@@ -1,6 +1,12 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+
+- Support Unix sockets for connectivity.  Shows a 2x performance
+  increase but keep in mind they only work on localhost. (dfens)
+
 1.1.2
 =======
 
