@@ -33,8 +33,10 @@ module ActionDispatch
         sid ||= generate_sid
         begin
           session = @pool.get(sid) || {}
-        rescue Dalli::DalliError
-          Rails.logger.warn("Session::DalliStore#get: #{$!.message}")
+        rescue Dalli::DalliError => ex
+          # re-raise ArgumentError so Rails' session abstract_store.rb can autoload any missing models
+          raise ArgumentError, ex.message if ex.message =~ /unmarshal/
+          Rails.logger.warn("Session::DalliStore#get: #{ex.message}")
           session = {}
         end
         [sid, session]

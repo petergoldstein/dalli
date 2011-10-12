@@ -4,6 +4,8 @@ Dalli Changelog
 HEAD
 =======
 
+- Support Rails's autoloading hack for loading sessions with objects
+  whose classes have not be required yet, GH-129
 - Support Unix sockets for connectivity.  Shows a 2x performance
   increase but keep in mind they only work on localhost. (dfens)
 
