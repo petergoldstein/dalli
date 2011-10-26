@@ -1,7 +1,7 @@
 Dalli Changelog
 =====================
 
-HEAD
+1.1.3
 =======
 
 - Support Rails's autoloading hack for loading sessions with objects
