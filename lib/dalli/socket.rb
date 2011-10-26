@@ -149,13 +149,21 @@ rescue LoadError
   puts "Could not define alternate em-synchrony socket IO" if defined?($TESTING) && $TESTING
 end
 
-class Dalli::Server::USocket < UNIXSocket
-  def readfull(count)
-    value = ''
-    loop do
-      value << read(count - value.bytesize)
-      break if value.bytesize == count
-    end 
-    value
+if RUBY_PLATFORM =~ /mingw|mswin/
+  class Dalli::Server::USocket
+    def initialize(*args)
+      raise Dalli::DalliError, "Unix sockets are not supported on Windows platform."
+    end
+  end
+else
+  class Dalli::Server::USocket < UNIXSocket
+    def readfull(count)
+      value = ''
+      loop do
+        value << read(count - value.bytesize)
+        break if value.bytesize == count
+      end 
+      value
+    end
   end
 end
