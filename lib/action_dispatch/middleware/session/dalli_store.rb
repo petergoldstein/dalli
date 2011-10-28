@@ -15,7 +15,7 @@ module ActionDispatch
         @default_options = { :namespace => 'rack:session' }.merge(@default_options)
 
         @pool = options[:cache] || begin
-          Dalli::Client.new( 
+          Dalli::Client.new(
               @default_options[:memcache_server], @default_options)
         end
         @namespace = @default_options[:namespace]

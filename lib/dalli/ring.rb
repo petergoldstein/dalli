@@ -4,9 +4,9 @@ require 'zlib'
 module Dalli
   class Ring
     POINTS_PER_SERVER = 160 # this is the default in libmemcached
-    
+
     attr_accessor :servers, :continuum
-    
+
     def initialize(servers, options)
       @servers = servers
       @continuum = nil
@@ -26,7 +26,7 @@ module Dalli
       threadsafe! unless options[:threadsafe] == false
       @failover = options[:failover] != false
     end
-    
+
     def server_for_key(key)
       if @continuum
         hkey = hash_for(key)
@@ -44,7 +44,7 @@ module Dalli
 
       raise Dalli::RingError, "No server available"
     end
-    
+
     def lock
       @servers.each { |s| s.lock! }
       begin
@@ -53,7 +53,7 @@ module Dalli
         @servers.each { |s| s.unlock! }
       end
     end
-    
+
     private
 
     def threadsafe!

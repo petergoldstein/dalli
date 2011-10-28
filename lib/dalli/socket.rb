@@ -28,7 +28,7 @@ begin
       loop do
         value << kgio_read!(count - value.bytesize)
         break if value.bytesize == count
-      end 
+      end
       value
     end
 
@@ -162,7 +162,7 @@ else
       loop do
         value << read(count - value.bytesize)
         break if value.bytesize == count
-      end 
+      end
       value
     end
   end
