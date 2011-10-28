@@ -18,7 +18,7 @@ module MemcachedMock
   def self.tmp_socket_path
     "#{Dir.pwd}/tmp.sock"
   end
- 
+
   module Helper
     # Forks the current process and starts a new mock Memcached server on
     # port 22122.
@@ -74,7 +74,7 @@ module MemcachedMock
       return unless supports_fork?
       Memcached.path ||= find_memcached
 
-      cmd = if options[:unix] 
+      cmd = if options[:unix]
         "#{Memcached.path}memcached #{args} -s #{MemcachedMock.tmp_socket_path}"
       else
         "#{Memcached.path}memcached #{args} -p #{port}"

@@ -20,10 +20,10 @@ class TestBenchmark < Test::Unit::TestCase
     @key6 = "Long3"*40
     @counter = 'counter'
   end
-  
+
   def test_benchmark
     memcached do
-    
+
       Benchmark.bm(31) do |x|
 
         n = 2500
