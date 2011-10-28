@@ -149,7 +149,8 @@ rescue LoadError
   puts "Could not define alternate em-synchrony socket IO" if defined?($TESTING) && $TESTING
 end
 
-if RUBY_PLATFORM =~ /mingw|mswin/
+require 'rbconfig'
+if RbConfig::CONFIG['host_os'] =~ /mingw|mswin/
   class Dalli::Server::USocket
     def initialize(*args)
       raise Dalli::DalliError, "Unix sockets are not supported on Windows platform."
