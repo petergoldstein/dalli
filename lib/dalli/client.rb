@@ -6,7 +6,7 @@ module Dalli
     # Dalli::Client is the main class which developers will use to interact with
     # the memcached server.  Usage:
     #
-    #   Dalli::Client.new(['localhost:11211:10', 'cache-2.example.com:11211:5', '192.168.0.1:22122:5'], 
+    #   Dalli::Client.new(['localhost:11211:10', 'cache-2.example.com:11211:5', '192.168.0.1:22122:5'],
     #                   :threadsafe => true, :failover => true, :expires_in => 300)
     #
     # servers is an Array of "host:port:weight" where weight allows you to distribute cache unevenly.
@@ -184,7 +184,7 @@ module Dalli
     ##
     # Incr adds the given amount to the counter on the memcached server.
     # Amt must be a positive value.
-    # 
+    #
     # memcached counters are unsigned and cannot hold negative values.  Calling
     # decr on a counter which is 0 will just return 0.
     #
@@ -200,7 +200,7 @@ module Dalli
     ##
     # Decr subtracts the given amount from the counter on the memcached server.
     # Amt must be a positive value.
-    # 
+    #
     # memcached counters are unsigned and cannot hold negative values.  Calling
     # decr on a counter which is 0 will just return 0.
     #
@@ -263,7 +263,7 @@ module Dalli
         retry
       end
     end
-    
+
     def validate_key(key)
       raise ArgumentError, "illegal character in key #{key}" if key.respond_to?(:ascii_only?) && !key.ascii_only?
       raise ArgumentError, "illegal character in key #{key}" if key =~ /\s/
@@ -271,7 +271,7 @@ module Dalli
       raise ArgumentError, "key cannot be blank" if key.nil? || key.strip.size == 0
       raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
     end
-    
+
     def key_with_namespace(key)
       @options[:namespace] ? "#{@options[:namespace]}:#{key}" : key
     end
