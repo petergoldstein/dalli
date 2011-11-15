@@ -29,6 +29,14 @@ class TestDalli < Test::Unit::TestCase
   context 'using unix sockets' do
     should 'pass smoke test' do
       memcached(nil,'',{:unix => true}) do |dc|
+        # Hash syntax
+        dc[:a] = 42
+        dc.set(:b, 43)
+        assert_equal dc[:a], 42
+        assert_equal dc[:b], 43
+        assert_equal dc.get(:a), 42
+        assert_equal dc.get(:b), 43
+
         # get/set
         dc.flush
         assert_nil dc.get(:a)

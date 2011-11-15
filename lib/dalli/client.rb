@@ -69,6 +69,8 @@ module Dalli
       (!resp || resp == 'Not found') ? nil : resp
     end
 
+    alias [] get
+
     ##
     # Fetch multiple keys efficiently.
     # Returns a hash of { 'key' => 'value', 'key2' => 'value1' }
@@ -145,6 +147,10 @@ module Dalli
     def add(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in]
       perform(:add, key, value, ttl, options)
+    end
+
+    def []=(key, value)
+      set(key, value)
     end
 
     ##
