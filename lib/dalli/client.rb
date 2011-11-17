@@ -30,6 +30,14 @@ module Dalli
     # - :async - assume its running inside the EM reactor. Requires em-synchrony to be installed. Default: false.
     #
     def initialize(servers=nil, options={})
+      # Close all connections on fork if using Passenger "smart spawning"
+      # (see http://www.modrails.com/documentation/Users%20guide%20Apache.html#_example_1_memcached_connection_sharing_harmful)
+      if defined?(PhusionPassenger)
+        PhusionPassenger.on_event(:starting_worker_process) do |forked|
+          close if forked
+        end
+      end
+
       @servers = env_servers || servers || 'localhost:11211'
       @options = { :expires_in => 0 }.merge(options)
       self.extend(Dalli::Client::MemcacheClientCompatibility) if Dalli::Client.compatibility_mode

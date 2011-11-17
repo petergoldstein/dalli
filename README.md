@@ -97,19 +97,7 @@ Dalli v1.1+ does not support Rails 2.3.  Please use an earlier version: gem inst
 Usage with Passenger
 ------------------------
 
-Put this at the bottom of `config/environment.rb`:
-
-    if defined?(PhusionPassenger)
-      PhusionPassenger.on_event(:starting_worker_process) do |forked|
-        # Reset Rails's object cache
-        # Only works with DalliStore
-        Rails.cache.reset if forked
-
-        # Reset Rails's session store
-        # If you know a cleaner way to find the session store instance, please let me know
-        ObjectSpace.each_object(ActionDispatch::Session::DalliStore) { |obj| obj.reset }
-      end
-    end
+Dalli v1.4+ automatically resets itself when passenger forks.  Adding code to environment.rb to reset MemCache connections is no longer required.
 
 
 Configuration

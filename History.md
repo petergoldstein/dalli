@@ -8,6 +8,7 @@ Dalli Changelog
   whose classes have not be required yet, GH-129
 - Support Unix sockets for connectivity.  Shows a 2x performance
   increase but keep in mind they only work on localhost. (dfens)
+- Automatically handle forking under Passenger (PaulSD)
 
 1.1.2
 =======
