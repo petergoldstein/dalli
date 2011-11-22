@@ -1,6 +1,16 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+
+- Added support for native Rack session store.  Until now, Dalli's
+  session store has required Rails.  Now you can use Dalli to store
+  sessions for any Rack application.
+
+    require 'rack/session/dalli'
+    use Rack::Session::Dalli, :memcache_server => 'localhost:11211', :compression => true
+
 1.1.3
 =======
 
