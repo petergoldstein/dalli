@@ -6,6 +6,7 @@ rescue LoadError => e
   raise e
 end
 require 'digest/md5'
+require 'active_support/cache'
 
 module ActiveSupport
   module Cache
@@ -18,13 +19,6 @@ module ActiveSupport
 
       ESCAPE_KEY_CHARS = /[\x00-\x20%\x7F-\xFF]/
       RAW = { :raw => true }
-
-      def self.build_mem_cache(*addresses)
-        addresses = addresses.flatten
-        options = addresses.extract_options!
-        addresses = ["localhost:11211"] if addresses.empty?
-        Dalli::Client.new(addresses, options)
-      end
 
       # Creates a new DalliStore object, with the given memcached server
       # addresses. Each address is either a host name, or a host-with-port string
@@ -40,9 +34,8 @@ module ActiveSupport
         options = addresses.extract_options!
         super(options)
 
-        mem_cache_options = options.dup
-        UNIVERSAL_OPTIONS.each{|name| mem_cache_options.delete(name)}
-        @data = self.class.build_mem_cache(*(addresses + [mem_cache_options]))
+        addresses << 'localhost:11211' if addresses.empty?
+        @data = Dalli::Client.new(addresses, options)
 
         extend Strategy::LocalCache
         extend LocalCacheWithRaw

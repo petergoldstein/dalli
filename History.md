@@ -4,6 +4,7 @@ Dalli Changelog
 HEAD
 =======
 
+- Fix :expires_in option not propogating from DalliStore to Client, GH-136
 - Added support for native Rack session store.  Until now, Dalli's
   session store has required Rails.  Now you can use Dalli to store
   sessions for any Rack application.
