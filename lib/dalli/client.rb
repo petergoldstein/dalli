@@ -25,13 +25,13 @@ module Dalli
     # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
-    # - :compression - defaults to false, if true Dalli will compress values larger than 100 bytes before
+    # - :compress - defaults to false, if true Dalli will compress values larger than 100 bytes before
     #   sending them to memcached.
     # - :async - assume its running inside the EM reactor. Requires em-synchrony to be installed. Default: false.
     #
     def initialize(servers=nil, options={})
       @servers = env_servers || servers || 'localhost:11211'
-      @options = { :expires_in => 0 }.merge(options)
+      @options = normalize_options(options)
       self.extend(Dalli::Client::MemcacheClientCompatibility) if Dalli::Client.compatibility_mode
       @ring = nil
     end
@@ -283,6 +283,16 @@ module Dalli
 
     def key_without_namespace(key)
       @options[:namespace] ? key.gsub(%r(\A#{@options[:namespace]}:), '') : key
+    end
+
+    def normalize_options(options)
+      options = { :expires_in => 0 }.merge(options)
+      if options[:compression]
+        puts "Deprecation warning: Dalli::Client's :compression option is now :compress.  Please update your code at:"
+        puts caller[1]
+        options[:compress] = options[:compression]
+      end
+      options
     end
   end
 end
