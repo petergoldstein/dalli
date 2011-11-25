@@ -153,7 +153,7 @@ class TestSynchrony < Test::Unit::TestCase
       should 'allow large values' do
         em do
           memcached(19122,'',:async => true) do |dc|
-            dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), :compress => true, :async => true)
+            dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), :compression => true, :async => true)
 
             value = "0"*1024*1024
             assert_raise Dalli::DalliError, /too large/ do

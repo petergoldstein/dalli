@@ -5,7 +5,6 @@ HEAD
 =======
 
 - Extend DalliStore's :expires\_in when :race\_condition\_ttl is also used.
-- Updated :compression option to match Rails's :compress option
 - Fix :expires\_in option not propogating from DalliStore to Client, GH-136
 - Added support for native Rack session store.  Until now, Dalli's
   session store has required Rails.  Now you can use Dalli to store

@@ -275,7 +275,7 @@ module Dalli
         value.to_s
       end
       compressed = false
-      if @options[:compress] && value.bytesize >= COMPRESSION_MIN_SIZE
+      if @options[:compression] && value.bytesize >= COMPRESSION_MIN_SIZE
         value = Zlib::Deflate.deflate(value)
         compressed = true
       end
