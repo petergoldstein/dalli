@@ -180,6 +180,15 @@ class TestActiveSupport < Test::Unit::TestCase
     end
   end
 
+  should 'normalize options as expected' do
+    with_activesupport do
+      memcached do
+        @dalli = ActiveSupport::Cache::DalliStore.new('localhost:19122', :expires_in => 1, :race_condition_ttl => 1)
+        assert_equal 2, @dalli.instance_variable_get(:@data).instance_variable_get(:@options)[:expires_in]
+      end
+    end
+  end
+
   def connect
     @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122', :expires_in => 10.seconds, :namespace => 'x')
     @mc = ActiveSupport::Cache.lookup_store(:mem_cache_store, 'localhost:19122', :expires_in => 10.seconds, :namespace => 'a')

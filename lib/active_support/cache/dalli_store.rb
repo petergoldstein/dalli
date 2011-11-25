@@ -11,7 +11,7 @@ require 'active_support/cache'
 module ActiveSupport
   module Cache
     # A cache store implementation which stores data in Memcached:
-    # http://www.danga.com/memcached/
+    # http://www.memcached.org
     #
     # DalliStore implements the Strategy::LocalCache strategy which implements
     # an in memory cache inside of a block.
@@ -35,6 +35,10 @@ module ActiveSupport
         super(options)
 
         addresses << 'localhost:11211' if addresses.empty?
+        options = options.dup
+        # Extend expiry by stale TTL or else memcached will never return stale data.
+        # See ActiveSupport::Cache#fetch.
+        options[:expires_in] += options[:race_condition_ttl] if options[:expires_in] && options[:race_condition_ttl]
         @data = Dalli::Client.new(addresses, options)
 
         extend Strategy::LocalCache
