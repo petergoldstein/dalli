@@ -39,5 +39,13 @@ describe 'Encoding' do
       end
     end
 
+    should 'allow non-ASCII keys when desired' do
+      memcached(19122,'',:nonascii => true) do |dc|
+        key = 'fooƒ'
+        assert dc.set(key, 'bar')
+        assert_equal 'bar', dc.get(key)
+      end
+    end
+
   end
 end
