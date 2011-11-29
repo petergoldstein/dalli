@@ -57,7 +57,7 @@ Notes:
     require 'rack/session/dalli'
     use Rack::Session::Dalli, :memcache_server => 'localhost:11211', :compression => true
 
-- Add support for non-ascii keys when desired
+- Add support for non-ascii keys
 
 1.1.3
 =======
