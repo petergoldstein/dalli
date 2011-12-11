@@ -30,7 +30,7 @@ module Dalli
     # - :async - assume its running inside the EM reactor. Requires em-synchrony to be installed. Default: false.
     #
     def initialize(servers=nil, options={})
-      @servers = env_servers || servers || 'localhost:11211'
+      @servers = env_servers || servers || '127.0.0.1:11211'
       @options = { :expires_in => 0 }.merge(options)
       self.extend(Dalli::Client::MemcacheClientCompatibility) if Dalli::Client.compatibility_mode
       @ring = nil

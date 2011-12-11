@@ -4,6 +4,7 @@ Dalli Changelog
 HEAD
 =======
 
+- Use 127.0.0.1 instead of localhost as default to avoid IPv6 issues
 - Extend DalliStore's :expires\_in when :race\_condition\_ttl is also used.
 - Fix :expires\_in option not propogating from DalliStore to Client, GH-136
 - Added support for native Rack session store.  Until now, Dalli's
