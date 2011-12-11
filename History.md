@@ -1,7 +1,7 @@
 Dalli Changelog
 =====================
 
-HEAD
+1.1.4
 =======
 
 - Use 127.0.0.1 instead of localhost as default to avoid IPv6 issues
