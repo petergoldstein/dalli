@@ -22,7 +22,7 @@ class TestDalli < Test::Unit::TestCase
     assert_equal 1, ring.servers.size
     dc.close
 
-    assert_equal s1, s2
+    assert_equal '127.0.0.1', s1
     assert_equal s2, s3
   end
 
