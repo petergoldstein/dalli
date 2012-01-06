@@ -38,7 +38,7 @@ class Dalli::Client
     def get(key, options = nil)
       value = super(key, options)
       if value && value.is_a?(String) && !options && value.size > 2 &&
-              bytes = value.unpack('cc') && bytes[0] == 4 && bytes[1] == 8
+              (bytes = value.unpack('cc')) && bytes[0] == 4 && bytes[1] == 8
         return Marshal.load(value) rescue value
       end
       value
