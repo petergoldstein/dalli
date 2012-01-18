@@ -28,7 +28,7 @@ module ActiveSupport
       #
       # If no addresses are specified, then DalliStore will connect to
       # localhost port 11211 (the default memcached port).
-      #
+      # 
       def initialize(*addresses)
         addresses = addresses.flatten
         options = addresses.extract_options!
