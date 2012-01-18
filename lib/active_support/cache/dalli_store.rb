@@ -28,12 +28,15 @@ module ActiveSupport
       #
       # If no addresses are specified, then DalliStore will connect to
       # localhost port 11211 (the default memcached port).
-      #
+      # 
       def initialize(*addresses)
         addresses = addresses.flatten
         options = addresses.extract_options!
         super(options)
-
+        #Remove namespace from the options before we initialize our dalli client, but
+        # after we initialize rails.
+        options.delete(:namespace)
+        
         addresses << 'localhost:11211' if addresses.empty?
         options = options.dup
         # Extend expiry by stale TTL or else memcached will never return stale data.
