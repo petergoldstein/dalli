@@ -36,6 +36,7 @@ module ActiveSupport
 
         addresses << 'localhost:11211' if addresses.empty?
         options = options.dup
+        options.delete(:namespace)
         # Extend expiry by stale TTL or else memcached will never return stale data.
         # See ActiveSupport::Cache#fetch.
         options[:expires_in] += options[:race_condition_ttl] if options[:expires_in] && options[:race_condition_ttl]

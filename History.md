@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+
+- Fix double namespacing with Rails and dalli\_store.
+
 1.1.4
 =======
 
