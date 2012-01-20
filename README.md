@@ -34,12 +34,14 @@ So a few notes.  Dalli:
 Supported Ruby versions and implementations
 ------------------------------------------------
 
-Dalli is geared towards 1.9.2+ but known to work on
+Dalli should work identically on:
 
- * Ruby 1.9.2
- * Ruby 1.9.3
- * Ruby 1.8.7
- * Rubinius 2.0 Preview
+ * JRuby 1.6+
+ * Ruby 1.9.2+
+ * Ruby 1.8.7+
+ * Rubinius 2.0
+
+If you have problems, please enter an issue.
 
 
 Installation and Usage
