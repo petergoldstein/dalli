@@ -4,7 +4,8 @@ Dalli Changelog
 HEAD
 =======
 
-- Fix double namespacing with Rails and dalli\_store.
+- Fix encoding issue with keys [#162]
+- Fix double namespacing with Rails and dalli\_store. [#160]
 
 1.1.4
 =======
