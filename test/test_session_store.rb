@@ -216,7 +216,6 @@ class TestSessionStore < ActionController::IntegrationTest
 
       @app = self.class.build_app(set) do |middleware|
         middleware.use ActionDispatch::Session::DalliStore, options
-        middleware.delete "ActionDispatch::ShowExceptions"
       end
 
       yield
