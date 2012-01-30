@@ -1,6 +1,6 @@
 require 'helper'
 
-class TestFailover < Test::Unit::TestCase
+describe 'FailOver' do
   context 'assuming some bad servers' do
 
     should 'silently reconnect if server hiccups' do
@@ -37,7 +37,7 @@ class TestFailover < Test::Unit::TestCase
 
           memcached_kill(29126)
 
-          assert_raise Dalli::RingError, :message => "No server available" do
+          assert_raises Dalli::RingError, :message => "No server available" do
             dc.set 'foo', 'bar'
           end
         end

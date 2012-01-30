@@ -4,7 +4,7 @@ if defined?(RUBY_ENGINE) && RUBY_ENGINE != 'jruby'
 begin
 require 'em-spec/test'
 
-class TestSynchrony < Test::Unit::TestCase
+describe 'Synchrony' do
   include EM::TestHelper
 
   context 'using a live server' do
@@ -156,7 +156,7 @@ class TestSynchrony < Test::Unit::TestCase
             dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), :compression => true, :async => true)
 
             value = "0"*1024*1024
-            assert_raise Dalli::DalliError, /too large/ do
+            assert_raises Dalli::DalliError, /too large/ do
               dc.set('verylarge', value)
             end
             dalli.set('verylarge', value)
