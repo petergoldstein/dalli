@@ -1,8 +1,8 @@
 require 'helper'
 
-class TestCompatibility < Test::Unit::TestCase
+describe 'Compatibility' do
 
-  def setup
+  before do
     require 'dalli/memcache-client'
   end
 
@@ -26,7 +26,7 @@ class TestCompatibility < Test::Unit::TestCase
 
   end
 
-  def teardown
+  after do
     Dalli::Client.compatibility_mode = false
   end
 

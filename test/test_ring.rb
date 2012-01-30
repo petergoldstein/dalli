@@ -1,6 +1,6 @@
 require 'helper'
 
-class TestRing < Test::Unit::TestCase
+describe 'Ring' do
 
   context 'a ring of servers' do
 
@@ -17,7 +17,7 @@ class TestRing < Test::Unit::TestCase
 
     should 'raise when no servers are available/defined' do
       ring = Dalli::Ring.new([], {})
-      assert_raise Dalli::RingError, :message => "No server available" do
+      assert_raises Dalli::RingError, :message => "No server available" do
         ring.server_for_key('test')
       end
     end
@@ -28,7 +28,7 @@ class TestRing < Test::Unit::TestCase
           Dalli::Server.new("localhost:12345"),
         ]
         ring = Dalli::Ring.new(servers, {})
-        assert_raise Dalli::RingError, :message => "No server available" do
+        assert_raises Dalli::RingError, :message => "No server available" do
           ring.server_for_key('test')
         end
       end
@@ -52,7 +52,7 @@ class TestRing < Test::Unit::TestCase
           Dalli::Server.new("localhost:12346"),
         ]
         ring = Dalli::Ring.new(servers, {})
-        assert_raise Dalli::RingError, :message => "No server available" do
+        assert_raises Dalli::RingError, :message => "No server available" do
           ring.server_for_key('test')
         end
       end
@@ -71,12 +71,12 @@ class TestRing < Test::Unit::TestCase
     end
 
     should 'detect when a dead server is up again' do
-      memcached(29125) do
+      memcached(19997) do
         down_retry_delay = 0.5
-        dc = Dalli::Client.new(['localhost:29125', 'localhost:29126'], :down_retry_delay => down_retry_delay)
+        dc = Dalli::Client.new(['localhost:19997', 'localhost:19998'], :down_retry_delay => down_retry_delay)
         assert_equal 1, dc.stats.values.compact.count
 
-        memcached(29126) do
+        memcached(19998) do
           assert_equal 2, dc.stats.values.compact.count
         end
       end

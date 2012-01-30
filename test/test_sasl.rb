@@ -1,16 +1,16 @@
 require 'helper'
 
-class TestSasl < Test::Unit::TestCase
+describe 'Sasl' do
 
   context 'a server requiring authentication' do
 
     context 'without authentication credentials' do
-      setup do
+      before do
         ENV['MEMCACHE_USERNAME'] = 'foo'
         ENV['MEMCACHE_PASSWORD'] = 'wrongpwd'
       end
 
-      teardown do
+      after do
         ENV['MEMCACHE_USERNAME'] = nil
         ENV['MEMCACHE_PASSWORD'] = nil
       end
@@ -43,12 +43,12 @@ class TestSasl < Test::Unit::TestCase
     #
     # with password 'testtest'
     context 'in an authenticated environment' do
-      setup do
+      before do
         ENV['MEMCACHE_USERNAME'] = 'testuser'
         ENV['MEMCACHE_PASSWORD'] = 'testtest'
       end
 
-      teardown do
+      after do
         ENV['MEMCACHE_USERNAME'] = nil
         ENV['MEMCACHE_PASSWORD'] = nil
       end

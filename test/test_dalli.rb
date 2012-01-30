@@ -1,7 +1,7 @@
 require 'helper'
 require 'memcached_mock'
 
-class TestDalli < Test::Unit::TestCase
+describe 'Dalli' do
 
   should "default to localhost:11211" do
     dc = Dalli::Client.new
@@ -251,7 +251,7 @@ class TestDalli < Test::Unit::TestCase
 
         # rollover the 64-bit value, we'll get something undefined.
         resp = dc.incr('big', 1)
-        assert_not_equal 0x10000000000000000, resp
+        0x10000000000000000.wont_equal resp
         dc.reset
       end
     end
@@ -273,7 +273,7 @@ class TestDalli < Test::Unit::TestCase
     should "pass a simple smoke test" do
       memcached do |dc|
         resp = dc.flush
-        assert_not_nil resp
+        resp.wont_be_nil
         assert_equal [true, true], resp
 
         assert_equal true, dc.set(:foo, 'bar')
@@ -343,7 +343,7 @@ class TestDalli < Test::Unit::TestCase
               cache.set('b', 11)
               inc = cache.incr('cat', 10, 0, 10)
               cache.set('f', 'zzz')
-              assert_not_nil(cache.cas('f') do |value|
+              wont_be_nil(cache.cas('f') do |value|
                 value << 'z'
               end)
               assert_equal false, cache.add('a', 11)
@@ -399,7 +399,7 @@ class TestDalli < Test::Unit::TestCase
           dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), :compression => true)
 
           value = "0"*1024*1024
-          assert_raise Dalli::DalliError, /too large/ do
+          assert_raises Dalli::DalliError, /too large/ do
             dc.set('verylarge', value)
           end
           dalli.set('verylarge', value)
