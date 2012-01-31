@@ -23,7 +23,7 @@ Gem::Specification.new do |s|
   s.require_paths = ["lib"]
   s.summary = %q{High performance memcached client for Ruby}
   s.test_files = Dir.glob("test/**/*")
-  s.add_development_dependency(%q<shoulda>, [">= 0"])
+  s.add_development_dependency(%q<mini_shoulda>, [">= 0"])
   s.add_development_dependency(%q<mocha>, [">= 0"])
   s.add_development_dependency(%q<rails>, [">= 3.0"])
   s.add_development_dependency(%q<memcache-client>, [">= 1.8.5"])

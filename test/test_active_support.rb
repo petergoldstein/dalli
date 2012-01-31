@@ -1,7 +1,7 @@
 # encoding: utf-8
 require 'helper'
 
-class TestActiveSupport < Test::Unit::TestCase
+describe 'ActiveSupport' do
   context 'active_support caching' do
 
     should 'support fetch' do
