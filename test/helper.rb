@@ -9,6 +9,7 @@ puts "Testing with Rails #{Rails.version}"
 
 require 'minitest/spec'
 require 'mini_shoulda'
+require 'minitest/pride'
 require 'minitest/autorun'
 require 'memcached_mock'
 require 'mocha'
