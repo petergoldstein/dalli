@@ -4,6 +4,7 @@ Dalli Changelog
 HEAD
 =======
 
+- Coerce input to incr/decr to integer via #to\_i [#165]
 - Convert test suite to minitest/spec (crigor, #166)
 - Fix encoding issue with keys [#162]
 - Fix double namespacing with Rails and dalli\_store. [#160]

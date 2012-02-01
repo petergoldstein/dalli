@@ -183,7 +183,7 @@ module Dalli
 
     ##
     # Incr adds the given amount to the counter on the memcached server.
-    # Amt must be a positive value.
+    # Amt must be a positive integer value.
     #
     # If default is nil, the counter must already exist or the operation
     # will fail and will return nil.  Otherwise this method will return
@@ -195,12 +195,12 @@ module Dalli
     def incr(key, amt=1, ttl=nil, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
       ttl ||= @options[:expires_in]
-      perform(:incr, key, amt, ttl, default)
+      perform(:incr, key, amt.to_i, ttl, default)
     end
 
     ##
     # Decr subtracts the given amount from the counter on the memcached server.
-    # Amt must be a positive value.
+    # Amt must be a positive integer value.
     #
     # memcached counters are unsigned and cannot hold negative values.  Calling
     # decr on a counter which is 0 will just return 0.
@@ -215,7 +215,7 @@ module Dalli
     def decr(key, amt=1, ttl=nil, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
       ttl ||= @options[:expires_in]
-      perform(:decr, key, amt, ttl, default)
+      perform(:decr, key, amt.to_i, ttl, default)
     end
 
     ##
