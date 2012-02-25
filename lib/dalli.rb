@@ -5,12 +5,6 @@ require 'dalli/socket'
 require 'dalli/version'
 require 'dalli/options'
 
-unless ''.respond_to?(:bytesize)
-  class String
-    alias_method :bytesize, :size
-  end
-end
-
 module Dalli
   # generic error
   class DalliError < RuntimeError; end

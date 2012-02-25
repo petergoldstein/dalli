@@ -1,6 +1,27 @@
 Dalli Changelog
 =====================
 
+2.0.0
+=======
+
+- Reimplemented the Rails DalliStore to remove use of
+  ActiveSupport::Cache::Entry which added 109 bytes overhead to every
+  value stored, was a performance bottleneck and duplicated a lot of
+  functionality already in Dalli.  One benchmark went from 4.0 sec to 3.0
+  sec with the new DalliStore.
+
+Notes:
+
+  * data stored with Dalli 1.x is NOT backwards compatible with 2.x.
+    Upgraders are advised to namespace their keys and roll out the 2.x
+    upgrade slowly so keys do not clash and caches are warmed.
+    `config.cache_store = :dalli_store, :expires_in => 24.hours.to_i, :namespace => 'myapp2'`
+  * removed support for DalliStore's race_condition_ttl option.
+  * removed support for em-synchrony and unix socket connection options.
+  * removed support for Ruby 1.8.6
+  * removed memcache-client compability layer and upgrade documentation.
+
+
 HEAD
 =======
 

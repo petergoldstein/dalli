@@ -1,1 +1,0 @@
-Dalli::Client.compatibility_mode = true

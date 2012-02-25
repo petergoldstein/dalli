@@ -74,11 +74,7 @@ module MemcachedMock
       return unless supports_fork?
       Memcached.path ||= find_memcached
 
-      cmd = if options[:unix]
-        "#{Memcached.path}memcached #{args} -s #{MemcachedMock.tmp_socket_path}"
-      else
-        "#{Memcached.path}memcached #{args} -p #{port}"
-      end
+      cmd = "#{Memcached.path}memcached #{args} -p #{port}"
 
       $started[port] ||= begin
         #puts "Starting: #{cmd}..."
@@ -94,11 +90,7 @@ module MemcachedMock
         sleep 0.1
         pid
       end
-      if options[:unix]
-        yield Dalli::Client.new(MemcachedMock.tmp_socket_path)
-      else
-        yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
-      end
+      yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
     end
 
     def supports_fork?

@@ -25,10 +25,8 @@ So a few notes.  Dalli:
  0. uses the exact same algorithm to choose a server so existing memcached clusters with TBs of data will work identically to memcache-client.
  1. is approximately 20% faster than memcache-client (which itself was heavily optimized) in Ruby 1.9.2.
  2. contains explicit "chokepoint" methods which handle all requests; these can be hooked into by monitoring tools (NewRelic, Rack::Bug, etc) to track memcached usage.
- 3. comes with hooks to replace memcache-client in Rails.
- 4. supports SASL for use in managed environments, e.g. Heroku.
- 5. provides proper failover with recovery and adjustable timeouts
- 6. has a backwards-compatibility mode for people migrating from memcache-client (see Upgrade.md).
+ 3. supports SASL for use in managed environments, e.g. Heroku.
+ 4. provides proper failover with recovery and adjustable timeouts
 
 
 Supported Ruby versions and implementations
@@ -88,12 +86,6 @@ To use Dalli for Rails session storage, in `config/initializers/session_store.rb
 
     require 'action_dispatch/middleware/session/dalli_store'
     Rails.application.config.session_store :dalli_store, :memcache_server => ['host1', 'host2'], :namespace => 'sessions', :key => '_foundation_session', :expire_after => 30.minutes
-
-
-Usage with Rails 2.3.x
-----------------------------
-
-Dalli v1.1+ does not support Rails 2.3.  Please use an earlier version: gem install dalli -v "~> 1.0.4"
 
 
 Usage with Passenger

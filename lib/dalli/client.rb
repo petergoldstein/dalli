@@ -14,38 +14,17 @@ module Dalli
     # Note that the <tt>MEMCACHE_SERVERS</tt> environment variable will override the servers parameter for use
     # in managed environments like Heroku.
     #
-    # You can also provide a Unix socket as an argument, for example:
-    #
-    #   Dalli::Client.new("/tmp/memcached.sock")
-    #
-    # Initial testing shows that Unix sockets are about twice as fast as TCP sockets
-    # but Unix sockets only work on localhost.
-    #
     # Options:
     # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
     # - :compression - defaults to false, if true Dalli will compress values larger than 100 bytes before
     #   sending them to memcached.
-    # - :async - assume its running inside the EM reactor. Requires em-synchrony to be installed. Default: false.
     #
     def initialize(servers=nil, options={})
       @servers = env_servers || servers || '127.0.0.1:11211'
       @options = { :expires_in => 0 }.merge(options)
-      self.extend(Dalli::Client::MemcacheClientCompatibility) if Dalli::Client.compatibility_mode
       @ring = nil
-    end
-
-    ##
-    # Turn on compatibility mode, which mixes in methods in memcache_client_compatibility.rb
-    # This value is set to true in memcache-client.rb.
-    def self.compatibility_mode
-      @compatibility_mode ||= false
-    end
-
-    def self.compatibility_mode=(compatibility_mode)
-      require 'dalli/compatibility'
-      @compatibility_mode = compatibility_mode
     end
 
     #

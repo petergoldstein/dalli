@@ -26,60 +26,6 @@ describe 'Dalli' do
     assert_equal s2, s3
   end
 
-  context 'using unix sockets' do
-    should 'pass smoke test' do
-      memcached(nil,'',{:unix => true}) do |dc|
-        # get/set
-        dc.flush
-        assert_nil dc.get(:a)
-        assert dc.set(:a,1)
-        assert_equal 1, dc.get(:a)
-
-        # replace
-        dc.set(:a,1)
-        dc.replace(:a,2)
-        assert_equal 2, dc.get(:a)
-
-        # delete
-        dc.delete(:a)
-        assert_nil dc.get(:a)
-
-        # fetch
-        executed, expected = false, 1
-
-        value = dc.fetch(:fetched) do
-          executed = true
-          expected
-        end
-
-        assert executed
-        assert_equal expected, value
-
-        executed = false
-        value = dc.fetch(:fetched) do
-          executed = true
-          expected
-        end
-
-        assert !executed
-        assert_equal expected, value
-
-        # cas
-        dc.set(:a,1)
-        3.times { dc.cas(:a){|a| a+=1} }
-        assert_equal 4, dc.get(:a)
-
-        # get_multi
-        resp = dc.get_multi(%w(b c d))
-        assert_equal({}, resp)
-        dc.set("b",1)
-        dc.set("c",11)
-        resp = dc.get_multi(%w(b c d))
-        assert_equal({"b" => 1, "c" => 11}, resp)
-      end
-    end
-  end
-
   context 'using a live server' do
 
     should "support get/set" do

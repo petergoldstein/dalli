@@ -1,24 +1,12 @@
 # encoding: ascii
-begin
-  require 'dalli'
-rescue LoadError => e
-  $stderr.puts "You don't have dalli installed in your application. Please add it to your Gemfile and run bundle install"
-  raise e
-end
+require 'dalli'
 require 'digest/md5'
-require 'active_support/cache'
 
 module ActiveSupport
   module Cache
-    # A cache store implementation which stores data in Memcached:
-    # http://www.memcached.org
-    #
-    # DalliStore implements the Strategy::LocalCache strategy which implements
-    # an in memory cache inside of a block.
-    class DalliStore < Store
+    class DalliStore
 
       ESCAPE_KEY_CHARS = /[\x00-\x20%\x7F-\xFF]/
-      RAW = { :raw => true }
 
       # Creates a new DalliStore object, with the given memcached server
       # addresses. Each address is either a host name, or a host-with-port string
@@ -32,33 +20,68 @@ module ActiveSupport
       def initialize(*addresses)
         addresses = addresses.flatten
         options = addresses.extract_options!
-        super(options)
-
+        options[:compression] = options.delete(:compress) || options[:compression]
         addresses << 'localhost:11211' if addresses.empty?
-        options = options.dup
-        options.delete(:namespace)
-        # Extend expiry by stale TTL or else memcached will never return stale data.
-        # See ActiveSupport::Cache#fetch.
-        options[:expires_in] += options[:race_condition_ttl] if options[:expires_in] && options[:race_condition_ttl]
         @data = Dalli::Client.new(addresses, options)
+      end
 
-        extend Strategy::LocalCache
-        extend LocalCacheWithRaw
+      def fetch(name, options={})
+        if block_given?
+          unless options[:force]
+            entry = instrument(:read, name, options) do |payload|
+              payload[:super_operation] = :fetch if payload
+              read_entry(name, options)
+            end
+          end
+
+          if entry
+            instrument(:fetch_hit, name, options) { |payload| }
+            entry
+          else
+            result = instrument(:generate, name, options) do |payload|
+              yield
+            end
+            write(name, result, options)
+            result
+          end
+        else
+          read(name, options)
+        end
+      end
+
+      def read(name, options={})
+        instrument(:read, name, options) do |payload|
+          entry = read_entry(name, options)
+          payload[:hit] = !!entry if payload
+          entry
+        end
+      end
+
+      def write(name, value, options={})
+        instrument(:write, name, options) do |payload|
+          write_entry(name, value, options)
+        end
+      end
+
+      def exist?(name, options={})
+        !!read_entry(name, options)
+      end
+
+      def delete(name, options={})
+        @data.delete(name)
       end
 
       # Reads multiple keys from the cache using a single call to the
-      # servers for all keys. Options can be passed in the last argument.
+      # servers for all keys. Keys must be Strings.
       def read_multi(*names)
-        options = names.extract_options!
-        options = merged_options(options)
-        keys_to_names = names.flatten.inject({}){|map, name| map[escape_key(namespaced_key(name, options))] = name; map}
-        raw_values = @data.get_multi(keys_to_names.keys, RAW)
-        values = {}
-        raw_values.each do |key, value|
-          entry = deserialize_entry(value)
-          values[keys_to_names[key]] = entry.value unless entry.expired?
+        names.extract_options!
+        names = names.flatten
+
+        mapping = names.inject({}) { |memo, name| memo[escape(name)] = name; memo } 
+        instrument(:read_multi, names) do
+          results = @data.get_multi(mapping.keys)
+          results.inject({}) { |memo, (inner, value)| memo[mapping[inner]] = results[inner]; memo }
         end
-        values
       end
 
       # Increment a cached value. This method uses the memcached incr atomic
@@ -66,12 +89,11 @@ module ActiveSupport
       # Calling it on a value not stored with :raw will fail.
       # :initial defaults to the amount passed in, as if the counter was initially zero.
       # memcached counters cannot hold negative values.
-      def increment(name, amount = 1, options = nil) # :nodoc:
-        options = merged_options(options)
+      def increment(name, amount = 1, options={}) # :nodoc:
         initial = options[:initial] || amount
-        expires_in = options[:expires_in].to_i
-        response = instrument(:increment, name, :amount => amount) do
-          @data.incr(escape_key(namespaced_key(name, options)), amount, expires_in, initial)
+        expires_in = options[:expires_in]
+        instrument(:increment, name, :amount => amount) do
+          @data.incr(name, amount, expires_in, initial)
         end
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
@@ -83,12 +105,11 @@ module ActiveSupport
       # Calling it on a value not stored with :raw will fail.
       # :initial defaults to zero, as if the counter was initially zero.
       # memcached counters cannot hold negative values.
-      def decrement(name, amount = 1, options = nil) # :nodoc:
-        options = merged_options(options)
+      def decrement(name, amount = 1, options={}) # :nodoc:
         initial = options[:initial] || 0
-        expires_in = options[:expires_in].to_i
-        response = instrument(:decrement, name, :amount => amount) do
-          @data.decr(escape_key(namespaced_key(name, options)), amount, expires_in, initial)
+        expires_in = options[:expires_in]
+        instrument(:decrement, name, :amount => amount) do
+          @data.decr(name, amount, expires_in, initial)
         end
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
@@ -97,7 +118,7 @@ module ActiveSupport
 
       # Clear the entire cache on all memcached servers. This method should
       # be used with care when using a shared cache.
-      def clear(options = nil)
+      def clear(options=nil)
         @data.flush_all
       end
 
@@ -112,74 +133,63 @@ module ActiveSupport
 
       protected
 
-        # This CacheStore impl controls value marshalling so we take special
-        # care to always pass :raw => true to the Dalli API so it does not
-        # double marshal.
+      # Read an entry from the cache.
+      def read_entry(key, options) # :nodoc:
+        @data.get(escape(key), options)
+      rescue Dalli::DalliError => e
+        logger.error("DalliError: #{e.message}") if logger
+        nil
+      end
 
-        # Read an entry from the cache.
-        def read_entry(key, options) # :nodoc:
-          deserialize_entry(@data.get(escape_key(key), RAW))
-        rescue Dalli::DalliError => e
-          logger.error("DalliError: #{e.message}") if logger
-          nil
-        end
+      # Write an entry to the cache.
+      def write_entry(key, value, options) # :nodoc:
+        method = options[:unless_exist] ? :add : :set
+        expires_in = options[:expires_in]
+        @data.send(method, escape(key), value, expires_in, options)
+      rescue Dalli::DalliError => e
+        logger.error("DalliError: #{e.message}") if logger
+        false
+      end
 
-        # Write an entry to the cache.
-        def write_entry(key, entry, options) # :nodoc:
-          method = options[:unless_exist] ? :add : :set
-          value = options[:raw] ? entry.value.to_s : entry
-          expires_in = options[:expires_in].to_i
-          if expires_in > 0 && !options[:raw]
-            # Set the memcache expire a few minutes in the future to support race condition ttls on read
-            expires_in += 5.minutes
-          end
-          @data.send(method, escape_key(key), value, expires_in, options)
-        rescue Dalli::DalliError => e
-          logger.error("DalliError: #{e.message}") if logger
-          false
-        end
-
-        # Delete an entry from the cache.
-        def delete_entry(key, options) # :nodoc:
-          @data.delete(escape_key(key))
-        rescue Dalli::DalliError => e
-          logger.error("DalliError: #{e.message}") if logger
-          false
-        end
+      # Delete an entry from the cache.
+      def delete_entry(key, options) # :nodoc:
+        @data.delete(escape(key))
+      rescue Dalli::DalliError => e
+        logger.error("DalliError: #{e.message}") if logger
+        false
+      end
 
       private
-        def escape_key(key)
-          key = key.to_s.dup
-          key = key.force_encoding('BINARY') if key.respond_to? :force_encoding
-          key = key.gsub(ESCAPE_KEY_CHARS){|match| "%#{match.getbyte(0).to_s(16).upcase}"}
-          key = "#{key[0, 213]}:md5:#{Digest::MD5.hexdigest(key)}" if key.size > 250
-          key
-        end
 
-        def deserialize_entry(raw_value)
-          if raw_value
-            # FIXME: This is a terrible implementation for performance reasons:
-            # throwing an exception is much slower than some if logic.
-            entry = Marshal.load(raw_value) rescue raw_value
-            entry.is_a?(Entry) ? entry : Entry.new(entry)
-          else
-            nil
-          end
-        end
-
-      # Provide support for raw values in the local cache strategy.
-      module LocalCacheWithRaw # :nodoc:
-        protected
-          def write_entry(key, entry, options) # :nodoc:
-            retval = super
-            if options[:raw] && local_cache && retval
-              raw_entry = Entry.new(entry.value.to_s)
-              raw_entry.expires_at = entry.expires_at
-              local_cache.write_entry(key, raw_entry, options)
-            end
-            retval
-          end
+      def escape(key)
+        key = key.to_s.dup
+        key = key.force_encoding("BINARY") if key.encoding_aware?
+        key = key.gsub(ESCAPE_KEY_CHARS){ |match| "%#{match.getbyte(0).to_s(16).upcase}" }
+        key = "#{key[0, 213]}:md5:#{Digest::MD5.hexdigest(key)}" if key.size > 250
+        key
       end
+
+      def instrument(operation, key, options = nil)
+        log(operation, key, options)
+
+        if ActiveSupport::Cache::Store.instrument
+          payload = { :key => key }
+          payload.merge!(options) if options.is_a?(Hash)
+          ActiveSupport::Notifications.instrument("cache_#{operation}.active_support", payload){ yield(payload) }
+        else
+          yield(nil)
+        end
+      end
+
+      def log(operation, key, options = nil)
+        return unless logger && logger.debug?
+        logger.debug("Cache #{operation}: #{key}#{options.blank? ? "" : " (#{options.inspect})"}")
+      end
+
+      def logger
+        Dalli.logger
+      end
+
     end
   end
 end
