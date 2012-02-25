@@ -1,9 +1,9 @@
 require 'helper'
 require 'benchmark'
+require 'active_support/cache/dalli_store'
 
-class TestBenchmark < Test::Unit::TestCase
-
-  def setup
+describe 'performance' do
+  before do
     puts "Testing #{Dalli::VERSION} with #{RUBY_DESCRIPTION}"
     # We'll use a simple @value to try to avoid spending time in Marshal,
     # which is a constant penalty that both clients have to pay
@@ -21,12 +21,28 @@ class TestBenchmark < Test::Unit::TestCase
     @counter = 'counter'
   end
 
-  def test_benchmark
+  should 'run benchmarks' do
     memcached do
 
       Benchmark.bm(31) do |x|
 
         n = 2500
+
+        @ds = ActiveSupport::Cache::DalliStore.new(@servers)
+        x.report("mixed:rails:dalli") do
+          n.times do
+            @ds.read @key1
+            @ds.write @key2, @value
+            @ds.fetch(@key3) { @value }
+            @ds.fetch(@key2) { @value }
+            @ds.fetch(@key1) { @value }
+            @ds.write @key2, @value, :unless_exists => true
+            @ds.delete @key2
+            @ds.increment @counter, 1, :initial => 100
+            @ds.increment @counter, 1, :expires_in => 12
+            @ds.decrement @counter, 1
+          end
+        end
 
         @m = Dalli::Client.new(@servers)
         x.report("set:plain:dalli") do
@@ -153,14 +169,15 @@ class TestBenchmark < Test::Unit::TestCase
 
         @m = Dalli::Client.new(@servers)
         x.report("incr:ruby:dalli") do
+          counter = 'foocount'
           n.times do
-            @m.incr @counter, 1, 0, 1
+            @m.incr counter, 1, 0, 1
           end
           n.times do
-            @m.decr @counter, 1
+            @m.decr counter, 1
           end
 
-          assert_equal 0, @m.incr(@counter, 0)
+          assert_equal 0, @m.incr(counter, 0)
         end
 
       end
