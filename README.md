@@ -7,13 +7,13 @@ The name is a variant of Salvador Dali for his famous painting [The Persistence 
 
 ![Persistence of Memory](http://www.virtualdali.com/assets/paintings/31PersistenceOfMemory.jpg)
 
-Dalli's development is sponsored by [Membase](http://www.membase.com/).  Many thanks to them!
+Dalli's initial development was sponsored by [CouchBase](http://www.couchbase.com/).  Many thanks to them!
 
 
 Design
 ------------
 
-I decided to write Dalli after maintaining memcache-client for the last two years for a few specific reasons:
+I decided to write Dalli after maintaining memcache-client for two years for a few specific reasons:
 
  0. The code is mostly old and gross.  The bulk of the code is a single 1000 line .rb file.
  1. It has a lot of options that are infrequently used which complicate the codebase.
@@ -165,9 +165,7 @@ Eric Wong - for help using his [kgio](http://unicorn.bogomips.org/kgio/index.htm
 
 Brian Mitchell - for his remix-stash project which was helpful when implementing and testing the binary protocol support.
 
-[Membase](http://membase.com) - for their project sponsorship
-
-[Bootspring](http://bootspring.com) is my Ruby and Rails consulting company.  We specialize in Ruby infrastructure, performance and scalability tuning for Rails applications.  If you need help, please [contact us](mailto:info@bootspring.com) today.
+[CouchBase](http://couchbase.com) - for their project sponsorship
 
 
 Author
@@ -179,4 +177,4 @@ Mike Perham, mperham@gmail.com, [mikeperham.com](http://mikeperham.com), [@mperh
 Copyright
 -----------
 
-Copyright (c) 2010 Mike Perham. See LICENSE for details.
+Copyright (c) 2012 Mike Perham. See LICENSE for details.
