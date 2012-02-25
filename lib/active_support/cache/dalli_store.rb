@@ -77,10 +77,15 @@ module ActiveSupport
         names.extract_options!
         names = names.flatten
 
-        mapping = names.inject({}) { |memo, name| memo[escape(name)] = name; memo } 
+        mapping = names.inject({}) { |memo, name| memo[escape(name)] = name; memo }
         instrument(:read_multi, names) do
           results = @data.get_multi(mapping.keys)
-          results.inject({}) { |memo, (inner, value)| memo[mapping[inner]] = results[inner]; memo }
+          results.inject({}) do |memo, (inner, value)|
+            entry = results[inner]
+            # NB Backwards data compatibility, to be removed at some point
+            memo[mapping[inner]] = (entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry)
+            memo
+          end
         end
       end
 
@@ -135,7 +140,9 @@ module ActiveSupport
 
       # Read an entry from the cache.
       def read_entry(key, options) # :nodoc:
-        @data.get(escape(key), options)
+        entry = @data.get(escape(key), options)
+        # NB Backwards data compatibility, to be removed at some point
+        entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
         nil
