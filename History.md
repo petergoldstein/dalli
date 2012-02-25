@@ -1,7 +1,13 @@
 Dalli Changelog
 =====================
 
-HEAD
+WARNING: This is the last 1.1.x release.  The next release will be 2.0
+and not compatible with 1.x; lock dalli in your Gemfile so it does not
+pick up 2.x releases:
+
+    gem 'dalli', '~> 1.1'
+
+1.1.5
 =======
 
 - Coerce input to incr/decr to integer via #to\_i [#165]
