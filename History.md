@@ -9,6 +9,7 @@ Dalli Changelog
   value stored, was a performance bottleneck and duplicated a lot of
   functionality already in Dalli.  One benchmark went from 4.0 sec to 3.0
   sec with the new DalliStore.
+- Added reset\_stats operation [#155]
 
 Notes:
 
@@ -22,7 +23,7 @@ Notes:
   * removed memcache-client compability layer and upgrade documentation.
 
 
-HEAD
+1.1.5
 =======
 
 - Coerce input to incr/decr to integer via #to\_i [#165]
