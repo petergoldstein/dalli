@@ -50,9 +50,11 @@ rescue LoadError
       attr_accessor :options
 
       def self.open(host, port, options = {})
-        sock = new(host, port)
-        sock.options = { :host => host, :port => port }.merge(options)
-        sock
+        Timeout.timeout options[:timeout] do
+          sock = new(host, port)
+          sock.options = { :host => host, :port => port }.merge(options)
+          sock
+        end
       end
 
       def readfull(count)
