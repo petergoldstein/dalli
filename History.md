@@ -7,6 +7,11 @@ pick up 2.x releases:
 
     gem 'dalli', '~> 1.1'
 
+HEAD
+=======
+
+- Added reset\_stats operation [#155]
+
 1.1.5
 =======
 
@@ -14,7 +19,6 @@ pick up 2.x releases:
 - Convert test suite to minitest/spec (crigor, #166)
 - Fix encoding issue with keys [#162]
 - Fix double namespacing with Rails and dalli\_store. [#160]
-- Added reset\_stats operation [#155]
 
 1.1.4
 =======

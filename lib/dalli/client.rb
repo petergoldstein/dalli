@@ -232,7 +232,7 @@ module Dalli
     ##
     # Reset stats for each server.
     def reset_stats
-      ring.servers.each do |server|
+      ring.servers.map do |server|
         server.alive? ? server.request(:reset_stats) : nil
       end
     end

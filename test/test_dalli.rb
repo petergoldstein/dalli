@@ -105,19 +105,18 @@ describe 'Dalli' do
 
     should "support stats" do
       memcached do |dc|
-        stats = dc.stats
         # make sure that get_hits would not equal 0
-        dc.get(:a)  
+        dc.get(:a)
 
-        assert stats.is_a?(Hash)
+        stats = dc.stats
         servers = stats.keys
-
-        servers.each do |s|
-          assert_operator 0, :<, stats[s]["get_hits"].to_i
-        end
+        assert(servers.any? do |s|
+          stats[s]["get_hits"].to_i != 0
+        end)
 
         # reset_stats test
-        dc.reset_stats
+        results = dc.reset_stats
+        assert(results.all? { |x| x })
         stats = dc.stats
         servers = stats.keys
 
