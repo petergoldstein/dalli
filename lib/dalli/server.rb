@@ -233,6 +233,12 @@ module Dalli
       keyvalue_response
     end
 
+    def reset_stats
+      req = [REQUEST, OPCODES[:stat], 'reset'.bytesize, 0, 0, 0, 'reset'.bytesize, 0, 0, 'reset'].pack(FORMAT[:stat])
+      write(req)
+      keyvalue_response
+    end
+
     def cas(key)
       req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
       write(req)
