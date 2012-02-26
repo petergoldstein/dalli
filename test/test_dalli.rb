@@ -103,6 +103,31 @@ describe 'Dalli' do
       end
     end
 
+    should "support stats" do
+      memcached do |dc|
+        stats = dc.stats
+        # make sure that get_hits would not equal 0
+        dc.get(:a)  
+
+        assert stats.is_a?(Hash)
+        servers = stats.keys
+
+        servers.each do |s|
+          assert_operator 0, :<, stats[s]["get_hits"].to_i
+        end
+
+        # reset_stats test
+        dc.reset_stats
+        stats = dc.stats
+        servers = stats.keys
+
+        # check if reset was performed
+        servers.each do |s|
+          assert_equal 0, dc.stats[s]["get_hits"].to_i
+        end
+      end
+    end
+
     should "support the fetch operation" do
       memcached do |dc|
         dc.flush
