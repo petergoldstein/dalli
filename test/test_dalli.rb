@@ -2,6 +2,12 @@ require 'helper'
 require 'memcached_mock'
 
 describe 'Dalli' do
+  describe 'options parsing' do
+    should 'handle deprecated options' do
+      dc = Dalli::Client.new('foo', :compression => true)
+      assert dc.instance_variable_get(:@options)[:compress]
+    end
+  end
 
   should "default to localhost:11211" do
     dc = Dalli::Client.new
@@ -342,7 +348,7 @@ describe 'Dalli' do
     context 'with compression' do
       should 'allow large values' do
         memcached do |dc|
-          dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), :compression => true)
+          dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), :compress => true)
 
           value = "0"*1024*1024
           assert_raises Dalli::DalliError, /too large/ do
@@ -374,7 +380,7 @@ describe 'Dalli' do
 
       should 'fit more values with compression' do
         memcached(19126, '-m 1 -M') do |dc|
-          dalli = Dalli::Client.new('localhost:19126', :compression => true)
+          dalli = Dalli::Client.new('localhost:19126', :compress => true)
           failed = false
           value = "1234567890"*1000
           10_000.times do |idx|

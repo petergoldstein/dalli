@@ -186,7 +186,6 @@ describe 'ActiveSupport' do
         @dalli = ActiveSupport::Cache::DalliStore.new('localhost:19122', :expires_in => 1, :namespace => 'foo', :compress => true)
         assert_equal 1, @dalli.instance_variable_get(:@data).instance_variable_get(:@options)[:expires_in]
         assert_equal 'foo', @dalli.instance_variable_get(:@data).instance_variable_get(:@options)[:namespace]
-        assert_equal true, @dalli.instance_variable_get(:@data).instance_variable_get(:@options)[:compression]
       end
     end
   end

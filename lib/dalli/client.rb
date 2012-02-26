@@ -15,6 +15,7 @@ module Dalli
     # in managed environments like Heroku.
     #
     # Options:
+    # - :namespace - prepend each key with this value to provide simple namespacing.
     # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
@@ -23,7 +24,7 @@ module Dalli
     #
     def initialize(servers=nil, options={})
       @servers = env_servers || servers || '127.0.0.1:11211'
-      @options = { :expires_in => 0 }.merge(options)
+      @options = normalize_options(options)
       @ring = nil
     end
 
@@ -262,6 +263,14 @@ module Dalli
 
     def key_without_namespace(key)
       @options[:namespace] ? key.gsub(%r(\A#{@options[:namespace]}:), '') : key
+    end
+
+    def normalize_options(opts)
+      if opts[:compression]
+        Dalli.logger.warn "DEPRECATED: Dalli's :compression option is now just :compress => true.  Please update your configuration."
+        opts[:compress] = opts.delete(:compression)
+      end
+      { :expires_in => 0 }.merge(opts)
     end
   end
 end
