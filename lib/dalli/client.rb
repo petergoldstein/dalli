@@ -230,6 +230,14 @@ module Dalli
     end
 
     ##
+    # Reset stats for each server.
+    def reset_stats
+      ring.servers.each do |server|
+        server.alive? ? server.request(:reset_stats) : nil
+      end
+    end
+
+    ##
     # Close our connection to each server.
     # If you perform another operation after this, the connections will be re-established.
     def close
