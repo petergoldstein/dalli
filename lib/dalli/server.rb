@@ -62,7 +62,7 @@ module Dalli
     end
 
     def alive?
-      return true if @sock
+      return true if @sock && !@sock.closed?
 
       if @last_down_at && @last_down_at + options[:down_retry_delay] >= Time.now
         time = @last_down_at + options[:down_retry_delay] - Time.now
