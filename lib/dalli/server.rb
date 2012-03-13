@@ -62,13 +62,8 @@ module Dalli
     end
 
     def alive?
-      if @sock
-        if @sock.respond_to?(:closed?)
-          return @sock.closed?
-        else
-          return true
-        end
-      end
+      # #closed? exists in EM::Synchrony::Socket class (inherited by Dalli::Server::AsyncSocket)
+      return true if @sock && (!@sock.respond_to?(:closed?) || !@sock.closed?)
 
       if @last_down_at && @last_down_at + options[:down_retry_delay] >= Time.now
         time = @last_down_at + options[:down_retry_delay] - Time.now
