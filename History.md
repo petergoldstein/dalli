@@ -11,6 +11,7 @@ HEAD
 =======
 
 - Added reset\_stats operation [#155]
+- Added support for configuring keepalive on TCP connections to memcached servers (@bianster, #180)
 
 1.1.5
 =======
@@ -89,7 +90,7 @@ v1.1.0 was a bad release.  Yanked.
  - Allow browser session cookies (blindsey)
  - Compatibility fixes (mwynholds)
  - Add backwards compatibility module for memcache-client, require 'dalli/memcache-client'.  It makes
-   Dalli more compatible with memcache-client and prints out a warning any time you do something that 
+   Dalli more compatible with memcache-client and prints out a warning any time you do something that
    is no longer supported so you can fix your code.
 
 1.0.1
