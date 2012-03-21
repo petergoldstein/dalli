@@ -1,6 +1,58 @@
 Dalli Changelog
 =====================
 
+WARNING: This is the last 1.1.x release.  The next release will be 2.0
+and not compatible with 1.x; lock dalli in your Gemfile so it does not
+pick up 2.x releases:
+
+    gem 'dalli', '~> 1.1'
+
+=======
+
+- Added reset\_stats operation [#155]
+- Added support for configuring keepalive on TCP connections to memcached servers (@bianster, #180)
+
+1.1.5
+=======
+
+- Coerce input to incr/decr to integer via #to\_i [#165]
+- Convert test suite to minitest/spec (crigor, #166)
+- Fix encoding issue with keys [#162]
+- Fix double namespacing with Rails and dalli\_store. [#160]
+
+1.1.4
+=======
+
+- Use 127.0.0.1 instead of localhost as default to avoid IPv6 issues
+- Extend DalliStore's :expires\_in when :race\_condition\_ttl is also used.
+- Fix :expires\_in option not propogating from DalliStore to Client, GH-136
+- Added support for native Rack session store.  Until now, Dalli's
+  session store has required Rails.  Now you can use Dalli to store
+  sessions for any Rack application.
+
+    require 'rack/session/dalli'
+    use Rack::Session::Dalli, :memcache_server => 'localhost:11211', :compression => true
+
+1.1.3
+=======
+
+- Support Rails's autoloading hack for loading sessions with objects
+  whose classes have not be required yet, GH-129
+- Support Unix sockets for connectivity.  Shows a 2x performance
+  increase but keep in mind they only work on localhost. (dfens)
+
+1.1.2
+=======
+
+- Fix incompatibility with latest Rack session API when destroying
+  sessions, thanks @twinge!
+
+1.1.1
+=======
+
+v1.1.0 was a bad release.  Yanked.
+
+>>>>>>> 6656f5b... Support for optionally configuring keepalive on TCP connections to memcached servers.
 1.1.0
 =======
 
@@ -32,7 +84,7 @@ Dalli Changelog
  - Allow browser session cookies (blindsey)
  - Compatibility fixes (mwynholds)
  - Add backwards compatibility module for memcache-client, require 'dalli/memcache-client'.  It makes
-   Dalli more compatible with memcache-client and prints out a warning any time you do something that 
+   Dalli more compatible with memcache-client and prints out a warning any time you do something that
    is no longer supported so you can fix your code.
 
 1.0.1

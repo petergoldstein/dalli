@@ -16,6 +16,7 @@ begin
     def self.open(host, port, options = {})
       addr = Socket.pack_sockaddr_in(port, host)
       sock = start(addr)
+      sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
       sock.options = options
       sock.kgio_wait_writable
       sock
@@ -49,6 +50,7 @@ rescue LoadError
 
       def self.open(host, port, options = {})
         sock = new(host, port)
+        sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
         sock.options = { :host => host, :port => port }.merge(options)
         sock
       end
@@ -81,6 +83,7 @@ rescue LoadError
         # All this ugly code to ensure proper Socket connect timeout
         addr = Socket.getaddrinfo(host, nil)
         sock = new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
+        sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
         sock.options = { :host => host, :port => port }.merge(options)
         begin
           sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))

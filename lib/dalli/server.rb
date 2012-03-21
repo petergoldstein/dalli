@@ -8,7 +8,7 @@ module Dalli
     attr_accessor :port
     attr_accessor :weight
     attr_accessor :options
-    
+
     DEFAULTS = {
       # seconds between trying to contact a remote server
       :down_retry_delay => 1,
@@ -22,6 +22,7 @@ module Dalli
       :value_max_bytes => 1024 * 1024,
       :username => nil,
       :password => nil,
+      :keepalive => false
     }
 
     def initialize(attribs, options = {})
@@ -37,7 +38,7 @@ module Dalli
       @sock = nil
       @msg = nil
     end
-    
+
     # Chokepoint method for instrumentation
     def request(op, *args)
       raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}" unless alive?
@@ -103,7 +104,7 @@ module Dalli
         raise Dalli::NetworkError, "Socket operation failed, retrying..."
       end
     end
-    
+
     def down!
       close
 
@@ -165,7 +166,7 @@ module Dalli
       write(req)
       generic_response unless multi?
     end
-    
+
     def replace(key, value, ttl, options)
       (value, flags) = serialize(key, value, options)
       req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:replace])
@@ -195,7 +196,7 @@ module Dalli
       body = generic_response
       body ? longlong(*body.unpack('NN')) : body
     end
-    
+
     def incr(key, count, ttl, default)
       expiry = default ? ttl : 0xFFFFFFFF
       default ||= 0
@@ -206,7 +207,7 @@ module Dalli
       body = generic_response
       body ? longlong(*body.unpack('NN')) : body
     end
-    
+
     # Noop is a keepalive operation but also used to demarcate the end of a set of pipelined commands.
     # We need to read all the responses at once.
     def noop
@@ -381,7 +382,7 @@ module Dalli
       Dalli.logger.debug { "Dalli::Server#connect #{hostname}:#{port}" }
 
       begin
-        @sock = KSocket.open(hostname, port, :timeout => options[:socket_timeout])
+        @sock = KSocket.open(hostname, port, :timeout => options[:socket_timeout], :keepalive => options[:keepalive])
         @version = version # trigger actual connect
         sasl_authentication if need_auth?
         up!
@@ -403,7 +404,7 @@ module Dalli
 
     REQUEST = 0x80
     RESPONSE = 0x81
-    
+
     RESPONSE_CODES = {
       0 => 'No error',
       1 => 'Key not found',
@@ -416,7 +417,7 @@ module Dalli
       0x81 => 'Unknown command',
       0x82 => 'Out of memory',
     }
-    
+
     OPCODES = {
       :get => 0x00,
       :set => 0x01,
@@ -442,7 +443,7 @@ module Dalli
       :auth_request => 0x21,
       :auth_continue => 0x22,
     }
-    
+
     HEADER = "CCnCCnNNQ"
     OP_FORMAT = {
       :get => 'a*',
@@ -472,7 +473,7 @@ module Dalli
     def need_auth?
       @options[:username] || ENV['MEMCACHE_USERNAME']
     end
-    
+
     def username
       @options[:username] || ENV['MEMCACHE_USERNAME']
     end
