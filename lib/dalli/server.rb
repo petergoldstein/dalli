@@ -23,6 +23,7 @@ module Dalli
       :username => nil,
       :password => nil,
       :async => false,
+      :keepalive => false
     }
 
     def initialize(attribs, options = {})
@@ -398,7 +399,7 @@ module Dalli
           raise Dalli::DalliError, "EM support not enabled, as em-synchrony is not installed." if not defined?(AsyncSocket)
           @sock = AsyncSocket.open(hostname, port, :timeout => options[:socket_timeout])
         else
-          @sock = KSocket.open(hostname, port, :timeout => options[:socket_timeout])
+          @sock = KSocket.open(hostname, port, :timeout => options[:socket_timeout], :keepalive => options[:keepalive])
         end
         @version = version # trigger actual connect
         sasl_authentication if need_auth?
