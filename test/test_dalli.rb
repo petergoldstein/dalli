@@ -294,6 +294,20 @@ describe 'Dalli' do
       end
     end
 
+    should 'allow TCP connections to be configured for keepalive' do
+      memcached(19122, '', :keepalive => true) do |dc|
+        dc.set(:a, 1)
+        ring = dc.send(:ring)
+        server = ring.servers.first
+        socket = server.instance_variable_get('@sock')
+
+        optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE)
+        optval = optval.unpack 'i'
+
+        assert_equal true, (optval[0] != 0)
+      end
+    end
+
     should "pass a simple smoke test" do
       memcached do |dc|
         resp = dc.flush
