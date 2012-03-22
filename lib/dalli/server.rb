@@ -22,6 +22,7 @@ module Dalli
       :value_max_bytes => 1024 * 1024,
       :username => nil,
       :password => nil,
+      :keepalive => false
     }
 
     def initialize(attribs, options = {})
@@ -387,7 +388,7 @@ module Dalli
       Dalli.logger.debug { "Dalli::Server#connect #{hostname}:#{port}" }
 
       begin
-        @sock = KSocket.open(hostname, port, :timeout => options[:socket_timeout])
+        @sock = KSocket.open(hostname, port, options)
         @version = version # trigger actual connect
         sasl_authentication if need_auth?
         up!
