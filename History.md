@@ -8,13 +8,13 @@ Dalli Changelog
   ActiveSupport::Cache::Entry which added 109 bytes overhead to every
   value stored, was a performance bottleneck and duplicated a lot of
   functionality already in Dalli.  One benchmark went from 4.0 sec to 3.0
-  sec with the new DalliStore.
+  sec with the new DalliStore. [#173]
 - Added reset\_stats operation [#155]
 - Added support for configuring keepalive on TCP connections to memcached servers (@bianster, #180)
 
 Notes:
 
-  * data stored with Dalli 1.x is NOT backwards compatible with 2.x.
+  * data stored with Dalli 2.x is NOT backwards compatible with 1.x.
     Upgraders are advised to namespace their keys and roll out the 2.x
     upgrade slowly so keys do not clash and caches are warmed.
     `config.cache_store = :dalli_store, :expires_in => 24.hours.to_i, :namespace => 'myapp2'`

@@ -1,7 +1,7 @@
 Dalli
 =========
 
-Dalli is a high performance pure Ruby client for accessing memcached servers.  It works with memcached 1.4+ only as it uses the newer binary protocol.  It should be considered a replacement for the memcache-client gem.  The API tries to be mostly compatible with memcache-client with the goal being to make it a drop-in replacement for Rails.
+Dalli is a high performance pure Ruby client for accessing memcached servers.  It works with memcached 1.4+ only as it uses the newer binary protocol.  It should be considered a replacement for the memcache-client gem.
 
 The name is a variant of Salvador Dali for his famous painting [The Persistence of Memory](http://en.wikipedia.org/wiki/The_Persistence_of_Memory).
 
@@ -45,8 +45,7 @@ If you have problems, please enter an issue.
 Installation and Usage
 ------------------------
 
-Remember, Dalli **requires** memcached 1.4+. You can check the version with `memcached -h`. Please note that memcached that Mac OS X Snow Leopard ships with is 1.2.8 and
-won't work. Install 1.4.x using Homebrew with
+Remember, Dalli **requires** memcached 1.4+. You can check the version with `memcached -h`. Please note that memcached that Mac OS X Snow Leopard ships with is 1.2.8 and won't work. Install 1.4.x using Homebrew with
 
     brew install memcached
 
@@ -77,15 +76,17 @@ In `config/environments/production.rb`:
 
     config.cache_store = :dalli_store
 
-A more comprehensive example (note that we are setting a reasonable default for maximum cache entry lifetime (one day), enabling compression for large values, and namespacing all entries for this rails app.  Remove the namespace if you have multiple apps which share cached values):
+Here's a more comprehensive example that sets a reasonable default for maximum cache entry lifetime (one day), enables compression for large values and namespaces all entries for this rails app.  Remove the namespace if you have multiple apps which share cached values.
 
     config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com',
-        { :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compression => true }
+        { :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true }
 
 To use Dalli for Rails session storage, in `config/initializers/session_store.rb`:
 
     require 'action_dispatch/middleware/session/dalli_store'
     Rails.application.config.session_store :dalli_store, :memcache_server => ['host1', 'host2'], :namespace => 'sessions', :key => '_foundation_session', :expire_after => 30.minutes
+
+Dalli does not support Rails 2.x any longer.
 
 
 Usage with Passenger
@@ -114,7 +115,7 @@ Dalli::Client accepts the following options. All times are in seconds.
 
 **failover**: Boolean, if true Dalli will failover to another server if the main server for a key is down.
 
-**compression**: Boolean, if true Dalli will gzip-compress values larger than 1K.
+**compress**: Boolean, if true Dalli will gzip-compress values larger than 1K.
 
 **socket_timeout**: Timeout for all socket operations (connect, read, write). Default is 0.5.
 
@@ -130,16 +131,12 @@ Dalli::Client accepts the following options. All times are in seconds.
 
 **password**: The password to use for authenticating this client instance against a SASL-enabled memcached server.  Heroku users should not need to use this normally.
 
-**async**: Boolean, if true Dalli will assume its running inside the EventMachine reactor and use EM through the em-synchrony gem.  Currently disables the socket_timeout option. Default is false.
+**keepalive**: Boolean, if true Dalli will enable keep-alives on the socket so inactivity
 
 Features and Changes
 ------------------------
 
-Dalli is **NOT** 100% API compatible with memcache-client.  If you have code which uses the MemCache API directly, it will likely need small tweaks.  Method parameters and return values changed slightly.  See Upgrade.md for more detail.
-
 By default, Dalli is thread-safe.  Disable thread-safety at your own peril.
-
-Multi-threaded use will fail if used with EventMachine.
 
 Note that Dalli does not require ActiveSupport or Rails.  You can safely use it in your own Ruby projects.
 
@@ -163,7 +160,9 @@ Brian Mitchell - for his remix-stash project which was helpful when implementing
 Author
 ----------
 
-Mike Perham, mperham@gmail.com, [mikeperham.com](http://mikeperham.com), [@mperham](http://twitter.com/mperham)  If you like and use this project, please give me a recommendation at [WWR](http://workingwithrails.com/person/10797-mike-perham).  Happy caching!
+Mike Perham, mperham@gmail.com, [mikeperham.com](http://mikeperham.com), [@mperham](http://twitter.com/mperham)  If you like and use this project, please give me a recommendation at [WWR](http://workingwithrails.com/person/10797-mike-perham) or send a few bucks my way via my Pledgie page below.  Happy caching!
+
+<a href='http://www.pledgie.com/campaigns/16623'><img alt='Click here to lend your support to Open Source and make a donation at www.pledgie.com !'     src='http://www.pledgie.com/campaigns/16623.png?skin_name=chrome' border='0' /></a>
 
 
 Copyright

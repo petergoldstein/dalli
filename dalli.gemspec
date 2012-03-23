@@ -16,7 +16,6 @@ Gem::Specification.new do |s|
      "Gemfile",
      "dalli.gemspec",
      "Performance.md",
-     "Upgrade.md",
   ]
   s.homepage = %q{http://github.com/mperham/dalli}
   s.rdoc_options = ["--charset=UTF-8"]
@@ -26,6 +25,5 @@ Gem::Specification.new do |s|
   s.add_development_dependency(%q<mini_shoulda>, [">= 0"])
   s.add_development_dependency(%q<mocha>, [">= 0"])
   s.add_development_dependency(%q<rails>, [">= 3.0"])
-  s.add_development_dependency(%q<memcache-client>, [">= 1.8.5"])
 end
 

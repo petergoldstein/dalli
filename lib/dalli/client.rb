@@ -19,7 +19,7 @@ module Dalli
     # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
-    # - :compression - defaults to false, if true Dalli will compress values larger than 100 bytes before
+    # - :compress - defaults to false, if true Dalli will compress values larger than 100 bytes before
     #   sending them to memcached.
     #
     def initialize(servers=nil, options={})
