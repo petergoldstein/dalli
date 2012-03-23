@@ -15,10 +15,6 @@ module MemcachedMock
     block.call server
   end
 
-  def self.tmp_socket_path
-    "#{Dir.pwd}/tmp.sock"
-  end
-
   module Helper
     # Forks the current process and starts a new mock Memcached server on
     # port 22122.
@@ -71,7 +67,6 @@ module MemcachedMock
     end
 
     def memcached(port=19122, args='', options={})
-      return unless supports_fork?
       Memcached.path ||= find_memcached
 
       cmd = "#{Memcached.path}memcached #{args} -p #{port}"
