@@ -7,7 +7,6 @@ gem 'rails', WANT_RAILS_VERSION
 require 'rails'
 puts "Testing with Rails #{Rails.version}"
 
-require 'minitest/spec'
 require 'mini_shoulda'
 require 'minitest/pride'
 require 'minitest/autorun'
