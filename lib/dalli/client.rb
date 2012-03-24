@@ -259,9 +259,8 @@ module Dalli
 
     def validate_key(key)
       raise ArgumentError, "illegal character in key #{key}" if key.respond_to?(:ascii_only?) && !key.ascii_only?
-      raise ArgumentError, "illegal character in key #{key}" if key =~ /\s/
-      raise ArgumentError, "illegal character in key #{key}" if key =~ /[\x00-\x20\x80-\xFF]/
-      raise ArgumentError, "key cannot be blank" if key.nil? || key.strip.size == 0
+      raise ArgumentError, "illegal character in key #{key}" if key =~ /[\x00-\x20\x7F-\xFF]/
+      raise ArgumentError, "key cannot be blank" if !key || key.length == 0
       raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
     end
 
