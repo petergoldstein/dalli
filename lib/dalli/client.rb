@@ -277,7 +277,8 @@ module Dalli
         Dalli.logger.warn "DEPRECATED: Dalli's :compression option is now just :compress => true.  Please update your configuration."
         opts[:compress] = opts.delete(:compression)
       end
-      { :expires_in => 0 }.merge(opts)
+      opts[:expires_in] ||= 0
+      opts
     end
   end
 end
