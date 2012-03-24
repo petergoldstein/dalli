@@ -269,7 +269,7 @@ module Dalli
     end
 
     def key_without_namespace(key)
-      @options[:namespace] ? key.gsub(%r(\A#{@options[:namespace]}:), '') : key
+      @options[:namespace] ? key.sub(%r(\A#{@options[:namespace]}:), '') : key
     end
 
     def normalize_options(opts)
