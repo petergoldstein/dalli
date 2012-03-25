@@ -9,6 +9,27 @@ describe 'Dalli' do
     end
   end
 
+  describe 'key validation' do
+    should 'not allow whitespace' do
+      dc = Dalli::Client.new
+      assert_raises ArgumentError do
+        dc.set '   ', 1
+      end
+      assert_raises ArgumentError do
+        dc.set "\t", 1
+      end
+      assert_raises ArgumentError do
+        dc.set "\n", 1
+      end
+      assert_raises ArgumentError do
+        dc.set "", 1
+      end
+      assert_raises ArgumentError do
+        dc.set nil, 1
+      end
+    end
+  end
+
   should "default to localhost:11211" do
     dc = Dalli::Client.new
     ring = dc.send(:ring)
