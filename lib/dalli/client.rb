@@ -258,9 +258,8 @@ module Dalli
 
     def validate_key(key)
       raise ArgumentError, "illegal character in key #{key}" if key.respond_to?(:ascii_only?) && !key.ascii_only?
-      raise ArgumentError, "illegal character in key #{key}" if key =~ /\s/
-      raise ArgumentError, "illegal character in key #{key}" if key =~ /[\x00-\x20\x80-\xFF]/
-      raise ArgumentError, "key cannot be blank" if key.nil? || key.strip.size == 0
+      raise ArgumentError, "illegal character in key #{key}" if key =~ /[\x00-\x20\x7F-\xFF]/
+      raise ArgumentError, "key cannot be blank" if !key || key.length == 0
       raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
     end
 
@@ -269,7 +268,7 @@ module Dalli
     end
 
     def key_without_namespace(key)
-      @options[:namespace] ? key.gsub(%r(\A#{@options[:namespace]}:), '') : key
+      @options[:namespace] ? key.sub(%r(\A#{@options[:namespace]}:), '') : key
     end
 
     def normalize_options(opts)
@@ -277,7 +276,8 @@ module Dalli
         Dalli.logger.warn "DEPRECATED: Dalli's :compression option is now just :compress => true.  Please update your configuration."
         opts[:compress] = opts.delete(:compression)
       end
-      { :expires_in => 0 }.merge(opts)
+      opts[:expires_in] ||= 0
+      opts
     end
   end
 end
