@@ -35,8 +35,6 @@ begin
 
   end
 
-
-
   if ::Kgio.respond_to?(:wait_readable=)
     ::Kgio.wait_readable = :kgio_wait_readable
     ::Kgio.wait_writable = :kgio_wait_writable
@@ -45,76 +43,33 @@ begin
 rescue LoadError
 
   puts "Using standard socket IO (#{RUBY_DESCRIPTION})" if defined?($TESTING) && $TESTING
-  if defined?(RUBY_ENGINE) && RUBY_ENGINE == 'jruby'
+  class Dalli::Server::KSocket < TCPSocket
+    attr_accessor :options
 
-    class Dalli::Server::KSocket < TCPSocket
-      attr_accessor :options
-
-      def self.open(host, port, options = {})
+    def self.open(host, port, options = {})
+      Timeout.timeout(options[:socket_timeout]) do
         sock = new(host, port)
         sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
         sock.options = { :host => host, :port => port }.merge(options)
         sock
       end
-
-      def readfull(count)
-        value = ''
-        begin
-          loop do
-            value << read_nonblock(count - value.bytesize)
-            break if value.bytesize == count
-          end
-        rescue Errno::EAGAIN, Errno::EWOULDBLOCK
-          if IO.select([self], nil, nil, options[:socket_timeout])
-            retry
-          else
-            raise Timeout::Error, "IO timeout: #{options.inspect}"
-          end
-        end
-        value
-      end
-
     end
 
-  else
-
-    class Dalli::Server::KSocket < Socket
-      attr_accessor :options
-
-      def self.open(host, port, options = {})
-        # All this ugly code to ensure proper Socket connect timeout
-        addr = Socket.getaddrinfo(host, nil)
-        sock = new(Socket.const_get(addr[0][0]), Socket::SOCK_STREAM, 0)
-        sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
-        sock.options = { :host => host, :port => port }.merge(options)
-        begin
-          sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
-        rescue Errno::EINPROGRESS
-          resp = IO.select(nil, [sock], nil, sock.options[:socket_timeout])
-          begin
-            sock.connect_nonblock(Socket.pack_sockaddr_in(port, addr[0][3]))
-          rescue Errno::EISCONN
-          end
+    def readfull(count)
+      value = ''
+      begin
+        loop do
+          value << read_nonblock(count - value.bytesize)
+          break if value.bytesize == count
         end
-        sock
-      end
-
-      def readfull(count)
-        value = ''
-        begin
-          loop do
-            value << sysread(count - value.bytesize)
-            break if value.bytesize == count
-          end
-        rescue Errno::EAGAIN, Errno::EWOULDBLOCK
-          if IO.select([self], nil, nil, options[:socket_timeout])
-            retry
-          else
-            raise Timeout::Error, "IO timeout: #{options.inspect}"
-          end
+      rescue Errno::EAGAIN, Errno::EWOULDBLOCK
+        if IO.select([self], nil, nil, options[:socket_timeout])
+          retry
+        else
+          raise Timeout::Error, "IO timeout: #{options.inspect}"
         end
-        value
       end
+      value
     end
 
   end

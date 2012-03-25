@@ -158,7 +158,6 @@ module Dalli
       ring.servers.map { |s| s.request(:flush, time += delay) }
     end
 
-    # deprecated, please use #flush.
     alias_method :flush_all, :flush
 
     ##

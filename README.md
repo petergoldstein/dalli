@@ -62,7 +62,7 @@ You can verify your installation using this piece of code:
 The test suite requires memcached 1.4.3+ with SASL enabled (brew install memcached --enable-sasl ; mv /usr/bin/memcached /usr/bin/memcached.old).  Currently only supports the PLAIN mechanism.
 
 Dalli has no runtime dependencies and never will.  You can optionally install the 'kgio' gem to
-give Dalli a 10-20% performance boost.
+give Dalli a 20-30% performance boost.
 
 
 Usage with Rails 3.x

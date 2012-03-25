@@ -22,7 +22,7 @@ module Dalli
       :value_max_bytes => 1024 * 1024,
       :username => nil,
       :password => nil,
-      :keepalive => false
+      :keepalive => true
     }
 
     def initialize(attribs, options = {})
