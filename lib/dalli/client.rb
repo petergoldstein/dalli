@@ -114,7 +114,6 @@ module Dalli
     end
 
     def set(key, value, ttl=nil, options=nil)
-      raise "Invalid API usage, please require 'dalli/memcache-client' for compatibility, see Upgrade.md" if options == true
       ttl ||= @options[:expires_in]
       perform(:set, key, value, ttl, 0, options)
     end

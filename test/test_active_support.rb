@@ -4,6 +4,11 @@ require 'helper'
 describe 'ActiveSupport' do
   context 'active_support caching' do
 
+    should 'write should handle nil options' do
+      @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122')
+      @dalli.write('foo', 'bar', nil)
+    end
+
     should 'support fetch' do
       with_activesupport do
         memcached do

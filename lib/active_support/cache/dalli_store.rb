@@ -150,6 +150,7 @@ module ActiveSupport
 
       # Write an entry to the cache.
       def write_entry(key, value, options) # :nodoc:
+        options ||= {}
         method = options[:unless_exist] ? :add : :set
         expires_in = options[:expires_in]
         @data.send(method, escape(key), value, expires_in, options)
