@@ -5,7 +5,6 @@ Gem::Specification.new do |s|
   s.version = Dalli::VERSION
 
   s.authors = ["Mike Perham"]
-  s.date = Time.now.utc.strftime("%Y-%m-%d")
   s.description = %q{High performance memcached client for Ruby}
   s.email = %q{mperham@gmail.com}
   s.files = Dir.glob("lib/**/*") + [
@@ -24,6 +23,6 @@ Gem::Specification.new do |s|
   s.test_files = Dir.glob("test/**/*")
   s.add_development_dependency(%q<mini_shoulda>, [">= 0"])
   s.add_development_dependency(%q<mocha>, [">= 0"])
-  s.add_development_dependency(%q<rails>, [">= 3.0"])
+  s.add_development_dependency(%q<rails>, ["~> 3"])
 end
 
