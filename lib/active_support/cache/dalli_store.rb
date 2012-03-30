@@ -100,7 +100,7 @@ module ActiveSupport
       # memcached counters cannot hold negative values.
       def increment(name, amount = 1, options=nil)
         options ||= {}
-        initial = options[:initial] || amount
+        initial = options.has_key?(:initial) ? options[:initial] : amount
         expires_in = options[:expires_in]
         instrument(:increment, name, :amount => amount) do
           @data.incr(name, amount, expires_in, initial)
@@ -117,7 +117,7 @@ module ActiveSupport
       # memcached counters cannot hold negative values.
       def decrement(name, amount = 1, options=nil)
         options ||= {}
-        initial = options[:initial] || 0
+        initial = options.has_key?(:initial) ? options[:initial] : 0
         expires_in = options[:expires_in]
         instrument(:decrement, name, :amount => amount) do
           @data.decr(name, amount, expires_in, initial)

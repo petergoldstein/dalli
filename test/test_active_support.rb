@@ -114,6 +114,20 @@ describe 'ActiveSupport' do
           assert_equal 1, @dalli.increment('counterX')
           assert_equal 2, @dalli.increment('counterX')
           assert_equal 2, @dalli.read('counterX', :raw => true).to_i
+
+          assert_equal 5, @dalli.increment('counterY1', 1, :initial => 5)
+          assert_equal 6, @dalli.increment('counterY1', 1, :initial => 5)
+          assert_equal 6, @dalli.read('counterY1', :raw => true).to_i
+
+          assert_equal nil, @dalli.increment('counterZ1', 1, :initial => nil)
+          assert_equal nil, @dalli.read('counterZ1')
+
+          assert_equal 5, @dalli.decrement('counterY2', 1, :initial => 5)
+          assert_equal 4, @dalli.decrement('counterY2', 1, :initial => 5)
+          assert_equal 4, @dalli.read('counterY2', :raw => true).to_i
+
+          assert_equal nil, @dalli.decrement('counterZ2', 1, :initial => nil)
+          assert_equal nil, @dalli.read('counterZ2')
         end
       end
     end
