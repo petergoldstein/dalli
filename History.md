@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+2.0.2
+=======
+
+- Fix all dalli\_store operations to handle nil options [#190]
+
 2.0.1
 =======
 

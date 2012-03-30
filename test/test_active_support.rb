@@ -4,9 +4,15 @@ require 'helper'
 describe 'ActiveSupport' do
   context 'active_support caching' do
 
-    should 'write should handle nil options' do
+    should 'dalli_store operations should handle nil options' do
       @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122')
-      @dalli.write('foo', 'bar', nil)
+      assert_equal true, @dalli.write('foo', 'bar', nil)
+      assert_equal 'bar', @dalli.read('foo', nil)
+      assert_equal 18, @dalli.fetch('lkjsadlfk', nil) { 18 }
+      assert_equal 18, @dalli.fetch('lkjsadlfk', nil) { 18 }
+      assert_equal 1, @dalli.increment('lkjsa', 1, nil)
+      assert_equal 2, @dalli.increment('lkjsa', 1, nil)
+      assert_equal 1, @dalli.decrement('lkjsa', 1, nil)
     end
 
     should 'support fetch' do

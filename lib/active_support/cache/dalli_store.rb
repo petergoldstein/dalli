@@ -25,7 +25,8 @@ module ActiveSupport
         @data = Dalli::Client.new(addresses, options)
       end
 
-      def fetch(name, options={})
+      def fetch(name, options=nil)
+        options ||= {}
         if block_given?
           unless options[:force]
             entry = instrument(:read, name, options) do |payload|
@@ -49,7 +50,8 @@ module ActiveSupport
         end
       end
 
-      def read(name, options={})
+      def read(name, options=nil)
+        options ||= {}
         instrument(:read, name, options) do |payload|
           entry = read_entry(name, options)
           payload[:hit] = !!entry if payload
@@ -57,17 +59,19 @@ module ActiveSupport
         end
       end
 
-      def write(name, value, options={})
+      def write(name, value, options=nil)
+        options ||= {}
         instrument(:write, name, options) do |payload|
           write_entry(name, value, options)
         end
       end
 
-      def exist?(name, options={})
+      def exist?(name, options=nil)
+        options ||= {}
         !!read_entry(name, options)
       end
 
-      def delete(name, options={})
+      def delete(name, options=nil)
         @data.delete(name)
       end
 
@@ -94,7 +98,8 @@ module ActiveSupport
       # Calling it on a value not stored with :raw will fail.
       # :initial defaults to the amount passed in, as if the counter was initially zero.
       # memcached counters cannot hold negative values.
-      def increment(name, amount = 1, options={}) # :nodoc:
+      def increment(name, amount = 1, options=nil)
+        options ||= {}
         initial = options[:initial] || amount
         expires_in = options[:expires_in]
         instrument(:increment, name, :amount => amount) do
@@ -110,7 +115,8 @@ module ActiveSupport
       # Calling it on a value not stored with :raw will fail.
       # :initial defaults to zero, as if the counter was initially zero.
       # memcached counters cannot hold negative values.
-      def decrement(name, amount = 1, options={}) # :nodoc:
+      def decrement(name, amount = 1, options=nil)
+        options ||= {}
         initial = options[:initial] || 0
         expires_in = options[:expires_in]
         instrument(:decrement, name, :amount => amount) do
@@ -150,7 +156,6 @@ module ActiveSupport
 
       # Write an entry to the cache.
       def write_entry(key, value, options) # :nodoc:
-        options ||= {}
         method = options[:unless_exist] ? :add : :set
         expires_in = options[:expires_in]
         @data.send(method, escape(key), value, expires_in, options)
@@ -177,7 +182,7 @@ module ActiveSupport
         key
       end
 
-      def instrument(operation, key, options = nil)
+      def instrument(operation, key, options=nil)
         log(operation, key, options)
 
         if ActiveSupport::Cache::Store.instrument
@@ -189,7 +194,7 @@ module ActiveSupport
         end
       end
 
-      def log(operation, key, options = nil)
+      def log(operation, key, options=nil)
         return unless logger && logger.debug?
         logger.debug("Cache #{operation}: #{key}#{options.blank? ? "" : " (#{options.inspect})"}")
       end
