@@ -8,15 +8,13 @@ describe 'Encoding' do
     should 'support i18n content' do
       memcached do |dc|
         key = 'foo'
-        bad_key = utf8 = 'ƒ©åÍÎ'
+        nonascii_key = utf8 = 'ƒ©åÍÎ'
 
         assert dc.set(key, utf8)
         assert_equal utf8, dc.get(key)
 
-        # keys must be ASCII
-        assert_raises ArgumentError, /illegal character/ do
-          dc.set(bad_key, utf8)
-        end
+        assert dc.set(nonascii_key, utf8)
+        assert_equal utf8, dc.get(nonascii_key)
       end
     end
 
@@ -30,12 +28,11 @@ describe 'Encoding' do
       end
     end
 
-    should 'not allow non-ASCII keys' do
+    should 'support non-ASCII keys' do
       memcached do |dc|
         key = 'fooƒ'
-        assert_raises ArgumentError do
-          dc.set(key, 'bar')
-        end
+        assert dc.set(key, 'bar')
+        assert_equal 'bar', dc.get(key)
       end
     end
 
