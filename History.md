@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+
+- Allow non-ascii and whitespace keys, only the text protocol has those restrictions [#145]
+
 2.0.2
 =======
 

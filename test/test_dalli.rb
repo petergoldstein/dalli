@@ -10,17 +10,14 @@ describe 'Dalli' do
   end
 
   describe 'key validation' do
-    should 'not allow whitespace' do
+    should 'not allow blanks' do
       dc = Dalli::Client.new
-      assert_raises ArgumentError do
-        dc.set '   ', 1
-      end
-      assert_raises ArgumentError do
-        dc.set "\t", 1
-      end
-      assert_raises ArgumentError do
-        dc.set "\n", 1
-      end
+      dc.set '   ', 1
+      assert_equal 1, dc.get('   ')
+      dc.set "\t", 1
+      assert_equal 1, dc.get("\t")
+      dc.set "\n", 1
+      assert_equal 1, dc.get("\n")
       assert_raises ArgumentError do
         dc.set "", 1
       end
