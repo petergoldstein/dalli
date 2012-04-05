@@ -20,7 +20,7 @@ module ActiveSupport
       def initialize(*addresses)
         addresses = addresses.flatten
         options = addresses.extract_options!
-        options[:compression] = options.delete(:compress) || options[:compression]
+        options[:compress] ||= options[:compression]
         addresses << 'localhost:11211' if addresses.empty?
         @data = Dalli::Client.new(addresses, options)
       end
