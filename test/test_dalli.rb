@@ -6,6 +6,13 @@ describe 'Dalli' do
     should 'handle deprecated options' do
       dc = Dalli::Client.new('foo', :compression => true)
       assert dc.instance_variable_get(:@options)[:compress]
+      refute dc.instance_variable_get(:@options)[:compression]
+    end
+
+    should 'not warn about valid options' do
+      dc = Dalli::Client.new('foo', :compress => true)
+      # Rails.logger.expects :warn
+      assert dc.instance_variable_get(:@options)[:compress]
     end
   end
 
