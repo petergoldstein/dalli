@@ -107,6 +107,30 @@ Put this at the bottom of `config/environment.rb`:
     end
 
 
+Usage with Unicorn
+------------------------
+
+Modify the after_fork block in your unicorn config file:
+
+    after_fork do |server, worker|
+      #
+      # Added the following code for Dalli
+      #
+      if defined?(ActiveSupport::Cache::DalliStore) && Rails.cache.is_a?(ActiveSupport::Cache::DalliStore)
+        # Reset Rails's object cache
+        # Only works with DalliStore
+        Rails.cache.reset
+
+        # Reset Rails's session store
+        # If you know a cleaner way to find the session store instance, please let me know
+        ObjectSpace.each_object(ActionDispatch::Session::DalliStore) { |obj| obj.reset }
+      end 
+      #
+      # End of modifications for Dalli
+      #
+    end
+
+
 Configuration
 ------------------------
 Dalli::Client accepts the following options. All times are in seconds.
