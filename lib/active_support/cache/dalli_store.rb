@@ -72,7 +72,7 @@ module ActiveSupport
       end
 
       def delete(name, options=nil)
-        @data.delete(name)
+        delete_entry(name, options)
       end
 
       # Reads multiple keys from the cache using a single call to the

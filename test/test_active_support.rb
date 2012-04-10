@@ -13,6 +13,7 @@ describe 'ActiveSupport' do
       assert_equal 1, @dalli.increment('lkjsa', 1, nil)
       assert_equal 2, @dalli.increment('lkjsa', 1, nil)
       assert_equal 1, @dalli.decrement('lkjsa', 1, nil)
+      assert_equal true, @dalli.delete('lkjsa')
     end
 
     should 'support fetch' do

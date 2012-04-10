@@ -5,6 +5,7 @@ HEAD
 =======
 
 - Allow non-ascii and whitespace keys, only the text protocol has those restrictions [#145]
+- Fix DalliStore#delete error-handling [#196]
 
 2.0.2
 =======
