@@ -4,7 +4,7 @@ Dalli Changelog
 HEAD
 =======
 
-- Allow proper retrieval of stored `false` values \[[#197](https://github.com/mperham/dalli/pull/197)\] ([@laserlemon](https://github.com/laserlemon))
+- Allow proper retrieval of stored `false` values [laserlemon, #197]
 - Allow non-ascii and whitespace keys, only the text protocol has those restrictions [#145]
 - Fix DalliStore#delete error-handling [#196]
 
