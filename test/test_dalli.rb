@@ -330,6 +330,12 @@ describe 'Dalli' do
         resp = dc.get('456', :raw => true)
         assert_equal '0xyz9', resp
 
+        resp = dc.set('456', false)
+        assert_equal true, resp
+
+        resp = dc.get('456')
+        assert_equal false, resp
+
         resp = dc.stats
         assert_equal Hash, resp.class
 
