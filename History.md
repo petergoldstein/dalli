@@ -1,7 +1,7 @@
 Dalli Changelog
 =====================
 
-HEAD
+2.0.3
 =======
 
 - Allow proper retrieval of stored `false` values [laserlemon, #197]
