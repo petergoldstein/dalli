@@ -133,6 +133,21 @@ describe 'ActiveSupport' do
       end
     end
 
+    should 'support exist command' do
+      with_activesupport do
+        memcached do
+          connect
+          @dalli.write(:foo, 'a')
+          @dalli.write(:false_value, false)
+
+          assert_equal true, @dalli.exist?(:foo)
+          assert_equal true, @dalli.exist?(:false_value)
+
+          assert_equal false, @dalli.exist?(:bar)
+        end
+      end
+    end
+
     should 'support other esoteric commands' do
       with_activesupport do
         memcached do
@@ -140,10 +155,6 @@ describe 'ActiveSupport' do
           ds = @dalli.stats
           assert_equal 1, ds.keys.size
           assert ds[ds.keys.first].keys.size > 0
-
-          assert_equal true, @dalli.write(:foo, 'a')
-          assert_equal true, @dalli.exist?(:foo)
-          assert_equal false, @dalli.exist?(:bar)
 
           @dalli.reset
         end
