@@ -68,7 +68,7 @@ module ActiveSupport
 
       def exist?(name, options=nil)
         options ||= {}
-        !!read_entry(name, options)
+        !read_entry(name, options).nil?
       end
 
       def delete(name, options=nil)
