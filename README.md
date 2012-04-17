@@ -86,6 +86,8 @@ To use Dalli for Rails session storage, in `config/initializers/session_store.rb
     require 'action_dispatch/middleware/session/dalli_store'
     Rails.application.config.session_store :dalli_store, :memcache_server => ['host1', 'host2'], :namespace => 'sessions', :key => '_foundation_session', :expire_after => 30.minutes
 
+Both cache and session stores support `:bang` parameter, which propagates exceptions (e.g. if all memcache servers are down) instead of silently hiding errors.
+
 Dalli does not support Rails 2.x any longer.
 
 

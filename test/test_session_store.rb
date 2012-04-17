@@ -12,6 +12,8 @@ class Foo
 end
 
 class TestSessionStore < ActionController::IntegrationTest
+  include MemcachedMock::Helper
+
   class TestController < ActionController::Base
     def no_session_access
       head :ok
@@ -199,6 +201,42 @@ class TestSessionStore < ActionController::IntegrationTest
 
         get '/get_session_value'
         assert_equal 'foo: nil', response.body
+      end
+    end
+
+    def test_without_bang_option
+      memcached(29125) do
+        with_test_route_set(:memcache_server => '127.0.0.1:29125') do
+          get '/set_session_value'
+          assert_response :success
+
+          get '/get_session_value'
+          assert_response :success
+          assert_equal 'foo: "bar"', response.body
+
+          memcached_kill(29125)
+
+          get '/get_session_value'
+          assert_response :success
+          assert_equal 'foo: nil', response.body
+        end
+      end
+    end
+
+    def test_with_bang_option
+      memcached(29125) do
+        with_test_route_set(:memcache_server => '127.0.0.1:29125', :bang => true) do
+          get '/set_session_value'
+          assert_response :success
+
+          memcached_kill(29125)
+
+          exception = [Dalli::RingError, :message => "No server available"]
+
+          assert_raises(*exception) { get '/get_session_value' }
+          assert_raises(*exception) { get '/set_session_value' }
+          assert_raises(*exception) { get '/call_reset_session' }
+        end
       end
     end
   rescue LoadError, RuntimeError

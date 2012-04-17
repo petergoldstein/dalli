@@ -160,6 +160,35 @@ describe 'ActiveSupport' do
         end
       end
     end
+
+    should 'respect bang option' do
+      with_activesupport do
+        memcached(29125) do
+          @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:29125')
+          @dalli.write 'foo', 'bar'
+          assert_equal @dalli.read('foo'), 'bar'
+
+          memcached_kill(29125)
+
+          assert_equal @dalli.read('foo'), nil
+
+          @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:29125', :bang => true)
+
+          exception = [Dalli::RingError, :message => "No server available"]
+
+          assert_raises(*exception) { @dalli.read 'foo' }
+          assert_raises(*exception) { @dalli.read 'foo', :raw => true }
+          assert_raises(*exception) { @dalli.write 'foo', 'bar' }
+          assert_raises(*exception) { @dalli.exist? 'foo' }
+          assert_raises(*exception) { @dalli.increment 'foo' }
+          assert_raises(*exception) { @dalli.decrement 'foo' }
+          assert_raises(*exception) { @dalli.delete 'foo' }
+          assert_equal @dalli.read_multi('foo', 'bar'), {}
+          assert_raises(*exception) { @dalli.delete 'foo' }
+          assert_raises(*exception) { @dalli.fetch('foo') { 42 } }
+        end
+      end
+    end
   end
 
   should 'handle crazy characters from far-away lands' do
