@@ -111,7 +111,7 @@ Usage with Unicorn
 
 Modify the `after_fork` block in your unicorn config file:
 
-    after\_fork do |server, worker|
+    after_fork do |server, worker|
       Rails.cache.reset if Rails.cache.respond_to?(:reset)
 
       # Reset Rails's session store
