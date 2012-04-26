@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+2.0.4
+=======
+
+- Add option to re-raise errors rescued in the session and cache stores. [pitr, #200]
+
 2.0.3
 =======
 
