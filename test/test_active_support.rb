@@ -161,7 +161,7 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'respect bang option' do
+    should 'respect "raise_errors" option' do
       with_activesupport do
         memcached(29125) do
           @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:29125')
@@ -172,7 +172,7 @@ describe 'ActiveSupport' do
 
           assert_equal @dalli.read('foo'), nil
 
-          @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:29125', :bang => true)
+          @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:29125', :raise_errors => true)
 
           exception = [Dalli::RingError, :message => "No server available"]
 

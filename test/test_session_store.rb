@@ -204,7 +204,7 @@ class TestSessionStore < ActionController::IntegrationTest
       end
     end
 
-    def test_without_bang_option
+    def test_without_raise_errors_option
       memcached(29125) do
         with_test_route_set(:memcache_server => '127.0.0.1:29125') do
           get '/set_session_value'
@@ -223,9 +223,9 @@ class TestSessionStore < ActionController::IntegrationTest
       end
     end
 
-    def test_with_bang_option
+    def test_with_raise_errors_option
       memcached(29125) do
-        with_test_route_set(:memcache_server => '127.0.0.1:29125', :bang => true) do
+        with_test_route_set(:memcache_server => '127.0.0.1:29125', :raise_errors => true) do
           get '/set_session_value'
           assert_response :success
 

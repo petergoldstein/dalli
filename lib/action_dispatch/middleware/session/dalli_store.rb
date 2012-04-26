@@ -20,7 +20,7 @@ module ActionDispatch
         end
         @namespace = @default_options[:namespace]
 
-        @bang = !!@default_options[:bang]
+        @raise_errors = !!@default_options[:raise_errors]
 
         super
       end
@@ -51,7 +51,7 @@ module ActionDispatch
         sid
       rescue Dalli::DalliError
         Rails.logger.warn("Session::DalliStore#set: #{$!.message}")
-        raise if @bang
+        raise if @raise_errors
         false
       end
 
@@ -60,7 +60,7 @@ module ActionDispatch
           @pool.delete(session_id)
         rescue Dalli::DalliError
           Rails.logger.warn("Session::DalliStore#destroy_session: #{$!.message}")
-          raise if @bang
+          raise if @raise_errors
         end
         return nil if options[:drop]
         generate_sid
@@ -72,7 +72,7 @@ module ActionDispatch
         end
       rescue Dalli::DalliError
         Rails.logger.warn("Session::DalliStore#destroy: #{$!.message}")
-        raise if @bang
+        raise if @raise_errors
         false
       end
 

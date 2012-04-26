@@ -21,7 +21,7 @@ module ActiveSupport
         addresses = addresses.flatten
         options = addresses.extract_options!
         options[:compress] ||= options[:compression]
-        @bang = !!options[:bang]
+        @raise_errors = !!options[:raise_errors]
         addresses << 'localhost:11211' if addresses.empty?
         @data = Dalli::Client.new(addresses, options)
       end
@@ -108,7 +108,7 @@ module ActiveSupport
         end
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
-        raise if @bang
+        raise if @raise_errors
         nil
       end
 
@@ -126,7 +126,7 @@ module ActiveSupport
         end
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
-        raise if @bang
+        raise if @raise_errors
         nil
       end
 
@@ -154,7 +154,7 @@ module ActiveSupport
         entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
-        raise if @bang
+        raise if @raise_errors
         nil
       end
 
@@ -165,7 +165,7 @@ module ActiveSupport
         @data.send(method, escape(key), value, expires_in, options)
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
-        raise if @bang
+        raise if @raise_errors
         false
       end
 
@@ -174,7 +174,7 @@ module ActiveSupport
         @data.delete(escape(key))
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
-        raise if @bang
+        raise if @raise_errors
         false
       end
 
