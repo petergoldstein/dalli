@@ -231,7 +231,7 @@ class TestSessionStore < ActionController::IntegrationTest
 
           memcached_kill(29125)
 
-          exception = [Dalli::RingError, :message => "No server available"]
+          exception = [Dalli::RingError, { :message => "No server available" }]
 
           assert_raises(*exception) { get '/get_session_value' }
           assert_raises(*exception) { get '/set_session_value' }
