@@ -174,7 +174,7 @@ describe 'ActiveSupport' do
 
           @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:29125', :raise_errors => true)
 
-          exception = [Dalli::RingError, :message => "No server available"]
+          exception = [Dalli::RingError, { :message => "No server available" }]
 
           assert_raises(*exception) { @dalli.read 'foo' }
           assert_raises(*exception) { @dalli.read 'foo', :raw => true }
