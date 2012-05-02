@@ -30,6 +30,10 @@ describe 'ActiveSupport' do
 
           dvalue = @dalli.fetch(rand_key) { o }
           assert_equal o, dvalue
+
+          @dalli.write('false', false)
+          dvalue = @dalli.fetch('false') { flunk }
+          assert_equal false, dvalue
         end
       end
     end

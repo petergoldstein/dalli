@@ -5,6 +5,7 @@ Dalli Changelog
 =======
 
 - Add option to re-raise errors rescued in the session and cache stores. [pitr, #200]
+- DalliStore#fetch called the block if the cached value == false [#205]
 
 2.0.3
 =======

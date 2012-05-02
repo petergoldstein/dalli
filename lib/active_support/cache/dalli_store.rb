@@ -36,7 +36,7 @@ module ActiveSupport
             end
           end
 
-          if entry
+          if !entry.nil?
             instrument(:fetch_hit, name, options) { |payload| }
             entry
           else
