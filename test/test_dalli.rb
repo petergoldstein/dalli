@@ -136,8 +136,8 @@ describe 'Dalli' do
         assert_equal false, res
 
         dc.set("fetch_key", nil)
-        res = dc.fetch("fetch_key") { flunk "fetch block called" }
-        assert_equal nil, res
+        res = dc.fetch("fetch_key") { "bob" }
+        assert_equal 'bob', res
       end
     end
 
