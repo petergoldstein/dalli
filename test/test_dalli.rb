@@ -127,6 +127,20 @@ describe 'Dalli' do
       end
     end
 
+    should "support the fetch operation with falsey values" do
+      memcached do |dc|
+        dc.flush
+
+        dc.set("fetch_key", false)
+        res = dc.fetch("fetch_key") { flunk "fetch block called" }
+        assert_equal false, res
+
+        dc.set("fetch_key", nil)
+        res = dc.fetch("fetch_key") { flunk "fetch block called" }
+        assert_equal nil, res
+      end
+    end
+
     should "support the cas operation" do
       memcached do |dc|
         dc.flush
