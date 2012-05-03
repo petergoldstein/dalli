@@ -6,6 +6,23 @@ module ActiveSupport
   module Cache
     class DalliStore
 
+      attr_reader :silence, :options
+      alias_method :silence?, :silence
+
+      # Silence the logger.
+      def silence!
+        @silence = true
+        self
+      end
+
+      # Silence the logger within a block.
+      def mute
+        previous_silence, @silence = defined?(@silence) && @silence, true
+        yield
+      ensure
+        @silence = previous_silence
+      end
+
       ESCAPE_KEY_CHARS = /[\x00-\x20%\x7F-\xFF]/
 
       # Creates a new DalliStore object, with the given memcached server
@@ -20,10 +37,11 @@ module ActiveSupport
       def initialize(*addresses)
         addresses = addresses.flatten
         options = addresses.extract_options!
-        options[:compress] ||= options[:compression]
-        @raise_errors = !!options[:raise_errors]
+        @options = options.dup
+        @options[:compress] ||= @options[:compression]
+        @raise_errors = !!@options[:raise_errors]
         addresses << 'localhost:11211' if addresses.empty?
-        @data = Dalli::Client.new(addresses, options)
+        @data = Dalli::Client.new(addresses, @options)
       end
 
       def fetch(name, options=nil)
@@ -201,7 +219,7 @@ module ActiveSupport
       end
 
       def log(operation, key, options=nil)
-        return unless logger && logger.debug?
+        return unless logger && logger.debug? && !silence?
         logger.debug("Cache #{operation}: #{key}#{options.blank? ? "" : " (#{options.inspect})"}")
       end
 

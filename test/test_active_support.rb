@@ -4,7 +4,23 @@ require 'helper'
 describe 'ActiveSupport' do
   context 'active_support caching' do
 
-    should 'dalli_store operations should handle nil options' do
+    should 'have accessible options' do
+      @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122', :expires_in => 5.minutes, :frob => 'baz')
+      assert_equal 'baz', @dalli.options[:frob]
+    end
+
+    should 'allow mute and silence' do
+      @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122')
+      @dalli.mute do
+        assert_equal true, @dalli.write('foo', 'bar', nil)
+        assert_equal 'bar', @dalli.read('foo', nil)
+      end
+      refute @dalli.silence?
+      @dalli.silence!
+      assert_equal true, @dalli.silence?
+    end
+
+    should 'handle nil options' do
       @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122')
       assert_equal true, @dalli.write('foo', 'bar', nil)
       assert_equal 'bar', @dalli.read('foo', nil)

@@ -6,6 +6,8 @@ Dalli Changelog
 
 - Add option to re-raise errors rescued in the session and cache stores. [pitr, #200]
 - DalliStore#fetch called the block if the cached value == false [#205]
+- DalliStore should have accessible options [#195]
+- Add silence and mute support for DalliStore [#207]
 
 2.0.3
 =======
