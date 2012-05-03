@@ -16,6 +16,7 @@ begin
     def self.open(host, port, options = {})
       addr = Socket.pack_sockaddr_in(port, host)
       sock = start(addr)
+      sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
       sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
       sock.options = options
       sock.kgio_wait_writable
@@ -49,6 +50,7 @@ rescue LoadError
     def self.open(host, port, options = {})
       Timeout.timeout(options[:socket_timeout]) do
         sock = new(host, port)
+        sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
         sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
         sock.options = { :host => host, :port => port }.merge(options)
         sock
