@@ -41,6 +41,7 @@ module Dalli
 
     # Chokepoint method for instrumentation
     def request(op, *args)
+      check_for_inprogress
       raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}" unless alive?
       begin
         send(op, *args)
@@ -80,6 +81,7 @@ module Dalli
       return unless @sock
       @sock.close rescue nil
       @sock = nil
+      @inprogress = false
     end
 
     def lock!
@@ -91,6 +93,10 @@ module Dalli
     # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
 
     private
+
+    def check_for_inprogress
+      failure! if @inprogress
+    end
 
     def failure!
       Dalli.logger.info { "#{hostname}:#{port} failed (count: #{@fail_count})" }
@@ -368,19 +374,23 @@ module Dalli
 
     def write(bytes)
       begin
-        @sock.write(bytes)
+        @inprogress = true
+        result = @sock.write(bytes)
+        @inprogress = false
+        result
       rescue SystemCallError, Timeout::Error
         failure!
-        retry
       end
     end
 
     def read(count)
       begin
-        @sock.readfull(count)
+        @inprogress = true
+        data = @sock.readfull(count)
+        @inprogress = false
+        data
       rescue SystemCallError, Timeout::Error, EOFError
         failure!
-        retry
       end
     end
 
@@ -397,7 +407,6 @@ module Dalli
       rescue SystemCallError, Timeout::Error, EOFError, SocketError
         # SocketError = DNS resolution failure
         failure!
-        retry
       end
     end
 

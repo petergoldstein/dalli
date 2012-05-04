@@ -1,6 +1,27 @@
 require 'helper'
 
-describe 'FailOver' do
+describe 'failover' do
+
+  describe 'timeouts' do
+    should 'not lead to corrupt sockets' do
+      memcached(29125) do
+        dc = Dalli::Client.new ['localhost:29125']
+        begin
+          Timeout.timeout 0.01 do
+            1_000.times do
+              dc.set("test_123", {:test => "123"})
+            end
+            flunk("Did not timeout")
+          end
+        rescue Timeout::Error => e
+        end
+
+        assert_equal({:test => '123'}, dc.get("test_123"))
+      end
+    end
+  end
+
+
   context 'assuming some bad servers' do
 
     should 'silently reconnect if server hiccups' do

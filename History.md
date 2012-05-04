@@ -8,6 +8,7 @@ Dalli Changelog
 - DalliStore#fetch called the block if the cached value == false [#205]
 - DalliStore should have accessible options [#195]
 - Add silence and mute support for DalliStore [#207]
+- Tracked down and fixed socket corruption due to Timeout [#146]
 
 2.0.3
 =======
