@@ -37,11 +37,12 @@ module Dalli
       @options = DEFAULTS.merge(options)
       @sock = nil
       @msg = nil
+      @pid = nil
     end
 
     # Chokepoint method for instrumentation
     def request(op, *args)
-      check_for_inprogress
+      verify_state
       raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}" unless alive?
       begin
         send(op, *args)
@@ -81,6 +82,7 @@ module Dalli
       return unless @sock
       @sock.close rescue nil
       @sock = nil
+      @pid = nil
       @inprogress = false
     end
 
@@ -94,8 +96,9 @@ module Dalli
 
     private
 
-    def check_for_inprogress
+    def verify_state
       failure! if @inprogress
+      failure! if @pid && @pid != Process.pid
     end
 
     def failure!
@@ -398,6 +401,7 @@ module Dalli
       Dalli.logger.debug { "Dalli::Server#connect #{hostname}:#{port}" }
 
       begin
+        @pid = Process.pid
         @sock = KSocket.open(hostname, port, options)
         @version = version # trigger actual connect
         sasl_authentication if need_auth?

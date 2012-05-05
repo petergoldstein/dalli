@@ -4,6 +4,7 @@ Dalli Changelog
 2.0.4
 =======
 
+- Dalli no longer needs to be reset after Unicorn/Passenger fork [#208]
 - Add option to re-raise errors rescued in the session and cache stores. [pitr, #200]
 - DalliStore#fetch called the block if the cached value == false [#205]
 - DalliStore should have accessible options [#195]

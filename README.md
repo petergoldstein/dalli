@@ -91,37 +91,6 @@ Both cache and session stores support `:raise_errors` parameter, which propagate
 Dalli does not support Rails 2.x any longer.
 
 
-Usage with Passenger
-------------------------
-
-Put this at the bottom of `config/environment.rb`:
-
-    if defined?(PhusionPassenger)
-      PhusionPassenger.on_event(:starting_worker_process) do |forked|
-        # Reset Rails's object cache
-        # Only works with DalliStore
-        Rails.cache.reset if forked
-
-        # Reset Rails's session store
-        # If you know a cleaner way to find the session store instance, please let me know
-        ObjectSpace.each_object(ActionDispatch::Session::DalliStore) { |obj| obj.reset }
-      end
-    end
-
-Usage with Unicorn
------------------------
-
-Modify the `after_fork` block in your unicorn config file:
-
-    after_fork do |server, worker|
-      Rails.cache.reset if Rails.cache.respond_to?(:reset)
-
-      # Reset Rails's session store
-      # If you know a cleaner way to find the session store instance, please let me know
-      ObjectSpace.each_object(ActionDispatch::Session::DalliStore) { |obj| obj.reset }
-    end
-
-
 Configuration
 ------------------------
 Dalli::Client accepts the following options. All times are in seconds.
@@ -152,6 +121,10 @@ Features and Changes
 ------------------------
 
 By default, Dalli is thread-safe.  Disable thread-safety at your own peril.
+
+Dalli does not need anything special in Unicorn/Passenger since 2.0.4.
+It will detect sockets shared with child processes and gracefully reopen the
+socket.
 
 Note that Dalli does not require ActiveSupport or Rails.  You can safely use it in your own Ruby projects.
 
