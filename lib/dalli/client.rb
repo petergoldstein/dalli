@@ -243,8 +243,7 @@ module Dalli
     # Chokepoint method for instrumentation
     def perform(op, key, *args)
       key = key.to_s
-      validate_key(key)
-      key = key_with_namespace(key)
+      key = validate_key(key)
       begin
         server = ring.server_for_key(key)
         server.request(op, key, *args)
@@ -257,7 +256,9 @@ module Dalli
 
     def validate_key(key)
       raise ArgumentError, "key cannot be blank" if !key || key.length == 0
+      key = key_with_namespace(key)
       raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
+      return key
     end
 
     def key_with_namespace(key)

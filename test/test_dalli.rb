@@ -404,6 +404,11 @@ describe 'Dalli' do
         dc2.set('namespaced', 2)
         assert_equal 1, dc.get('namespaced')
         assert_equal 2, dc2.get('namespaced')
+
+        dc3 = Dalli::Client.new('localhost:19122', :namespace => 'c' * 100)
+        assert_raises ArgumentError do
+          dc3.get "a" * 151
+        end
       end
     end
 
