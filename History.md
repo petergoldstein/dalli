@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+2.0.5
+=======
+
+- Handle long key with namespace [#212]
+
 2.0.4
 =======
 
