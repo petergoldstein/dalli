@@ -46,6 +46,8 @@ module ActiveSupport
 
       def fetch(name, options=nil)
         options ||= {}
+        name = namespaced_key(name, options)
+
         if block_given?
           unless options[:force]
             entry = instrument(:read, name, options) do |payload|
@@ -71,6 +73,8 @@ module ActiveSupport
 
       def read(name, options=nil)
         options ||= {}
+        name = namespaced_key(name, options)
+
         instrument(:read, name, options) do |payload|
           entry = read_entry(name, options)
           payload[:hit] = !!entry if payload
@@ -80,6 +84,8 @@ module ActiveSupport
 
       def write(name, value, options=nil)
         options ||= {}
+        name = namespaced_key(name, options)
+
         instrument(:write, name, options) do |payload|
           write_entry(name, value, options)
         end
@@ -87,20 +93,24 @@ module ActiveSupport
 
       def exist?(name, options=nil)
         options ||= {}
+        name = namespaced_key(name, options)
+
         !read_entry(name, options).nil?
       end
 
       def delete(name, options=nil)
+        options ||= {}
+        name = namespaced_key(name, options)
+
         delete_entry(name, options)
       end
 
       # Reads multiple keys from the cache using a single call to the
       # servers for all keys. Keys must be Strings.
       def read_multi(*names)
-        names.extract_options!
+        options = names.extract_options!
         names = names.flatten
-
-        mapping = names.inject({}) { |memo, name| memo[escape(name)] = name; memo }
+        mapping = names.inject({}) { |memo, name| memo[escape(namespaced_key(name, options))] = name; memo }
         instrument(:read_multi, names) do
           results = @data.get_multi(mapping.keys)
           results.inject({}) do |memo, (inner, value)|
@@ -119,6 +129,7 @@ module ActiveSupport
       # memcached counters cannot hold negative values.
       def increment(name, amount = 1, options=nil)
         options ||= {}
+        name = namespaced_key(name, options)
         initial = options.has_key?(:initial) ? options[:initial] : amount
         expires_in = options[:expires_in]
         instrument(:increment, name, :amount => amount) do
@@ -137,6 +148,7 @@ module ActiveSupport
       # memcached counters cannot hold negative values.
       def decrement(name, amount = 1, options=nil)
         options ||= {}
+        name = namespaced_key(name, options)
         initial = options.has_key?(:initial) ? options[:initial] : 0
         expires_in = options[:expires_in]
         instrument(:decrement, name, :amount => amount) do
@@ -197,6 +209,34 @@ module ActiveSupport
       end
 
       private
+      # Expand key to be a consistent string value. Invoke +cache_key+ if
+      # object responds to +cache_key+. Otherwise, to_param method will be
+      # called. If the key is a Hash, then keys will be sorted alphabetically.
+      def expanded_key(key) # :nodoc:
+        return key.cache_key.to_s if key.respond_to?(:cache_key)
+
+        case key
+        when Array
+          if key.size > 1
+            key = key.collect{|element| expanded_key(element)}
+          else
+            key = key.first
+          end
+        when Hash
+          key = key.sort_by { |k,_| k.to_s }.collect{|k,v| "#{k}=#{v}"}
+        end
+
+        key.to_param
+      end
+
+      # Prefix a key with the namespace. Namespace and key will be delimited with a colon.
+      def namespaced_key(key, options = {})
+        key = expanded_key(key)
+        namespace = options[:namespace] if options
+        prefix = namespace.is_a?(Proc) ? namespace.call : namespace
+        key = "#{prefix}:#{key}" if prefix
+        key
+      end
 
       def escape(key)
         key = key.to_s.dup
