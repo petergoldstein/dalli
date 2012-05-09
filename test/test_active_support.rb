@@ -1,6 +1,12 @@
 # encoding: utf-8
 require 'helper'
 
+class MockUser
+  def cache_key
+    "users/1/21348793847982314"
+  end
+end
+
 describe 'ActiveSupport' do
   context 'active_support caching' do
 
@@ -49,6 +55,11 @@ describe 'ActiveSupport' do
 
           @dalli.write('false', false)
           dvalue = @dalli.fetch('false') { flunk }
+          assert_equal false, dvalue
+
+          user = MockUser.new
+          @dalli.write(user.cache_key, false)
+          dvalue = @dalli.fetch(user) { flunk }
           assert_equal false, dvalue
         end
       end
@@ -118,6 +129,16 @@ describe 'ActiveSupport' do
 
           dres = @dalli.delete(y)
           assert_equal true, dres
+
+          user = MockUser.new
+          dres = @dalli.write(user.cache_key, "foo")
+          assert_equal true, dres
+
+          dres = @dalli.read(user)
+          assert_equal "foo", dres
+
+          dres = @dalli.delete(user)
+          assert_equal true, dres
         end
       end
     end
@@ -149,6 +170,13 @@ describe 'ActiveSupport' do
 
           assert_equal nil, @dalli.decrement('counterZ2', 1, :initial => nil)
           assert_equal nil, @dalli.read('counterZ2')
+
+          user = MockUser.new
+          assert_equal true, @dalli.write(user, 0, :raw => true)
+          assert_equal 1, @dalli.increment(user)
+          assert_equal 2, @dalli.increment(user)
+          assert_equal 1, @dalli.decrement(user)
+          assert_equal "1", @dalli.read(user, :raw => true)
         end
       end
     end
@@ -164,6 +192,10 @@ describe 'ActiveSupport' do
           assert_equal true, @dalli.exist?(:false_value)
 
           assert_equal false, @dalli.exist?(:bar)
+
+          user = MockUser.new
+          @dalli.write(user, 'foo')
+          assert_equal true, @dalli.exist?(user)
         end
       end
     end
