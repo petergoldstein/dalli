@@ -6,6 +6,7 @@ Dalli Changelog
 
 - Create proper keys for arrays of objects passed as keys [twinturbo, #211]
 - Handle long key with namespace [#212]
+- Add NODELAY to TCP socket options [#206]
 
 2.0.4
 =======
