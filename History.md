@@ -4,6 +4,7 @@ Dalli Changelog
 2.0.5
 =======
 
+- Create proper keys for arrays of objects passed as keys [twinturbo, #211]
 - Handle long key with namespace [#212]
 
 2.0.4
