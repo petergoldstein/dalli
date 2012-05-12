@@ -274,7 +274,11 @@ module Dalli
         Dalli.logger.warn "DEPRECATED: Dalli's :compression option is now just :compress => true.  Please update your configuration."
         opts[:compress] = opts.delete(:compression)
       end
-      opts[:expires_in] ||= 0
+      begin
+        opts[:expires_in] = opts[:expires_in].to_i || 0
+      rescue NoMethodError
+        raise ArgumentError, "cannot convert expries_in #{opts[:expires_in].inspect} to an integer"
+      end
       opts
     end
   end
