@@ -275,9 +275,9 @@ module Dalli
         opts[:compress] = opts.delete(:compression)
       end
       begin
-        opts[:expires_in] = opts[:expires_in].to_i || 0
+        opts[:expires_in] = opts[:expires_in].to_i
       rescue NoMethodError
-        raise ArgumentError, "cannot convert expires_in #{opts[:expires_in].inspect} to an integer"
+        raise ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
       end
       opts
     end
