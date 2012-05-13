@@ -14,6 +14,15 @@ describe 'Dalli' do
       # Rails.logger.expects :warn
       assert dc.instance_variable_get(:@options)[:compress]
     end
+    
+    should 'raises error with invalid expires_in' do
+      bad_data = [{:bad => 'expires in data'}, Hash, [1,2,3]]
+      bad_data.each do |bad|
+        assert_raises ArgumentError do
+          dc = Dalli::Client.new('foo', {:expires_in => bad})
+        end
+      end
+    end
   end
 
   describe 'key validation' do
