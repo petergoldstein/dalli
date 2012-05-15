@@ -413,11 +413,16 @@ describe 'Dalli' do
         dc2.set('namespaced', 2)
         assert_equal 1, dc.get('namespaced')
         assert_equal 2, dc2.get('namespaced')
-
-        dc3 = Dalli::Client.new('localhost:19122', :namespace => 'c' * 100)
-        assert_raises ArgumentError do
-          dc3.get "a" * 151
-        end
+      end
+    end
+    
+    should 'truncate cache keys that are too long' do
+      memcached do
+        @dalli = Dalli::Client.new('localhost:19122', :namespace => 'some:namspace')
+        key = "this cache key is far too long so it must be hashed and truncated and stuff" * 10
+        value = "some value"
+        assert_equal true, @dalli.set(key, value)
+        assert_equal value, @dalli.get(key)
       end
     end
 

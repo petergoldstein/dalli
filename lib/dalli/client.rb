@@ -1,3 +1,5 @@
+require 'digest/md5'
+
 # encoding: ascii
 module Dalli
   class Client
@@ -257,7 +259,11 @@ module Dalli
     def validate_key(key)
       raise ArgumentError, "key cannot be blank" if !key || key.length == 0
       key = key_with_namespace(key)
-      raise ArgumentError, "key too long #{key.inspect}" if key.length > 250
+      if key.length > 250
+        namespace_length = @options[:namespace] ? @options[:namespace].size : 0
+        max_length_before_namespace = 212 - namespace_length
+        key = "#{key[0, max_length_before_namespace]}:md5:#{Digest::MD5.hexdigest(key)}"
+      end
       return key
     end
 
