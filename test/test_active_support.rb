@@ -264,6 +264,18 @@ describe 'ActiveSupport' do
       end
     end
   end
+  
+  should 'truncate cache keys that are too long, even with a namespace' do
+    with_activesupport do
+      memcached do
+        @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122', :expires_in => 5.minutes, :frob => 'baz', :namespace => 'some:namspace')
+        key = "this cache key is far too long so it must be hashed and truncated and stuff" * 10
+        value = "some value"
+        assert_equal true, @dalli.write(key, value)
+        assert_equal value, @dalli.read(key)
+      end
+    end
+  end
 
   def connect
     @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122', :expires_in => 10.seconds, :namespace => 'x')

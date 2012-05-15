@@ -39,6 +39,7 @@ module ActiveSupport
         options = addresses.extract_options!
         @options = options.dup
         @options[:compress] ||= @options[:compression]
+        @namespace_length = options[:namespace].try(:size) || 0
         @raise_errors = !!@options[:raise_errors]
         addresses << 'localhost:11211' if addresses.empty?
         @data = Dalli::Client.new(addresses, @options)
@@ -233,7 +234,8 @@ module ActiveSupport
         key = key.to_s.dup
         key = key.force_encoding("BINARY") if key.encoding_aware?
         key = key.gsub(ESCAPE_KEY_CHARS){ |match| "%#{match.getbyte(0).to_s(16).upcase}" }
-        key = "#{key[0, 213]}:md5:#{Digest::MD5.hexdigest(key)}" if key.size > 250
+        max_length_before_namespace = 212 - @namespace_length
+        key = "#{key[0, max_length_before_namespace]}:md5:#{Digest::MD5.hexdigest(key)}" if key.size > 250
         key
       end
 
