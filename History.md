@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+2.1.0
+=======
+
+- Add Railtie to auto-configure Dalli when included in Gemfile [#217, steveklabnik]
+
 2.0.5
 =======
 
