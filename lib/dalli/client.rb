@@ -13,8 +13,19 @@ module Dalli
     #
     # servers is an Array of "host:port:weight" where weight allows you to distribute cache unevenly.
     # Both weight and port are optional.  If you pass in nil, Dalli will default to 'localhost:11211'.
+    #
     # Note that the <tt>MEMCACHE_SERVERS</tt> environment variable will override the servers parameter for use
     # in managed environments like Heroku.
+    #
+    # You can also specify an environment variable <tt>MEMCACHE_URL</tt> like:
+    #
+    #   memcached://[username:password@]host1[:port1][,host2[:port2],...[,hostN[:portN]]][?options]
+    #
+    # For example:
+    #
+    #   memcached://testuser:testpass@1.2.3.4,5.6.7.8:19134?namespace=mytest&failover=false&expires_in=12
+    #
+    # Unlike <tt>MEMCACHE_SERVERS</tt>, the <tt>MEMCACHE_URL</tt> env var will NOT override parameters - in other words, it only takes effect if no args are passed.
     #
     # Options:
     # - :namespace - prepend each key with this value to provide simple namespacing.
@@ -25,8 +36,15 @@ module Dalli
     #   sending them to memcached.
     #
     def initialize(servers=nil, options={})
-      @servers = env_servers || servers || '127.0.0.1:11211'
-      @options = normalize_options(options)
+      if servers.nil? && !ENV.has_key?('MEMCACHE_SERVERS') && ENV.has_key?('MEMCACHE_URL')
+        # going out of our way to defer to MEMCACHE_SERVERS
+        parser = UrlParser.new ENV['MEMCACHE_URL']
+        @servers = parser.servers
+        @options = normalize_options(parser.options)
+      else
+        @servers = env_servers || servers || '127.0.0.1:11211'
+        @options = normalize_options(options)
+      end
       @ring = nil
     end
 
