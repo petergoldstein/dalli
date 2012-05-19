@@ -117,6 +117,14 @@ Dalli::Client accepts the following options. All times are in seconds.
 
 **keepalive**: Boolean, if true Dalli will enable keep-alives on the socket so inactivity
 
+You can also set the MEMCACHE_URL environment variable:
+
+    memcached://[username:password@]host1[:port1][,host2[:port2],...[,hostN[:portN]]][?options]
+
+so for example:
+
+    'memcached://1.2.3.4,5.6.7.8,9.10.11.12:19124?namespace=mytest&expires_in=4'
+
 Features and Changes
 ------------------------
 

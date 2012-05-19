@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+unreleased
+=======
+
+- Accept ENV['MEMCACHE_URL'] in the form "memcached://[username:password@]host1[:port1][,host2[:port2],...[,hostN[:portN]]][?options]" [seamusabshere]
+
 2.1.0
 =======
 

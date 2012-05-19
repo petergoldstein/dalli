@@ -4,6 +4,7 @@ require 'dalli/server'
 require 'dalli/socket'
 require 'dalli/version'
 require 'dalli/options'
+require 'dalli/url_parser'
 require 'dalli/railtie' if defined?(Rails)
 
 module Dalli
