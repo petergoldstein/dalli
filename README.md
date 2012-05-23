@@ -81,14 +81,11 @@ Here's a more comprehensive example that sets a reasonable default for maximum c
     config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com',
         { :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true }
 
-To use Dalli for Rails session storage, in `config/initializers/session_store.rb`:
+To use Dalli for Rails session storage that times out after 20 minutes, in `config/initializers/session_store.rb`:
 
-    require 'action_dispatch/middleware/session/dalli_store'
-    Rails.application.config.session_store :dalli_store, :memcache_server => ['host1', 'host2'], :namespace => 'sessions', :key => '_foundation_session', :expire_after => 30.minutes
+    Rails.application.config.session_store ActionDispatch::Session::CacheStore, :expire_after => 20.minutes
 
-Both cache and session stores support `:raise_errors` parameter, which propagates exceptions (e.g. if all memcache servers are down) instead of silently hiding errors.
-
-Dalli does not support Rails 2.x any longer.
+Dalli does not support Rails 2.x.
 
 
 Configuration
