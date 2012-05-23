@@ -85,7 +85,7 @@ module Dalli
     end
 
     def fetch(key, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in]
+      ttl ||= @options[:expires_in].to_i
       val = get(key, options)
       if val.nil? && block_given?
         val = yield
@@ -106,7 +106,7 @@ module Dalli
     # - false if the value was changed by someone else.
     # - true if the value was successfully updated.
     def cas(key, ttl=nil, options=nil, &block)
-      ttl ||= @options[:expires_in]
+      ttl ||= @options[:expires_in].to_i
       (value, cas) = perform(:cas, key)
       value = (!value || value == 'Not found') ? nil : value
       if value
@@ -116,7 +116,7 @@ module Dalli
     end
 
     def set(key, value, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in]
+      ttl ||= @options[:expires_in].to_i
       perform(:set, key, value, ttl, 0, options)
     end
 
@@ -124,7 +124,7 @@ module Dalli
     # Conditionally add a key/value pair, if the key does not already exist
     # on the server.  Returns true if the operation succeeded.
     def add(key, value, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in]
+      ttl ||= @options[:expires_in].to_i
       perform(:add, key, value, ttl, options)
     end
 
@@ -132,7 +132,7 @@ module Dalli
     # Conditionally add a key/value pair, only if the key already exists
     # on the server.  Returns true if the operation succeeded.
     def replace(key, value, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in]
+      ttl ||= @options[:expires_in].to_i
       perform(:replace, key, value, ttl, options)
     end
 
@@ -174,7 +174,7 @@ module Dalli
     # #cas.
     def incr(key, amt=1, ttl=nil, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
-      ttl ||= @options[:expires_in]
+      ttl ||= @options[:expires_in].to_i
       perform(:incr, key, amt.to_i, ttl, default)
     end
 
@@ -194,7 +194,7 @@ module Dalli
     # #cas.
     def decr(key, amt=1, ttl=nil, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
-      ttl ||= @options[:expires_in]
+      ttl ||= @options[:expires_in].to_i
       perform(:decr, key, amt.to_i, ttl, default)
     end
 
@@ -281,7 +281,7 @@ module Dalli
         opts[:compress] = opts.delete(:compression)
       end
       begin
-        opts[:expires_in] = opts[:expires_in].to_i
+        opts[:expires_in] = opts[:expires_in].to_i if opts[:expires_in]
       rescue NoMethodError
         raise ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
       end
