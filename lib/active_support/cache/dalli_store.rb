@@ -163,6 +163,10 @@ module ActiveSupport
       # be used with care when using a shared cache.
       def clear(options=nil)
         @data.flush_all
+      rescue Dalli::DalliError => e
+        logger.error("DalliError: #{e.message}") if logger
+        raise if @raise_errors
+        nil
       end
 
       # Get the statistics from the memcached servers.
