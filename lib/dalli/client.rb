@@ -25,7 +25,7 @@ module Dalli
     #   sending them to memcached.
     #
     def initialize(servers=nil, options={})
-      @servers = env_servers || servers || '127.0.0.1:11211'
+      @servers = servers || env_servers || '127.0.0.1:11211'
       @options = normalize_options(options)
       @ring = nil
     end
