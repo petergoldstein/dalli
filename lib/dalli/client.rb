@@ -12,9 +12,8 @@ module Dalli
     #                   :threadsafe => true, :failover => true, :expires_in => 300)
     #
     # servers is an Array of "host:port:weight" where weight allows you to distribute cache unevenly.
-    # Both weight and port are optional.  If you pass in nil, Dalli will default to 'localhost:11211'.
-    # Note that the <tt>MEMCACHE_SERVERS</tt> environment variable will override the servers parameter for use
-    # in managed environments like Heroku.
+    # Both weight and port are optional.  If you pass in nil, Dalli will use the <tt>MEMCACHE_SERVERS</tt>
+    # environment variable or default to 'localhost:11211' if it is not present.
     #
     # Options:
     # - :namespace - prepend each key with this value to provide simple namespacing.
