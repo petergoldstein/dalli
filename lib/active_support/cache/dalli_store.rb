@@ -94,6 +94,7 @@ module ActiveSupport
         options ||= {}
         name = expanded_key name
 
+        log(:exist, name, options)
         !read_entry(name, options).nil?
       end
 
@@ -101,6 +102,7 @@ module ActiveSupport
         options ||= {}
         name = expanded_key name
 
+        log(:delete, name, options)
         delete_entry(name, options)
       end
 
@@ -162,6 +164,7 @@ module ActiveSupport
       # Clear the entire cache on all memcached servers. This method should
       # be used with care when using a shared cache.
       def clear(options=nil)
+        log(:clear, nil, options)
         @data.flush_all
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
