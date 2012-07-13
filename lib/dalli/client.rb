@@ -232,7 +232,14 @@ module Dalli
     def ring
       @ring ||= Dalli::Ring.new(
         Array(@servers).map do |s|
-          Dalli::Server.new(s, @options)
+         server_options = {}
+          if s =~ %r{\Amemcached://}
+            uri = URI.parse(s)
+            server_options[:username] = uri.user
+            server_options[:password] = uri.password
+            s = "#{uri.host}:#{uri.port}"
+          end
+          Dalli::Server.new(s, @options.merge(server_options))
         end, @options
       )
     end

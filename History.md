@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+unreleased
+=======
+
+- Accept connection string in the form of a URL (e.g., memcached://user:pass@hostname:port) [glenngillen]
+
 2.1.0
 =======
 

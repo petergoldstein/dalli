@@ -3,6 +3,13 @@ require 'helper'
 describe 'Sasl' do
 
   context 'a server requiring authentication' do
+    before do
+      @server = mock()
+      @server.stubs(:request).returns(true)
+      @server.stubs(:weight).returns(1)
+      @server.stubs(:hostname).returns("localhost")
+      @server.stubs(:port).returns("19124")
+    end
 
     context 'without authentication credentials' do
       before do
@@ -79,5 +86,21 @@ describe 'Sasl' do
       end
     end
 
+    should 'pass SASL as URI' do
+      Dalli::Server.expects(:new).with("localhost:19124",
+        :username => "testuser", :password => "testtest").returns(@server)
+      dc = Dalli::Client.new('memcached://testuser:testtest@localhost:19124')
+      dc.flush_all
+    end
+
+    should 'pass SASL as ring of URIs' do
+      Dalli::Server.expects(:new).with("localhost:19124",
+        :username => "testuser", :password => "testtest").returns(@server)
+      Dalli::Server.expects(:new).with("otherhost:19125",
+        :username => "testuser2", :password => "testtest2").returns(@server)
+      dc = Dalli::Client.new(['memcached://testuser:testtest@localhost:19124',
+      'memcached://testuser2:testtest2@otherhost:19125'])
+      dc.flush_all
+    end
   end
 end
