@@ -198,6 +198,16 @@ module Dalli
     end
 
     ##
+    # Touch updates expiration time for a given key.
+    #
+    # Returns true if key exists, otherwise nil.
+    def touch(key, ttl=nil, options=nil)
+      ttl ||= @options[:expires_in].to_i
+      resp = perform(:touch, key, ttl)
+      resp.nil? ? nil : true
+    end
+
+    ##
     # Collect the stats for each server.
     # Returns a hash like { 'hostname:port' => { 'stat1' => 'value1', ... }, 'hostname2:port' => { ... } }
     def stats

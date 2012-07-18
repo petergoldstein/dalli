@@ -261,6 +261,12 @@ module Dalli
       generic_response
     end
 
+    def touch(key, ttl)
+      req = [REQUEST, OPCODES[:touch], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:touch])
+      write(req)
+      generic_response
+    end
+
     COMPRESSION_MIN_SIZE = 1024
 
     # http://www.hjp.at/zettel/m/memcached_flags.rxml
@@ -462,6 +468,7 @@ module Dalli
       :auth_negotiation => 0x20,
       :auth_request => 0x21,
       :auth_continue => 0x22,
+      :touch => 0x1C,
     }
 
     HEADER = "CCnCCnNNQ"
@@ -482,6 +489,7 @@ module Dalli
       :prepend => 'a*a*',
       :auth_request => 'a*a*',
       :auth_continue => 'a*a*',
+      :touch => 'Na*',
     }
     FORMAT = OP_FORMAT.inject({}) { |memo, (k, v)| memo[k] = HEADER + v; memo }
 
