@@ -201,7 +201,7 @@ module Dalli
     # Touch updates expiration time for a given key.
     #
     # Returns true if key exists, otherwise nil.
-    def touch(key, ttl=nil, options=nil)
+    def touch(key, ttl=nil)
       ttl ||= @options[:expires_in].to_i
       resp = perform(:touch, key, ttl)
       resp.nil? ? nil : true
