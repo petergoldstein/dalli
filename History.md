@@ -5,6 +5,7 @@ unreleased
 =======
 
 - Accept connection string in the form of a URL (e.g., memcached://user:pass@hostname:port) [glenngillen]
+- Add touch operation [#228, uzzz]
 
 2.1.0
 =======

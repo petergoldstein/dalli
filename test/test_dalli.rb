@@ -14,7 +14,7 @@ describe 'Dalli' do
       # Rails.logger.expects :warn
       assert dc.instance_variable_get(:@options)[:compress]
     end
-    
+
     should 'raises error with invalid expires_in' do
       bad_data = [{:bad => 'expires in data'}, Hash, [1,2,3]]
       bad_data.each do |bad|
@@ -294,6 +294,17 @@ describe 'Dalli' do
       end
     end
 
+    should 'support touch operation' do
+      memcached do |dc|
+        resp = dc.flush
+        dc.set 'key', 'value'
+        assert_equal true, dc.touch('key', 10)
+        assert_equal true, dc.touch('key')
+        assert_equal 'value', dc.get('key')
+        assert_nil dc.touch('notexist')
+      end
+    end
+
     should 'allow TCP connections to be configured for keepalive' do
       memcached(19122, '', :keepalive => true) do |dc|
         dc.set(:a, 1)
@@ -415,7 +426,7 @@ describe 'Dalli' do
         assert_equal 2, dc2.get('namespaced')
       end
     end
-    
+
     should 'truncate cache keys that are too long' do
       memcached do
         @dalli = Dalli::Client.new('localhost:19122', :namespace => 'some:namspace')
