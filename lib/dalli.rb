@@ -4,7 +4,7 @@ require 'dalli/server'
 require 'dalli/socket'
 require 'dalli/version'
 require 'dalli/options'
-require 'dalli/railtie' if defined?(Rails)
+require 'dalli/railtie' if defined?(::Rails::Railtie)
 
 module Dalli
   # generic error
