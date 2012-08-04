@@ -25,6 +25,7 @@ module Dalli
 
       threadsafe! unless options[:threadsafe] == false
       @failover = options[:failover] != false
+      @redundant = options[:redundant] == true
     end
 
     def server_for_key(key)
@@ -51,6 +52,16 @@ module Dalli
         return yield
       ensure
         @servers.each { |s| s.unlock! }
+      end
+    end
+
+    def redundant?
+      @redundant
+    end
+
+    def request(op, *args)
+      @servers.each do |server|
+        server.request(op, *args)
       end
     end
 

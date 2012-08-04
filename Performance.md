@@ -40,3 +40,12 @@ Testing 2.0.0 with ruby 1.9.3p125 (2012-02-16 revision 34643) [x86_64-darwin11.3
     mixed:ruby:dalli                  1.660000   0.640000   2.300000 (  3.320743)
     mixedq:ruby:dalli                 1.630000   0.510000   2.140000 (  2.629734)
     incr:ruby:dalli                   0.270000   0.100000   0.370000 (  0.547618)
+
+
+dalli with :redundant => true, 4 servers for SET requests
+Testing with Rails 3.2.7
+Using kgio socket IO
+Testing 2.1.0 with ruby 1.9.3p258 (2012-07-29 revision 36564) [x86_64-darwin11.4.0]
+                                         user     system      total        real
+redundant:set:plain:dalli            1.970000   1.080000   3.050000 (  4.050488)
+redundant:set:ruby:dalli             2.260000   1.110000   3.370000 (  4.503101)

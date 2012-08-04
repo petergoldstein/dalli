@@ -99,6 +99,8 @@ Dalli::Client accepts the following options. All times are in seconds.
 
 **failover**: Boolean, if true Dalli will failover to another server if the main server for a key is down.
 
+**redundant**: Boolean, if true Dalli will perform SET command on all available servers. Default is false.
+
 **compress**: Boolean, if true Dalli will gzip-compress values larger than 1K.
 
 **socket_timeout**: Timeout for all socket operations (connect, read, write). Default is 0.5.
