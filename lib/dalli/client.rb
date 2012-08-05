@@ -22,6 +22,7 @@ module Dalli
     # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
     # - :compress - defaults to false, if true Dalli will compress values larger than 100 bytes before
     #   sending them to memcached.
+    # - :redundant - if option set, client performs SET operation on all available servers. Default: false.
     #
     def initialize(servers=nil, options={})
       @servers = servers || env_servers || '127.0.0.1:11211'
@@ -263,8 +264,12 @@ module Dalli
       key = key.to_s
       key = validate_key(key)
       begin
-        server = ring.server_for_key(key)
-        server.request(op, key, *args)
+        if ring.redundant? && op == :set
+          ring.request(op, key, *args)
+        else
+          server = ring.server_for_key(key)
+          server.request(op, key, *args)
+        end
       rescue NetworkError => e
         Dalli.logger.debug { e.message }
         Dalli.logger.debug { "retrying request with new server" }

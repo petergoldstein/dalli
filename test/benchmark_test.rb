@@ -182,6 +182,43 @@ describe 'performance' do
 
       end
     end
+  end
 
+  should "run benchmarks with redundant option" do
+    @servers = ['127.0.0.1:19122', 'localhost:19122', '127.0.0.1:19123', 'localhost:19123']
+    memcached do |m1|
+      memcached(19123) do |m2|
+        Benchmark.bm(42) do |x|
+          n = 2500
+          @m = Dalli::Client.new(@servers, {:redundant => true})
+          x.report("redundant:set:plain:dalli") do
+            n.times do
+              @m.set @key1, @marshalled, 0, :raw => true
+              @m.set @key2, @marshalled, 0, :raw => true
+              @m.set @key3, @marshalled, 0, :raw => true
+              @m.set @key1, @marshalled, 0, :raw => true
+              @m.set @key2, @marshalled, 0, :raw => true
+              @m.set @key3, @marshalled, 0, :raw => true
+            end
+          end
+
+          @m = Dalli::Client.new(@servers, {:redundant => true})
+          x.report("redundant:set:ruby:dalli") do
+            n.times do
+              @m.set @key1, @value
+              @m.set @key2, @value
+              @m.set @key3, @value
+              @m.set @key1, @value
+              @m.set @key2, @value
+              @m.set @key3, @value
+            end
+          end
+        end
+
+        m2.flush
+      end
+
+      m1.flush
+    end
   end
 end

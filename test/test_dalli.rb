@@ -23,6 +23,16 @@ describe 'Dalli' do
         end
       end
     end
+
+    should 'set redundant to false by default' do
+      dc = Dalli::Client.new('foo')
+      refute dc.instance_variable_get(:@options)[:redundant]
+    end
+
+    should 'set redundant to true' do
+      dc = Dalli::Client.new('foo', :redundant => true)
+      assert dc.instance_variable_get(:@options)[:redundant]
+    end
   end
 
   describe 'key validation' do
@@ -374,6 +384,47 @@ describe 'Dalli' do
         assert_equal Hash, resp.class
 
         dc.close
+      end
+    end
+
+    should 'support redundant option and write to all available servers' do
+      memcached do |client1|
+        memcached(19123) do |client2|
+          client1.flush
+          client2.flush
+
+          servers = ['127.0.0.1:19122', '127.0.0.1:19123']
+          dalli = Dalli::Client.new(servers)
+          dalli_redundant = Dalli::Client.new(servers, {:redundant => true})
+
+          key = "dalli"
+
+          # ensure nothing stored with this key yet
+          assert_nil dalli.get key
+          assert_nil dalli_redundant.get key
+          assert_nil client1.get key
+          assert_nil client2.get key
+
+          # performing SET for key 'dalli' should store key on a first server
+          assert dalli.set key, "test"
+          assert_equal "test", dalli.get(key)
+
+          assert_equal "test", client1.get(key)
+          assert_nil client2.get key
+
+          client1.flush
+          client2.flush
+
+          # ensure nothing stored with this key
+          assert_nil dalli.get key
+
+          # performing SET by client with 'redundant' option should store all keys on a first server
+          assert dalli_redundant.set key, "test"
+          assert_equal "test", dalli.get(key)
+
+          assert_equal "test", client1.get(key)
+          assert_equal "test", client2.get(key)
+        end
       end
     end
 
