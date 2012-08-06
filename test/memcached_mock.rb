@@ -78,7 +78,6 @@ module MemcachedMock
           begin
             Process.kill("TERM", pid)
             Process.wait(pid)
-            File.delete(MemcachedMock.tmp_socket_path) if options[:unix]
           rescue Errno::ECHILD, Errno::ESRCH
           end
         end
