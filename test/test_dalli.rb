@@ -296,12 +296,17 @@ describe 'Dalli' do
 
     should 'support touch operation' do
       memcached do |dc|
-        resp = dc.flush
-        dc.set 'key', 'value'
-        assert_equal true, dc.touch('key', 10)
-        assert_equal true, dc.touch('key')
-        assert_equal 'value', dc.get('key')
-        assert_nil dc.touch('notexist')
+        begin
+          resp = dc.flush
+          dc.set 'key', 'value'
+          assert_equal true, dc.touch('key', 10)
+          assert_equal true, dc.touch('key')
+          assert_equal 'value', dc.get('key')
+          assert_nil dc.touch('notexist')
+        rescue Dalli::DalliError => e
+          # This will happen when memcached is in lesser version than 1.4.8
+          assert_equal 'Response error 129: Unknown command', e.message
+        end
       end
     end
 
