@@ -237,7 +237,7 @@ module ActiveSupport
 
       def escape(key)
         key = key.to_s.dup
-        key = key.force_encoding("BINARY") if key.encoding_aware?
+        key = key.force_encoding("BINARY") if key.respond_to?(:encode)
         key = key.gsub(ESCAPE_KEY_CHARS){ |match| "%#{match.getbyte(0).to_s(16).upcase}" }
         key
       end
