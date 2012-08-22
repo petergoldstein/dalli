@@ -19,7 +19,7 @@ describe 'Dalli' do
       bad_data = [{:bad => 'expires in data'}, Hash, [1,2,3]]
       bad_data.each do |bad|
         assert_raises ArgumentError do
-          dc = Dalli::Client.new('foo', {:expires_in => bad})
+          Dalli::Client.new('foo', {:expires_in => bad})
         end
       end
     end
@@ -282,7 +282,7 @@ describe 'Dalli' do
 
     should 'support the append and prepend operations' do
       memcached do |dc|
-        resp = dc.flush
+        dc.flush
         assert_equal true, dc.set('456', 'xyz', 0, :raw => true)
         assert_equal true, dc.prepend('456', '0')
         assert_equal true, dc.append('456', '9')
@@ -297,7 +297,7 @@ describe 'Dalli' do
     should 'support touch operation' do
       memcached do |dc|
         begin
-          resp = dc.flush
+          dc.flush
           dc.set 'key', 'value'
           assert_equal true, dc.touch('key', 10)
           assert_equal true, dc.touch('key')
@@ -410,7 +410,7 @@ describe 'Dalli' do
               assert_equal({ 'a' => 9, 'b' => 11 }, cache.get_multi(['a', 'b']))
               inc = cache.incr('cat', 10)
               assert_equal 0, inc % 5
-              dec = cache.decr('cat', 5)
+              cache.decr('cat', 5)
               assert_equal 11, cache.get('b')
             end
           end
