@@ -38,6 +38,7 @@ module Dalli
       @sock = nil
       @msg = nil
       @pid = nil
+      @inprogress = nil
     end
 
     # Chokepoint method for instrumentation
