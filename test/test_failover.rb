@@ -13,7 +13,7 @@ describe 'failover' do
             end
             flunk("Did not timeout")
           end
-        rescue Timeout::Error => e
+        rescue Timeout::Error
         end
 
         assert_equal({:test => '123'}, dc.get("test_123"))

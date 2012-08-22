@@ -183,7 +183,7 @@ class TestSessionStore < ActionController::IntegrationTest
     def test_expire_after
       with_test_route_set(:expire_after => 1) do
         get '/set_session_value'
-        assert_match /expires/, @response.headers['Set-Cookie']
+        assert_match(/expires/, @response.headers['Set-Cookie'])
 
         sleep(1)
 
@@ -195,7 +195,7 @@ class TestSessionStore < ActionController::IntegrationTest
     def test_expires_in
       with_test_route_set(:expires_in => 1) do
         get '/set_session_value'
-        assert_no_match /expires/, @response.headers['Set-Cookie']
+        assert_no_match(/expires/, @response.headers['Set-Cookie'])
 
         sleep(1)
 
