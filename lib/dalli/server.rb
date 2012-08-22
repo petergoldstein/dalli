@@ -316,7 +316,7 @@ module Dalli
     def cas_response
       header = read(24)
       raise Dalli::NetworkError, 'No response' if !header
-      (extras, type, status, count, _, cas) = header.unpack(CAS_HEADER)
+      (extras, _, status, count, _, cas) = header.unpack(CAS_HEADER)
       data = read(count) if count > 0
       if status == 1
         nil
@@ -337,7 +337,7 @@ module Dalli
     def generic_response(unpack=false)
       header = read(24)
       raise Dalli::NetworkError, 'No response' if !header
-      (extras, type, status, count) = header.unpack(NORMAL_HEADER)
+      (extras, _, status, count) = header.unpack(NORMAL_HEADER)
       data = read(count) if count > 0
       if status == 1
         nil
@@ -359,7 +359,7 @@ module Dalli
       loop do
         header = read(24)
         raise Dalli::NetworkError, 'No response' if !header
-        (key_length, status, body_length) = header.unpack(KV_HEADER)
+        (key_length, _, body_length) = header.unpack(KV_HEADER)
         return hash if key_length == 0
         key = read(key_length)
         value = read(body_length - key_length) if body_length - key_length > 0
@@ -372,7 +372,7 @@ module Dalli
       loop do
         header = read(24)
         raise Dalli::NetworkError, 'No response' if !header
-        (key_length, status, body_length) = header.unpack(KV_HEADER)
+        (key_length, _, body_length) = header.unpack(KV_HEADER)
         return hash if key_length == 0
         flags = read(4).unpack('N')[0]
         key = read(key_length)

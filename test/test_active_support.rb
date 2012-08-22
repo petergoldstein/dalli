@@ -118,7 +118,6 @@ describe 'ActiveSupport' do
       with_activesupport do
         memcached do
           connect
-          x = rand_key
           y = rand_key
           assert_nil @dalli.read(y)
           dres = @dalli.write(y, 123)

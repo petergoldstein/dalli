@@ -109,12 +109,12 @@ module ActiveSupport
       # Reads multiple keys from the cache using a single call to the
       # servers for all keys. Keys must be Strings.
       def read_multi(*names)
-        options = names.extract_options!
+        names.extract_options!
         names = names.flatten
         mapping = names.inject({}) { |memo, name| memo[escape(expanded_key(name))] = name; memo }
         instrument(:read_multi, names) do
           results = @data.get_multi(mapping.keys)
-          results.inject({}) do |memo, (inner, value)|
+          results.inject({}) do |memo, (inner, _)|
             entry = results[inner]
             # NB Backwards data compatibility, to be removed at some point
             memo[mapping[inner]] = (entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry)
