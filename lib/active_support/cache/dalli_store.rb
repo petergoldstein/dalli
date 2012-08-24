@@ -164,8 +164,9 @@ module ActiveSupport
       # Clear the entire cache on all memcached servers. This method should
       # be used with care when using a shared cache.
       def clear(options=nil)
-        log(:clear, nil, options)
-        @data.flush_all
+        instrument(:clear, 'flushing all keys') do
+          @data.flush_all
+        end
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
         raise if @raise_errors
