@@ -1,9 +1,10 @@
 Dalli Changelog
 =====================
 
-unreleased
+2.2.0
 =======
 
+- Add Rack session with\_lock helper, for Rails 4.0 support [#264]
 - Accept connection string in the form of a URL (e.g., memcached://user:pass@hostname:port) [glenngillen]
 - Add touch operation [#228, uzzz]
 
