@@ -57,7 +57,7 @@ module Rack
       def with_lock(env, default=nil)
         @mutex.lock if env['rack.multithread']
         yield
-      rescue Dalli::DalliError, Errno::ECONNREFUSED
+      rescue ::Dalli::DalliError, Errno::ECONNREFUSED
         if $VERBOSE
           warn "#{self} is unable to find memcached server."
           warn $!.inspect
