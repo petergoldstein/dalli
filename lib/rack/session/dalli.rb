@@ -58,6 +58,7 @@ module Rack
         @mutex.lock if env['rack.multithread']
         yield
       rescue ::Dalli::DalliError, Errno::ECONNREFUSED
+        raise if $!.message =~ /undefined class/
         if $VERBOSE
           warn "#{self} is unable to find memcached server."
           warn $!.inspect
