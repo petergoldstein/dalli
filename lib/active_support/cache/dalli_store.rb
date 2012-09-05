@@ -39,8 +39,12 @@ module ActiveSupport
         @options = options.dup
         @options[:compress] ||= @options[:compression]
         @raise_errors = !!@options[:raise_errors]
-        addresses << 'localhost:11211' if addresses.empty?
-        @data = Dalli::Client.new(addresses, @options)
+        servers = if addresses.empty?
+                    nil # use the default from Dalli::Client
+                  else
+                    addresses
+                  end
+        @data = Dalli::Client.new(servers, @options)
       end
 
       def fetch(name, options=nil)
