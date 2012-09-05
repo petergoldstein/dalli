@@ -1,6 +1,12 @@
 Dalli Changelog
 =====================
 
+2.2.1
+=======
+
+- Fix issues with ENV-based connections. [#266]
+- Fix problem with SessionStore in Rails 4.0 [#265]
+
 2.2.0
 =======
 
