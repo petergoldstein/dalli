@@ -186,6 +186,14 @@ module ActiveSupport
         @data.reset
       end
 
+      def logger
+        Dalli.logger
+      end
+
+      def logger=(new_logger)
+        Dalli.logger = new_logger
+      end
+
       protected
 
       # Read an entry from the cache.
@@ -262,10 +270,6 @@ module ActiveSupport
       def log(operation, key, options=nil)
         return unless logger && logger.debug? && !silence?
         logger.debug("Cache #{operation}: #{key}#{options.blank? ? "" : " (#{options.inspect})"}")
-      end
-
-      def logger
-        Dalli.logger
       end
 
     end
