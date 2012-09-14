@@ -86,7 +86,14 @@ Here's a more comprehensive example that sets a reasonable default for maximum c
 
 To use Dalli for Rails session storage that times out after 20 minutes, in `config/initializers/session_store.rb`:
 
+For Rails >= 3.2.4:
+
     Rails.application.config.session_store ActionDispatch::Session::CacheStore, :expire_after => 20.minutes
+
+For Rails 3.x:
+
+    require 'action_dispatch/middleware/session/dalli_store'
+    Rails.application.config.session_store :dalli_store, :memcache_server => ['host1', 'host2'], :namespace => 'sessions', :key => '_foundation_session', :expire_after => 20.minutes
 
 Dalli does not support Rails 2.x.
 
