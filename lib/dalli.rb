@@ -35,6 +35,15 @@ module Dalli
   def self.logger=(logger)
     @logger = logger
   end
+
+  def self.serializer
+    return @serializer if defined? @serializer
+    @serializer ||= Marshal
+  end
+
+  def self.serializer=(serializer)
+    @serializer = serializer
+  end
 end
 
 if defined?(RAILS_VERSION) && RAILS_VERSION < '3'

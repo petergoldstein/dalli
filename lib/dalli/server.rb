@@ -273,7 +273,7 @@ module Dalli
     # http://www.hjp.at/zettel/m/memcached_flags.rxml
     # Looks like most clients use bit 0 to indicate native language serialization
     # and bit 1 to indicate gzip compression.
-    FLAG_MARSHALLED = 0x1
+    FLAG_SERIALIZED = 0x1
     FLAG_COMPRESSED = 0x2
 
     def serialize(key, value, options=nil)
@@ -281,7 +281,7 @@ module Dalli
       value = unless options && options[:raw]
         marshalled = true
         begin
-          Marshal.dump(value)
+          Dalli.serializer.dump(value)
         rescue => ex
           # Marshalling can throw several different types of generic Ruby exceptions.
           # Convert to a specific exception so we can special case it higher up the stack.
@@ -300,13 +300,13 @@ module Dalli
       raise Dalli::DalliError, "Value too large, memcached can only store #{@options[:value_max_bytes]} bytes per key [key: #{key}, size: #{value.bytesize}]" if value.bytesize > @options[:value_max_bytes]
       flags = 0
       flags |= FLAG_COMPRESSED if compressed
-      flags |= FLAG_MARSHALLED if marshalled
+      flags |= FLAG_SERIALIZED if marshalled
       [value, flags]
     end
 
     def deserialize(value, flags)
       value = Zlib::Inflate.inflate(value) if (flags & FLAG_COMPRESSED) != 0
-      value = Marshal.load(value) if (flags & FLAG_MARSHALLED) != 0
+      value = Dalli.serializer.load(value) if (flags & FLAG_SERIALIZED) != 0
       value
     rescue TypeError, ArgumentError
       raise DalliError, "Unable to unmarshal value: #{$!.message}"
