@@ -16,7 +16,6 @@ describe 'Serializer' do
       memcached do |dc|
         assert dc.set("json_test", {"foo" => "bar"})
         json = dc.get("json_test", :raw => true)
-        p json
         obj = JSON.parse(json)
         assert_equal({"foo" => "bar"})
       end
