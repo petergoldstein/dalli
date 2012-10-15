@@ -35,6 +35,17 @@ module Dalli
   def self.logger=(logger)
     @logger = logger
   end
+
+  # Default serialization to Marshal
+  @serializer = Marshal
+
+  def self.serializer
+    @serializer
+  end
+
+  def self.serializer=(serializer)
+    @serializer = serializer
+  end
 end
 
 if defined?(RAILS_VERSION) && RAILS_VERSION < '3'
