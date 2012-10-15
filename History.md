@@ -1,6 +1,10 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+- Added the ability to swap out the serializer used to [de]serialize cache data [brianmario, #274]
+
 2.2.0
 =======
 
