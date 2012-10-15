@@ -23,7 +23,7 @@ describe 'Encoding' do
         key = 'foo'
         assert dc.set(key, 'bar', 1)
         assert_equal 'bar', dc.get(key)
-        sleep 2
+        sleep 1.2
         assert_equal nil, dc.get(key)
       end
     end
