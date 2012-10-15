@@ -3,7 +3,7 @@ source :rubygems
 gemspec
 
 gem 'rake'
-gem 'kgio'
+gem 'kgio', :platform => :mri
 
 group :test do
   gem 'simplecov'
