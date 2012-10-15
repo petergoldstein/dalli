@@ -36,9 +36,11 @@ module Dalli
     @logger = logger
   end
 
+  # Default serialization to Marshal
+  @serializer = Marshal
+
   def self.serializer
-    return @serializer if defined? @serializer
-    @serializer ||= Marshal
+    @serializer
   end
 
   def self.serializer=(serializer)
