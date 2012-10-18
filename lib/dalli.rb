@@ -48,7 +48,7 @@ module Dalli
     @serializer = serializer
   end
 
-  # Default serialization to Marshal
+  # Default serialization to Dalli::Compressor
   @compressor = Compressor
 
   def self.compressor
