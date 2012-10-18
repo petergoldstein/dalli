@@ -20,7 +20,7 @@ describe 'Compressor' do
   end
 
   should 'support a custom compressor' do
-    original_serializer = Dalli.compressor
+    original_compressor = Dalli.compressor
     begin
       Dalli.compressor = NoopCompressor
       assert_equal NoopCompressor, Dalli.compressor
@@ -30,7 +30,7 @@ describe 'Compressor' do
         assert_equal("a test string", dc.get("string-test"))
       end
     ensure
-      Dalli.compressor = original_serializer
+      Dalli.compressor = original_compressor
     end
   end
 end
