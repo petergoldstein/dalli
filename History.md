@@ -3,7 +3,7 @@ Dalli Changelog
 
 HEAD
 =======
-- Added the ability to swap out the compressed used to [de]compress cache data [brianmario]
+- Added the ability to swap out the compressed used to [de]compress cache data [brianmario, #276]
 
 2.3.0
 =======
