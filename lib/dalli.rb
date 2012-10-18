@@ -4,6 +4,7 @@ require 'dalli/server'
 require 'dalli/socket'
 require 'dalli/version'
 require 'dalli/options'
+require 'dalli/compressor'
 require 'dalli/railtie' if defined?(::Rails::Railtie)
 
 module Dalli
@@ -45,6 +46,17 @@ module Dalli
 
   def self.serializer=(serializer)
     @serializer = serializer
+  end
+
+  # Default serialization to Dalli::Compressor
+  @compressor = Compressor
+
+  def self.compressor
+    @compressor
+  end
+
+  def self.compressor=(compressor)
+    @compressor = compressor
   end
 end
 

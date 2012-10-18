@@ -1,6 +1,5 @@
 require 'socket'
 require 'timeout'
-require 'zlib'
 
 module Dalli
   class Server
@@ -294,7 +293,7 @@ module Dalli
       end
       compressed = false
       if @options[:compress] && value.bytesize >= COMPRESSION_MIN_SIZE
-        value = Zlib::Deflate.deflate(value)
+        value = Dalli.compressor.compress(value)
         compressed = true
       end
       raise Dalli::DalliError, "Value too large, memcached can only store #{@options[:value_max_bytes]} bytes per key [key: #{key}, size: #{value.bytesize}]" if value.bytesize > @options[:value_max_bytes]
@@ -305,7 +304,7 @@ module Dalli
     end
 
     def deserialize(value, flags)
-      value = Zlib::Inflate.inflate(value) if (flags & FLAG_COMPRESSED) != 0
+      value = Dalli.compressor.decompress(value) if (flags & FLAG_COMPRESSED) != 0
       value = Dalli.serializer.load(value) if (flags & FLAG_SERIALIZED) != 0
       value
     rescue TypeError, ArgumentError
