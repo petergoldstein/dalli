@@ -1,6 +1,10 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+- Added the ability to swap out the compressed used to [de]compress cache data [brianmario, #276]
+
 2.3.0
 =======
 - Added the ability to swap out the serializer used to [de]serialize cache data [brianmario, #274]
