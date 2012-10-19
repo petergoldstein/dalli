@@ -59,7 +59,7 @@ module ActiveSupport
             end
           end
 
-          if entry && entry.expired?
+          if entry.is_a?(ActiveSupport::Cache::Entry) && entry.expired?
             race_ttl = options[:race_condition_ttl].to_f
             if race_ttl and Time.now.to_f - entry.expires_at <= race_ttl
               entry.expires_at = Time.now + race_ttl
@@ -71,7 +71,7 @@ module ActiveSupport
           end
           if !entry.nil?
             instrument(:fetch_hit, name, options) { |payload| }
-            entry.value
+            entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry
           else
             result = instrument(:generate, name, options) do |payload|
               yield
@@ -90,7 +90,7 @@ module ActiveSupport
 
         instrument(:read, name, options) do |payload|
           entry = read_entry(name, options)
-          if entry
+          if entry.is_a?(ActiveSupport::Cache::Entry)
             if entry.expired?
               delete_entry(name, options)
               payload[:hit] = false if payload
@@ -100,8 +100,8 @@ module ActiveSupport
               entry.value
             end
           else
-            payload[:hit] = false if payload
-            nil
+            payload[:hit] = !!entry if payload
+            entry
           end
         end
       end
@@ -111,8 +111,8 @@ module ActiveSupport
         name = expanded_key name
 
         instrument(:write, name, options) do |payload|
-          entry = Entry.new(value, options)
-          write_entry(name, entry, options)
+          value = Entry.new(value, options) if options[:race_condition_ttl] && !options[:raw]
+          write_entry(name, value, options)
         end
       end
 
@@ -231,7 +231,7 @@ module ActiveSupport
       def write_entry(key, value, options) # :nodoc:
         method = options[:unless_exist] ? :add : :set
         expires_in = options[:expires_in]
-        if expires_in > 0 && !options[:raw]
+        if expires_in.to_i > 0 && options[:race_condition_ttl] && !options[:raw]
           # Set the memcache expire a few minutes in the future to support race condition ttls on read
           expires_in += 5.minutes
         end
