@@ -15,7 +15,7 @@ describe 'Serializer' do
       Dalli.serializer = JSON
       assert_equal JSON, Dalli.serializer
 
-      memcached(19127) do |dc|
+      memcached(19128) do |dc|
         assert dc.set("json_test", {"foo" => "bar"})
         assert_equal({"foo" => "bar"}, dc.get("json_test"))
       end

@@ -7,7 +7,7 @@ module Dalli
     end
 
     def self.decompress(data)
-      Zlib::Inflate.inflate
+      Zlib::Inflate.inflate(data)
     end
   end
 end
