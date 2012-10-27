@@ -21,6 +21,8 @@ module Dalli
       :value_max_bytes => 1024 * 1024,
       # min byte size to attempt compression
       :compression_min_size => 1024,
+      # max byte size for compression
+      :compression_max_size => false,
       :username => nil,
       :password => nil,
       :keepalive => true
@@ -292,7 +294,8 @@ module Dalli
         value.to_s
       end
       compressed = false
-      if @options[:compress] && value.bytesize >= @options[:compression_min_size]
+      if @options[:compress] && value.bytesize >= @options[:compression_min_size] &&
+        (!@options[:compression_max_size] || value.bytesize <= @options[:compression_max_size])
         value = Dalli.compressor.compress(value)
         compressed = true
       end
