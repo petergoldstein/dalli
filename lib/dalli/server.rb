@@ -307,10 +307,9 @@ module Dalli
       value = Dalli.compressor.decompress(value) if (flags & FLAG_COMPRESSED) != 0
       value = Dalli.serializer.load(value) if (flags & FLAG_SERIALIZED) != 0
       value
-    rescue TypeError, ArgumentError
-      raise DalliError, "Unable to unmarshal value: #{$!.message}"
+      raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
     rescue Zlib::Error
-      raise DalliError, "Unable to uncompress value: #{$!.message}"
+      raise UnmarshalError, "Unable to uncompress value: #{$!.message}"
     end
 
     def cas_response

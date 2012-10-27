@@ -14,8 +14,10 @@ module Dalli
   class NetworkError < DalliError; end
   # no server available/alive error
   class RingError < DalliError; end
-  # application error in marshalling
+  # application error in marshalling serialization
   class MarshalError < DalliError; end
+  # application error in marshalling deserialization or decompression
+  class UnmarshalError < DalliError; end
   # application error in data size
   class ValueTooBigError < DalliError; end
 
