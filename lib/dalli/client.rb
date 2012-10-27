@@ -62,7 +62,7 @@ module Dalli
           begin
             perform(:getkq, key)
           rescue DalliError, NetworkError => e
-            Dalli.logger.debug { e.message }
+            Dalli.logger.debug { e.inspect }
             Dalli.logger.debug { "unable to get key #{key}" }
           end
         end
@@ -75,7 +75,7 @@ module Dalli
               values[key_without_namespace(key)] = value
             end
           rescue DalliError, NetworkError => e
-            Dalli.logger.debug { e.message }
+            Dalli.logger.debug { e.inspect }
             Dalli.logger.debug { "results from this server will be missing" }
           end
         end
@@ -266,7 +266,7 @@ module Dalli
         server = ring.server_for_key(key)
         server.request(op, key, *args)
       rescue NetworkError => e
-        Dalli.logger.debug { e.message }
+        Dalli.logger.debug { e.inspect }
         Dalli.logger.debug { "retrying request with new server" }
         retry
       end
