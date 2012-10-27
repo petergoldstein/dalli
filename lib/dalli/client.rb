@@ -1,4 +1,5 @@
 require 'digest/md5'
+require 'set'
 
 # encoding: ascii
 module Dalli
@@ -27,6 +28,7 @@ module Dalli
       @servers = servers || env_servers || '127.0.0.1:11211'
       @options = normalize_options(options)
       @ring = nil
+      @servers_in_use = nil
     end
 
     #
@@ -58,6 +60,8 @@ module Dalli
       options = nil
       options = keys.pop if keys.last.is_a?(Hash) || keys.last.nil?
       ring.lock do
+        @servers_in_use = Set.new
+
         keys.flatten.each do |key|
           begin
             perform(:getkq, key)
@@ -68,7 +72,7 @@ module Dalli
         end
 
         values = {}
-        ring.servers.each do |server|
+        @servers_in_use.each do |server|
           next unless server.alive?
           begin
             server.request(:noop).each_pair do |key, value|
@@ -81,6 +85,8 @@ module Dalli
         end
         values
       end
+    ensure
+      @servers_in_use = nil
     end
 
     def fetch(key, ttl=nil, options=nil)
@@ -264,7 +270,9 @@ module Dalli
       key = validate_key(key)
       begin
         server = ring.server_for_key(key)
-        server.request(op, key, *args)
+        ret = server.request(op, key, *args)
+        @servers_in_use << server if @servers_in_use
+        ret
       rescue NetworkError => e
         Dalli.logger.debug { e.inspect }
         Dalli.logger.debug { "retrying request with new server" }
