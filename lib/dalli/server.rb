@@ -296,7 +296,7 @@ module Dalli
         value = Dalli.compressor.compress(value)
         compressed = true
       end
-      raise Dalli::DalliError, "Value too large, memcached can only store #{@options[:value_max_bytes]} bytes per key [key: #{key}, size: #{value.bytesize}]" if value.bytesize > @options[:value_max_bytes]
+      raise Dalli::ValueTooBigError, "Value too large, memcached can only store #{@options[:value_max_bytes]} bytes per key [key: #{key}, size: #{value.bytesize}]" if value.bytesize > @options[:value_max_bytes]
       flags = 0
       flags |= FLAG_COMPRESSED if compressed
       flags |= FLAG_SERIALIZED if marshalled

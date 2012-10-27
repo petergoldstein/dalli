@@ -16,6 +16,8 @@ module Dalli
   class RingError < DalliError; end
   # application error in marshalling
   class MarshalError < DalliError; end
+  # application error in data size
+  class ValueTooBigError < DalliError; end
 
   def self.logger
     @logger ||= (rails_logger || default_logger)
