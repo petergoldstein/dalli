@@ -311,7 +311,7 @@ module Dalli
       value = Dalli.serializer.load(value) if (flags & FLAG_SERIALIZED) != 0
       value
     rescue TypeError
-      raise if $!.message !~ /needs to have method `_load'|exception class\/object expected|instance of IO needed/
+      raise if $!.message !~ /needs to have method `_load'|exception class\/object expected|instance of IO needed|incompatible marshal file format/
       raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
     rescue ArgumentError
       raise if $!.message !~ /undefined class|marshal data too short/
