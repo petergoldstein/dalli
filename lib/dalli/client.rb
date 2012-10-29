@@ -1,4 +1,5 @@
 require 'digest/md5'
+require 'set'
 
 # encoding: ascii
 module Dalli
@@ -20,13 +21,14 @@ module Dalli
     # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
-    # - :compress - defaults to false, if true Dalli will compress values larger than 100 bytes before
+    # - :compress - defaults to false, if true Dalli will compress values larger than 1024 bytes before
     #   sending them to memcached.
     #
     def initialize(servers=nil, options={})
       @servers = servers || env_servers || '127.0.0.1:11211'
       @options = normalize_options(options)
       @ring = nil
+      @servers_in_use = nil
     end
 
     #
@@ -58,29 +60,33 @@ module Dalli
       options = nil
       options = keys.pop if keys.last.is_a?(Hash) || keys.last.nil?
       ring.lock do
+        @servers_in_use = Set.new
+
         keys.flatten.each do |key|
           begin
             perform(:getkq, key)
           rescue DalliError, NetworkError => e
-            Dalli.logger.debug { e.message }
+            Dalli.logger.debug { e.inspect }
             Dalli.logger.debug { "unable to get key #{key}" }
           end
         end
 
         values = {}
-        ring.servers.each do |server|
+        @servers_in_use.each do |server|
           next unless server.alive?
           begin
             server.request(:noop).each_pair do |key, value|
               values[key_without_namespace(key)] = value
             end
           rescue DalliError, NetworkError => e
-            Dalli.logger.debug { e.message }
+            Dalli.logger.debug { e.inspect }
             Dalli.logger.debug { "results from this server will be missing" }
           end
         end
         values
       end
+    ensure
+      @servers_in_use = nil
     end
 
     def fetch(key, ttl=nil, options=nil)
@@ -264,9 +270,11 @@ module Dalli
       key = validate_key(key)
       begin
         server = ring.server_for_key(key)
-        server.request(op, key, *args)
+        ret = server.request(op, key, *args)
+        @servers_in_use << server if @servers_in_use
+        ret
       rescue NetworkError => e
-        Dalli.logger.debug { e.message }
+        Dalli.logger.debug { e.inspect }
         Dalli.logger.debug { "retrying request with new server" }
         retry
       end
