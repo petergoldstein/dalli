@@ -108,6 +108,10 @@ Dalli::Client accepts the following options. All times are in seconds.
 
 **compress**: Boolean, if true Dalli will gzip-compress values larger than 1K.
 
+**compression_min_size**: Minimum value byte size for which to attempt compression. Default is 1K.
+
+**compression_max_size**: Maximum value byte size for which to attempt compression. Default is unlimited.
+
 **socket_timeout**: Timeout for all socket operations (connect, read, write). Default is 0.5.
 
 **socket_max_failures**: When a socket operation fails after socket_timeout, the same operation is retried. This is to not immediately mark a server down when there's a very slight network problem. Default is 2.

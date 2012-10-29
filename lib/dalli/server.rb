@@ -19,6 +19,10 @@ module Dalli
       :socket_failure_delay => 0.01,
       # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
       :value_max_bytes => 1024 * 1024,
+      # min byte size to attempt compression
+      :compression_min_size => 1024,
+      # max byte size for compression
+      :compression_max_size => false,
       :username => nil,
       :password => nil,
       :keepalive => true
@@ -267,8 +271,6 @@ module Dalli
       generic_response
     end
 
-    COMPRESSION_MIN_SIZE = 1024
-
     # http://www.hjp.at/zettel/m/memcached_flags.rxml
     # Looks like most clients use bit 0 to indicate native language serialization
     # and bit 1 to indicate gzip compression.
@@ -292,11 +294,12 @@ module Dalli
         value.to_s
       end
       compressed = false
-      if @options[:compress] && value.bytesize >= COMPRESSION_MIN_SIZE
+      if @options[:compress] && value.bytesize >= @options[:compression_min_size] &&
+        (!@options[:compression_max_size] || value.bytesize <= @options[:compression_max_size])
         value = Dalli.compressor.compress(value)
         compressed = true
       end
-      raise Dalli::DalliError, "Value too large, memcached can only store #{@options[:value_max_bytes]} bytes per key [key: #{key}, size: #{value.bytesize}]" if value.bytesize > @options[:value_max_bytes]
+      raise Dalli::ValueTooBigError, "Value too large, memcached can only store #{@options[:value_max_bytes]} bytes per key [key: #{key}, size: #{value.bytesize}]" if value.bytesize > @options[:value_max_bytes]
       flags = 0
       flags |= FLAG_COMPRESSED if compressed
       flags |= FLAG_SERIALIZED if marshalled
@@ -307,10 +310,14 @@ module Dalli
       value = Dalli.compressor.decompress(value) if (flags & FLAG_COMPRESSED) != 0
       value = Dalli.serializer.load(value) if (flags & FLAG_SERIALIZED) != 0
       value
-    rescue TypeError, ArgumentError
-      raise DalliError, "Unable to unmarshal value: #{$!.message}"
+    rescue TypeError
+      raise if $!.message !~ /needs to have method `_load'|exception class\/object expected|instance of IO needed/
+      raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
+    rescue ArgumentError
+      raise if $!.message !~ /undefined class|marshal data too short/
+      raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
     rescue Zlib::Error
-      raise DalliError, "Unable to uncompress value: #{$!.message}"
+      raise UnmarshalError, "Unable to uncompress value: #{$!.message}"
     end
 
     def cas_response
