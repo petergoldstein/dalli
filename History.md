@@ -1,6 +1,10 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+- Added the ability to disable compression for specific request, with `:no_compression => true`
+
 2.4.0
 =======
 - Added the ability to swap out the compressed used to [de]compress cache data [brianmario, #276]
