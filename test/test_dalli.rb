@@ -475,6 +475,18 @@ describe 'Dalli' do
           dalli.set('verylarge', value)
         end
       end
+
+      should 'allow to disable compression for specific request' do
+        memcached do |dc|
+          dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), :compress => true)
+
+          value = "0"*1024*1024
+          assert_raises Dalli::ValueTooBigError, /too large/ do
+            dalli.set('verylarge', value, nil, { :no_compression => true })
+          end
+          dalli.set('verylarge', value)
+        end
+      end
     end
 
     context 'in low memory conditions' do
