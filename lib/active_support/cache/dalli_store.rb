@@ -106,8 +106,9 @@ module ActiveSupport
         options ||= {}
         name = expanded_key name
 
-        log(:delete, name, options)
-        delete_entry(name, options)
+        instrument(:delete, name, options) do |payload|
+          delete_entry(name, options)
+        end
       end
 
       # Reads multiple keys from the cache using a single call to the
