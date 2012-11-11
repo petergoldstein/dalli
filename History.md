@@ -1,6 +1,10 @@
 Dalli Changelog
 =====================
 
+HEAD
+====
+- Changed Dalli ActiveSupport adapter to always attempt instrumentation [brianmario, #284]
+
 2.4.0
 =======
 - Added the ability to swap out the compressed used to [de]compress cache data [brianmario, #276]
