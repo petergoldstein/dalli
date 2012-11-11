@@ -18,8 +18,6 @@ module Dalli
   class MarshalError < DalliError; end
   # application error in marshalling deserialization or decompression
   class UnmarshalError < DalliError; end
-  # application error in data size
-  class ValueTooBigError < DalliError; end
 
   def self.logger
     @logger ||= (rails_logger || default_logger)
