@@ -59,9 +59,19 @@ module ActiveSupport
             end
           end
 
+          if entry.is_a?(ActiveSupport::Cache::Entry) && entry.expired?
+            race_ttl = options[:race_condition_ttl].to_f
+            if race_ttl and Time.now.to_f - entry.expires_at <= race_ttl
+              entry.expires_at = Time.now + race_ttl
+              write_entry(name, entry, :expires_in => race_ttl * 2)
+            else
+              delete_entry(name, options)
+            end
+            entry = nil
+          end
           if !entry.nil?
             instrument(:fetch_hit, name, options) { |payload| }
-            entry
+            entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry
           else
             result = instrument(:generate, name, options) do |payload|
               yield
@@ -80,8 +90,19 @@ module ActiveSupport
 
         instrument(:read, name, options) do |payload|
           entry = read_entry(name, options)
-          payload[:hit] = !!entry if payload
-          entry
+          if entry.is_a?(ActiveSupport::Cache::Entry)
+            if entry.expired?
+              delete_entry(name, options)
+              payload[:hit] = false if payload
+              nil
+            else
+              payload[:hit] = true if payload
+              entry.value
+            end
+          else
+            payload[:hit] = !!entry if payload
+            entry
+          end
         end
       end
 
@@ -90,6 +111,7 @@ module ActiveSupport
         name = expanded_key name
 
         instrument(:write, name, options) do |payload|
+          value = Entry.new(value, options) if options[:race_condition_ttl] && !options[:raw]
           write_entry(name, value, options)
         end
       end
@@ -199,9 +221,7 @@ module ActiveSupport
 
       # Read an entry from the cache.
       def read_entry(key, options) # :nodoc:
-        entry = @data.get(escape(key), options)
-        # NB Backwards data compatibility, to be removed at some point
-        entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry
+        @data.get(escape(key), options)
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
         raise if @raise_errors
@@ -212,6 +232,10 @@ module ActiveSupport
       def write_entry(key, value, options) # :nodoc:
         method = options[:unless_exist] ? :add : :set
         expires_in = options[:expires_in]
+        if expires_in.to_i > 0 && options[:race_condition_ttl] && !options[:raw]
+          # Set the memcache expire a few minutes in the future to support race condition ttls on read
+          expires_in += 5.minutes
+        end
         @data.send(method, escape(key), value, expires_in, options)
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
