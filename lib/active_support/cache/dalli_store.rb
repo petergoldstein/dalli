@@ -261,7 +261,7 @@ module ActiveSupport
 
         payload = { :key => key }
         payload.merge!(options) if options.is_a?(Hash)
-         ActiveSupport::Notifications.instrument("cache_#{operation}.active_support", payload){ yield(payload) }
+        ActiveSupport::Notifications.instrument("cache_#{operation}.active_support", payload){ yield(payload) }
       end
 
       def log(operation, key, options=nil)
