@@ -73,11 +73,7 @@ describe 'Dalli' do
         dc.flush
 
         val1 = "1234567890"*105000
-        assert_error Dalli::ValueTooBigError, /too large/ do
-          dc.set('a', val1)
-          val2 = dc.get('a')
-          assert_equal val1, val2
-        end
+        assert_equal false, dc.set('a', val1)
 
         val1 = "1234567890"*100000
         dc.set('a', val1)
@@ -469,9 +465,7 @@ describe 'Dalli' do
           dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), :compress => true)
 
           value = "0"*1024*1024
-          assert_raises Dalli::ValueTooBigError, /too large/ do
-            dc.set('verylarge', value)
-          end
+          assert_equal false, dc.set('verylarge', value)
           dalli.set('verylarge', value)
         end
       end
