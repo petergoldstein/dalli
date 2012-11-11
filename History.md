@@ -4,6 +4,7 @@ Dalli Changelog
 HEAD
 ====
 - Changed Dalli ActiveSupport adapter to always attempt instrumentation [brianmario, #284]
+- Change write operations (add/set/replace) to return false when value is too large to store [brianmario, #283]
 
 2.4.0
 =======
