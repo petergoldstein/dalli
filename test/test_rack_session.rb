@@ -6,6 +6,13 @@ require 'rack/mock'
 require 'thread'
 
 describe Rack::Session::Dalli do
+  Rack::Session::Dalli::DEFAULT_OPTIONS[:memcache_server] = 'localhost:19129'
+
+  before do
+    memcached(19129) do
+    end
+  end
+
   session_key = Rack::Session::Dalli::DEFAULT_OPTIONS[:key]
   session_match = /#{session_key}=([0-9a-fA-F]+);/
   incrementor = lambda do |env|

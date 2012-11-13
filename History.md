@@ -3,6 +3,8 @@ Dalli Changelog
 
 HEAD
 ====
+
+- Removed lots of old session_store test code, tests now all run without a default memcached server [#275]
 - Changed Dalli ActiveSupport adapter to always attempt instrumentation [brianmario, #284]
 - Change write operations (add/set/replace) to return false when value is too large to store [brianmario, #283]
 

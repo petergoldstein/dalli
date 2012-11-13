@@ -27,18 +27,19 @@ describe 'Dalli' do
 
   describe 'key validation' do
     should 'not allow blanks' do
-      dc = Dalli::Client.new
-      dc.set '   ', 1
-      assert_equal 1, dc.get('   ')
-      dc.set "\t", 1
-      assert_equal 1, dc.get("\t")
-      dc.set "\n", 1
-      assert_equal 1, dc.get("\n")
-      assert_raises ArgumentError do
-        dc.set "", 1
-      end
-      assert_raises ArgumentError do
-        dc.set nil, 1
+      memcached do |dc|
+        dc.set '   ', 1
+        assert_equal 1, dc.get('   ')
+        dc.set "\t", 1
+        assert_equal 1, dc.get("\t")
+        dc.set "\n", 1
+        assert_equal 1, dc.get("\n")
+        assert_raises ArgumentError do
+          dc.set "", 1
+        end
+        assert_raises ArgumentError do
+          dc.set nil, 1
+        end
       end
     end
   end
@@ -271,7 +272,7 @@ describe 'Dalli' do
 
         # rollover the 64-bit value, we'll get something undefined.
         resp = dc.incr('big', 1)
-        0x10000000000000000.wont_equal resp
+        refute_equal 0x10000000000000000, resp
         dc.reset
       end
     end
@@ -323,7 +324,7 @@ describe 'Dalli' do
     should "pass a simple smoke test" do
       memcached do |dc|
         resp = dc.flush
-        resp.wont_be_nil
+        refute_nil resp
         assert_equal [true, true], resp
 
         assert_equal true, dc.set(:foo, 'bar')
@@ -399,9 +400,10 @@ describe 'Dalli' do
               cache.set('b', 11)
               inc = cache.incr('cat', 10, 0, 10)
               cache.set('f', 'zzz')
-              wont_be_nil(cache.cas('f') do |value|
+              res = cache.cas('f') do |value|
                 value << 'z'
-              end)
+              end
+              refute_nil res
               assert_equal false, cache.add('a', 11)
               assert_equal({ 'a' => 9, 'b' => 11 }, cache.get_multi(['a', 'b']))
               inc = cache.incr('cat', 10)
