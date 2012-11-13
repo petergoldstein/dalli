@@ -45,6 +45,8 @@ module ActiveSupport
                     addresses
                   end
         @data = Dalli::Client.new(servers, @options)
+
+        extend Strategy::LocalCache
       end
 
       def fetch(name, options=nil)
