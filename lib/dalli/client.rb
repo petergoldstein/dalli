@@ -22,6 +22,7 @@ module Dalli
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
     # - :compress - defaults to false, if true Dalli will compress values larger than 1024 bytes before
+    # - :serializer - defaults to Marshal
     #   sending them to memcached.
     #
     def initialize(servers=nil, options={})
