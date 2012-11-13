@@ -60,7 +60,7 @@ module Dalli
       options = nil
       options = keys.pop if keys.last.is_a?(Hash) || keys.last.nil?
       ring.lock do
-        @servers_in_use = Set.new
+        self.servers_in_use = Set.new
 
         keys.flatten.each do |key|
           begin
@@ -72,7 +72,7 @@ module Dalli
         end
 
         values = {}
-        @servers_in_use.each do |server|
+        servers_in_use.each do |server|
           next unless server.alive?
           begin
             server.request(:noop).each_pair do |key, value|
@@ -86,7 +86,7 @@ module Dalli
         values
       end
     ensure
-      @servers_in_use = nil
+      self.servers_in_use = nil
     end
 
     def fetch(key, ttl=nil, options=nil)
@@ -271,13 +271,21 @@ module Dalli
       begin
         server = ring.server_for_key(key)
         ret = server.request(op, key, *args)
-        @servers_in_use << server if @servers_in_use
+        servers_in_use << server if servers_in_use
         ret
       rescue NetworkError => e
         Dalli.logger.debug { e.inspect }
         Dalli.logger.debug { "retrying request with new server" }
         retry
       end
+    end
+
+    def servers_in_use
+      Thread.current[:"#{object_id}-servers"]
+    end
+
+    def servers_in_use=(value)
+      Thread.current[:"#{object_id}-servers"] = value
     end
 
     def validate_key(key)
