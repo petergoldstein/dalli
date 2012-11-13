@@ -1,9 +1,10 @@
 Dalli Changelog
 =====================
 
-HEAD
-====
+2.5.0
+=======
 
+- Don't escape non-ASCII keys, memcached binary protocol doesn't care. [#257]
 - :dalli_store now implements LocalCache [#236]
 - Removed lots of old session_store test code, tests now all run without a default memcached server [#275]
 - Changed Dalli ActiveSupport adapter to always attempt instrumentation [brianmario, #284]

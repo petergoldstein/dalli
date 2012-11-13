@@ -138,6 +138,11 @@ describe 'ActiveSupport' do
 
           dres = @dalli.delete(user)
           assert_equal true, dres
+
+          bigkey = '１２３４５６７８９０１２３４５６７８９０１２３４５６７８９０'
+          @dalli.write(bigkey, 'double width')
+          assert_equal 'double width', @dalli.read(bigkey)
+          assert_equal({bigkey => "double width"}, @dalli.read_multi(bigkey))
         end
       end
     end
