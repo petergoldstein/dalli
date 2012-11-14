@@ -105,10 +105,6 @@ module Dalli
 
     private
 
-    def serializer=(serializer)
-      @options[:serializer] = serializer
-    end
-
     def verify_state
       failure! if @inprogress
       failure! if @pid && @pid != Process.pid
