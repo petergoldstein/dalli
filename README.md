@@ -131,6 +131,9 @@ Default is Marshal.
 
 **keepalive**: Boolean, if true Dalli will enable keep-alives on the socket so inactivity
 
+**compressor**: The compressor to use for objects being stored.
+Default is zlib.
+
 Features and Changes
 ------------------------
 
