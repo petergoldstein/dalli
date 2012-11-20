@@ -248,7 +248,9 @@ module ActiveSupport
           key = key.sort_by { |k,_| k.to_s }.collect{|k,v| "#{k}=#{v}"}
         end
 
-        key.to_param
+        key = key.to_param
+        key.force_encoding('binary') if key.respond_to? :force_encoding
+        key
       end
 
       def instrument(operation, key, options=nil)
