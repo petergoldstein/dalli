@@ -39,17 +39,6 @@ module Dalli
     @logger = logger
   end
 
-  # Default serialization to Marshal
-  @serializer = Marshal
-
-  def self.serializer
-    @serializer
-  end
-
-  def self.serializer=(serializer)
-    @serializer = serializer
-  end
-
   # Default serialization to Dalli::Compressor
   @compressor = Compressor
 

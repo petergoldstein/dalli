@@ -23,6 +23,7 @@ module Dalli
       :compression_min_size => 1024,
       # max byte size for compression
       :compression_max_size => false,
+      :serializer => Marshal,
       :username => nil,
       :password => nil,
       :keepalive => true
@@ -94,6 +95,10 @@ module Dalli
     end
 
     def unlock!
+    end
+
+    def serializer
+      @options[:serializer]
     end
 
     # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
@@ -295,7 +300,7 @@ module Dalli
       value = unless options && options[:raw]
         marshalled = true
         begin
-          Dalli.serializer.dump(value)
+          self.serializer.dump(value)
         rescue => ex
           # Marshalling can throw several different types of generic Ruby exceptions.
           # Convert to a specific exception so we can special case it higher up the stack.
@@ -321,7 +326,7 @@ module Dalli
 
     def deserialize(value, flags)
       value = Dalli.compressor.decompress(value) if (flags & FLAG_COMPRESSED) != 0
-      value = Dalli.serializer.load(value) if (flags & FLAG_SERIALIZED) != 0
+      value = self.serializer.load(value) if (flags & FLAG_SERIALIZED) != 0
       value
     rescue TypeError
       raise if $!.message !~ /needs to have method `_load'|exception class\/object expected|instance of IO needed|incompatible marshal file format/

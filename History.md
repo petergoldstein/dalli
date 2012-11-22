@@ -15,6 +15,7 @@ Dalli Changelog
 - Added the ability to swap out the compressed used to [de]compress cache data [brianmario, #276]
 - Fix get\_multi performance issues with lots of memcached servers [tmm1]
 - Throw more specific exceptions [tmm1]
+- Allowing different types of serialization per client [naseem]
 
 2.3.0
 =======
