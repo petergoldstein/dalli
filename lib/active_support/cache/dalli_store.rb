@@ -118,7 +118,7 @@ module ActiveSupport
       def read_multi(*names)
         names.extract_options!
         names = names.flatten
-        mapping = names.inject({}) { |memo, name| memo[escape(expanded_key(name))] = name; memo }
+        mapping = names.inject({}) { |memo, name| memo[expanded_key(name)] = name; memo }
         instrument(:read_multi, names) do
           results = @data.get_multi(mapping.keys)
           results.inject({}) do |memo, (inner, _)|
@@ -201,7 +201,7 @@ module ActiveSupport
 
       # Read an entry from the cache.
       def read_entry(key, options) # :nodoc:
-        entry = @data.get(escape(key), options)
+        entry = @data.get(key, options)
         # NB Backwards data compatibility, to be removed at some point
         entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry
       rescue Dalli::DalliError => e
@@ -214,7 +214,7 @@ module ActiveSupport
       def write_entry(key, value, options) # :nodoc:
         method = options[:unless_exist] ? :add : :set
         expires_in = options[:expires_in]
-        @data.send(method, escape(key), value, expires_in, options)
+        @data.send(method, key, value, expires_in, options)
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
         raise if @raise_errors
@@ -223,7 +223,7 @@ module ActiveSupport
 
       # Delete an entry from the cache.
       def delete_entry(key, options) # :nodoc:
-        @data.delete(escape(key))
+        @data.delete(key)
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
         raise if @raise_errors
@@ -248,12 +248,8 @@ module ActiveSupport
           key = key.sort_by { |k,_| k.to_s }.collect{|k,v| "#{k}=#{v}"}
         end
 
-        key.to_param
-      end
-
-      def escape(key)
-        key = key.to_s.dup
-        key = key.force_encoding("BINARY") if key.respond_to?(:encode)
+        key = key.to_param
+        key.force_encoding('binary') if key.respond_to? :force_encoding
         key
       end
 
