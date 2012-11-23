@@ -19,6 +19,7 @@ module Dalli
       :socket_failure_delay => 0.01,
       # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
       :value_max_bytes => 1024 * 1024,
+      :compressor => Compressor,
       # min byte size to attempt compression
       :compression_min_size => 1024,
       # max byte size for compression
@@ -99,6 +100,10 @@ module Dalli
 
     def serializer
       @options[:serializer]
+    end
+
+    def compressor
+      @options[:compressor]
     end
 
     # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
@@ -314,7 +319,7 @@ module Dalli
       compressed = false
       if @options[:compress] && value.bytesize >= @options[:compression_min_size] &&
         (!@options[:compression_max_size] || value.bytesize <= @options[:compression_max_size])
-        value = Dalli.compressor.compress(value)
+        value = self.compressor.compress(value)
         compressed = true
       end
 
@@ -325,7 +330,7 @@ module Dalli
     end
 
     def deserialize(value, flags)
-      value = Dalli.compressor.decompress(value) if (flags & FLAG_COMPRESSED) != 0
+      value = self.compressor.decompress(value) if (flags & FLAG_COMPRESSED) != 0
       value = self.serializer.load(value) if (flags & FLAG_SERIALIZED) != 0
       value
     rescue TypeError
