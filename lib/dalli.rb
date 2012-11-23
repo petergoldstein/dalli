@@ -1,10 +1,10 @@
+require 'dalli/compressor'
 require 'dalli/client'
 require 'dalli/ring'
 require 'dalli/server'
 require 'dalli/socket'
 require 'dalli/version'
 require 'dalli/options'
-require 'dalli/compressor'
 require 'dalli/railtie' if defined?(::Rails::Railtie)
 
 module Dalli
@@ -39,16 +39,6 @@ module Dalli
     @logger = logger
   end
 
-  # Default serialization to Dalli::Compressor
-  @compressor = Compressor
-
-  def self.compressor
-    @compressor
-  end
-
-  def self.compressor=(compressor)
-    @compressor = compressor
-  end
 end
 
 if defined?(RAILS_VERSION) && RAILS_VERSION < '3'

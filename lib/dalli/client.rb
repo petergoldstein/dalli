@@ -24,6 +24,7 @@ module Dalli
     # - :compress - defaults to false, if true Dalli will compress values larger than 1024 bytes before
     # - :serializer - defaults to Marshal
     #   sending them to memcached.
+    # - :compressor - defaults to zlib
     #
     def initialize(servers=nil, options={})
       @servers = servers || env_servers || '127.0.0.1:11211'
