@@ -107,6 +107,56 @@ module Dalli
       @options[:compressor]
     end
 
+    def multi_response_start
+      write_noop
+      @multi_buffer = ''
+      @multi_values = {}
+      @inprogress = true
+    end
+
+    def multi_response_nonblock
+      @multi_buffer << @sock.read_available
+      buf = @multi_buffer
+
+      while buf.bytesize >= 24
+        header = buf.slice(0, 24)
+        (key_length, _, body_length) = header.unpack(KV_HEADER)
+
+        if key_length == 0
+          # all done!
+          values = @multi_values
+          @multi_buffer = @multi_values = nil
+          @inprogress = false
+          return values
+
+        elsif buf.bytesize >= (24 + body_length)
+          buf.slice!(0, 24)
+          flags = buf.slice!(0, 4).unpack('N')[0]
+          key = buf.slice!(0, key_length)
+          value = buf.slice!(0, body_length - key_length - 4) if body_length - key_length - 4 > 0
+
+          begin
+            @multi_values[key] = deserialize(value, flags)
+          rescue DalliError => e
+          end
+
+        else
+          # not enough data yet, keep waiting
+          return nil
+        end
+      end
+    rescue SystemCallError, Timeout::Error, EOFError
+      failure!
+    end
+
+    def multi_response_abort
+      @multi_buffer = @multi_values = nil
+      @inprogress = false
+      failure!
+    rescue NetworkError
+      true
+    end
+
     # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
 
     private
