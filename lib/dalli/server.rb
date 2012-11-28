@@ -107,17 +107,30 @@ module Dalli
       @options[:compressor]
     end
 
+    # Start reading key/value pairs from this connection. This is usually called
+    # after a series of GETKQ commands. A NOOP is sent, and the server begins
+    # flushing responses for kv pairs that were found.
+    #
+    # Returns nothing.
     def multi_response_start
       write_noop
       @multi_buffer = ''
       @inprogress = true
     end
 
+    # Did the last call to #multi_response_start complete successfully?
     def multi_response_completed?
       @multi_buffer.nil?
     end
 
+    # Attempt to receive and parse as many key/value pairs as possible
+    # from this server. This should be invoked repeatedly whenever this
+    # server's socket is readable, until #multi_response_completed? is true.
+    #
+    # Returns a Hash of kv pairs received.
     def multi_response_nonblock
+      raise 'multi_response has completed' if @multi_buffer.nil?
+
       @multi_buffer << @sock.read_available
       buf = @multi_buffer
       values = {}
@@ -154,6 +167,11 @@ module Dalli
       failure!
     end
 
+    # Abort an earlier #multi_response_start. Used to signal an external
+    # timeout. The underlying socket is disconnected, and the exception is
+    # swallowed.
+    #
+    # Returns nothing.
     def multi_response_abort
       @multi_buffer = nil
       @inprogress = false
