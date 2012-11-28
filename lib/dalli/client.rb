@@ -80,7 +80,9 @@ module Dalli
           next unless server.alive?
           begin
             server.multi_response_start
-          rescue NetworkError => e
+          rescue DalliError, NetworkError => e
+            Dalli.logger.debug { e.inspect }
+            Dalli.logger.debug { "results from this server will be missing" }
             servers_in_use.delete(server)
           end
         end

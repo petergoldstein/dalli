@@ -113,6 +113,7 @@ module Dalli
     #
     # Returns nothing.
     def multi_response_start
+      verify_state
       write_noop
       @multi_buffer = ''
       @inprogress = true
@@ -124,8 +125,9 @@ module Dalli
     end
 
     # Attempt to receive and parse as many key/value pairs as possible
-    # from this server. This should be invoked repeatedly whenever this
-    # server's socket is readable, until #multi_response_completed? is true.
+    # from this server. After #multi_response_start, this should be invoked
+    # repeatedly whenever this server's socket is readable until
+    # #multi_response_completed?.
     #
     # Returns a Hash of kv pairs received.
     def multi_response_nonblock
