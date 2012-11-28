@@ -35,6 +35,22 @@ begin
       value
     end
 
+    def read_available
+      value = ''
+      loop do
+        ret = kgio_tryread(1024)
+        case ret
+        when nil
+          raise EOFError, 'end of stream'
+        when :wait_readable
+          break
+        else
+          value << ret
+        end
+      end
+      value
+    end
+
   end
 
   if ::Kgio.respond_to?(:wait_readable=)
@@ -71,6 +87,18 @@ rescue LoadError
           retry
         else
           raise Timeout::Error, "IO timeout: #{options.inspect}"
+        end
+      end
+      value
+    end
+
+    def read_available
+      value = ''
+      loop do
+        begin
+          value << read_nonblock(1024)
+        rescue Errno::EAGAIN, Errno::EWOULDBLOCK
+          break
         end
       end
       value
