@@ -245,11 +245,15 @@ module Dalli
       body ? longlong(*body.unpack('NN')) : body
     end
 
+    def write_noop
+      req = [REQUEST, OPCODES[:noop], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
+      write(req)
+    end
+
     # Noop is a keepalive operation but also used to demarcate the end of a set of pipelined commands.
     # We need to read all the responses at once.
     def noop
-      req = [REQUEST, OPCODES[:noop], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
-      write(req)
+      write_noop
       multi_response
     end
 
