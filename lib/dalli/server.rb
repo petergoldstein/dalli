@@ -110,13 +110,17 @@ module Dalli
     def multi_response_start
       write_noop
       @multi_buffer = ''
-      @multi_values = {}
       @inprogress = true
+    end
+
+    def multi_response_completed?
+      @multi_buffer.nil?
     end
 
     def multi_response_nonblock
       @multi_buffer << @sock.read_available
       buf = @multi_buffer
+      values = {}
 
       while buf.bytesize >= 24
         header = buf.slice(0, 24)
@@ -124,10 +128,9 @@ module Dalli
 
         if key_length == 0
           # all done!
-          values = @multi_values
-          @multi_buffer = @multi_values = nil
+          @multi_buffer = nil
           @inprogress = false
-          return values
+          break
 
         elsif buf.bytesize >= (24 + body_length)
           buf.slice!(0, 24)
@@ -136,21 +139,23 @@ module Dalli
           value = buf.slice!(0, body_length - key_length - 4) if body_length - key_length - 4 > 0
 
           begin
-            @multi_values[key] = deserialize(value, flags)
+            values[key] = deserialize(value, flags)
           rescue DalliError => e
           end
 
         else
-          # not enough data yet, keep waiting
-          return nil
+          # not enough data yet, wait for more
+          break
         end
       end
+
+      values
     rescue SystemCallError, Timeout::Error, EOFError
       failure!
     end
 
     def multi_response_abort
-      @multi_buffer = @multi_values = nil
+      @multi_buffer = nil
       @inprogress = false
       failure!
     rescue NetworkError

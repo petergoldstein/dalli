@@ -103,10 +103,11 @@ module Dalli
               server = sock.server
 
               begin
-                if ret = server.multi_response_nonblock
-                  ret.each do |key, value|
-                    values[key_without_namespace(key)] = value
-                  end
+                server.multi_response_nonblock.each do |key, value|
+                  values[key_without_namespace(key)] = value
+                end
+
+                if server.multi_response_completed?
                   servers_in_use.delete(server)
                 end
               rescue NetworkError => e
