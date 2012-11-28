@@ -91,17 +91,18 @@ module Dalli
           servers_in_use.delete_if{ |s| s.sock.nil? }
           break if servers_in_use.empty?
 
+          # calculate remaining timeout
           elapsed = Time.now - start
           timeout = servers_in_use.first.options[:socket_timeout]
           if elapsed > timeout
             readable = nil
           else
-            readable, _ = IO.select(servers_in_use.map(&:sock), nil, nil, timeout - elapsed)
+            sockets = servers_in_use.map(&:sock)
+            readable, _ = IO.select(sockets, nil, nil, timeout - elapsed)
           end
 
           if readable.nil?
-            # no response within timeout
-            # abort pending connections and return known values
+            # no response within timeout; abort pending connections
             servers_in_use.each do |server|
               server.multi_response_abort
             end
