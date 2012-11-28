@@ -38,7 +38,7 @@ begin
     def read_available
       value = ''
       loop do
-        ret = kgio_tryread(1024)
+        ret = kgio_tryread(8196)
         case ret
         when nil
           raise EOFError, 'end of stream'
@@ -96,7 +96,7 @@ rescue LoadError
       value = ''
       loop do
         begin
-          value << read_nonblock(1024)
+          value << read_nonblock(8196)
         rescue Errno::EAGAIN, Errno::EWOULDBLOCK
           break
         end
