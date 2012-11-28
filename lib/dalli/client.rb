@@ -73,26 +73,34 @@ module Dalli
           end
         end
 
-        return {} if servers_in_use.empty?
+        values = {}
+        return values if servers_in_use.empty?
 
         servers_in_use.each do |server|
+          next unless server.alive?
           begin
-            next unless server.alive?
             server.multi_response_start
           rescue NetworkError => e
             servers_in_use.delete(server)
           end
         end
 
-        values = {}
-        while servers_in_use.any?
-          timeout = servers_in_use.first.options[:socket_timeout]
+        start = Time.now
+        loop do
+          # remove any dead servers
           servers_in_use.delete_if{ |s| s.sock.nil? }
-          sockets = servers_in_use.map(&:sock)
-          readable, _ = IO.select(sockets, nil, nil, timeout)
+          break if servers_in_use.empty?
+
+          timeout = servers_in_use.first.options[:socket_timeout]
+          if (Time.now - start) > timeout
+            readable = nil
+          else
+            readable, _ = IO.select(servers_in_use.map(&:sock), nil, nil, timeout)
+          end
 
           if readable.nil?
-            # mark all pending servers as failed
+            # no response within timeout
+            # abort pending connections and return known values
             servers_in_use.each do |server|
               server.multi_response_abort
             end
