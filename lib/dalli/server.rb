@@ -7,6 +7,7 @@ module Dalli
     attr_accessor :port
     attr_accessor :weight
     attr_accessor :options
+    attr_reader :sock
 
     DEFAULTS = {
       # seconds between trying to contact a remote server
@@ -442,7 +443,7 @@ module Dalli
 
       begin
         @pid = Process.pid
-        @sock = KSocket.open(hostname, port, options)
+        @sock = KSocket.open(hostname, port, self, options)
         @version = version # trigger actual connect
         sasl_authentication if need_auth?
         up!

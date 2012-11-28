@@ -3,7 +3,7 @@ begin
   puts "Using kgio socket IO" if defined?($TESTING) && $TESTING
 
   class Dalli::Server::KSocket < Kgio::Socket
-    attr_accessor :options
+    attr_accessor :options, :server
 
     def kgio_wait_readable
       IO.select([self], nil, nil, options[:socket_timeout]) || raise(Timeout::Error, "IO timeout")
@@ -13,12 +13,13 @@ begin
       IO.select(nil, [self], nil, options[:socket_timeout]) || raise(Timeout::Error, "IO timeout")
     end
 
-    def self.open(host, port, options = {})
+    def self.open(host, port, server, options = {})
       addr = Socket.pack_sockaddr_in(port, host)
       sock = start(addr)
       sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
       sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
       sock.options = options
+      sock.server = server
       sock.kgio_wait_writable
       sock
     end
@@ -45,14 +46,15 @@ rescue LoadError
 
   puts "Using standard socket IO (#{RUBY_DESCRIPTION})" if defined?($TESTING) && $TESTING
   class Dalli::Server::KSocket < TCPSocket
-    attr_accessor :options
+    attr_accessor :options, :server
 
-    def self.open(host, port, options = {})
+    def self.open(host, port, server, options = {})
       Timeout.timeout(options[:socket_timeout]) do
         sock = new(host, port)
         sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
         sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
         sock.options = { :host => host, :port => port }.merge(options)
+        sock.server = server
         sock
       end
     end
