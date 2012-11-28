@@ -131,7 +131,7 @@ module Dalli
                     servers_in_use.delete(server)
                     break
 
-                  elsif buf.bytesize >= (24 + 4 + body_length)
+                  elsif buf.bytesize >= (24 + body_length)
                     buf.slice!(0, 24)
                     flags = buf.slice!(0, 4).unpack('N')[0]
                     key = buf.slice!(0, key_length)
