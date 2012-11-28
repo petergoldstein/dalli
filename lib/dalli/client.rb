@@ -91,11 +91,12 @@ module Dalli
           servers_in_use.delete_if{ |s| s.sock.nil? }
           break if servers_in_use.empty?
 
+          elapsed = Time.now - start
           timeout = servers_in_use.first.options[:socket_timeout]
-          if (Time.now - start) > timeout
+          if elapsed > timeout
             readable = nil
           else
-            readable, _ = IO.select(servers_in_use.map(&:sock), nil, nil, timeout)
+            readable, _ = IO.select(servers_in_use.map(&:sock), nil, nil, timeout - elapsed)
           end
 
           if readable.nil?
