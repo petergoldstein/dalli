@@ -30,7 +30,6 @@ module Dalli
       @servers = servers || env_servers || '127.0.0.1:11211'
       @options = normalize_options(options)
       @ring = nil
-      @servers_in_use = nil
     end
 
     #
@@ -62,7 +61,7 @@ module Dalli
       options = nil
       options = keys.pop if keys.last.is_a?(Hash) || keys.last.nil?
       ring.lock do
-        self.servers_in_use = Set.new
+        servers = self.servers_in_use = Set.new
 
         keys.flatten.each do |key|
           begin
@@ -74,38 +73,38 @@ module Dalli
         end
 
         values = {}
-        return values if servers_in_use.empty?
+        return values if servers.empty?
 
-        servers_in_use.each do |server|
+        servers.each do |server|
           next unless server.alive?
           begin
             server.multi_response_start
           rescue DalliError, NetworkError => e
             Dalli.logger.debug { e.inspect }
             Dalli.logger.debug { "results from this server will be missing" }
-            servers_in_use.delete(server)
+            servers.delete(server)
           end
         end
 
         start = Time.now
         loop do
           # remove any dead servers
-          servers_in_use.delete_if{ |s| s.sock.nil? }
-          break if servers_in_use.empty?
+          servers.delete_if{ |s| s.sock.nil? }
+          break if servers.empty?
 
           # calculate remaining timeout
           elapsed = Time.now - start
-          timeout = servers_in_use.first.options[:socket_timeout]
+          timeout = servers.first.options[:socket_timeout]
           if elapsed > timeout
             readable = nil
           else
-            sockets = servers_in_use.map(&:sock)
+            sockets = servers.map(&:sock)
             readable, _ = IO.select(sockets, nil, nil, timeout - elapsed)
           end
 
           if readable.nil?
             # no response within timeout; abort pending connections
-            servers_in_use.each do |server|
+            servers.each do |server|
               server.multi_response_abort
             end
             break
@@ -120,10 +119,10 @@ module Dalli
                 end
 
                 if server.multi_response_completed?
-                  servers_in_use.delete(server)
+                  servers.delete(server)
                 end
               rescue NetworkError => e
-                servers_in_use.delete(server)
+                servers.delete(server)
               end
             end
           end
