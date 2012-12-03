@@ -49,6 +49,13 @@ module ActiveSupport
         extend Strategy::LocalCache
       end
 
+      ##
+      # Access the underlying Dalli::Client instance for
+      # access to get_multi, etc.
+      def dalli
+        @data
+      end
+
       def fetch(name, options=nil)
         options ||= {}
         name = expanded_key name

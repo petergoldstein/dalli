@@ -1,6 +1,12 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+
+- Add `dalli` accessor to dalli_store to access the underlying
+Dalli::Client, for things like `get_multi`.
+
 2.5.0
 =======
 
