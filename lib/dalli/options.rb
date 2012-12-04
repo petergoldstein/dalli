@@ -31,6 +31,24 @@ module Dalli
       end
     end
 
+    def multi_response_start
+      @lock.synchronize do
+        super
+      end
+    end
+
+    def multi_response_nonblock
+      @lock.synchronize do
+        super
+      end
+    end
+
+    def multi_response_abort
+      @lock.synchronize do
+        super
+      end
+    end
+
     def lock!
       @lock.mon_enter
     end
