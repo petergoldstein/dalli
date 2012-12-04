@@ -3,6 +3,7 @@ require './lib/dalli/version'
 Gem::Specification.new do |s|
   s.name = %q{dalli}
   s.version = Dalli::VERSION
+  s.license = "MIT"
 
   s.authors = ["Mike Perham"]
   s.description = %q{High performance memcached client for Ruby}
