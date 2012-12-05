@@ -7,6 +7,7 @@ module Dalli
     attr_accessor :port
     attr_accessor :weight
     attr_accessor :options
+    attr_reader :sock
 
     DEFAULTS = {
       # seconds between trying to contact a remote server
@@ -104,6 +105,81 @@ module Dalli
 
     def compressor
       @options[:compressor]
+    end
+
+    # Start reading key/value pairs from this connection. This is usually called
+    # after a series of GETKQ commands. A NOOP is sent, and the server begins
+    # flushing responses for kv pairs that were found.
+    #
+    # Returns nothing.
+    def multi_response_start
+      verify_state
+      write_noop
+      @multi_buffer = ''
+      @inprogress = true
+    end
+
+    # Did the last call to #multi_response_start complete successfully?
+    def multi_response_completed?
+      @multi_buffer.nil?
+    end
+
+    # Attempt to receive and parse as many key/value pairs as possible
+    # from this server. After #multi_response_start, this should be invoked
+    # repeatedly whenever this server's socket is readable until
+    # #multi_response_completed?.
+    #
+    # Returns a Hash of kv pairs received.
+    def multi_response_nonblock
+      raise 'multi_response has completed' if @multi_buffer.nil?
+
+      @multi_buffer << @sock.read_available
+      buf = @multi_buffer
+      values = {}
+
+      while buf.bytesize >= 24
+        header = buf.slice(0, 24)
+        (key_length, _, body_length) = header.unpack(KV_HEADER)
+
+        if key_length == 0
+          # all done!
+          @multi_buffer = nil
+          @inprogress = false
+          break
+
+        elsif buf.bytesize >= (24 + body_length)
+          buf.slice!(0, 24)
+          flags = buf.slice!(0, 4).unpack('N')[0]
+          key = buf.slice!(0, key_length)
+          value = buf.slice!(0, body_length - key_length - 4) if body_length - key_length - 4 > 0
+
+          begin
+            values[key] = deserialize(value, flags)
+          rescue DalliError => e
+          end
+
+        else
+          # not enough data yet, wait for more
+          break
+        end
+      end
+
+      values
+    rescue SystemCallError, Timeout::Error, EOFError
+      failure!
+    end
+
+    # Abort an earlier #multi_response_start. Used to signal an external
+    # timeout. The underlying socket is disconnected, and the exception is
+    # swallowed.
+    #
+    # Returns nothing.
+    def multi_response_abort
+      @multi_buffer = nil
+      @inprogress = false
+      failure!
+    rescue NetworkError
+      true
     end
 
     # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
@@ -244,11 +320,15 @@ module Dalli
       body ? longlong(*body.unpack('NN')) : body
     end
 
+    def write_noop
+      req = [REQUEST, OPCODES[:noop], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
+      write(req)
+    end
+
     # Noop is a keepalive operation but also used to demarcate the end of a set of pipelined commands.
     # We need to read all the responses at once.
     def noop
-      req = [REQUEST, OPCODES[:noop], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
-      write(req)
+      write_noop
       multi_response
     end
 
@@ -442,7 +522,7 @@ module Dalli
 
       begin
         @pid = Process.pid
-        @sock = KSocket.open(hostname, port, options)
+        @sock = KSocket.open(hostname, port, self, options)
         @version = version # trigger actual connect
         sasl_authentication if need_auth?
         up!

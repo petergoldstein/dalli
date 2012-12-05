@@ -30,7 +30,6 @@ module Dalli
       @servers = servers || env_servers || '127.0.0.1:11211'
       @options = normalize_options(options)
       @ring = nil
-      @servers_in_use = nil
     end
 
     #
@@ -62,7 +61,7 @@ module Dalli
       options = nil
       options = keys.pop if keys.last.is_a?(Hash) || keys.last.nil?
       ring.lock do
-        self.servers_in_use = Set.new
+        servers = self.servers_in_use = Set.new
 
         keys.flatten.each do |key|
           begin
@@ -74,17 +73,61 @@ module Dalli
         end
 
         values = {}
-        servers_in_use.each do |server|
+        return values if servers.empty?
+
+        servers.each do |server|
           next unless server.alive?
           begin
-            server.request(:noop).each_pair do |key, value|
-              values[key_without_namespace(key)] = value
-            end
+            server.multi_response_start
           rescue DalliError, NetworkError => e
             Dalli.logger.debug { e.inspect }
             Dalli.logger.debug { "results from this server will be missing" }
+            servers.delete(server)
           end
         end
+
+        start = Time.now
+        loop do
+          # remove any dead servers
+          servers.delete_if{ |s| s.sock.nil? }
+          break if servers.empty?
+
+          # calculate remaining timeout
+          elapsed = Time.now - start
+          timeout = servers.first.options[:socket_timeout]
+          if elapsed > timeout
+            readable = nil
+          else
+            sockets = servers.map(&:sock)
+            readable, _ = IO.select(sockets, nil, nil, timeout - elapsed)
+          end
+
+          if readable.nil?
+            # no response within timeout; abort pending connections
+            servers.each do |server|
+              server.multi_response_abort
+            end
+            break
+
+          else
+            readable.each do |sock|
+              server = sock.server
+
+              begin
+                server.multi_response_nonblock.each do |key, value|
+                  values[key_without_namespace(key)] = value
+                end
+
+                if server.multi_response_completed?
+                  servers.delete(server)
+                end
+              rescue NetworkError => e
+                servers.delete(server)
+              end
+            end
+          end
+        end
+
         values
       end
     ensure
