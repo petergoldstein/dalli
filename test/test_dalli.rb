@@ -184,18 +184,18 @@ describe 'Dalli' do
         resp = dc.get_multi(%w(a b c d e f))
         assert_equal({ 'a' => 'foo', 'b' => 123, 'c' => %w(a b c) }, resp)
 
-        # Perform a huge multi-get with 10,000 elements.
+        # Perform a big multi-get with 1000 elements.
         arr = []
         dc.multi do
-          10_000.times do |idx|
+          1000.times do |idx|
             dc.set idx, idx
             arr << idx
           end
         end
 
         result = dc.get_multi(arr)
-        assert_equal(10_000, result.size)
-        assert_equal(1000, result['1000'])
+        assert_equal(1000, result.size)
+        assert_equal(50, result['50'])
       end
     end
 
@@ -410,6 +410,9 @@ describe 'Dalli' do
               assert_equal 0, inc % 5
               cache.decr('cat', 5)
               assert_equal 11, cache.get('b')
+
+              assert_equal %w(a b), cache.get_multi('a', 'b', 'c').keys.sort
+
             end
           end
         end

@@ -61,77 +61,80 @@ module Dalli
       options = nil
       options = keys.pop if keys.last.is_a?(Hash) || keys.last.nil?
       ring.lock do
-        servers = self.servers_in_use = Set.new
+        begin
+          servers = self.servers_in_use = Set.new
 
-        keys.flatten.each do |key|
-          begin
-            perform(:getkq, key)
-          rescue DalliError, NetworkError => e
-            Dalli.logger.debug { e.inspect }
-            Dalli.logger.debug { "unable to get key #{key}" }
-          end
-        end
-
-        values = {}
-        return values if servers.empty?
-
-        servers.each do |server|
-          next unless server.alive?
-          begin
-            server.multi_response_start
-          rescue DalliError, NetworkError => e
-            Dalli.logger.debug { e.inspect }
-            Dalli.logger.debug { "results from this server will be missing" }
-            servers.delete(server)
-          end
-        end
-
-        start = Time.now
-        loop do
-          # remove any dead servers
-          servers.delete_if{ |s| s.sock.nil? }
-          break if servers.empty?
-
-          # calculate remaining timeout
-          elapsed = Time.now - start
-          timeout = servers.first.options[:socket_timeout]
-          if elapsed > timeout
-            readable = nil
-          else
-            sockets = servers.map(&:sock)
-            readable, _ = IO.select(sockets, nil, nil, timeout - elapsed)
-          end
-
-          if readable.nil?
-            # no response within timeout; abort pending connections
-            servers.each do |server|
-              server.multi_response_abort
+          keys.flatten.each do |key|
+            begin
+              perform(:getkq, key)
+            rescue DalliError, NetworkError => e
+              Dalli.logger.debug { e.inspect }
+              Dalli.logger.debug { "unable to get key #{key}" }
             end
-            break
+          end
 
-          else
-            readable.each do |sock|
-              server = sock.server
+          values = {}
+          return values if servers.empty?
 
-              begin
-                server.multi_response_nonblock.each do |key, value|
-                  values[key_without_namespace(key)] = value
-                end
+          servers.each do |server|
+            next unless server.alive?
+            begin
+              server.multi_response_start
+            rescue DalliError, NetworkError => e
+              Dalli.logger.debug { e.inspect }
+              Dalli.logger.debug { "results from this server will be missing" }
+              servers.delete(server)
+            end
+          end
 
-                if server.multi_response_completed?
+          start = Time.now
+          loop do
+            # remove any dead servers
+            servers.delete_if { |s| s.sock.nil? }
+            break if servers.empty?
+
+            # calculate remaining timeout
+            elapsed = Time.now - start
+            timeout = servers.first.options[:socket_timeout]
+            if elapsed > timeout
+              readable = nil
+            else
+              sockets = servers.map(&:sock)
+              readable, _ = IO.select(sockets, nil, nil, timeout - elapsed)
+            end
+
+            if readable.nil?
+              # no response within timeout; abort pending connections
+              servers.each do |server|
+                puts "Abort!"
+                server.multi_response_abort
+              end
+              break
+
+            else
+              readable.each do |sock|
+                server = sock.server
+
+                begin
+                  server.multi_response_nonblock.each do |key, value|
+                    values[key_without_namespace(key)] = value
+                  end
+
+                  if server.multi_response_completed?
+                    servers.delete(server)
+                  end
+                rescue NetworkError
                   servers.delete(server)
                 end
-              rescue NetworkError => e
-                servers.delete(server)
               end
             end
           end
-        end
 
-        values
+          values
+        ensure
+          self.servers_in_use = nil
+        end
       end
-    ensure
-      self.servers_in_use = nil
     end
 
     def fetch(key, ttl=nil, options=nil)

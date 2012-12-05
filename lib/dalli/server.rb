@@ -155,7 +155,7 @@ module Dalli
 
           begin
             values[key] = deserialize(value, flags)
-          rescue DalliError => e
+          rescue DalliError
           end
 
         else
