@@ -34,3 +34,16 @@ describe 'Compressor' do
     end
   end
 end
+
+describe 'GzipCompressor' do
+
+  should 'compress and uncompress data using Zlib::GzipWriter/Reader' do
+    memcached(19127,nil,{:compress=>true,:compressor=>Dalli::GzipCompressor}) do |dc|
+      data = (0...1025).map{65.+(rand(26)).chr}.join
+      assert dc.set("test", data)
+      assert_equal Dalli::GzipCompressor, dc.instance_variable_get('@ring').servers.first.compressor
+      assert_equal(data, dc.get("test"))
+    end
+  end
+
+end
