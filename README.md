@@ -132,7 +132,8 @@ Default is Marshal.
 **keepalive**: Boolean, if true Dalli will enable keep-alives on the socket so inactivity
 
 **compressor**: The compressor to use for objects being stored.
-Default is zlib.
+Default is zlib, implemented under `Dalli::Compressor`.
+If serving compressed data using nginx's HttpMemcachedModule, set `memcached_gzip_flag 2` and use `Dalli::GzipCompressor`
 
 Features and Changes
 ------------------------

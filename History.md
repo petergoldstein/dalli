@@ -7,6 +7,7 @@ HEAD
 - Re-implement get_multi to be non-blocking [tmm1, #295]
 - Add `dalli` accessor to dalli_store to access the underlying
 Dalli::Client, for things like `get_multi`.
+- Add `Dalli::GzipCompressor`, primarily for compatibility with nginx's HttpMemcachedModule using `memcached_gzip_flag`
 
 2.5.0
 =======
