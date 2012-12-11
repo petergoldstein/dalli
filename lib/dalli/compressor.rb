@@ -1,4 +1,5 @@
 require 'zlib'
+require 'stringio'
 
 module Dalli
   class Compressor
@@ -8,6 +9,21 @@ module Dalli
 
     def self.decompress(data)
       Zlib::Inflate.inflate(data)
+    end
+  end
+
+  class GzipCompressor
+    def self.compress(data)
+      io = StringIO.new("w")
+      gz = Zlib::GzipWriter.new(io)
+      gz.write(data)
+      gz.close
+      io.string
+    end
+
+    def self.decompress(data)
+      io = StringIO.new(data, "rb")
+      Zlib::GzipReader.new(io).read
     end
   end
 end
