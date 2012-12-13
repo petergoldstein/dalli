@@ -114,6 +114,27 @@ describe 'ActiveSupport' do
       end
     end
 
+    should 'support read_multi with LocalCache' do
+      with_activesupport do
+        memcached do
+          connect
+          x = rand_key
+          y = rand_key
+          assert_equal({}, @dalli.read_multi(x, y))
+          @dalli.write(x, '123')
+          @dalli.write(y, 123)
+
+          @dalli.with_local_cache do
+            assert_equal({ x => '123', y => 123 }, @dalli.read_multi(x, y))
+            Dalli::Client.any_instance.expects(:get).with(any_parameters).never
+
+            dres = @dalli.read(x)
+            assert_equal dres, '123'
+          end
+        end
+      end
+    end
+
     should 'support read, write and delete' do
       with_activesupport do
         memcached do
@@ -152,7 +173,6 @@ describe 'ActiveSupport' do
         memcached do
           connect
           y = rand_key.to_s
-
           @dalli.with_local_cache do
             Dalli::Client.any_instance.expects(:get).with(y, {}).once.returns(123)
             dres = @dalli.read(y)
