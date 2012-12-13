@@ -114,6 +114,37 @@ describe 'ActiveSupport' do
       end
     end
 
+    should 'support read_multi with LocalCache' do
+      with_activesupport do
+        memcached do
+          connect
+          x = rand_key
+          y = rand_key
+          assert_equal({}, @dalli.read_multi(x, y))
+          @dalli.write(x, '123')
+          @dalli.write(y, 456)
+
+          @dalli.with_local_cache do
+            assert_equal({ x => '123', y => 456 }, @dalli.read_multi(x, y))
+            Dalli::Client.any_instance.expects(:get).with(any_parameters).never
+
+            dres = @dalli.read(x)
+            assert_equal dres, '123'
+          end
+
+          Dalli::Client.any_instance.unstub(:get)
+
+          # Fresh LocalStore
+          @dalli.with_local_cache do
+            @dalli.read(x)
+            Dalli::Client.any_instance.expects(:get_multi).with([y.to_s]).returns(y.to_s => 456)
+
+            assert_equal({ x => '123', y => 456}, @dalli.read_multi(x, y))
+          end
+        end
+      end
+    end
+
     should 'support read, write and delete' do
       with_activesupport do
         memcached do
@@ -143,6 +174,34 @@ describe 'ActiveSupport' do
           @dalli.write(bigkey, 'double width')
           assert_equal 'double width', @dalli.read(bigkey)
           assert_equal({bigkey => "double width"}, @dalli.read_multi(bigkey))
+        end
+      end
+    end
+
+    should 'support read, write and delete with LocalCache' do
+      with_activesupport do
+        memcached do
+          connect
+          y = rand_key.to_s
+          @dalli.with_local_cache do
+            Dalli::Client.any_instance.expects(:get).with(y, {}).once.returns(123)
+            dres = @dalli.read(y)
+            assert_equal 123, dres
+
+            Dalli::Client.any_instance.expects(:get).with(y, {}).never
+
+            dres = @dalli.read(y)
+            assert_equal 123, dres
+
+            @dalli.write(y, 456)
+            dres = @dalli.read(y)
+            assert_equal 456, dres
+
+            @dalli.delete(y)
+            Dalli::Client.any_instance.expects(:get).with(y, {}).once.returns(nil)
+            dres = @dalli.read(y)
+            assert_equal nil, dres
+          end
         end
       end
     end

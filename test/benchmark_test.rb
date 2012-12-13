@@ -24,7 +24,7 @@ describe 'performance' do
   should 'run benchmarks' do
     memcached do
 
-      Benchmark.bm(31) do |x|
+      Benchmark.bm(37) do |x|
 
         n = 2500
 
@@ -41,6 +41,61 @@ describe 'performance' do
             @ds.increment @counter, 1, :initial => 100
             @ds.increment @counter, 1, :expires_in => 12
             @ds.decrement @counter, 1
+          end
+        end
+
+        x.report("mixed:rails-localcache:dalli") do
+          n.times do
+            @ds.with_local_cache do
+              @ds.read @key1
+              @ds.write @key2, @value
+              @ds.fetch(@key3) { @value }
+              @ds.fetch(@key2) { @value }
+              @ds.fetch(@key1) { @value }
+              @ds.write @key2, @value, :unless_exists => true
+              @ds.delete @key2
+              @ds.increment @counter, 1, :initial => 100
+              @ds.increment @counter, 1, :expires_in => 12
+              @ds.decrement @counter, 1
+            end
+          end
+        end
+
+        @ds.clear
+        sizeable_data = "<marquee>some view partial data</marquee>" * 50
+        [@key1, @key2, @key3, @key4, @key5, @key6].each do |key|
+          @ds.write(key, sizeable_data)
+        end
+
+        x.report("read_multi_big:rails:dalli") do
+          n.times do
+            @ds.read_multi @key1, @key2, @key3, @key4
+            @ds.read @key1
+            @ds.read @key2
+            @ds.read @key3
+            @ds.read @key4
+            @ds.read @key1
+            @ds.read @key2
+            @ds.read @key3
+            @ds.read_multi @key1, @key2, @key3
+          end
+        end
+
+        x.report("read_multi_big:rails-localcache:dalli") do
+          n.times do
+            @ds.with_local_cache do
+              @ds.read_multi @key1, @key2, @key3, @key4
+              @ds.read @key1
+              @ds.read @key2
+              @ds.read @key3
+              @ds.read @key4
+            end
+            @ds.with_local_cache do
+              @ds.read @key1
+              @ds.read @key2
+              @ds.read @key3
+              @ds.read_multi @key1, @key2, @key3
+            end
           end
         end
 
