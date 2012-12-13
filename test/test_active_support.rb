@@ -147,6 +147,35 @@ describe 'ActiveSupport' do
       end
     end
 
+    should 'support read, write and delete with LocalCache' do
+      with_activesupport do
+        memcached do
+          connect
+          y = rand_key.to_s
+
+          @dalli.with_local_cache do
+            Dalli::Client.any_instance.expects(:get).with(y, {}).once.returns(123)
+            dres = @dalli.read(y)
+            assert_equal 123, dres
+
+            Dalli::Client.any_instance.expects(:get).with(y, {}).never
+
+            dres = @dalli.read(y)
+            assert_equal 123, dres
+
+            @dalli.write(y, 456)
+            dres = @dalli.read(y)
+            assert_equal 456, dres
+
+            @dalli.delete(y)
+            Dalli::Client.any_instance.expects(:get).with(y, {}).once.returns(nil)
+            dres = @dalli.read(y)
+            assert_equal nil, dres
+          end
+        end
+      end
+    end
+
     should 'support increment/decrement commands' do
       with_activesupport do
         memcached do
