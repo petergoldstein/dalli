@@ -122,14 +122,24 @@ describe 'ActiveSupport' do
           y = rand_key
           assert_equal({}, @dalli.read_multi(x, y))
           @dalli.write(x, '123')
-          @dalli.write(y, 123)
+          @dalli.write(y, 456)
 
           @dalli.with_local_cache do
-            assert_equal({ x => '123', y => 123 }, @dalli.read_multi(x, y))
+            assert_equal({ x => '123', y => 456 }, @dalli.read_multi(x, y))
             Dalli::Client.any_instance.expects(:get).with(any_parameters).never
 
             dres = @dalli.read(x)
             assert_equal dres, '123'
+          end
+
+          Dalli::Client.any_instance.unstub(:get)
+
+          # Fresh LocalStore
+          @dalli.with_local_cache do
+            @dalli.read(x)
+            Dalli::Client.any_instance.expects(:get_multi).with([y.to_s]).returns(y.to_s => 456)
+
+            assert_equal({ x => '123', y => 456}, @dalli.read_multi(x, y))
           end
         end
       end
