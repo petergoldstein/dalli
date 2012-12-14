@@ -1,9 +1,10 @@
 Dalli Changelog
 =====================
 
-HEAD
+2.6.0
 =======
 
+- read_multi optimization, now checks local_cache [chendo, #306]
 - Re-implement get_multi to be non-blocking [tmm1, #295]
 - Add `dalli` accessor to dalli_store to access the underlying
 Dalli::Client, for things like `get_multi`.
