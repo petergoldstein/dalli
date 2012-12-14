@@ -127,11 +127,22 @@ module ActiveSupport
         names = names.flatten
         mapping = names.inject({}) { |memo, name| memo[expanded_key(name)] = name; memo }
         instrument(:read_multi, names) do
-          results = @data.get_multi(mapping.keys)
+          results = {}
+          if local_cache
+            mapping.keys.each do |key|
+              if value = local_cache.read_entry(key, options)
+                results[key] = value
+              end
+            end
+          end
+
+          results.merge!(@data.get_multi(mapping.keys - results.keys))
           results.inject({}) do |memo, (inner, _)|
             entry = results[inner]
             # NB Backwards data compatibility, to be removed at some point
-            memo[mapping[inner]] = (entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry)
+            value = (entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry)
+            memo[mapping[inner]] = value
+            local_cache.write_entry(inner, value, options) if local_cache
             memo
           end
         end
