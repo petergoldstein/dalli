@@ -55,12 +55,14 @@ On Ubuntu you can install it by running:
 
 You can verify your installation using this piece of code:
 
-    gem install dalli
+```ruby
+gem install dalli
 
-    require 'dalli'
-    dc = Dalli::Client.new('localhost:11211')
-    dc.set('abc', 123)
-    value = dc.get('abc')
+require 'dalli'
+dc = Dalli::Client.new('localhost:11211')
+dc.set('abc', 123)
+value = dc.get('abc')
+```
 
 The test suite requires memcached 1.4.3+ with SASL enabled (brew install memcached --enable-sasl ; mv /usr/bin/memcached /usr/bin/memcached.old).  Currently only supports the PLAIN mechanism.
 
@@ -73,27 +75,37 @@ Usage with Rails 3.x
 
 In your Gemfile:
 
-    gem 'dalli'
+```ruby
+gem 'dalli'
+```
 
 In `config/environments/production.rb`:
 
-    config.cache_store = :dalli_store
+```ruby
+config.cache_store = :dalli_store
+```
 
 Here's a more comprehensive example that sets a reasonable default for maximum cache entry lifetime (one day), enables compression for large values and namespaces all entries for this rails app.  Remove the namespace if you have multiple apps which share cached values.
 
-    config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com',
-        { :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true }
+```ruby
+config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com',
+  { :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true }
+```
 
 To use Dalli for Rails session storage that times out after 20 minutes, in `config/initializers/session_store.rb`:
 
 For Rails >= 3.2.4:
 
-    Rails.application.config.session_store ActionDispatch::Session::CacheStore, :expire_after => 20.minutes
+```ruby
+Rails.application.config.session_store ActionDispatch::Session::CacheStore, :expire_after => 20.minutes
+```
 
 For Rails 3.x:
 
-    require 'action_dispatch/middleware/session/dalli_store'
-    Rails.application.config.session_store :dalli_store, :memcache_server => ['host1', 'host2'], :namespace => 'sessions', :key => '_foundation_session', :expire_after => 20.minutes
+```ruby
+require 'action_dispatch/middleware/session/dalli_store'
+Rails.application.config.session_store :dalli_store, :memcache_server => ['host1', 'host2'], :namespace => 'sessions', :key => '_foundation_session', :expire_after => 20.minutes
+```
 
 Dalli does not support Rails 2.x.
 
