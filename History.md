@@ -1,10 +1,14 @@
 Dalli Changelog
 =====================
 
-2.6.0
+HEAD
 =======
 
 - Add lambda support for cache namespaces [joshwlewis, #311]
+
+2.6.0
+=======
+
 - read_multi optimization, now checks local_cache [chendo, #306]
 - Re-implement get_multi to be non-blocking [tmm1, #295]
 - Add `dalli` accessor to dalli_store to access the underlying

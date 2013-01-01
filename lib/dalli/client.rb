@@ -340,19 +340,18 @@ module Dalli
       raise ArgumentError, "key cannot be blank" if !key || key.length == 0
       key = key_with_namespace(key)
       if key.length > 250
-        namespace_length = namespace ? namespace.size : 0
-        max_length_before_namespace = 212 - namespace_length
+        max_length_before_namespace = 212 - (namespace || '').size
         key = "#{key[0, max_length_before_namespace]}:md5:#{Digest::MD5.hexdigest(key)}"
       end
       return key
     end
 
     def key_with_namespace(key)
-      namespace ? "#{namespace}:#{key}" : key
+      (ns = namespace) ? "#{ns}:#{key}" : key
     end
 
     def key_without_namespace(key)
-      namespace ? key.sub(%r(\A#{namespace}:), '') : key
+      (ns = namespace) ? key.sub(%r(\A#{ns}:), '') : key
     end
 
     def namespace
