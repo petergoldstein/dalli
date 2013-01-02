@@ -329,7 +329,7 @@ describe 'ActiveSupport' do
   end
 
   def connect
-    @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122', :expires_in => 10.seconds, :namespace => 'x')
+    @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122', :expires_in => 10.seconds, :namespace => lambda{33.to_s(36)})
     @dalli.clear
   end
 

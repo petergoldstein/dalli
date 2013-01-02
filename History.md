@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+
+- Add lambda support for cache namespaces [joshwlewis, #311]
+
 2.6.0
 =======
 
