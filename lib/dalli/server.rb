@@ -116,6 +116,7 @@ module Dalli
       verify_state
       write_noop
       @multi_buffer = ''
+      @position = 0
       @inprogress = true
     end
 
@@ -135,23 +136,26 @@ module Dalli
 
       @multi_buffer << @sock.read_available
       buf = @multi_buffer
+      pos = @position
       values = {}
 
-      while buf.bytesize >= 24
-        header = buf.slice(0, 24)
+      while buf.bytesize - pos >= 24
+        header = buf.slice(pos, 24)
         (key_length, _, body_length) = header.unpack(KV_HEADER)
 
         if key_length == 0
           # all done!
           @multi_buffer = nil
+          @position = nil
           @inprogress = false
           break
 
-        elsif buf.bytesize >= (24 + body_length)
-          buf.slice!(0, 24)
-          flags = buf.slice!(0, 4).unpack('N')[0]
-          key = buf.slice!(0, key_length)
-          value = buf.slice!(0, body_length - key_length - 4) if body_length - key_length - 4 > 0
+        elsif buf.bytesize - pos >= 24 + body_length
+          flags = buf.slice(pos + 24, 4).unpack('N')[0]
+          key = buf.slice(pos + 24 + 4, key_length)
+          value = buf.slice(pos + 24 + 4 + key_length, body_length - key_length - 4) if body_length - key_length - 4 > 0
+
+          pos = pos + 24 + body_length
 
           begin
             values[key] = deserialize(value, flags)
@@ -163,6 +167,7 @@ module Dalli
           break
         end
       end
+      @position = pos
 
       values
     rescue SystemCallError, Timeout::Error, EOFError
@@ -176,6 +181,7 @@ module Dalli
     # Returns nothing.
     def multi_response_abort
       @multi_buffer = nil
+      @position = nil
       @inprogress = false
       failure!
     rescue NetworkError
