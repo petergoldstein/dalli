@@ -5,6 +5,7 @@ HEAD
 =======
 
 - Add lambda support for cache namespaces [joshwlewis, #311]
+- Fix 'can't modify frozen String' errors in `ActiveSupport::Cache::DalliStore` [dblock]
 
 2.6.0
 =======
