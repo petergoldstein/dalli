@@ -1,9 +1,17 @@
 Dalli Changelog
 =====================
 
-HEAD
+2.6.1
 =======
 
+- Add optional native C binary search for ring, add:
+
+gem 'RubyInline'
+
+  to your Gemfile to get a 10% speedup when using many servers.
+  You will see no improvement if you are only using one server.
+
+- More get_multi performance optimization [xaop, #315]
 - Add lambda support for cache namespaces [joshwlewis, #311]
 
 2.6.0
