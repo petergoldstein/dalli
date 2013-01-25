@@ -31,7 +31,7 @@ module Dalli
       if @continuum
         hkey = hash_for(key)
         20.times do |try|
-          entryidx = self.class.binary_search(@continuum, hkey)
+          entryidx = binary_search(@continuum, hkey)
           server = @continuum[entryidx].server
           return server if server.alive?
           break unless @failover
@@ -70,25 +70,60 @@ module Dalli
       ((total_servers * POINTS_PER_SERVER * server.weight) / Float(total_weight)).floor
     end
 
-    # Find the closest index in the Ring with value <= the given value
-    def self.binary_search(ary, value)
-      upper = ary.size - 1
-      lower = 0
-      idx = 0
+    # Native extension to perform the binary search within the continuum
+    # space.  Fallback to a pure Ruby version if the compilation doesn't work.
+    # optional for performance and only necessary if you are using multiple
+    # memcached servers.
+    begin
+      require 'inline'
+      inline do |builder|
+        builder.c <<-EOM
+        int binary_search(VALUE ary, unsigned int r) {
+            int upper = RARRAY_LEN(ary) - 1;
+            int lower = 0;
+            int idx = 0;
+            ID value = rb_intern("value");
 
-      while (lower <= upper) do
-        idx = (lower + upper) / 2
-        comp = ary[idx].value <=> value
+            while (lower <= upper) {
+                idx = (lower + upper) / 2;
 
-        if comp == 0
-          return idx
-        elsif comp > 0
-          upper = idx - 1
-        else
-          lower = idx + 1
-        end
+                VALUE continuumValue = rb_funcall(RARRAY_PTR(ary)[idx], value, 0);
+                unsigned int l = NUM2UINT(continuumValue);
+                if (l == r) {
+                    return idx;
+                }
+                else if (l > r) {
+                    upper = idx - 1;
+                }
+                else {
+                    lower = idx + 1;
+                }
+            }
+            return upper;
+        }
+        EOM
       end
-      return upper
+    rescue Exception => e
+      # Find the closest index in the Ring with value <= the given value
+      def binary_search(ary, value)
+        upper = ary.size - 1
+        lower = 0
+        idx = 0
+
+        while (lower <= upper) do
+          idx = (lower + upper) / 2
+          comp = ary[idx].value <=> value
+
+          if comp == 0
+            return idx
+          elsif comp > 0
+            upper = idx - 1
+          else
+            lower = idx + 1
+          end
+        end
+        return upper
+      end
     end
 
     class Entry
