@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+2.6.2
+=======
+
+- Properly handle missing RubyInline
+
 2.6.1
 =======
 
