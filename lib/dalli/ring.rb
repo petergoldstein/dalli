@@ -83,12 +83,14 @@ module Dalli
             int lower = 0;
             int idx = 0;
             ID value = rb_intern("value");
+            VALUE continuumValue;
+            unsigned int l;
 
             while (lower <= upper) {
                 idx = (lower + upper) / 2;
 
-                VALUE continuumValue = rb_funcall(RARRAY_PTR(ary)[idx], value, 0);
-                unsigned int l = NUM2UINT(continuumValue);
+                continuumValue = rb_funcall(RARRAY_PTR(ary)[idx], value, 0);
+                l = NUM2UINT(continuumValue);
                 if (l == r) {
                     return idx;
                 }
