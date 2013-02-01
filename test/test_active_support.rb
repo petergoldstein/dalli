@@ -328,6 +328,30 @@ describe 'ActiveSupport' do
     end
   end
 
+  should 'allow keys to be frozen' do
+    with_activesupport do
+      memcached do
+        connect
+        key = "foo"
+        key.freeze
+        assert_equal true, @dalli.write(key, "value")
+      end
+    end
+  end
+
+  should 'allow keys from a hash' do
+    with_activesupport do
+      memcached do
+        connect
+        map = { "one" => "one", "two" => "two" }
+        map.each_pair do |k, v|
+          assert_equal true, @dalli.write(k, v)
+        end
+        assert_equal map, @dalli.read_multi(map.keys)
+      end
+    end
+  end
+
   def connect
     @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122', :expires_in => 10.seconds, :namespace => lambda{33.to_s(36)})
     @dalli.clear

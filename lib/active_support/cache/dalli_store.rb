@@ -267,7 +267,10 @@ module ActiveSupport
         end
 
         key = key.to_param
-        key.force_encoding('binary') if key.respond_to? :force_encoding
+        if key.respond_to? :force_encoding
+          key = key.dup
+          key.force_encoding('binary')
+        end
         key
       end
 

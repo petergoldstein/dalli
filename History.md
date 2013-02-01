@@ -18,6 +18,7 @@ gem 'RubyInline'
 
 - More get_multi performance optimization [xaop, #315]
 - Add lambda support for cache namespaces [joshwlewis, #311]
+- Fix 'can't modify frozen String' errors in `ActiveSupport::Cache::DalliStore` [dblock]
 
 2.6.0
 =======
