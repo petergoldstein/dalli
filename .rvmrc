@@ -1,2 +1,0 @@
-rvm use 1.9.3@dalli --create
-export RUBYOPT='-Ilib:test'
