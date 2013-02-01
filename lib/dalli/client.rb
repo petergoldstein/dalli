@@ -27,9 +27,20 @@ module Dalli
     # - :compressor - defaults to zlib
     #
     def initialize(servers=nil, options={})
-      @servers = servers || env_servers || '127.0.0.1:11211'
+      @servers = normalize_servers(servers || ENV["MEMCACHE_SERVERS"] || '127.0.0.1:11211')
       @options = normalize_options(options)
       @ring = nil
+    end
+
+    ##
+    # Normalizes the argument into an array of servers. If the argument is a string, it's expected to be of
+    # the format "memcache1.example.com:11211[,memcache2.example.com:11211[,memcache3.example.com:11211[...]]]
+    def normalize_servers(servers)
+      if servers.is_a? String
+        return servers.split(",")
+      else
+        return servers
+      end
     end
 
     #
@@ -295,7 +306,7 @@ module Dalli
 
     def ring
       @ring ||= Dalli::Ring.new(
-        Array(@servers).map do |s|
+        @servers.map do |s|
          server_options = {}
           if s =~ %r{\Amemcached://}
             uri = URI.parse(s)
@@ -306,10 +317,6 @@ module Dalli
           Dalli::Server.new(s, @options.merge(server_options))
         end, @options
       )
-    end
-
-    def env_servers
-      ENV['MEMCACHE_SERVERS'] ? ENV['MEMCACHE_SERVERS'].split(',') : nil
     end
 
     # Chokepoint method for instrumentation
