@@ -79,9 +79,9 @@ module Dalli
       inline do |builder|
         builder.c <<-EOM
         int binary_search(VALUE ary, unsigned int r) {
-            int upper = RARRAY_LEN(ary) - 1;
-            int lower = 0;
-            int idx = 0;
+            long upper = RARRAY_LEN(ary) - 1;
+            long lower = 0;
+            long idx = 0;
             ID value = rb_intern("value");
             VALUE continuumValue;
             unsigned int l;
