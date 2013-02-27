@@ -114,7 +114,7 @@ Configuration
 ------------------------
 Dalli::Client accepts the following options. All times are in seconds.
 
-**expires_in**: Global default for key TTL.  No default.
+**expires_in**: Global default for key TTL.  Default is 0, which means no expiry.
 
 **failover**: Boolean, if true Dalli will failover to another server if the main server for a key is down.
 
