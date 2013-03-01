@@ -203,6 +203,11 @@ module ActiveSupport
         @data.stats
       end
 
+      # Reset the statistics from the memcached servers.
+      def reset_stats
+        @data.reset_stats
+      end
+
       def reset
         @data.reset
       end

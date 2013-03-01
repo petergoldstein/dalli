@@ -263,13 +263,25 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'support other esoteric commands' do
+    should 'support stats command' do
       with_activesupport do
         memcached do
           connect
           ds = @dalli.stats
           assert_equal 1, ds.keys.size
           assert ds[ds.keys.first].keys.size > 0
+
+          @dalli.reset
+        end
+      end
+    end
+
+    should 'support resetting stats' do
+      with_activesupport do
+        memcached do
+          connect
+          Dalli::Client.any_instance.expects(:reset_stats)
+          @dalli.reset_stats
 
           @dalli.reset
         end
