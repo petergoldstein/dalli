@@ -115,6 +115,18 @@ describe 'Dalli' do
           stats[s]["get_hits"].to_i != 0
         end)
 
+        stats_items = dc.stats(:items)
+        servers = stats_items.keys
+        assert(servers.any? do |s|
+          stats_items[s].keys[0] =~ /items:[0-9]+:number/
+        end)
+
+        stats_slabs = dc.stats(:slabs)
+        servers = stats_slabs.keys
+        assert(servers.any? do |s|
+          stats_slabs[s].keys[0] =~ /[0-9]+:chunk_size/
+        end)
+
         # reset_stats test
         results = dc.reset_stats
         assert(results.all? { |x| x })
