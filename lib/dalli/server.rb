@@ -251,8 +251,12 @@ module Dalli
       generic_response(true)
     end
 
-    def getkq(key)
-      req = [REQUEST, OPCODES[:getkq], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:getkq])
+    def send_multiget(keys)
+      req = ""
+      keys.each do |key|
+        req << [REQUEST, OPCODES[:getkq], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:getkq])
+      end
+      # Could send noop here instead of in multi_response_start
       write(req)
     end
 
