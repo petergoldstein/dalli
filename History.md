@@ -3,7 +3,7 @@ Dalli Changelog
 
 HEAD
 =======
-
+- Support specific stats by passing `:items` or `:slabs` to `stats` method [bukhamseen]
 - Fix 'can't modify frozen String' errors in `ActiveSupport::Cache::DalliStore` [dblock]
 
 2.6.2
