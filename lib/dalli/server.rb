@@ -43,6 +43,7 @@ module Dalli
       @options = DEFAULTS.merge(options)
       @sock = nil
       @msg = nil
+      @error = nil
       @pid = nil
       @inprogress = nil
     end
