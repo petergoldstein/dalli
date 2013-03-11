@@ -113,7 +113,23 @@ describe 'Dalli' do
         servers = stats.keys
         assert(servers.any? do |s|
           stats[s]["get_hits"].to_i != 0
-        end)
+        end, "general stats failed")
+
+        stats_items = dc.stats(:items)
+        servers = stats_items.keys
+        assert(servers.all? do |s|
+          stats_items[s].keys.any? do |key|
+            key =~ /items:[0-9]+:number/
+          end
+        end, "stats items failed")
+
+        stats_slabs = dc.stats(:slabs)
+        servers = stats_slabs.keys
+        assert(servers.all? do |s|
+          stats_slabs[s].keys.any? do |key|
+            key == "active_slabs"
+          end
+        end, "stats slabs failed")
 
         # reset_stats test
         results = dc.reset_stats
