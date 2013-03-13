@@ -75,7 +75,12 @@ module Dalli
         begin
           mapped_keys = keys.flatten.map {|a| validate_key(a.to_s)}
           groups = mapped_keys.flatten.group_by do |key|
-            ring.server_for_key(key)
+            begin
+              ring.server_for_key(key)
+            rescue Dalli::RingError
+              Dalli.logger.warn { "unable to get key #{key}" }
+              nil
+            end
           end
           if unfound_keys = groups.delete(nil)
             Dalli.logger.warn { "unable to get keys for #{unfound_keys.length} keys because no matching server was found" }
