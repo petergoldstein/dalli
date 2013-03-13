@@ -78,12 +78,12 @@ module Dalli
             begin
               ring.server_for_key(key)
             rescue Dalli::RingError
-              Dalli.logger.warn { "unable to get key #{key}" }
+              Dalli.logger.debug { "unable to get key #{key}" }
               nil
             end
           end
           if unfound_keys = groups.delete(nil)
-            Dalli.logger.warn { "unable to get keys for #{unfound_keys.length} keys because no matching server was found" }
+            Dalli.logger.debug { "unable to get keys for #{unfound_keys.length} keys because no matching server was found" }
           end
 
           groups.each do |server, keys_for_server|
