@@ -274,7 +274,7 @@ module Dalli
 
     ##
     # Collect the stats for each server.
-    # You can optionaly pass a type including :items or :slabs to get specific stats
+    # You can optionally pass a type including :items or :slabs to get specific stats
     # Returns a hash like { 'hostname:port' => { 'stat1' => 'value1', ... }, 'hostname2:port' => { ... } }
     def stats(type=nil)
       type = nil if ![nil, :items,:slabs].include? type
