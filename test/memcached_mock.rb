@@ -63,7 +63,6 @@ module MemcachedMock
       end
 
       raise Errno::ENOENT, "Unable to find memcached 1.4+ locally"
-      nil
     end
 
     def memcached(port=19122, args='', options={})
