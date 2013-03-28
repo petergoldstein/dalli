@@ -63,8 +63,12 @@ module ActiveSupport
         if block_given?
           unless options[:force]
             entry = instrument(:read, name, options) do |payload|
-              payload[:super_operation] = :fetch if payload
-              read_entry(name, options)
+              read_entry(name, options).tap do |entry|
+                if payload
+                  payload[:super_operation] = :fetch
+                  payload[:hit] = !!entry
+                end
+              end
             end
           end
 
