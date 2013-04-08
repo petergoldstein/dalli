@@ -158,7 +158,7 @@ socket.
 
 Note that Dalli does not require ActiveSupport or Rails.  You can safely use it in your own Ruby projects.
 
-![View the API](http://www.ruby-doc.org/gems/docs/d/dalli-2.5.0/Dalli/Client.html)
+[View the API](http://www.ruby-doc.org/gems/docs/d/dalli-2.5.0/Dalli/Client.html)
 
 Helping Out
 -------------
