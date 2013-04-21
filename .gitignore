@@ -5,3 +5,4 @@ Gemfile.lock
 tmtags
 tags
 tmp.sock
+*.gemfile.lock

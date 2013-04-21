@@ -10,6 +10,9 @@ rvm:
   - rbx-18mode
   - rbx-19mode
   - jruby
+gemfile:
+  - gemfiles/rails3.gemfile
+  - gemfiles/rails4.gemfile
 matrix:
   allow_failures:
     - rvm: rbx
