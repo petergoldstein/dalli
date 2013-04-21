@@ -25,6 +25,5 @@ Gem::Specification.new do |s|
   s.add_development_dependency(%q<mini_shoulda>, [">= 0"])
   s.add_development_dependency(%q<mocha>, [">= 0"])
   s.add_development_dependency(%q<rails>, ["~> 3"])
-  s.add_development_dependency(%q<appraisal>, [">= 0"])
 end
 
