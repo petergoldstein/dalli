@@ -328,6 +328,14 @@ describe 'ActiveSupport' do
     end
   end
 
+  should 'raise an error if expires_in is too far in the future' do
+    with_activesupport do
+      assert_raises(ArgumentError, :message => "expires_in cannot be larger than 30 days") do
+        ActiveSupport::Cache::DalliStore.new('localhost:19122', :expires_in => 30.days + 1)
+      end
+    end
+  end
+
   def connect
     @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122', :expires_in => 10.seconds, :namespace => lambda{33.to_s(36)})
     @dalli.clear

@@ -20,7 +20,8 @@ module Dalli
     # - :namespace - prepend each key with this value to provide simple namespacing.
     # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
-    # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
+    # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation,
+    #   defaults to 0 or forever, max is 2592000 (30.days)
     # - :compress - defaults to false, if true Dalli will compress values larger than 1024 bytes before
     # - :serializer - defaults to Marshal
     #   sending them to memcached.
@@ -316,6 +317,7 @@ module Dalli
     def perform(op, key, *args)
       key = key.to_s
       key = validate_key(key)
+      args[1] = validate_ttl(args[1]) unless args[1].nil?
       begin
         server = ring.server_for_key(key)
         ret = server.request(op, key, *args)
@@ -346,6 +348,12 @@ module Dalli
       return key
     end
 
+    def validate_ttl(ttl)
+      ttl = ttl.to_i
+      raise ArgumentError, "expires_in cannot be greater than 30 days" if ttl > 30.days
+      ttl
+    end
+
     def key_with_namespace(key)
       (ns = namespace) ? "#{ns}:#{key}" : key
     end
@@ -364,7 +372,7 @@ module Dalli
         opts[:compress] = opts.delete(:compression)
       end
       begin
-        opts[:expires_in] = opts[:expires_in].to_i if opts[:expires_in]
+        opts[:expires_in] = validate_ttl(opts[:expires_in]) if opts[:expires_in]
       rescue NoMethodError
         raise ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
       end
