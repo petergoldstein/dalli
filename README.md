@@ -141,7 +141,7 @@ Default is Marshal.
 
 **password**: The password to use for authenticating this client instance against a SASL-enabled memcached server.  Heroku users should not need to use this normally.
 
-**keepalive**: Boolean, if true Dalli will enable keep-alives on the socket so inactivity
+**keepalive**: Boolean. If true, Dalli will enable keep-alive for socket connections.  Default is false.
 
 **compressor**: The compressor to use for objects being stored.
 Default is zlib, implemented under `Dalli::Compressor`.
