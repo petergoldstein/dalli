@@ -18,6 +18,18 @@ matrix:
     - rvm: rbx
     - rvm: rbx-18mode
     - rvm: rbx-19mode
+  exclude:
+    # Rails4 requires Ruby >= 1.9.3
+    - rvm: 1.8.7
+      gemfile: gemfiles/rails4.gemfile
+    - rvm: 1.9.2
+      gemfile: gemfiles/rails4.gemfile
+    - rvm: ree
+      gemfile: gemfiles/rails4.gemfile
+    - rvm: rbx
+      gemfile: gemfiles/rails4.gemfile
+    - rvm: rbx-18mode
+      gemfile: gemfiles/rails4.gemfile
 branches:
   only:
     - master
