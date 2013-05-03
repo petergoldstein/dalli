@@ -6,7 +6,7 @@ rvm:
   - 2.0.0
   - rbx
   - ree
-  - ruby-head
+  #- ruby-head
   - rbx-18mode
   - rbx-19mode
   - jruby
@@ -18,6 +18,23 @@ matrix:
     - rvm: rbx
     - rvm: rbx-18mode
     - rvm: rbx-19mode
+  exclude:
+    # Rails4 requires Ruby >= 1.9.3
+    - rvm: 1.8.7
+      gemfile: gemfiles/rails4.gemfile
+      env: JRUBY_OPTS='--1.9'
+    - rvm: 1.9.2
+      gemfile: gemfiles/rails4.gemfile
+      env: JRUBY_OPTS='--1.9'
+    - rvm: ree
+      gemfile: gemfiles/rails4.gemfile
+      env: JRUBY_OPTS='--1.9'
+    - rvm: rbx
+      gemfile: gemfiles/rails4.gemfile
+      env: JRUBY_OPTS='--1.9'
+    - rvm: rbx-18mode
+      gemfile: gemfiles/rails4.gemfile
+      env: JRUBY_OPTS='--1.9'
 branches:
   only:
     - master
