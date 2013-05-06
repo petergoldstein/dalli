@@ -98,7 +98,9 @@ describe 'ActiveSupport' do
           assert_equal({}, @dalli.read_multi([x, y]))
           @dalli.write(x, '123')
           @dalli.write(y, 123)
-          assert_equal({ x => '123', y => 123 }, @dalli.read_multi([x, y]))
+          assert_equal({}, @dalli.read_multi([x, y]))
+          @dalli.write([x, y], '123')
+          assert_equal({ [x, y] => '123' }, @dalli.read_multi([x, y]))
         end
       end
     end
@@ -347,7 +349,7 @@ describe 'ActiveSupport' do
         map.each_pair do |k, v|
           assert_equal true, @dalli.write(k, v)
         end
-        assert_equal map, @dalli.read_multi(map.keys)
+        assert_equal map, @dalli.read_multi(*(map.keys))
       end
     end
   end

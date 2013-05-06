@@ -128,7 +128,6 @@ module ActiveSupport
       # servers for all keys. Keys must be Strings.
       def read_multi(*names)
         names.extract_options!
-        names = names.flatten
         mapping = names.inject({}) { |memo, name| memo[expanded_key(name)] = name; memo }
         instrument(:read_multi, names) do
           results = {}
