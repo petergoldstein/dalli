@@ -3,9 +3,11 @@ Dalli Changelog
 
 HEAD
 =======
+
 - Support specific stats by passing `:items` or `:slabs` to `stats` method [bukhamseen]
 - Fix 'can't modify frozen String' errors in `ActiveSupport::Cache::DalliStore` [dblock]
 - Protect against objects with custom equality checking [theron17]
+- Warn if value for key is too large to store [locriani]
 
 2.6.2
 =======
