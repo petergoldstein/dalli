@@ -452,7 +452,12 @@ module Dalli
     KV_HEADER = '@2n@6nN'
 
     def under_max_value_size?(value)
-      value.bytesize <= @options[:value_max_bytes]
+      if value.bytesize <= @options[:value_max_bytes]
+        true
+      else
+        Dalli.logger.warn "Value over max size"
+        false
+      end
     end
 
     def generic_response(unpack=false)
