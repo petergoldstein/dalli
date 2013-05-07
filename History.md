@@ -1,7 +1,7 @@
 Dalli Changelog
 =====================
 
-HEAD
+2.6.3
 =======
 
 - Support specific stats by passing `:items` or `:slabs` to `stats` method [bukhamseen]
