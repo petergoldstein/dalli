@@ -260,36 +260,30 @@ module Dalli
     def set(key, value, ttl, cas, options)
       (value, flags) = serialize(key, value, options)
 
-      if under_max_value_size?(key, value)
+      guard_max_value(key, value) do
         req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:set])
         write(req)
         generic_response unless multi?
-      else
-        false
       end
     end
 
     def add(key, value, ttl, options)
       (value, flags) = serialize(key, value, options)
 
-      if under_max_value_size?(key, value)
+      guard_max_value(key, value) do
         req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:add])
         write(req)
         generic_response unless multi?
-      else
-        false
       end
     end
 
     def replace(key, value, ttl, options)
       (value, flags) = serialize(key, value, options)
 
-      if under_max_value_size?(key, value)
+      guard_max_value(key, value) do
         req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:replace])
         write(req)
         generic_response unless multi?
-      else
-        false
       end
     end
 
@@ -451,9 +445,9 @@ module Dalli
     NORMAL_HEADER = '@4CCnN'
     KV_HEADER = '@2n@6nN'
 
-    def under_max_value_size?(key, value)
+    def guard_max_value(key, value)
       if value.bytesize <= @options[:value_max_bytes]
-        true
+        yield
       else
         Dalli.logger.warn "Value for #{key} over max size"
         false
