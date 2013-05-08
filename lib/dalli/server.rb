@@ -449,7 +449,7 @@ module Dalli
       if value.bytesize <= @options[:value_max_bytes]
         yield
       else
-        Dalli.logger.warn "Value for #{key} over max size"
+        Dalli.logger.warn "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
         false
       end
     end
