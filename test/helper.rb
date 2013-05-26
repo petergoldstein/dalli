@@ -5,7 +5,6 @@ require 'rubygems'
 require 'minitest/pride'
 require 'minitest/autorun'
 require 'mocha/setup'
-require 'mini_shoulda'
 require 'memcached_mock'
 
 WANT_RAILS_VERSION = ENV['RAILS_VERSION'] || '>= 3.0.0'

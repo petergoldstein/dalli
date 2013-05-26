@@ -5,7 +5,7 @@ require 'memcached_mock'
 
 describe 'Serializer' do
 
-  should 'default to Marshal' do
+  it 'default to Marshal' do
     memcached_kill(29198) do |dc|
       memcache = Dalli::Client.new('127.0.0.1:29198')
       memcache.set 1,2
@@ -13,7 +13,7 @@ describe 'Serializer' do
     end
   end
 
-  should 'support a custom serializer' do
+  it 'support a custom serializer' do
     memcached_kill(29198) do |dc|
       memcache = Dalli::Client.new('127.0.0.1:29198', :serializer => JSON)
       memcache.set 1,2

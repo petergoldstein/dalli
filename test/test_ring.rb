@@ -2,9 +2,9 @@ require 'helper'
 
 describe 'Ring' do
 
-  context 'a ring of servers' do
+  describe 'a ring of servers' do
 
-    should "have the continuum sorted by value" do
+    it "have the continuum sorted by value" do
       servers = [stub(:hostname => "localhost", :port => "11211", :weight => 1),
                  stub(:hostname => "localhost", :port => "9500", :weight => 1)]
       ring = Dalli::Ring.new(servers, {})
@@ -15,15 +15,15 @@ describe 'Ring' do
       end
     end
 
-    should 'raise when no servers are available/defined' do
+    it 'raise when no servers are available/defined' do
       ring = Dalli::Ring.new([], {})
       assert_raises Dalli::RingError, :message => "No server available" do
         ring.server_for_key('test')
       end
     end
 
-    context 'containing only a single server' do
-      should "raise correctly when it's not alive" do
+    describe 'containing only a single server' do
+      it "raise correctly when it's not alive" do
         servers = [
           Dalli::Server.new("localhost:12345"),
         ]
@@ -33,7 +33,7 @@ describe 'Ring' do
         end
       end
 
-      should "return the server when it's alive" do
+      it "return the server when it's alive" do
         servers = [
           Dalli::Server.new("localhost:19191"),
         ]
@@ -45,8 +45,8 @@ describe 'Ring' do
       end
     end
 
-    context 'containing multiple servers' do
-      should "raise correctly when no server is alive" do
+    describe 'containing multiple servers' do
+      it "raise correctly when no server is alive" do
         servers = [
           Dalli::Server.new("localhost:12345"),
           Dalli::Server.new("localhost:12346"),
@@ -57,7 +57,7 @@ describe 'Ring' do
         end
       end
 
-      should "return an alive server when at least one is alive" do
+      it "return an alive server when at least one is alive" do
         servers = [
           Dalli::Server.new("localhost:12346"),
           Dalli::Server.new("localhost:19191"),
@@ -70,7 +70,7 @@ describe 'Ring' do
       end
     end
 
-    should 'detect when a dead server is up again' do
+    it 'detect when a dead server is up again' do
       memcached(19997) do
         down_retry_delay = 0.5
         dc = Dalli::Client.new(['localhost:19997', 'localhost:19998'], :down_retry_delay => down_retry_delay)

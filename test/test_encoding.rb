@@ -4,8 +4,8 @@ require 'memcached_mock'
 
 describe 'Encoding' do
 
-  context 'using a live server' do
-    should 'support i18n content' do
+  describe 'using a live server' do
+    it 'support i18n content' do
       memcached do |dc|
         key = 'foo'
         utf_key = utf8 = 'ƒ©åÍÎ'
@@ -18,7 +18,7 @@ describe 'Encoding' do
       end
     end
 
-    should 'support content expiry' do
+    it 'support content expiry' do
       memcached do |dc|
         key = 'foo'
         assert dc.set(key, 'bar', 1)

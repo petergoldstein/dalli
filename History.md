@@ -4,6 +4,7 @@ Dalli Changelog
 HEAD
 =======
 
+- Upgrade test suite from mini_shoulda to minitest.
 - Even more performance improvements for get\_multi (xaop, #331)
 
 2.6.3

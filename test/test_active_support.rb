@@ -8,14 +8,14 @@ class MockUser
 end
 
 describe 'ActiveSupport' do
-  context 'active_support caching' do
+  describe 'active_support caching' do
 
-    should 'have accessible options' do
+    it 'has accessible options' do
       @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122', :expires_in => 5.minutes, :frob => 'baz')
       assert_equal 'baz', @dalli.options[:frob]
     end
 
-    should 'allow mute and silence' do
+    it 'allow mute and silence' do
       @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122')
       @dalli.mute do
         assert_equal true, @dalli.write('foo', 'bar', nil)
@@ -26,7 +26,7 @@ describe 'ActiveSupport' do
       assert_equal true, @dalli.silence?
     end
 
-    should 'handle nil options' do
+    it 'handle nil options' do
       @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122')
       assert_equal true, @dalli.write('foo', 'bar', nil)
       assert_equal 'bar', @dalli.read('foo', nil)
@@ -38,7 +38,7 @@ describe 'ActiveSupport' do
       assert_equal true, @dalli.delete('lkjsa')
     end
 
-    should 'support fetch' do
+    it 'support fetch' do
       with_activesupport do
         memcached do
           connect
@@ -65,7 +65,7 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'support keys with spaces on Rails3' do
+    it 'support keys with spaces on Rails3' do
       with_activesupport do
         memcached do
           connect
@@ -75,7 +75,7 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'support read_multi' do
+    it 'support read_multi' do
       with_activesupport do
         memcached do
           connect
@@ -89,7 +89,7 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'support read_multi with an array' do
+    it 'support read_multi with an array' do
       with_activesupport do
         memcached do
           connect
@@ -105,7 +105,7 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'support raw read_multi' do
+    it 'support raw read_multi' do
       with_activesupport do
         memcached do
           connect
@@ -116,7 +116,7 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'support read_multi with LocalCache' do
+    it 'support read_multi with LocalCache' do
       with_activesupport do
         memcached do
           connect
@@ -147,7 +147,7 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'support read, write and delete' do
+    it 'support read, write and delete' do
       with_activesupport do
         memcached do
           connect
@@ -180,7 +180,7 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'support read, write and delete with LocalCache' do
+    it 'support read, write and delete with LocalCache' do
       with_activesupport do
         memcached do
           connect
@@ -208,7 +208,7 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'support increment/decrement commands' do
+    it 'support increment/decrement commands' do
       with_activesupport do
         memcached do
           connect
@@ -246,7 +246,7 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'support exist command' do
+    it 'support exist command' do
       with_activesupport do
         memcached do
           connect
@@ -265,7 +265,7 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'support other esoteric commands' do
+    it 'support other esoteric commands' do
       with_activesupport do
         memcached do
           connect
@@ -278,7 +278,7 @@ describe 'ActiveSupport' do
       end
     end
 
-    should 'respect "raise_errors" option' do
+    it 'respect "raise_errors" option' do
       with_activesupport do
         memcached(29125) do
           @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:29125')
@@ -308,7 +308,7 @@ describe 'ActiveSupport' do
     end
   end
 
-  should 'handle crazy characters from far-away lands' do
+  it 'handle crazy characters from far-away lands' do
     with_activesupport do
       memcached do
         connect
@@ -320,7 +320,7 @@ describe 'ActiveSupport' do
     end
   end
 
-  should 'normalize options as expected' do
+  it 'normalize options as expected' do
     with_activesupport do
       memcached do
         @dalli = ActiveSupport::Cache::DalliStore.new('localhost:19122', :expires_in => 1, :namespace => 'foo', :compress => true)
@@ -330,7 +330,7 @@ describe 'ActiveSupport' do
     end
   end
 
-  should 'allow keys to be frozen' do
+  it 'allow keys to be frozen' do
     with_activesupport do
       memcached do
         connect
@@ -341,7 +341,7 @@ describe 'ActiveSupport' do
     end
   end
 
-  should 'allow keys from a hash' do
+  it 'allow keys from a hash' do
     with_activesupport do
       memcached do
         connect

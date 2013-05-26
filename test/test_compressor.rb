@@ -15,7 +15,7 @@ end
 
 describe 'Compressor' do
 
-  should 'default to Dalli::Compressor' do
+  it 'default to Dalli::Compressor' do
     memcached_kill(29199) do |dc|
       memcache = Dalli::Client.new('127.0.0.1:29199')
       memcache.set 1,2
@@ -23,7 +23,7 @@ describe 'Compressor' do
     end
   end
 
-  should 'support a custom compressor' do
+  it 'support a custom compressor' do
     memcached_kill(29199) do |dc|
       memcache = Dalli::Client.new('127.0.0.1:29199', :compressor => NoopCompressor)
       memcache.set 1,2
@@ -41,7 +41,7 @@ end
 
 describe 'GzipCompressor' do
 
-  should 'compress and uncompress data using Zlib::GzipWriter/Reader' do
+  it 'compress and uncompress data using Zlib::GzipWriter/Reader' do
     memcached(19127,nil,{:compress=>true,:compressor=>Dalli::GzipCompressor}) do |dc|
       data = (0...1025).map{65.+(rand(26)).chr}.join
       assert dc.set("test", data)

@@ -3,19 +3,19 @@ require 'memcached_mock'
 
 describe 'Dalli' do
   describe 'options parsing' do
-    should 'handle deprecated options' do
+    it 'handle deprecated options' do
       dc = Dalli::Client.new('foo', :compression => true)
       assert dc.instance_variable_get(:@options)[:compress]
       refute dc.instance_variable_get(:@options)[:compression]
     end
 
-    should 'not warn about valid options' do
+    it 'not warn about valid options' do
       dc = Dalli::Client.new('foo', :compress => true)
       # Rails.logger.expects :warn
       assert dc.instance_variable_get(:@options)[:compress]
     end
 
-    should 'raises error with invalid expires_in' do
+    it 'raises error with invalid expires_in' do
       bad_data = [{:bad => 'expires in data'}, Hash, [1,2,3]]
       bad_data.each do |bad|
         assert_raises ArgumentError do
@@ -26,7 +26,7 @@ describe 'Dalli' do
   end
 
   describe 'key validation' do
-    should 'not allow blanks' do
+    it 'not allow blanks' do
       memcached do |dc|
         dc.set '   ', 1
         assert_equal 1, dc.get('   ')
@@ -44,7 +44,7 @@ describe 'Dalli' do
     end
   end
 
-  should "default to localhost:11211" do
+  it "default to localhost:11211" do
     dc = Dalli::Client.new
     ring = dc.send(:ring)
     s1 = ring.servers.first.hostname
@@ -67,7 +67,7 @@ describe 'Dalli' do
     assert_equal s2, s3
   end
 
-  should "accept comma separated string" do
+  it "accept comma separated string" do
     dc = Dalli::Client.new("server1.example.com:11211,server2.example.com:11211")
     ring = dc.send(:ring)
     assert_equal 2, ring.servers.size
@@ -76,7 +76,7 @@ describe 'Dalli' do
     assert_equal "server2.example.com", s2
   end
 
-  should "accept array of servers" do
+  it "accept array of servers" do
     dc = Dalli::Client.new(["server1.example.com:11211","server2.example.com:11211"])
     ring = dc.send(:ring)
     assert_equal 2, ring.servers.size
@@ -85,9 +85,9 @@ describe 'Dalli' do
     assert_equal "server2.example.com", s2
   end
 
-  context 'using a live server' do
+  describe 'using a live server' do
 
-    should "support get/set" do
+    it "support get/set" do
       memcached do |dc|
         dc.flush
 
@@ -104,7 +104,7 @@ describe 'Dalli' do
       end
     end
 
-    should "support stats" do
+    it "support stats" do
       memcached do |dc|
         # make sure that get_hits would not equal 0
         dc.get(:a)
@@ -144,7 +144,7 @@ describe 'Dalli' do
       end
     end
 
-    should "support the fetch operation" do
+    it "support the fetch operation" do
       memcached do |dc|
         dc.flush
 
@@ -167,7 +167,7 @@ describe 'Dalli' do
       end
     end
 
-    should "support the fetch operation with falsey values" do
+    it "support the fetch operation with falsey values" do
       memcached do |dc|
         dc.flush
 
@@ -181,14 +181,14 @@ describe 'Dalli' do
       end
     end
 
-    should "support the cas operation" do
+    it "support the cas operation" do
       memcached do |dc|
         dc.flush
 
         expected = { 'blah' => 'blerg!' }
 
         resp = dc.cas('cas_key') do |value|
-          fail('Value should not exist')
+          fail('Value it not exist')
         end
         assert_nil resp
 
@@ -205,7 +205,7 @@ describe 'Dalli' do
       end
     end
 
-    should "support multi-get" do
+    it "support multi-get" do
       memcached do |dc|
         dc.close
         dc.flush
@@ -233,7 +233,7 @@ describe 'Dalli' do
       end
     end
 
-    should 'support raw incr/decr' do
+    it 'support raw incr/decr' do
       memcached do |client|
         client.flush
 
@@ -263,7 +263,7 @@ describe 'Dalli' do
       end
     end
 
-    should "support incr/decr operations" do
+    it "support incr/decr operations" do
       memcached do |dc|
         dc.flush
 
@@ -311,7 +311,7 @@ describe 'Dalli' do
       end
     end
 
-    should 'support the append and prepend operations' do
+    it 'support the append and prepend operations' do
       memcached do |dc|
         dc.flush
         assert_equal true, dc.set('456', 'xyz', 0, :raw => true)
@@ -325,7 +325,7 @@ describe 'Dalli' do
       end
     end
 
-    should 'support touch operation' do
+    it 'support touch operation' do
       memcached do |dc|
         begin
           dc.flush
@@ -341,7 +341,7 @@ describe 'Dalli' do
       end
     end
 
-    should 'allow TCP connections to be configured for keepalive' do
+    it 'allow TCP connections to be configured for keepalive' do
       memcached(19122, '', :keepalive => true) do |dc|
         dc.set(:a, 1)
         ring = dc.send(:ring)
@@ -355,7 +355,7 @@ describe 'Dalli' do
       end
     end
 
-    should "pass a simple smoke test" do
+    it "pass a simple smoke test" do
       memcached do |dc|
         resp = dc.flush
         refute_nil resp
@@ -413,7 +413,7 @@ describe 'Dalli' do
       end
     end
 
-    should "support multithreaded access" do
+    it "support multithreaded access" do
       memcached do |cache|
         cache.flush
         workers = []
@@ -456,7 +456,7 @@ describe 'Dalli' do
       end
     end
 
-    should "handle namespaced keys" do
+    it "handle namespaced keys" do
       memcached do |dc|
         dc = Dalli::Client.new('localhost:19122', :namespace => 'a')
         dc.set('namespaced', 1)
@@ -467,7 +467,7 @@ describe 'Dalli' do
       end
     end
 
-    should 'truncate cache keys that are too long' do
+    it 'truncate cache keys that are too long' do
       memcached do
         @dalli = Dalli::Client.new('localhost:19122', :namespace => 'some:namspace')
         key = "this cache key is far too long so it must be hashed and truncated and stuff" * 10
@@ -477,7 +477,7 @@ describe 'Dalli' do
       end
     end
 
-    should "handle namespaced keys in multi_get" do
+    it "handle namespaced keys in multi_get" do
       memcached do |dc|
         dc = Dalli::Client.new('localhost:19122', :namespace => 'a')
         dc.set('a', 1)
@@ -486,7 +486,7 @@ describe 'Dalli' do
       end
     end
 
-    should "handle application marshalling issues" do
+    it "handle application marshalling issues" do
       memcached do |dc|
         old = Dalli.logger
         Dalli.logger = Logger.new(nil)
@@ -498,8 +498,8 @@ describe 'Dalli' do
       end
     end
 
-    context 'with compression' do
-      should 'allow large values' do
+    describe 'with compression' do
+      it 'allow large values' do
         memcached do |dc|
           dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), :compress => true)
 
@@ -510,9 +510,9 @@ describe 'Dalli' do
       end
     end
 
-    context 'in low memory conditions' do
+    describe 'in low memory conditions' do
 
-      should 'handle error response correctly' do
+      it 'handle error response correctly' do
         memcached(19125, '-m 1 -M') do |dc|
           failed = false
           value = "1234567890"*100
@@ -529,7 +529,7 @@ describe 'Dalli' do
         end
       end
 
-      should 'fit more values with compression' do
+      it 'fit more values with compression' do
         memcached(19126, '-m 1 -M') do |dc|
           dalli = Dalli::Client.new('localhost:19126', :compress => true)
           failed = false

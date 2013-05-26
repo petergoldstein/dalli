@@ -3,7 +3,7 @@ require 'helper'
 describe 'failover' do
 
   describe 'timeouts' do
-    should 'not lead to corrupt sockets' do
+    it 'not lead to corrupt sockets' do
       memcached(29125) do
         dc = Dalli::Client.new ['localhost:29125']
         begin
@@ -22,9 +22,9 @@ describe 'failover' do
   end
 
 
-  context 'assuming some bad servers' do
+  describe 'assuming some bad servers' do
 
-    should 'silently reconnect if server hiccups' do
+    it 'silently reconnect if server hiccups' do
       memcached(29125) do
         dc = Dalli::Client.new ['localhost:29125']
         dc.set 'foo', 'bar'
@@ -42,7 +42,7 @@ describe 'failover' do
       end
     end
 
-    should 'handle graceful failover' do
+    it 'handle graceful failover' do
       memcached(29125) do
         memcached(29126) do
           dc = Dalli::Client.new ['localhost:29125', 'localhost:29126']
@@ -65,7 +65,7 @@ describe 'failover' do
       end
     end
 
-    should 'handle them gracefully in get_multi' do
+    it 'handle them gracefully in get_multi' do
       memcached(29125) do
         memcached(29126) do
           dc = Dalli::Client.new ['localhost:29125', 'localhost:29126']
@@ -81,7 +81,7 @@ describe 'failover' do
       end
     end
 
-    should 'handle graceful failover in get_multi' do
+    it 'handle graceful failover in get_multi' do
       memcached(29125) do
         memcached(29126) do
           dc = Dalli::Client.new ['localhost:29125', 'localhost:29126']
@@ -105,7 +105,7 @@ describe 'failover' do
       end
     end
 
-    should 'stats should still properly report' do
+    it 'stats it still properly report' do
       memcached(29125) do
         memcached(29126) do
           dc = Dalli::Client.new ['localhost:29125', 'localhost:29126']

@@ -2,7 +2,11 @@ require 'helper'
 
 describe 'Sasl' do
 
-  context 'a server requiring authentication' do
+  # https://github.com/seattlerb/minitest/issues/298
+  def self.xit(msg, &block)
+  end
+
+  describe 'a server requiring authentication' do
     before do
       @server = mock()
       @server.stubs(:request).returns(true)
@@ -11,7 +15,7 @@ describe 'Sasl' do
       @server.stubs(:port).returns("19124")
     end
 
-    context 'without authentication credentials' do
+    describe 'without authentication credentials' do
       before do
         ENV['MEMCACHE_USERNAME'] = 'foo'
         ENV['MEMCACHE_PASSWORD'] = 'wrongpwd'
@@ -22,11 +26,11 @@ describe 'Sasl' do
         ENV['MEMCACHE_PASSWORD'] = nil
       end
 
-      should 'provide one test that passes' do
+      it 'provide one test that passes' do
         assert true
       end
 
-      should_eventually 'gracefully handle authentication failures' do
+      xit 'gracefully handle authentication failures' do
         memcached(19124, '-S') do |dc|
           assert_raise Dalli::DalliError, /32/ do
             dc.set('abc', 123)
@@ -35,7 +39,7 @@ describe 'Sasl' do
       end
     end
 
-    should_eventually 'fail SASL authentication with wrong options' do
+    xit 'fail SASL authentication with wrong options' do
       memcached(19124, '-S') do |dc|
         dc = Dalli::Client.new('localhost:19124', :username => 'foo', :password => 'wrongpwd')
         assert_raise Dalli::DalliError, /32/ do
@@ -49,7 +53,7 @@ describe 'Sasl' do
     # saslpasswd2 -a memcached -c testuser
     #
     # with password 'testtest'
-    context 'in an authenticated environment' do
+    describe 'in an authenticated environment' do
       before do
         ENV['MEMCACHE_USERNAME'] = 'testuser'
         ENV['MEMCACHE_PASSWORD'] = 'testtest'
@@ -60,7 +64,7 @@ describe 'Sasl' do
         ENV['MEMCACHE_PASSWORD'] = nil
       end
 
-      should_eventually 'pass SASL authentication' do
+      xit 'pass SASL authentication' do
         memcached(19124, '-S') do |dc|
           # I get "Dalli::DalliError: Error authenticating: 32" in OSX
           # but SASL works on Heroku servers. YMMV.
@@ -73,7 +77,7 @@ describe 'Sasl' do
       end
     end
 
-    should_eventually 'pass SASL authentication with options' do
+    xit 'pass SASL authentication with options' do
       memcached(19124, '-S') do |dc|
         dc = Dalli::Client.new('localhost:19124', :username => 'testuser', :password => 'testtest')
         # I get "Dalli::DalliError: Error authenticating: 32" in OSX
@@ -86,14 +90,14 @@ describe 'Sasl' do
       end
     end
 
-    should 'pass SASL as URI' do
+    it 'pass SASL as URI' do
       Dalli::Server.expects(:new).with("localhost:19124",
         :username => "testuser", :password => "testtest").returns(@server)
       dc = Dalli::Client.new('memcached://testuser:testtest@localhost:19124')
       dc.flush_all
     end
 
-    should 'pass SASL as ring of URIs' do
+    it 'pass SASL as ring of URIs' do
       Dalli::Server.expects(:new).with("localhost:19124",
         :username => "testuser", :password => "testtest").returns(@server)
       Dalli::Server.expects(:new).with("otherhost:19125",
