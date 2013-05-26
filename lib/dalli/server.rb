@@ -48,6 +48,10 @@ module Dalli
       @inprogress = nil
     end
 
+    def name
+      "#{@hostname}:#{@port}"
+    end
+
     # Chokepoint method for instrumentation
     def request(op, *args)
       verify_state

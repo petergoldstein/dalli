@@ -133,7 +133,7 @@ module Dalli
               if readable.nil?
                 # no response within timeout; abort pending connections
                 servers.each do |server|
-                  puts "Abort!"
+                  Dalli.logger.debug { "memcached at #{server.name} did not response within timeout" }
                   server.multi_response_abort
                 end
                 break
