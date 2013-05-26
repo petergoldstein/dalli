@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+HEAD
+=======
+
+- Even more performance improvements for get\_multi (xaop, #331)
+
 2.6.3
 =======
 
