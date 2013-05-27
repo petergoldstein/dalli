@@ -55,11 +55,14 @@ On Ubuntu you can install it by running:
 
 You can verify your installation using this piece of code:
 
-```ruby
+```bash
 gem install dalli
+```
 
+```ruby
 require 'dalli'
-dc = Dalli::Client.new('localhost:11211')
+options = { :namespace => "app_v1", :compress => true }
+dc = Dalli::Client.new('localhost:11211', options)
 dc.set('abc', 123)
 value = dc.get('abc')
 ```
@@ -141,7 +144,7 @@ Default is Marshal.
 
 **password**: The password to use for authenticating this client instance against a SASL-enabled memcached server.  Heroku users should not need to use this normally.
 
-**keepalive**: Boolean. If true, Dalli will enable keep-alive for socket connections.  Default is false.
+**keepalive**: Boolean. If true, Dalli will enable keep-alive for socket connections.  Default is true.
 
 **compressor**: The compressor to use for objects being stored.
 Default is zlib, implemented under `Dalli::Compressor`.
