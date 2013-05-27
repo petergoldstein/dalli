@@ -201,6 +201,10 @@ module ActiveSupport
         nil
       end
 
+      # Clear any local cache
+      def cleanup(options=nil)
+      end
+
       # Get the statistics from the memcached servers.
       def stats
         @data.stats
@@ -233,6 +237,8 @@ module ActiveSupport
 
       # Write an entry to the cache.
       def write_entry(key, value, options) # :nodoc:
+        # cleanup LocalCache
+        cleanup if options[:unless_exist]
         method = options[:unless_exist] ? :add : :set
         expires_in = options[:expires_in]
         @data.send(method, key, value, expires_in, options)
