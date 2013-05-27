@@ -4,6 +4,7 @@ Dalli Changelog
 HEAD
 =======
 
+- Fix ADD command, aka `write(unless_exist: true)` (pitr, #365)
 - Upgrade test suite from mini_shoulda to minitest.
 - Even more performance improvements for get\_multi (xaop, #331)
 

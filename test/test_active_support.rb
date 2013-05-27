@@ -208,6 +208,30 @@ describe 'ActiveSupport' do
       end
     end
 
+    it 'support unless_exist with LocalCache' do
+      with_activesupport do
+        memcached do
+          connect
+          y = rand_key.to_s
+          @dalli.with_local_cache do
+            Dalli::Client.any_instance.expects(:add).with(y, 123, nil, {:unless_exist => true}).once.returns(true)
+            dres = @dalli.write(y, 123, :unless_exist => true)
+            assert_equal true, dres
+
+            Dalli::Client.any_instance.expects(:add).with(y, 321, nil, {:unless_exist => true}).once.returns(false)
+
+            dres = @dalli.write(y, 321, :unless_exist => true)
+            assert_equal false, dres
+
+            Dalli::Client.any_instance.expects(:get).with(y, {}).once.returns(123)
+
+            dres = @dalli.read(y)
+            assert_equal 123, dres
+          end
+        end
+      end
+    end
+
     it 'support increment/decrement commands' do
       with_activesupport do
         memcached do
