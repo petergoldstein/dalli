@@ -30,9 +30,9 @@ describe 'Compressor' do
       begin
         assert_equal NoopCompressor, memcache.instance_variable_get('@ring').servers.first.compressor
 
-        memcached(19127) do |dc|
-          assert dc.set("string-test", "a test string")
-          assert_equal("a test string", dc.get("string-test"))
+        memcached(19127) do |newdc|
+          assert newdc.set("string-test", "a test string")
+          assert_equal("a test string", newdc.get("string-test"))
         end
       end
     end
