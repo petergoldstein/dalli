@@ -1,7 +1,7 @@
 Dalli Changelog
 =====================
 
-HEAD
+2.6.4
 =======
 
 - Fix ADD command, aka `write(unless_exist: true)` (pitr, #365)
