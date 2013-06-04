@@ -198,14 +198,14 @@ module Dalli
     private
 
     def verify_state
-      failure! if @inprogress
-      failure! if @pid && @pid != Process.pid
+      failure!(RuntimeError.new('inprogress')) if @inprogress
+      failure!(RuntimeError.new('pidchanged')) if @pid && @pid != Process.pid
     end
 
     def failure!(exception = nil)
       message = "#{hostname}:#{port} failed (count: #{@fail_count})"
       if exception
-        message << "\n#{exception.class}: #{exception.message}\n#{exception.backtrace.join('\n')}"
+        message << "\n#{exception.class}: #{exception.message}\n#{Array(exception.backtrace).join('\n')}"
       end
       Dalli.logger.info { message }
 
