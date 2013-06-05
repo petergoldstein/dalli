@@ -175,8 +175,8 @@ module Dalli
       @position = pos
 
       values
-    rescue SystemCallError, Timeout::Error, EOFError
-      failure!
+    rescue SystemCallError, Timeout::Error, EOFError => e
+      failure!(e)
     end
 
     # Abort an earlier #multi_response_start. Used to signal an external
@@ -198,12 +198,13 @@ module Dalli
     private
 
     def verify_state
-      failure! if @inprogress
-      failure! if @pid && @pid != Process.pid
+      failure!(RuntimeError.new('Already writing to socket')) if @inprogress
+      failure!(RuntimeError.new('Cannot share client between multiple processes')) if @pid && @pid != Process.pid
     end
 
-    def failure!
-      Dalli.logger.info { "#{hostname}:#{port} failed (count: #{@fail_count})" }
+    def failure!(exception)
+      message = "#{hostname}:#{port} failed (count: #{@fail_count}) #{exception.class}: #{exception.message}"
+      Dalli.logger.info { message }
 
       @fail_count += 1
       if @fail_count >= options[:socket_max_failures]
@@ -515,8 +516,8 @@ module Dalli
         result = @sock.write(bytes)
         @inprogress = false
         result
-      rescue SystemCallError, Timeout::Error
-        failure!
+      rescue SystemCallError, Timeout::Error => e
+        failure!(e)
       end
     end
 
@@ -526,8 +527,8 @@ module Dalli
         data = @sock.readfull(count)
         @inprogress = false
         data
-      rescue SystemCallError, Timeout::Error, EOFError
-        failure!
+      rescue SystemCallError, Timeout::Error, EOFError => e
+        failure!(e)
       end
     end
 
@@ -542,9 +543,9 @@ module Dalli
         up!
       rescue Dalli::DalliError # SASL auth failure
         raise
-      rescue SystemCallError, Timeout::Error, EOFError, SocketError
+      rescue SystemCallError, Timeout::Error, EOFError, SocketError => e
         # SocketError = DNS resolution failure
-        failure!
+        failure!(e)
       end
     end
 
