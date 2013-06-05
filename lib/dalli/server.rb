@@ -202,7 +202,7 @@ module Dalli
       failure!(RuntimeError.new('Cannot share client between multiple processes')) if @pid && @pid != Process.pid
     end
 
-    def failure!(exception = nil)
+    def failure!(exception)
       message = "#{hostname}:#{port} failed (count: #{@fail_count}) #{exception.class}: #{exception.message}"
       Dalli.logger.info { message }
 
