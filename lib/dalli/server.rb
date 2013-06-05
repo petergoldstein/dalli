@@ -198,8 +198,8 @@ module Dalli
     private
 
     def verify_state
-      failure!(RuntimeError.new('inprogress')) if @inprogress
-      failure!(RuntimeError.new('pidchanged')) if @pid && @pid != Process.pid
+      failure!(RuntimeError.new('Already writing to socket')) if @inprogress
+      failure!(RuntimeError.new('Cannot share client between multiple processes')) if @pid && @pid != Process.pid
     end
 
     def failure!(exception = nil)
