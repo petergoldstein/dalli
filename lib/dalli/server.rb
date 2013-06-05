@@ -203,10 +203,7 @@ module Dalli
     end
 
     def failure!(exception = nil)
-      message = "#{hostname}:#{port} failed (count: #{@fail_count})"
-      if exception
-        message << "\n#{exception.class}: #{exception.message}\n#{Array(exception.backtrace).join('\n')}"
-      end
+      message = "#{hostname}:#{port} failed (count: #{@fail_count}) #{exception.class}: #{exception.message}"
       Dalli.logger.info { message }
 
       @fail_count += 1
