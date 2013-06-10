@@ -63,6 +63,51 @@ module Dalli
       resp.nil? || 'Not found' == resp ? nil : resp
     end
 
+    def groups_for_keys(*keys)
+      groups = mapped_keys(keys).flatten.group_by do |key|
+        begin
+          ring.server_for_key(key)
+        rescue Dalli::RingError
+          Dalli.logger.debug { "unable to get key #{key}" }
+          nil
+        end
+      end
+      return groups
+    end
+
+    def mapped_keys(keys)
+      keys.flatten.map {|a| validate_key(a.to_s)}
+    end
+
+    def make_multi_get_requests(groups)
+      groups.each do |server, keys_for_server|
+        begin
+          # TODO: do this with the perform chokepoint?
+          # But given the fact that fetching the response doesn't take place
+          # in that slot it's misleading anyway. Need to move all of this method
+          # into perform to be meaningful
+          server.request(:send_multiget, keys_for_server)
+        rescue DalliError, NetworkError => e
+          Dalli.logger.debug { e.inspect }
+          Dalli.logger.debug { "unable to get keys for server #{server.hostname}:#{server.port}" }
+        end
+      end
+    end
+
+    def perform_multi_response_start(servers)
+      servers.each do |server|
+        next unless server.alive?
+        begin
+          server.multi_response_start
+        rescue DalliError, NetworkError => e
+          Dalli.logger.debug { e.inspect }
+          Dalli.logger.debug { "results from this server will be missing" }
+          servers.delete(server)
+        end
+      end
+      servers
+    end
+
     ##
     # Fetch multiple keys efficiently.
     # Returns a hash of { 'key' => 'value', 'key2' => 'value1' }
@@ -73,46 +118,16 @@ module Dalli
         options = keys.pop if keys.last.is_a?(Hash) || keys.last.nil?
         ring.lock do
           begin
-            mapped_keys = keys.flatten.map {|a| validate_key(a.to_s)}
-            groups = mapped_keys.flatten.group_by do |key|
-              begin
-                ring.server_for_key(key)
-              rescue Dalli::RingError
-                Dalli.logger.debug { "unable to get key #{key}" }
-                nil
-              end
-            end
+            groups = groups_for_keys(keys)
             if unfound_keys = groups.delete(nil)
               Dalli.logger.debug { "unable to get keys for #{unfound_keys.length} keys because no matching server was found" }
             end
-
-            groups.each do |server, keys_for_server|
-              begin
-                # TODO: do this with the perform chokepoint?
-                # But given the fact that fetching the response doesn't take place
-                # in that slot it's misleading anyway. Need to move all of this method
-                # into perform to be meaningful
-                server.request(:send_multiget, keys_for_server)
-              rescue DalliError, NetworkError => e
-                Dalli.logger.debug { e.inspect }
-                Dalli.logger.debug { "unable to get keys for server #{server.hostname}:#{server.port}" }
-              end
-            end
+            make_multi_get_requests(groups)
 
             servers = groups.keys
             values = {}
             return values if servers.empty?
-
-            servers.each do |server|
-              next unless server.alive?
-              begin
-                server.multi_response_start
-              rescue DalliError, NetworkError => e
-                Dalli.logger.debug { e.inspect }
-                Dalli.logger.debug { "results from this server will be missing" }
-                servers.delete(server)
-              end
-            end
+            servers = perform_multi_response_start(servers)
 
             start = Time.now
             loop do
