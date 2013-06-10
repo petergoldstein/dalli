@@ -63,6 +63,22 @@ module Dalli
       resp.nil? || 'Not found' == resp ? nil : resp
     end
 
+    def groups_for_keys(*keys)
+      groups = mapped_keys(keys).flatten.group_by do |key|
+        begin
+          ring.server_for_key(key)
+        rescue Dalli::RingError
+          Dalli.logger.debug { "unable to get key #{key}" }
+          nil
+        end
+      end
+      return groups
+    end
+
+    def mapped_keys(keys)
+      keys.flatten.map {|a| validate_key(a.to_s)}
+    end
+
     ##
     # Fetch multiple keys efficiently.
     # Returns a hash of { 'key' => 'value', 'key2' => 'value1' }
@@ -73,15 +89,7 @@ module Dalli
         options = keys.pop if keys.last.is_a?(Hash) || keys.last.nil?
         ring.lock do
           begin
-            mapped_keys = keys.flatten.map {|a| validate_key(a.to_s)}
-            groups = mapped_keys.flatten.group_by do |key|
-              begin
-                ring.server_for_key(key)
-              rescue Dalli::RingError
-                Dalli.logger.debug { "unable to get key #{key}" }
-                nil
-              end
-            end
+            groups = groups_for_keys(keys)
             if unfound_keys = groups.delete(nil)
               Dalli.logger.debug { "unable to get keys for #{unfound_keys.length} keys because no matching server was found" }
             end
