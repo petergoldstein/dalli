@@ -79,6 +79,35 @@ module Dalli
       keys.flatten.map {|a| validate_key(a.to_s)}
     end
 
+    def make_multi_get_requests(groups)
+      groups.each do |server, keys_for_server|
+        begin
+          # TODO: do this with the perform chokepoint?
+          # But given the fact that fetching the response doesn't take place
+          # in that slot it's misleading anyway. Need to move all of this method
+          # into perform to be meaningful
+          server.request(:send_multiget, keys_for_server)
+        rescue DalliError, NetworkError => e
+          Dalli.logger.debug { e.inspect }
+          Dalli.logger.debug { "unable to get keys for server #{server.hostname}:#{server.port}" }
+        end
+      end
+    end
+
+    def perform_multi_response_start(servers)
+      servers.each do |server|
+        next unless server.alive?
+        begin
+          server.multi_response_start
+        rescue DalliError, NetworkError => e
+          Dalli.logger.debug { e.inspect }
+          Dalli.logger.debug { "results from this server will be missing" }
+          servers.delete(server)
+        end
+      end
+      servers
+    end
+
     ##
     # Fetch multiple keys efficiently.
     # Returns a hash of { 'key' => 'value', 'key2' => 'value1' }
@@ -93,34 +122,12 @@ module Dalli
             if unfound_keys = groups.delete(nil)
               Dalli.logger.debug { "unable to get keys for #{unfound_keys.length} keys because no matching server was found" }
             end
-
-            groups.each do |server, keys_for_server|
-              begin
-                # TODO: do this with the perform chokepoint?
-                # But given the fact that fetching the response doesn't take place
-                # in that slot it's misleading anyway. Need to move all of this method
-                # into perform to be meaningful
-                server.request(:send_multiget, keys_for_server)
-              rescue DalliError, NetworkError => e
-                Dalli.logger.debug { e.inspect }
-                Dalli.logger.debug { "unable to get keys for server #{server.hostname}:#{server.port}" }
-              end
-            end
+            make_multi_get_requests(groups)
 
             servers = groups.keys
             values = {}
             return values if servers.empty?
-
-            servers.each do |server|
-              next unless server.alive?
-              begin
-                server.multi_response_start
-              rescue DalliError, NetworkError => e
-                Dalli.logger.debug { e.inspect }
-                Dalli.logger.debug { "results from this server will be missing" }
-                servers.delete(server)
-              end
-            end
+            servers = perform_multi_response_start(servers)
 
             start = Time.now
             loop do
