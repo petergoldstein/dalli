@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+Unreleased
+==========
+
+- Implement `fetch_multi` for batched read/write [sorentwo, #380]
+
 2.6.4
 =======
 

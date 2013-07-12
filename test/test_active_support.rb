@@ -147,6 +147,26 @@ describe 'ActiveSupport' do
       end
     end
 
+    it 'supports fetch_multi' do
+      with_activesupport do
+        memcached do
+          connect
+
+          x = rand_key.to_s
+          y = rand_key
+          hash = { x => 'ABC', y => 'DEF' }
+
+          @dalli.write(y, '123')
+
+          results = @dalli.fetch_multi(x, y) { |key| hash[key] }
+
+          assert_equal({ x => 'ABC', y => '123' }, results)
+          assert_equal('ABC', @dalli.read(x))
+          assert_equal('123', @dalli.read(y))
+        end
+      end
+    end
+
     it 'support read, write and delete' do
       with_activesupport do
         memcached do
