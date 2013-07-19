@@ -151,6 +151,32 @@ module ActiveSupport
         end
       end
 
+      # Fetches data from the cache, using the given keys. If there is data in
+      # the cache with the given keys, then that data is returned. Otherwise,
+      # the supplied block is called for each key for which there was no data,
+      # and the result will be written to the cache and returned.
+      def fetch_multi(*names)
+        options = names.extract_options!
+        mapping = names.inject({}) { |memo, name| memo[expanded_key(name)] = name; memo }
+
+        instrument(:fetch_multi, names) do
+          results = @data.get_multi(mapping.keys)
+
+          @data.multi do
+            mapping.inject({}) do |memo, (expanded, name)|
+              memo[name] = results[expanded]
+              if memo[name].nil?
+                value = yield(name)
+                memo[name] = value
+                write_entry(expanded, value, options)
+              end
+
+              memo
+            end
+          end
+        end
+      end
+
       # Increment a cached value. This method uses the memcached incr atomic
       # operator and can only be used on values written with the :raw option.
       # Calling it on a value not stored with :raw will fail.
@@ -295,7 +321,6 @@ module ActiveSupport
         return unless logger && logger.debug? && !silence?
         logger.debug("Cache #{operation}: #{key}#{options.blank? ? "" : " (#{options.inspect})"}")
       end
-
     end
   end
 end
