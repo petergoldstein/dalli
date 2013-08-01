@@ -5,6 +5,7 @@ Unreleased
 ==========
 
 - Implement `fetch_multi` for batched read/write [sorentwo, #380]
+- Add current directory to front of load path [robbydyer]
 
 2.6.4
 =======

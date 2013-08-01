@@ -1,3 +1,5 @@
+$:.unshift(File.dirname(__FILE__))
+
 require 'dalli/compressor'
 require 'dalli/client'
 require 'dalli/ring'
