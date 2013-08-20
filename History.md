@@ -4,6 +4,7 @@ Dalli Changelog
 Unreleased
 ==========
 
+- Implement `version` for retrieving version of connected servers [dterei, #384]
 - Implement `fetch_multi` for batched read/write [sorentwo, #380]
 
 2.6.4
