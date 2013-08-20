@@ -324,6 +324,16 @@ module Dalli
     end
 
     ##
+    ## Version of the memcache servers.
+    def version
+      values = {}
+      ring.servers.each do |server|
+        values["#{server.hostname}:#{server.port}"] = server.alive? ? server.request(:version) : nil
+      end
+      values
+    end
+
+    ##
     # Close our connection to each server.
     # If you perform another operation after this, the connections will be re-established.
     def close

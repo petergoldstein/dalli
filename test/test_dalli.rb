@@ -341,6 +341,16 @@ describe 'Dalli' do
       end
     end
 
+    it 'support version operation' do
+      memcached do |dc|
+        v = dc.version
+        servers = v.keys
+        assert(servers.any? do |s|
+          v[s] != nil
+        end, "version failed")
+      end
+    end
+
     it 'allow TCP connections to be configured for keepalive' do
       memcached(19122, '', :keepalive => true) do |dc|
         dc.set(:a, 1)
