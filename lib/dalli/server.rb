@@ -188,7 +188,7 @@ module Dalli
       @multi_buffer = nil
       @position = nil
       @inprogress = false
-      failure!
+      failure!(RuntimeError.new('External timeout'))
     rescue NetworkError
       true
     end
