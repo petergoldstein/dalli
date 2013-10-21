@@ -99,8 +99,18 @@ describe 'Dalli' do
         val2 = dc.get('a')
         assert_equal val1, val2
 
-        assert_equal true, dc.set('a', nil)
+        assert op_addset_succeeds(dc.set('a', nil))
         assert_nil dc.get('a')
+      end
+    end
+
+    it 'supports delete' do
+      memcached do |dc|
+        dc.set('some_key', 'some_value')
+        assert_equal 'some_value', dc.get('some_key')
+
+        dc.delete('some_key')
+        assert_nil dc.get('some_key')
       end
     end
 
@@ -198,7 +208,7 @@ describe 'Dalli' do
           assert_equal expected, value
           mutated
         end
-        assert_equal true, resp
+        assert op_cas_succeeds(resp)
 
         resp = dc.get('cas_key')
         assert_equal mutated, resp
@@ -215,8 +225,17 @@ describe 'Dalli' do
         dc.set('a', 'foo')
         dc.set('b', 123)
         dc.set('c', %w(a b c))
+        # Invocation without block
         resp = dc.get_multi(%w(a b c d e f))
-        assert_equal({ 'a' => 'foo', 'b' => 123, 'c' => %w(a b c) }, resp)
+        expected_resp = { 'a' => 'foo', 'b' => 123, 'c' => %w(a b c) }
+        assert_equal(expected_resp, resp)
+
+        # Invocation with block
+        dc.get_multi(%w(a b c d e f)) do |k, v|
+          assert (expected_resp.has_key?(k) && expected_resp[k] == v)
+          expected_resp.delete(k)
+        end
+        assert expected_resp.empty?
 
         # Perform a big multi-get with 1000 elements.
         arr = []
@@ -237,7 +256,7 @@ describe 'Dalli' do
       memcached do |client|
         client.flush
 
-        assert_equal true, client.set('fakecounter', 0, 0, :raw => true)
+        assert op_addset_succeeds(client.set('fakecounter', 0, 0, :raw => true))
         assert_equal 1, client.incr('fakecounter', 1)
         assert_equal 2, client.incr('fakecounter', 1)
         assert_equal 3, client.incr('fakecounter', 1)
@@ -253,7 +272,7 @@ describe 'Dalli' do
         assert_equal 3, resp
 
         resp = client.set('rawcounter', 10, 0, :raw => true)
-        assert_equal true, resp
+        assert op_cas_succeeds(resp)
 
         resp = client.get('rawcounter', :raw => true)
         assert_equal '10', resp
@@ -314,7 +333,7 @@ describe 'Dalli' do
     it 'support the append and prepend operations' do
       memcached do |dc|
         dc.flush
-        assert_equal true, dc.set('456', 'xyz', 0, :raw => true)
+        assert op_addset_succeeds(dc.set('456', 'xyz', 0, :raw => true))
         assert_equal true, dc.prepend('456', '0')
         assert_equal true, dc.append('456', '9')
         assert_equal '0xyz9', dc.get('456', :raw => true)
@@ -322,6 +341,16 @@ describe 'Dalli' do
 
         assert_equal false, dc.append('nonexist', 'abc')
         assert_equal false, dc.prepend('nonexist', 'abc')
+      end
+    end
+
+    it 'supports replace operation' do
+      memcached do |dc|
+        dc.flush
+        dc.set('key', 'value')
+        assert op_replace_succeeds(dc.replace('key', 'value2'))
+
+        assert_equal 'value2', dc.get('key')
       end
     end
 
@@ -371,20 +400,18 @@ describe 'Dalli' do
         refute_nil resp
         assert_equal [true, true], resp
 
-        assert_equal true, dc.set(:foo, 'bar')
+        assert op_addset_succeeds(dc.set(:foo, 'bar'))
         assert_equal 'bar', dc.get(:foo)
 
         resp = dc.get('123')
         assert_equal nil, resp
 
-        resp = dc.set('123', 'xyz')
-        assert_equal true, resp
+        assert op_addset_succeeds(dc.set('123', 'xyz'))
 
         resp = dc.get('123')
         assert_equal 'xyz', resp
 
-        resp = dc.set('123', 'abc')
-        assert_equal true, resp
+        assert op_addset_succeeds(dc.set('123', 'abc'))
 
         dc.prepend('123', '0')
         dc.append('123', '0')
@@ -398,8 +425,7 @@ describe 'Dalli' do
 
         dc = Dalli::Client.new('localhost:19122')
 
-        resp = dc.set('456', 'xyz', 0, :raw => true)
-        assert_equal true, resp
+        assert op_addset_succeeds(dc.set('456', 'xyz', 0, :raw => true))
 
         resp = dc.prepend '456', '0'
         assert_equal true, resp
@@ -410,8 +436,7 @@ describe 'Dalli' do
         resp = dc.get('456', :raw => true)
         assert_equal '0xyz9', resp
 
-        resp = dc.set('456', false)
-        assert_equal true, resp
+        assert op_addset_succeeds(dc.set('456', false))
 
         resp = dc.get('456')
         assert_equal false, resp
@@ -429,9 +454,9 @@ describe 'Dalli' do
         workers = []
 
         cache.set('f', 'zzz')
-        assert_equal true, (cache.cas('f') do |value|
+        assert op_cas_succeeds((cache.cas('f') do |value|
           value << 'z'
-        end)
+        end))
         assert_equal 'zzzz', cache.get('f')
 
         # Have a bunch of threads perform a bunch of operations at the same time.
@@ -479,11 +504,11 @@ describe 'Dalli' do
 
     it 'truncate cache keys that are too long' do
       memcached do
-        @dalli = Dalli::Client.new('localhost:19122', :namespace => 'some:namspace')
+        dc = Dalli::Client.new('localhost:19122', :namespace => 'some:namspace')
         key = "this cache key is far too long so it must be hashed and truncated and stuff" * 10
         value = "some value"
-        assert_equal true, @dalli.set(key, value)
-        assert_equal value, @dalli.get(key)
+        assert op_addset_succeeds(dc.set(key, value))
+        assert_equal value, dc.get(key)
       end
     end
 
@@ -528,7 +553,7 @@ describe 'Dalli' do
           value = "1234567890"*100
           1_000.times do |idx|
             begin
-              assert_equal true, dc.set(idx, value)
+              assert op_addset_succeeds(dc.set(idx, value))
             rescue Dalli::DalliError
               failed = true
               assert((800..960).include?(idx), "unexpected failure on iteration #{idx}")
@@ -546,7 +571,7 @@ describe 'Dalli' do
           value = "1234567890"*1000
           10_000.times do |idx|
             begin
-              assert_equal true, dalli.set(idx, value)
+              assert op_addset_succeeds(dalli.set(idx, value))
             rescue Dalli::DalliError
               failed = true
               assert((6000..7800).include?(idx), "unexpected failure on iteration #{idx}")

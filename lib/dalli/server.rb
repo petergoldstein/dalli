@@ -146,7 +146,7 @@ module Dalli
 
       while buf.bytesize - pos >= 24
         header = buf.slice(pos, 24)
-        (key_length, _, body_length) = header.unpack(KV_HEADER)
+        (key_length, _, body_length, cas) = header.unpack(KV_HEADER)
 
         if key_length == 0
           # all done!
@@ -163,7 +163,7 @@ module Dalli
           pos = pos + 24 + body_length
 
           begin
-            values[key] = deserialize(value, flags)
+            values[key] = [deserialize(value, flags), cas]
           rescue DalliError
           end
 
@@ -272,7 +272,7 @@ module Dalli
       guard_max_value(key, value) do
         req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:set])
         write(req)
-        generic_response unless multi?
+        cas_response unless multi?
       end
     end
 
@@ -282,22 +282,22 @@ module Dalli
       guard_max_value(key, value) do
         req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:add])
         write(req)
-        generic_response unless multi?
+        cas_response unless multi?
       end
     end
 
-    def replace(key, value, ttl, options)
+    def replace(key, value, ttl, cas, options)
       (value, flags) = serialize(key, value, options)
 
       guard_max_value(key, value) do
-        req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:replace])
+        req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:replace])
         write(req)
-        generic_response unless multi?
+        cas_response unless multi?
       end
     end
 
-    def delete(key)
-      req = [REQUEST, OPCODES[multi? ? :deleteq : :delete], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:delete])
+    def delete(key, cas)
+      req = [REQUEST, OPCODES[multi? ? :deleteq : :delete], key.bytesize, 0, 0, 0, key.bytesize, 0, cas, key].pack(FORMAT[:delete])
       write(req)
       generic_response unless multi?
     end
@@ -369,7 +369,7 @@ module Dalli
     def cas(key)
       req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
       write(req)
-      cas_response
+      data_cas_response
     end
 
     def version
@@ -433,7 +433,7 @@ module Dalli
       raise UnmarshalError, "Unable to uncompress value: #{$!.message}"
     end
 
-    def cas_response
+    def data_cas_response
       header = read(24)
       raise Dalli::NetworkError, 'No response' if !header
       (extras, _, status, count, _, cas) = header.unpack(CAS_HEADER)
@@ -452,7 +452,7 @@ module Dalli
 
     CAS_HEADER = '@4CCnNNQ'
     NORMAL_HEADER = '@4CCnN'
-    KV_HEADER = '@2n@6nN'
+    KV_HEADER = '@2n@6nN@16Q'
 
     def guard_max_value(key, value)
       if value.bytesize <= @options[:value_max_bytes]
@@ -483,12 +483,28 @@ module Dalli
       end
     end
 
+    def cas_response
+      header = read(24)
+      raise Dalli::NetworkError, 'No response' if !header
+      (_, _, status, count, _, cas) = header.unpack(CAS_HEADER)
+      read(count) if count > 0  # this is potential data that we don't care about
+      if status == 1
+        nil
+      elsif status == 2 || status == 5
+        false # Not stored, normal status for add operation
+      elsif status != 0
+        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
+      else
+        cas
+      end
+    end
+
     def keyvalue_response
       hash = {}
       loop do
         header = read(24)
         raise Dalli::NetworkError, 'No response' if !header
-        (key_length, _, body_length) = header.unpack(KV_HEADER)
+        (key_length, _, body_length, _) = header.unpack(KV_HEADER)
         return hash if key_length == 0
         key = read(key_length)
         value = read(body_length - key_length) if body_length - key_length > 0
@@ -501,7 +517,7 @@ module Dalli
       loop do
         header = read(24)
         raise Dalli::NetworkError, 'No response' if !header
-        (key_length, _, body_length) = header.unpack(KV_HEADER)
+        (key_length, _, body_length, _) = header.unpack(KV_HEADER)
         return hash if key_length == 0
         flags = read(4).unpack('N')[0]
         key = read(key_length)

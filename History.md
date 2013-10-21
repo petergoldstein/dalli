@@ -6,6 +6,14 @@ Unreleased
 
 - Implement `version` for retrieving version of connected servers [dterei, #384]
 - Implement `fetch_multi` for batched read/write [sorentwo, #380]
+- Add more support for safe updates with multiple writers: [philipmw]
+  `require 'dalli/cas/client'` augments Dalli::Client with the following methods:
+  * Get value with CAS:            [value, cas] = get_cas(key)
+                                   get_cas(key) {|value, cas| ...}
+  * Get multiple values with CAS:  get_multi_cas(k1, k2, ...) {|value, metadata| cas = metadata[:cas]}
+  * Set value with CAS:            new_cas = set_cas(key, value, cas, ttl, options)
+  * Replace value with CAS:        replace_cas(key, new_value, cas, ttl, options)
+  * Delete value with CAS:         delete_cas(key, cas)
 
 2.6.4
 =======

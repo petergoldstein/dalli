@@ -18,7 +18,7 @@ describe 'ActiveSupport' do
     it 'allow mute and silence' do
       @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122')
       @dalli.mute do
-        assert_equal true, @dalli.write('foo', 'bar', nil)
+        assert op_addset_succeeds(@dalli.write('foo', 'bar', nil))
         assert_equal 'bar', @dalli.read('foo', nil)
       end
       refute @dalli.silence?
@@ -28,7 +28,7 @@ describe 'ActiveSupport' do
 
     it 'handle nil options' do
       @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122')
-      assert_equal true, @dalli.write('foo', 'bar', nil)
+      assert op_addset_succeeds(@dalli.write('foo', 'bar', nil))
       assert_equal 'bar', @dalli.read('foo', nil)
       assert_equal 18, @dalli.fetch('lkjsadlfk', nil) { 18 }
       assert_equal 18, @dalli.fetch('lkjsadlfk', nil) { 18 }
@@ -174,7 +174,7 @@ describe 'ActiveSupport' do
           y = rand_key
           assert_nil @dalli.read(y)
           dres = @dalli.write(y, 123)
-          assert_equal true, dres
+          assert op_addset_succeeds(dres)
 
           dres = @dalli.read(y)
           assert_equal 123, dres
@@ -184,7 +184,7 @@ describe 'ActiveSupport' do
 
           user = MockUser.new
           dres = @dalli.write(user.cache_key, "foo")
-          assert_equal true, dres
+          assert op_addset_succeeds(dres)
 
           dres = @dalli.read(user)
           assert_equal "foo", dres
@@ -256,7 +256,7 @@ describe 'ActiveSupport' do
       with_activesupport do
         memcached do
           connect
-          assert_equal true, @dalli.write('counter', 0, :raw => true)
+          assert op_addset_succeeds(@dalli.write('counter', 0, :raw => true))
           assert_equal 1, @dalli.increment('counter')
           assert_equal 2, @dalli.increment('counter')
           assert_equal 1, @dalli.decrement('counter')
@@ -281,7 +281,7 @@ describe 'ActiveSupport' do
           assert_equal nil, @dalli.read('counterZ2')
 
           user = MockUser.new
-          assert_equal true, @dalli.write(user, 0, :raw => true)
+          assert op_addset_succeeds(@dalli.write(user, 0, :raw => true))
           assert_equal 1, @dalli.increment(user)
           assert_equal 2, @dalli.increment(user)
           assert_equal 1, @dalli.decrement(user)
@@ -358,7 +358,7 @@ describe 'ActiveSupport' do
         connect
         key = "fooƒ"
         value = 'bafƒ'
-        assert_equal true, @dalli.write(key, value)
+        assert op_addset_succeeds(@dalli.write(key, value))
         assert_equal value, @dalli.read(key)
       end
     end
@@ -380,7 +380,7 @@ describe 'ActiveSupport' do
         connect
         key = "foo"
         key.freeze
-        assert_equal true, @dalli.write(key, "value")
+        assert op_addset_succeeds(@dalli.write(key, "value"))
       end
     end
   end
@@ -391,7 +391,7 @@ describe 'ActiveSupport' do
         connect
         map = { "one" => "one", "two" => "two" }
         map.each_pair do |k, v|
-          assert_equal true, @dalli.write(k, v)
+          assert op_addset_succeeds(@dalli.write(k, v))
         end
         assert_equal map, @dalli.read_multi(*(map.keys))
       end
