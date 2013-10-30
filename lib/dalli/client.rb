@@ -50,8 +50,7 @@ module Dalli
     ##
     # Get the value associated with the key.
     def get(key, options=nil)
-      resp = perform(:get, key)
-      resp.nil? || 'Not found' == resp ? nil : resp
+      perform(:get, key)
     end
 
     ##
