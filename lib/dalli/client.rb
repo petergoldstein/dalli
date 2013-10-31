@@ -114,8 +114,6 @@ module Dalli
     def get_multi(*keys)
       perform do
         return {} if keys.empty?
-        options = nil
-        options = keys.pop if keys.last.is_a?(Hash) || keys.last.nil?
         ring.lock do
           begin
             groups = groups_for_keys(keys)
