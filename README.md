@@ -168,6 +168,7 @@ Helping Out
 
 If you have a fix you wish to provide, please fork the code, fix in your local project and then send a pull request on github.  Please ensure that you include a test which verifies your fix and update History.md with a one sentence description of your fix so you get credit as a contributor.
 
+We're not accepting new compressors. They are trivial to add. See #385 (LZ4), #406 (Snappy)
 
 Thanks
 ------------
