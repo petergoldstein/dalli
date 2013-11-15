@@ -51,3 +51,17 @@ describe 'GzipCompressor' do
   end
 
 end
+
+describe 'SnappyCompressor' do
+
+  require 'snappy'
+  require 'securerandom'
+  it 'compress and uncompress data using Snappy' do
+    memcached(19127,nil,{:compress=>true,:compressor=>Dalli::SnappyCompressor}) do |dc|
+      data = SecureRandom.hex(2048)
+      assert dc.set("test", data)
+      assert_equal Dalli::SnappyCompressor, dc.instance_variable_get('@ring').servers.first.compressor
+      assert_equal(data, dc.get("test"))
+    end
+  end
+end
