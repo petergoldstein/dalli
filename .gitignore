@@ -6,3 +6,5 @@ tmtags
 tags
 tmp.sock
 *.gemfile.lock
+.ruby-version
+.ruby-gemset
