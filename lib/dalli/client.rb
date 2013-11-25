@@ -137,8 +137,12 @@ module Dalli
       perform(:prepend, key, value.to_s)
     end
 
+    ##
+    # Flush all keys in the memcached servers.
+    # Accepts an optional delay (in seconds). Delay is incremented per server
+    # so total time to flush all servers is number of servers * seconds of delay.
     def flush(delay=0)
-      time = -delay
+      time = 0 
       ring.servers.map { |s| s.request(:flush, time += delay) }
     end
 
