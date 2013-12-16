@@ -55,7 +55,7 @@ module Dalli
     # Chokepoint method for instrumentation
     def request(op, *args)
       verify_state
-      raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}" unless alive?
+      raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}. If you are sure it is running, ensure memcached version is > 1.4." unless alive?
       begin
         send(op, *args)
       rescue Dalli::NetworkError
