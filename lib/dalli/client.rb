@@ -24,6 +24,7 @@ module Dalli
     # - :compress - defaults to false, if true Dalli will compress values larger than 1024 bytes before sending them to memcached.
     # - :serializer - defaults to Marshal
     # - :compressor - defaults to zlib
+    # - :ring_class - defaults to Dalli::Ring
     #
     def initialize(servers=nil, options={})
       @servers = normalize_servers(servers || ENV["MEMCACHE_SERVERS"] || '127.0.0.1:11211')
@@ -347,7 +348,7 @@ module Dalli
     private
 
     def ring
-      @ring ||= Dalli::Ring.new(
+      @ring ||= ring_class.new(
         @servers.map do |s|
          server_options = {}
           if s =~ %r{\Amemcached://}
@@ -359,6 +360,14 @@ module Dalli
           Dalli::Server.new(s, @options.merge(server_options))
         end, @options
       )
+    end
+
+    def ring_class
+      if @options[:ring_class].is_a?(Class)
+        @options[:ring_class]
+      else
+        Dalli::Ring
+      end
     end
 
     # Chokepoint method for instrumentation
