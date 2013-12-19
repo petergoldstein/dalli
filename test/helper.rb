@@ -26,6 +26,19 @@ class MiniTest::Spec
     assert_match(regexp, ex.message, "#{ex.class.name}: #{ex.message}\n#{ex.backtrace.join("\n\t")}")
   end
 
+  def op_cas_succeeds(rsp)
+    rsp.is_a?(Integer) && rsp > 0
+  end
+
+  def op_replace_succeeds(rsp)
+    rsp.is_a?(Integer) && rsp > 0
+  end
+
+  # add and set must have the same return value because of DalliStore#write_entry
+  def op_addset_succeeds(rsp)
+    rsp.is_a?(Integer) && rsp > 0
+  end
+
   def with_activesupport
     require 'active_support/all'
     require 'active_support/cache/dalli_store'

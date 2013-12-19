@@ -58,6 +58,8 @@ module Dalli
       Thread.current[:dalli_multi] = old
     end
 
+    ##
+    # Get the value associated with the key.
     def get(key, options=nil)
       resp = perform(:get, key)
       resp.nil? || 'Not found' == resp ? nil : resp
@@ -110,70 +112,14 @@ module Dalli
 
     ##
     # Fetch multiple keys efficiently.
-    # Returns a hash of { 'key' => 'value', 'key2' => 'value1' }
+    # If a block is given, yields key/value pairs one at a time.
+    # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
     def get_multi(*keys)
-      perform do
-        return {} if keys.empty?
-        options = nil
-        options = keys.pop if keys.last.is_a?(Hash) || keys.last.nil?
-        ring.lock do
-          begin
-            groups = groups_for_keys(keys)
-            if unfound_keys = groups.delete(nil)
-              Dalli.logger.debug { "unable to get keys for #{unfound_keys.length} keys because no matching server was found" }
-            end
-            make_multi_get_requests(groups)
-
-            servers = groups.keys
-            values = {}
-            return values if servers.empty?
-            servers = perform_multi_response_start(servers)
-
-            start = Time.now
-            loop do
-              # remove any dead servers
-              servers.delete_if { |s| s.sock.nil? }
-              break if servers.empty?
-
-              # calculate remaining timeout
-              elapsed = Time.now - start
-              timeout = servers.first.options[:socket_timeout]
-              if elapsed > timeout
-                readable = nil
-              else
-                sockets = servers.map(&:sock)
-                readable, _ = IO.select(sockets, nil, nil, timeout - elapsed)
-              end
-
-              if readable.nil?
-                # no response within timeout; abort pending connections
-                servers.each do |server|
-                  Dalli.logger.debug { "memcached at #{server.name} did not response within timeout" }
-                  server.multi_response_abort
-                end
-                break
-
-              else
-                readable.each do |sock|
-                  server = sock.server
-
-                  begin
-                    server.multi_response_nonblock.each do |key, value|
-                      values[key_without_namespace(key)] = value
-                    end
-
-                    if server.multi_response_completed?
-                      servers.delete(server)
-                    end
-                  rescue NetworkError
-                    servers.delete(server)
-                  end
-                end
-              end
-            end
-
-            values
-          end
+      if block_given?
+        get_multi_yielder(keys) {|k, data| yield k, data.first}
+      else
+         Hash.new.tap do |hash|
+          get_multi_yielder(keys) {|k, data| hash[k] = data.first}
         end
       end
     end
@@ -227,11 +173,11 @@ module Dalli
     # on the server.  Returns true if the operation succeeded.
     def replace(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in].to_i
-      perform(:replace, key, value, ttl, options)
+      perform(:replace, key, value, ttl, 0, options)
     end
 
     def delete(key)
-      perform(:delete, key)
+      perform(:delete, key, 0)
     end
 
     ##
@@ -413,5 +359,70 @@ module Dalli
       end
       opts
     end
+
+    ##
+    # Yields, one at a time, keys and their values+attributes.
+    def get_multi_yielder(keys)
+      perform do
+        return {} if keys.empty?
+        ring.lock do
+          begin
+            groups = groups_for_keys(keys)
+            if unfound_keys = groups.delete(nil)
+              Dalli.logger.debug { "unable to get keys for #{unfound_keys.length} keys because no matching server was found" }
+            end
+            make_multi_get_requests(groups)
+
+            servers = groups.keys
+            return if servers.empty?
+            servers = perform_multi_response_start(servers)
+
+            start = Time.now
+            loop do
+              # remove any dead servers
+              servers.delete_if { |s| s.sock.nil? }
+              break if servers.empty?
+
+              # calculate remaining timeout
+              elapsed = Time.now - start
+              timeout = servers.first.options[:socket_timeout]
+              if elapsed > timeout
+                readable = nil
+              else
+                sockets = servers.map(&:sock)
+                readable, _ = IO.select(sockets, nil, nil, timeout - elapsed)
+              end
+
+              if readable.nil?
+                # no response within timeout; abort pending connections
+                servers.each do |server|
+                  Dalli.logger.debug { "memcached at #{server.name} did not response within timeout" }
+                  server.multi_response_abort
+                end
+                break
+
+              else
+                readable.each do |sock|
+                  server = sock.server
+
+                  begin
+                    server.multi_response_nonblock.each_pair do |key, value_list|
+                      yield key_without_namespace(key), value_list
+                    end
+
+                    if server.multi_response_completed?
+                      servers.delete(server)
+                    end
+                  rescue NetworkError
+                    servers.delete(server)
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
   end
 end

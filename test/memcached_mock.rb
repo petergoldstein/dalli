@@ -66,6 +66,17 @@ module MemcachedMock
     end
 
     def memcached(port=19122, args='', options={})
+      memcached_server(port, args)
+      yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
+    end
+
+    def memcached_cas(port=19122, args='', options={})
+      memcached_server(port, args)
+      require 'dalli/cas/client'
+      yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
+    end
+
+    def memcached_server(port=19122, args='')
       Memcached.path ||= find_memcached
 
       cmd = "#{Memcached.path}memcached #{args} -p #{port}"
@@ -83,7 +94,6 @@ module MemcachedMock
         sleep 0.1
         pid
       end
-      yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
     end
 
     def supports_fork?
