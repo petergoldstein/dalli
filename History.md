@@ -14,6 +14,7 @@ Unreleased
   * Set value with CAS:            `new_cas = set_cas(key, value, cas, ttl, options)`
   * Replace value with CAS:        `replace_cas(key, new_value, cas, ttl, options)`
   * Delete value with CAS:         `delete_cas(key, cas)`
+- Fix bug with get key with "Not found" value [uzzz, #375]
 
 2.6.4
 =======

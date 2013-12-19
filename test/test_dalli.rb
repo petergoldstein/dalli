@@ -114,6 +114,19 @@ describe 'Dalli' do
       end
     end
 
+    it 'returns nil for nonexist key' do
+      memcached do |dc|
+        assert_equal nil, dc.get('notexist')
+      end
+    end
+
+    it 'allows "Not found" as value' do
+      memcached do |dc|
+        dc.set('key1', 'Not found')
+        assert_equal 'Not found', dc.get('key1')
+      end
+    end
+
     it "support stats" do
       memcached do |dc|
         # make sure that get_hits would not equal 0
