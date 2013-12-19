@@ -59,6 +59,8 @@ module ActiveSupport
       def fetch(name, options=nil)
         options ||= {}
         name = expanded_key name
+        freshness_key = "#{name}::__fresh__"
+        stale_after = options[:stale_after]
 
         if block_given?
           unless options[:force]
@@ -70,17 +72,36 @@ module ActiveSupport
                 end
               end
             end
+            is_fresh = instrument(:read, freshness_key, options) do |payload|
+              read_entry(freshness_key, options).tap do |result|
+                if payload
+                  payload[:super_operation] = :fetch
+                  payload[:hit] = !!result
+                end
+              end
+            end if stale_after
           end
 
-          if !entry.nil?
+          if is_fresh || (!stale_after && entry)
             instrument(:fetch_hit, name, options) { |payload| }
             entry
-          else
+          elsif entry.nil?
             result = instrument(:generate, name, options) do |payload|
               yield
             end
             write(name, result, options)
+            write(freshness_key, '1', :expires_in => stale_after)
             result
+          else
+            begin
+              result = instrument(:generate, name, options) do |payload|
+                yield
+              end
+              write(name, result, options)
+              result
+            rescue options[:error_handler] || Exception
+              entry
+            end
           end
         else
           read(name, options)
