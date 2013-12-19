@@ -31,17 +31,6 @@ module Dalli
       @ring = nil
     end
 
-    ##
-    # Normalizes the argument into an array of servers. If the argument is a string, it's expected to be of
-    # the format "memcache1.example.com:11211[,memcache2.example.com:11211[,memcache3.example.com:11211[...]]]
-    def normalize_servers(servers)
-      if servers.is_a? String
-        return servers.split(",")
-      else
-        return servers
-      end
-    end
-
     #
     # The standard memcached instruction set
     #
@@ -63,51 +52,6 @@ module Dalli
     def get(key, options=nil)
       resp = perform(:get, key)
       resp.nil? || 'Not found' == resp ? nil : resp
-    end
-
-    def groups_for_keys(*keys)
-      groups = mapped_keys(keys).flatten.group_by do |key|
-        begin
-          ring.server_for_key(key)
-        rescue Dalli::RingError
-          Dalli.logger.debug { "unable to get key #{key}" }
-          nil
-        end
-      end
-      return groups
-    end
-
-    def mapped_keys(keys)
-      keys.flatten.map {|a| validate_key(a.to_s)}
-    end
-
-    def make_multi_get_requests(groups)
-      groups.each do |server, keys_for_server|
-        begin
-          # TODO: do this with the perform chokepoint?
-          # But given the fact that fetching the response doesn't take place
-          # in that slot it's misleading anyway. Need to move all of this method
-          # into perform to be meaningful
-          server.request(:send_multiget, keys_for_server)
-        rescue DalliError, NetworkError => e
-          Dalli.logger.debug { e.inspect }
-          Dalli.logger.debug { "unable to get keys for server #{server.hostname}:#{server.port}" }
-        end
-      end
-    end
-
-    def perform_multi_response_start(servers)
-      servers.each do |server|
-        next unless server.alive?
-        begin
-          server.multi_response_start
-        rescue DalliError, NetworkError => e
-          Dalli.logger.debug { e.inspect }
-          Dalli.logger.debug { "results from this server will be missing" }
-          servers.delete(server)
-        end
-      end
-      servers
     end
 
     ##
@@ -291,6 +235,62 @@ module Dalli
     alias_method :reset, :close
 
     private
+
+    def groups_for_keys(*keys)
+      groups = mapped_keys(keys).flatten.group_by do |key|
+        begin
+          ring.server_for_key(key)
+        rescue Dalli::RingError
+          Dalli.logger.debug { "unable to get key #{key}" }
+          nil
+        end
+      end
+      return groups
+    end
+
+    def mapped_keys(keys)
+      keys.flatten.map {|a| validate_key(a.to_s)}
+    end
+
+    def make_multi_get_requests(groups)
+      groups.each do |server, keys_for_server|
+        begin
+          # TODO: do this with the perform chokepoint?
+          # But given the fact that fetching the response doesn't take place
+          # in that slot it's misleading anyway. Need to move all of this method
+          # into perform to be meaningful
+          server.request(:send_multiget, keys_for_server)
+        rescue DalliError, NetworkError => e
+          Dalli.logger.debug { e.inspect }
+          Dalli.logger.debug { "unable to get keys for server #{server.hostname}:#{server.port}" }
+        end
+      end
+    end
+
+    def perform_multi_response_start(servers)
+      servers.each do |server|
+        next unless server.alive?
+        begin
+          server.multi_response_start
+        rescue DalliError, NetworkError => e
+          Dalli.logger.debug { e.inspect }
+          Dalli.logger.debug { "results from this server will be missing" }
+          servers.delete(server)
+        end
+      end
+      servers
+    end
+
+    ##
+    # Normalizes the argument into an array of servers. If the argument is a string, it's expected to be of
+    # the format "memcache1.example.com:11211[,memcache2.example.com:11211[,memcache3.example.com:11211[...]]]
+    def normalize_servers(servers)
+      if servers.is_a? String
+        return servers.split(",")
+      else
+        return servers
+      end
+    end
 
     def ring
       @ring ||= Dalli::Ring.new(
