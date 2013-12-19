@@ -6,20 +6,20 @@ Unreleased
 
 - Implement `version` for retrieving version of connected servers [dterei, #384]
 - Implement `fetch_multi` for batched read/write [sorentwo, #380]
-- Add more support for safe updates with multiple writers: [philipmw]
+- Add more support for safe updates with multiple writers: [philipmw, #395]
   `require 'dalli/cas/client'` augments Dalli::Client with the following methods:
-  * Get value with CAS:            [value, cas] = get_cas(key)
-                                   get_cas(key) {|value, cas| ...}
-  * Get multiple values with CAS:  get_multi_cas(k1, k2, ...) {|value, metadata| cas = metadata[:cas]}
-  * Set value with CAS:            new_cas = set_cas(key, value, cas, ttl, options)
-  * Replace value with CAS:        replace_cas(key, new_value, cas, ttl, options)
-  * Delete value with CAS:         delete_cas(key, cas)
+  * Get value with CAS:            `[value, cas] = get_cas(key)`
+                                   `get_cas(key) {|value, cas| ...}`
+  * Get multiple values with CAS:  `get_multi_cas(k1, k2, ...) {|value, metadata| cas = metadata[:cas]}`
+  * Set value with CAS:            `new_cas = set_cas(key, value, cas, ttl, options)`
+  * Replace value with CAS:        `replace_cas(key, new_value, cas, ttl, options)`
+  * Delete value with CAS:         `delete_cas(key, cas)`
 
 2.6.4
 =======
 
 - Fix ADD command, aka `write(unless_exist: true)` (pitr, #365)
-- Upgrade test suite from mini_shoulda to minitest.
+- Upgrade test suite from mini\_shoulda to minitest.
 - Even more performance improvements for get\_multi (xaop, #331)
 
 2.6.3

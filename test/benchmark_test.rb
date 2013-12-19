@@ -21,7 +21,7 @@ describe 'performance' do
     @counter = 'counter'
   end
 
-  should 'run benchmarks' do
+  it 'runs benchmarks' do
     memcached do
 
       Benchmark.bm(37) do |x|
