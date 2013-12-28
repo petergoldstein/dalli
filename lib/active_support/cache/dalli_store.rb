@@ -38,7 +38,6 @@ module ActiveSupport
         options = addresses.extract_options!
         @options = options.dup
         @options[:compress] ||= @options[:compression]
-        @raise_errors = !!@options[:raise_errors]
         servers = if addresses.empty?
                     nil # use the default from Dalli::Client
                   else
@@ -54,6 +53,10 @@ module ActiveSupport
       # access to get_multi, etc.
       def dalli
         @data
+      end
+
+      def with_connection
+        yield @data
       end
 
       def fetch(name, options=nil)
@@ -103,7 +106,10 @@ module ActiveSupport
         name = expanded_key name
 
         instrument(:write, name, options) do |payload|
-          write_entry(name, value, options)
+          with_connection do |connection|
+            options = options.merge(:connection => connection)
+            write_entry(name, value, options)
+          end
         end
       end
 
@@ -139,7 +145,8 @@ module ActiveSupport
             end
           end
 
-          results.merge!(@data.get_multi(mapping.keys - results.keys))
+          data = with_connection { |c| c.get_multi(mapping.keys - results.keys) }
+          results.merge!(data)
           results.inject({}) do |memo, (inner, _)|
             entry = results[inner]
             # NB Backwards data compatibility, to be removed at some point
@@ -160,18 +167,21 @@ module ActiveSupport
         mapping = names.inject({}) { |memo, name| memo[expanded_key(name)] = name; memo }
 
         instrument(:fetch_multi, names) do
-          results = @data.get_multi(mapping.keys)
+          with_connection do |connection|
+            results = connection.get_multi(mapping.keys)
 
-          @data.multi do
-            mapping.inject({}) do |memo, (expanded, name)|
-              memo[name] = results[expanded]
-              if memo[name].nil?
-                value = yield(name)
-                memo[name] = value
-                write_entry(expanded, value, options)
+            connection.multi do
+              mapping.inject({}) do |memo, (expanded, name)|
+                memo[name] = results[expanded]
+                if memo[name].nil?
+                  value = yield(name)
+                  memo[name] = value
+                  options = options.merge(:connection => connection)
+                  write_entry(expanded, value, options)
+                end
+
+                memo
               end
-
-              memo
             end
           end
         end
@@ -188,11 +198,11 @@ module ActiveSupport
         initial = options.has_key?(:initial) ? options[:initial] : amount
         expires_in = options[:expires_in]
         instrument(:increment, name, :amount => amount) do
-          @data.incr(name, amount, expires_in, initial)
+          with_connection { |c| c.incr(name, amount, expires_in, initial) }
         end
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
-        raise if @raise_errors
+        raise if raise_errors?
         nil
       end
 
@@ -207,11 +217,11 @@ module ActiveSupport
         initial = options.has_key?(:initial) ? options[:initial] : 0
         expires_in = options[:expires_in]
         instrument(:decrement, name, :amount => amount) do
-          @data.decr(name, amount, expires_in, initial)
+          with_connection { |c| c.decr(name, amount, expires_in, initial) }
         end
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
-        raise if @raise_errors
+        raise if raise_errors?
         nil
       end
 
@@ -219,11 +229,11 @@ module ActiveSupport
       # be used with care when using a shared cache.
       def clear(options=nil)
         instrument(:clear, 'flushing all keys') do
-          @data.flush_all
+          with_connection { |c| c.flush_all }
         end
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
-        raise if @raise_errors
+        raise if raise_errors?
         nil
       end
 
@@ -233,11 +243,11 @@ module ActiveSupport
 
       # Get the statistics from the memcached servers.
       def stats
-        @data.stats
+        with_connection { |c| c.stats }
       end
 
       def reset
-        @data.reset
+        with_connection { |c| c.reset }
       end
 
       def logger
@@ -252,12 +262,12 @@ module ActiveSupport
 
       # Read an entry from the cache.
       def read_entry(key, options) # :nodoc:
-        entry = @data.get(key, options)
+        entry = with_connection { |c| c.get(key, options) }
         # NB Backwards data compatibility, to be removed at some point
         entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
-        raise if @raise_errors
+        raise if raise_errors?
         nil
       end
 
@@ -267,19 +277,20 @@ module ActiveSupport
         cleanup if options[:unless_exist]
         method = options[:unless_exist] ? :add : :set
         expires_in = options[:expires_in]
-        @data.send(method, key, value, expires_in, options)
+        connection = options.delete(:connection)
+        connection.send(method, key, value, expires_in, options)
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
-        raise if @raise_errors
+        raise if raise_errors?
         false
       end
 
       # Delete an entry from the cache.
       def delete_entry(key, options) # :nodoc:
-        @data.delete(key)
+        with_connection { |c| c.delete(key) }
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
-        raise if @raise_errors
+        raise if raise_errors?
         false
       end
 
@@ -320,6 +331,10 @@ module ActiveSupport
       def log(operation, key, options=nil)
         return unless logger && logger.debug? && !silence?
         logger.debug("Cache #{operation}: #{key}#{options.blank? ? "" : " (#{options.inspect})"}")
+      end
+
+      def raise_errors?
+        !!@options[:raise_errors]
       end
     end
   end
