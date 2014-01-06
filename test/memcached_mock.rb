@@ -83,7 +83,7 @@ module MemcachedMock
 
       $started[port] ||= begin
         #puts "Starting: #{cmd}..."
-        pid = IO.popen(cmd).pid
+        pid = IO.popen({'MEMCACHED_SASL_PWDB' => ENV['MEMCACHED_SASL_PWDB'] }, cmd).pid
         at_exit do
           begin
             Process.kill("TERM", pid)

@@ -30,19 +30,19 @@ describe 'Sasl' do
         assert true
       end
 
-      xit 'gracefully handle authentication failures' do
+      it 'gracefully handle authentication failures' do
         memcached(19124, '-S') do |dc|
-          assert_raise Dalli::DalliError, /32/ do
+          assert_raises Dalli::DalliError, /32/ do
             dc.set('abc', 123)
           end
         end
       end
     end
 
-    xit 'fail SASL authentication with wrong options' do
+    it 'fail SASL authentication with wrong options' do
       memcached(19124, '-S') do |dc|
         dc = Dalli::Client.new('localhost:19124', :username => 'foo', :password => 'wrongpwd')
-        assert_raise Dalli::DalliError, /32/ do
+        assert_raises Dalli::DalliError, /32/ do
           dc.set('abc', 123)
         end
       end
