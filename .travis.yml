@@ -2,14 +2,15 @@ language: ruby
 rvm:
   - 1.9.3
   - 2.0.0
-  - rbx-19mode
+  - 2.1.0
+  - rbx
   - jruby
 gemfile:
   - gemfiles/rails3.gemfile
   - gemfiles/rails4.gemfile
 matrix:
   allow_failures:
-    - rvm: rbx-19mode
+    - rvm: rbx
 branches:
   only:
     - master

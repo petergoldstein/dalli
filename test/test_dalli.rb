@@ -245,7 +245,7 @@ describe 'Dalli' do
 
         # Invocation with block
         dc.get_multi(%w(a b c d e f)) do |k, v|
-          assert (expected_resp.has_key?(k) && expected_resp[k] == v)
+          assert(expected_resp.has_key?(k) && expected_resp[k] == v)
           expected_resp.delete(k)
         end
         assert expected_resp.empty?
