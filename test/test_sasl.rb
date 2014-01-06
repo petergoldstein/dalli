@@ -31,7 +31,7 @@ describe 'Sasl' do
       end
 
       it 'gracefully handle authentication failures' do
-        skip
+        skip if ci?
         memcached(19124, '-S') do |dc|
           assert_error Dalli::DalliError, /32/ do
             dc.set('abc', 123)
@@ -41,7 +41,7 @@ describe 'Sasl' do
     end
 
     it 'fail SASL authentication with wrong options' do
-      skip
+      skip if ci?
       memcached(19124, '-S') do |dc|
         dc = Dalli::Client.new('localhost:19124', :username => 'foo', :password => 'wrongpwd')
         assert_error Dalli::DalliError, /32/ do
