@@ -183,12 +183,10 @@ Brian Mitchell - for his remix-stash project which was helpful when implementing
 Author
 ----------
 
-Mike Perham, mperham@gmail.com, [mikeperham.com](http://mikeperham.com), [@mperham](http://twitter.com/mperham)  If you like and use this project, please give me a recommendation at [WWR](http://workingwithrails.com/person/10797-mike-perham) or send a few bucks my way via my Pledgie page below.  Happy caching!
-
-<a href='http://www.pledgie.com/campaigns/16623'><img alt='Click here to lend your support to Open Source and make a donation at www.pledgie.com !'     src='http://www.pledgie.com/campaigns/16623.png?skin_name=chrome' border='0' /></a>
+Mike Perham, [mikeperham.com](http://mikeperham.com), [@mperham](http://twitter.com/mperham)
 
 
 Copyright
 -----------
 
-Copyright (c) 2012 Mike Perham. See LICENSE for details.
+Copyright (c) Mike Perham. See LICENSE for details.
