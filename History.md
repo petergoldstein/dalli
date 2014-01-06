@@ -1,8 +1,17 @@
 Dalli Changelog
 =====================
 
-Unreleased
+2.7.0
 ==========
+
+- Multithreading support with dalli\_store:
+  Use :pool\_size to create a pool of shared, threadsafe Dalli clients in Rails:
+```ruby
+    config.cache_store = :dalli_store, "cache-1.example.com", "cache-2.example.com", :compress => true, :pool_size => 5, :expires_in => 300
+```
+  This will ensure the Rails.cache singleton does not become a source of contention.
+  **PLEASE NOTE** Rails's :mem\_cache\_store does not support pooling as of
+Rails 4.0.  You must use :dalli\_store.
 
 - Implement `version` for retrieving version of connected servers [dterei, #384]
 - Implement `fetch_multi` for batched read/write [sorentwo, #380]

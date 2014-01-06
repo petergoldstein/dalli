@@ -233,6 +233,11 @@ module Dalli
     end
     alias_method :reset, :close
 
+    # Stub method so a bare Dalli client can pretend to be a connection pool.
+    def with
+      yield self
+    end
+
     private
 
     def groups_for_keys(*keys)

@@ -35,8 +35,7 @@ Supported Ruby versions and implementations
 Dalli should work identically on:
 
  * JRuby 1.6+
- * Ruby 1.9.2+
- * Ruby 1.8.7+
+ * Ruby 1.9.3+
  * Rubinius 2.0
 
 If you have problems, please enter an issue.
@@ -73,7 +72,7 @@ Dalli has no runtime dependencies and never will.  You can optionally install th
 give Dalli a 20-30% performance boost.
 
 
-Usage with Rails 3.x
+Usage with Rails 3.x and 4.x
 ---------------------------
 
 In your Gemfile:
@@ -113,8 +112,22 @@ Rails.application.config.session_store :dalli_store, :memcache_server => ['host1
 Dalli does not support Rails 2.x.
 
 
+Multithreading and Rails
+--------------------------
+
+If you use Puma or another threaded app server, as of Dalli 2.7, you can use a pool
+of Dalli clients with Rails to ensure the `Rails.cache` singleton does not become a
+source of thread contention.  You must add `gem 'connection_pool'` to your Gemfile and
+add :pool\_size to your `dalli_store` config:
+
+```ruby
+config.cache_store = :dalli_store, 'cache-1.example.com', { :pool_size => 5 }
+```
+
+
 Configuration
 ------------------------
+
 Dalli::Client accepts the following options. All times are in seconds.
 
 **expires_in**: Global default for key TTL.  Default is 0, which means no expiry.
@@ -168,7 +181,7 @@ Helping Out
 
 If you have a fix you wish to provide, please fork the code, fix in your local project and then send a pull request on github.  Please ensure that you include a test which verifies your fix and update History.md with a one sentence description of your fix so you get credit as a contributor.
 
-We're not accepting new compressors. They are trivial to add. See #385 (LZ4), #406 (Snappy)
+We're not accepting new compressors. They are trivial to add in an initializer. See #385 (LZ4), #406 (Snappy)
 
 Thanks
 ------------

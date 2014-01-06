@@ -1,5 +1,6 @@
 # encoding: utf-8
 require 'helper'
+require 'connection_pool'
 
 class MockUser
   def cache_key
@@ -370,6 +371,23 @@ describe 'ActiveSupport' do
         @dalli = ActiveSupport::Cache::DalliStore.new('localhost:19122', :expires_in => 1, :namespace => 'foo', :compress => true)
         assert_equal 1, @dalli.instance_variable_get(:@data).instance_variable_get(:@options)[:expires_in]
         assert_equal 'foo', @dalli.instance_variable_get(:@data).instance_variable_get(:@options)[:namespace]
+      end
+    end
+  end
+
+  it 'supports connection pooling' do
+    with_activesupport do
+      memcached do
+        @dalli = ActiveSupport::Cache::DalliStore.new('localhost:19122', :expires_in => 1, :namespace => 'foo', :compress => true, :pool_size => 3)
+        assert_equal nil, @dalli.read('foo')
+        assert @dalli.write('foo', 1)
+        assert_equal 1, @dalli.fetch('foo') { raise 'boom' }
+        assert_equal true, @dalli.dalli.is_a?(ConnectionPool)
+        assert_equal 1, @dalli.increment('bar')
+        assert_equal 0, @dalli.decrement('bar')
+        assert_equal true, @dalli.delete('bar')
+        assert_equal [true], @dalli.clear
+        assert_equal 1, @dalli.stats.size
       end
     end
   end

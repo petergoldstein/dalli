@@ -33,30 +33,50 @@ module ActiveSupport
       # If no addresses are specified, then DalliStore will connect to
       # localhost port 11211 (the default memcached port).
       #
+      # Connection Pool support
+      #
+      # If you are using multithreaded Rails, the Rails.cache singleton can become a source
+      # of contention.  You can use a connection pool of Dalli clients with Rails.cache by
+      # passing :pool_size and/or :pool_timeout:
+      #
+      # config.cache_store = :dalli_store, 'localhost:11211', :pool_size => 10
+      #
+      # Both pool options default to 5.  You must include the `connection_pool` gem if you
+      # wish to use pool support.
+      #
       def initialize(*addresses)
         addresses = addresses.flatten
         options = addresses.extract_options!
         @options = options.dup
+
+        pool_options = {}
+        pool_options[:size] = options[:pool_size] if options[:pool_size]
+        pool_options[:timeout] = options[:pool_timeout] if options[:pool_timeout]
+
         @options[:compress] ||= @options[:compression]
         servers = if addresses.empty?
                     nil # use the default from Dalli::Client
                   else
                     addresses
                   end
-        @data = Dalli::Client.new(servers, @options)
+        if pool_options.empty?
+          @data = Dalli::Client.new(servers, @options)
+        else
+          @data = ::ConnectionPool.new(pool_options) { Dalli::Client.new(servers, @options.merge(:threadsafe => false)) }
+        end
 
         extend Strategy::LocalCache
       end
 
       ##
-      # Access the underlying Dalli::Client instance for
+      # Access the underlying Dalli::Client or ConnectionPool instance for
       # access to get_multi, etc.
       def dalli
         @data
       end
 
-      def with_connection
-        yield @data
+      def with(&block)
+        @data.with(&block)
       end
 
       def fetch(name, options=nil)
@@ -106,7 +126,7 @@ module ActiveSupport
         name = expanded_key name
 
         instrument(:write, name, options) do |payload|
-          with_connection do |connection|
+          with do |connection|
             options = options.merge(:connection => connection)
             write_entry(name, value, options)
           end
@@ -145,7 +165,7 @@ module ActiveSupport
             end
           end
 
-          data = with_connection { |c| c.get_multi(mapping.keys - results.keys) }
+          data = with { |c| c.get_multi(mapping.keys - results.keys) }
           results.merge!(data)
           results.inject({}) do |memo, (inner, _)|
             entry = results[inner]
@@ -167,7 +187,7 @@ module ActiveSupport
         mapping = names.inject({}) { |memo, name| memo[expanded_key(name)] = name; memo }
 
         instrument(:fetch_multi, names) do
-          with_connection do |connection|
+          with do |connection|
             results = connection.get_multi(mapping.keys)
 
             connection.multi do
@@ -198,7 +218,7 @@ module ActiveSupport
         initial = options.has_key?(:initial) ? options[:initial] : amount
         expires_in = options[:expires_in]
         instrument(:increment, name, :amount => amount) do
-          with_connection { |c| c.incr(name, amount, expires_in, initial) }
+          with { |c| c.incr(name, amount, expires_in, initial) }
         end
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
@@ -217,7 +237,7 @@ module ActiveSupport
         initial = options.has_key?(:initial) ? options[:initial] : 0
         expires_in = options[:expires_in]
         instrument(:decrement, name, :amount => amount) do
-          with_connection { |c| c.decr(name, amount, expires_in, initial) }
+          with { |c| c.decr(name, amount, expires_in, initial) }
         end
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
@@ -229,7 +249,7 @@ module ActiveSupport
       # be used with care when using a shared cache.
       def clear(options=nil)
         instrument(:clear, 'flushing all keys') do
-          with_connection { |c| c.flush_all }
+          with { |c| c.flush_all }
         end
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
@@ -243,11 +263,11 @@ module ActiveSupport
 
       # Get the statistics from the memcached servers.
       def stats
-        with_connection { |c| c.stats }
+        with { |c| c.stats }
       end
 
       def reset
-        with_connection { |c| c.reset }
+        with { |c| c.reset }
       end
 
       def logger
@@ -262,7 +282,7 @@ module ActiveSupport
 
       # Read an entry from the cache.
       def read_entry(key, options) # :nodoc:
-        entry = with_connection { |c| c.get(key, options) }
+        entry = with { |c| c.get(key, options) }
         # NB Backwards data compatibility, to be removed at some point
         entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry
       rescue Dalli::DalliError => e
@@ -287,7 +307,7 @@ module ActiveSupport
 
       # Delete an entry from the cache.
       def delete_entry(key, options) # :nodoc:
-        with_connection { |c| c.delete(key) }
+        with { |c| c.delete(key) }
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger
         raise if raise_errors?
