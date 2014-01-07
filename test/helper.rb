@@ -52,8 +52,4 @@ class MiniTest::Spec
     require 'action_controller'
     yield
   end
-
-  def ci?
-    ENV['TRAVIS']
-  end
 end
