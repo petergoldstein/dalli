@@ -55,8 +55,7 @@ describe Rack::Session::Dalli do
 
   it "faults on no connection" do
     assert_raises Dalli::RingError do
-      rsd = Rack::Session::Dalli.new(incrementor, :memcache_server => 'nosuchserver')
-      rsd.pool.set('ping', '')
+      Rack::Session::Dalli.new(incrementor, :memcache_server => 'nosuchserver')
     end
   end
 

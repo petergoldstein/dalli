@@ -16,6 +16,7 @@ module Rack
         mserv = @default_options[:memcache_server]
         mopts = @default_options.reject{|k,v| !DEFAULT_OPTIONS.include? k }
         @pool = options[:cache] || ::Dalli::Client.new(mserv, mopts)
+        @pool.alive!
       end
 
       def generate_sid
