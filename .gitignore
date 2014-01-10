@@ -6,3 +6,4 @@ tmtags
 tags
 tmp.sock
 *.gemfile.lock
+gemfiles/vendor/

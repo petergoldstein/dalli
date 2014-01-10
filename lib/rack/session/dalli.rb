@@ -16,6 +16,7 @@ module Rack
         mserv = @default_options[:memcache_server]
         mopts = @default_options.reject{|k,v| !DEFAULT_OPTIONS.include? k }
         @pool = options[:cache] || ::Dalli::Client.new(mserv, mopts)
+        @pool.alive!
       end
 
       def generate_sid
@@ -38,6 +39,7 @@ module Rack
       end
 
       def set_session(env, session_id, new_session, options)
+        return false unless session_id
         expiry = options[:expire_after]
         expiry = expiry.nil? ? 0 : expiry + 1
 

@@ -213,6 +213,12 @@ module Dalli
     end
 
     ##
+    ## Make sure memcache servers are alive, or raise an Dalli::RingError
+    def alive!
+      ring.server_for_key("")
+    end
+
+    ##
     ## Version of the memcache servers.
     def version
       values = {}
