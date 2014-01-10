@@ -330,6 +330,11 @@ module Dalli
       body ? longlong(*body.unpack('NN')) : body
     end
 
+    def write_generic(bytes)
+      write(bytes)
+      generic_response
+    end
+
     def write_noop
       req = [REQUEST, OPCODES[:noop], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
       write(req)
@@ -343,15 +348,11 @@ module Dalli
     end
 
     def append(key, value)
-      req = [REQUEST, OPCODES[:append], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[:append])
-      write(req)
-      generic_response
+      write_generic [REQUEST, OPCODES[:append], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[:append])
     end
 
     def prepend(key, value)
-      req = [REQUEST, OPCODES[:prepend], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[:prepend])
-      write(req)
-      generic_response
+      write_generic [REQUEST, OPCODES[:prepend], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[:prepend])
     end
 
     def stats(info='')
@@ -361,9 +362,7 @@ module Dalli
     end
 
     def reset_stats
-      req = [REQUEST, OPCODES[:stat], 'reset'.bytesize, 0, 0, 0, 'reset'.bytesize, 0, 0, 'reset'].pack(FORMAT[:stat])
-      write(req)
-      generic_response
+      write_generic [REQUEST, OPCODES[:stat], 'reset'.bytesize, 0, 0, 0, 'reset'.bytesize, 0, 0, 'reset'].pack(FORMAT[:stat])
     end
 
     def cas(key)
@@ -373,15 +372,11 @@ module Dalli
     end
 
     def version
-      req = [REQUEST, OPCODES[:version], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
-      write(req)
-      generic_response
+      write_generic [REQUEST, OPCODES[:version], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
     end
 
     def touch(key, ttl)
-      req = [REQUEST, OPCODES[:touch], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:touch])
-      write(req)
-      generic_response
+      write_generic [REQUEST, OPCODES[:touch], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:touch])
     end
 
     # http://www.hjp.at/zettel/m/memcached_flags.rxml
