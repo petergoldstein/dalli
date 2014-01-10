@@ -105,7 +105,7 @@ module Dalli
 
     ##
     # Conditionally add a key/value pair, if the key does not already exist
-    # on the server.  Returns true if the operation succeeded.
+    # on the server.  Returns truthy if the operation succeeded.
     def add(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in].to_i
       perform(:add, key, value, ttl, options)
@@ -113,7 +113,7 @@ module Dalli
 
     ##
     # Conditionally add a key/value pair, only if the key already exists
-    # on the server.  Returns true if the operation succeeded.
+    # on the server.  Returns truthy if the operation succeeded.
     def replace(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in].to_i
       perform(:replace, key, value, ttl, 0, options)

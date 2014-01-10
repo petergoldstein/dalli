@@ -4,6 +4,8 @@ Dalli Changelog
 2.7.0
 ==========
 
+- BREAKING CHANGE:
+  Dalli::Client#add and #replace now return a truthy value, not boolean true or false.
 - Multithreading support with dalli\_store:
   Use :pool\_size to create a pool of shared, threadsafe Dalli clients in Rails:
 ```ruby
