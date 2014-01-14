@@ -94,6 +94,12 @@ config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com',
   { :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true }
 ```
 
+If your servers are specified in `ENV["MEMCACHE_SERVERS"]` (e.g. on Heroku when using a third-party hosted addon), simply provide `nil` for the servers:
+
+```ruby
+config.cache_store = :dalli_store, nil, { :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true }
+```
+
 To use Dalli for Rails session storage that times out after 20 minutes, in `config/initializers/session_store.rb`:
 
 For Rails >= 3.2.4:
