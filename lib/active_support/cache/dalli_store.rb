@@ -54,6 +54,8 @@ module ActiveSupport
         pool_options[:timeout] = options[:pool_timeout] if options[:pool_timeout]
 
         @options[:compress] ||= @options[:compression]
+
+        addresses.compact!
         servers = if addresses.empty?
                     nil # use the default from Dalli::Client
                   else
