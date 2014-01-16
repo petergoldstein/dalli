@@ -32,7 +32,7 @@ module Dalli
     }
 
     def initialize(attribs, options = {})
-      (@hostname, @port, @weight) = attribs.split(':')
+      (@hostname, @port, @weight) = parse_hostname(attribs)
       @port ||= 11211
       @port = Integer(@port)
       @weight ||= 1
@@ -687,6 +687,11 @@ module Dalli
       raise NotImplementedError, "No two-step authentication mechanisms supported"
       # (step, msg) = sasl.receive('challenge', content)
       # raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
+    end
+
+    def parse_hostname(str)
+      res = str.match(/\A(\[([\h:]+)\]|[^:]+)(:(\d+))?(:(\d+))?\z/)
+      return res[2] || res[1], res[4], res[6]
     end
   end
 end

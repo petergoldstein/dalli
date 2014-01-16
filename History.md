@@ -5,6 +5,7 @@ HEAD
 ==========
 
 - Rack session will check if servers are up on initialization (arthurnn, #423)
+- Add support for IPv6 addresses in hex form, ie: "[::1]:11211" (dplummer, #428)
 
 2.7.0
 ==========
