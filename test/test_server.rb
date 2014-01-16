@@ -1,5 +1,4 @@
 require 'helper'
-require 'memcached_mock'
 
 describe Dalli::Server do
   describe 'hostname parsing' do
