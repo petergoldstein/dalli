@@ -534,9 +534,7 @@ module Dalli
     end
 
     def read_header
-      header = read(24)
-      raise Dalli::NetworkError, 'No response' if !header
-      header
+      read(24) || raise(Dalli::NetworkError, 'No response')
     end
 
     def connect
