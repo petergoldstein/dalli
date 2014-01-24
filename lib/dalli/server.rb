@@ -333,6 +333,10 @@ module Dalli
       body ? longlong(*body.unpack('NN')) : body
     end
 
+    def write_append_prepend(opcode, key, value)
+      write_generic [REQUEST, OPCODES[opcode], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[opcode])
+    end
+
     def write_generic(bytes)
       write(bytes)
       generic_response
@@ -351,11 +355,11 @@ module Dalli
     end
 
     def append(key, value)
-      write_generic [REQUEST, OPCODES[:append], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[:append])
+      write_append_prepend :append, key, value
     end
 
     def prepend(key, value)
-      write_generic [REQUEST, OPCODES[:prepend], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[:prepend])
+      write_append_prepend :prepend, key, value
     end
 
     def stats(info='')
