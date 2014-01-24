@@ -311,26 +311,23 @@ module Dalli
       generic_response
     end
 
-    def decr(key, count, ttl, default)
+    def decr_incr(opcode, key, count, ttl, default)
       expiry = default ? sanitize_ttl(ttl) : 0xFFFFFFFF
       default ||= 0
       (h, l) = split(count)
       (dh, dl) = split(default)
-      req = [REQUEST, OPCODES[:decr], key.bytesize, 20, 0, 0, key.bytesize + 20, 0, 0, h, l, dh, dl, expiry, key].pack(FORMAT[:decr])
+      req = [REQUEST, OPCODES[opcode], key.bytesize, 20, 0, 0, key.bytesize + 20, 0, 0, h, l, dh, dl, expiry, key].pack(FORMAT[opcode])
       write(req)
       body = generic_response
-      body ? longlong(*body.unpack('NN')) : body
+      body ? body.unpack('Q>').first : body
+    end
+
+    def decr(key, count, ttl, default)
+      decr_incr :decr, key, count, ttl, default
     end
 
     def incr(key, count, ttl, default)
-      expiry = default ? sanitize_ttl(ttl) : 0xFFFFFFFF
-      default ||= 0
-      (h, l) = split(count)
-      (dh, dl) = split(default)
-      req = [REQUEST, OPCODES[:incr], key.bytesize, 20, 0, 0, key.bytesize + 20, 0, 0, h, l, dh, dl, expiry, key].pack(FORMAT[:incr])
-      write(req)
-      body = generic_response
-      body ? longlong(*body.unpack('NN')) : body
+      decr_incr :incr, key, count, ttl, default
     end
 
     def write_append_prepend(opcode, key, value)
@@ -576,10 +573,6 @@ module Dalli
 
     def split(n)
       [n >> 32, 0xFFFFFFFF & n]
-    end
-
-    def longlong(a, b)
-      (a << 32) | b
     end
 
     REQUEST = 0x80
