@@ -24,9 +24,14 @@ describe 'Dalli' do
       end
     end
 
-    it 'namespace attribute should be a string' do
+    it 'return string type for namespace attribute' do
       dc = Dalli::Client.new('foo', :namespace => :wunderschoen)
       assert_equal "wunderschoen", dc.send(:namespace)
+      dc.close
+
+      dc = Dalli::Client.new('foo', :namespace => Proc.new{:wunderschoen})
+      assert_equal "wunderschoen", dc.send(:namespace)
+      dc.close
     end
   end
 
@@ -48,7 +53,7 @@ describe 'Dalli' do
       end
     end
 
-    it 'is OK if namespace is a symbol' do
+    it 'allow namespace to be a symbol' do
       memcached(19122, '', :namespace => :wunderschoen) do |dc|
         dc.set "x" * 251, 1
         assert 1, dc.get("#{'x' * 200}:md5:#{Digest::MD5.hexdigest('x' * 251)}")

@@ -354,7 +354,7 @@ module Dalli
     end
 
     def namespace
-      @options[:namespace].is_a?(Proc) ? @options[:namespace].call : @options[:namespace].to_s
+      @options[:namespace].is_a?(Proc) ? @options[:namespace].call.to_s : @options[:namespace].to_s
     end
 
     def normalize_options(opts)
