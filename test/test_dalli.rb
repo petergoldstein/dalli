@@ -23,6 +23,11 @@ describe 'Dalli' do
         end
       end
     end
+
+    it 'namespace attribute should be a string' do
+      dc = Dalli::Client.new('foo', :namespace => :wunderschoen)
+      assert_equal "wunderschoen", dc.send(:namespace)
+    end
   end
 
   describe 'key validation' do
@@ -40,6 +45,13 @@ describe 'Dalli' do
         assert_raises ArgumentError do
           dc.set nil, 1
         end
+      end
+    end
+
+    it 'is OK if namespace is a symbol' do
+      memcached(19122, '', :namespace => :wunderschoen) do |dc|
+        dc.set "x" * 251, 1
+        assert 1, dc.get("#{'x' * 200}:md5:#{Digest::MD5.hexdigest('x' * 251)}")
       end
     end
   end
