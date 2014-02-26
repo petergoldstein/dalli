@@ -268,6 +268,7 @@ module Dalli
 
     def set(key, value, ttl, cas, options)
       (value, flags) = serialize(key, value, options)
+      ttl = sanitize_ttl(ttl)
 
       guard_max_value(key, value) do
         req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:set])
@@ -278,6 +279,7 @@ module Dalli
 
     def add(key, value, ttl, options)
       (value, flags) = serialize(key, value, options)
+      ttl = sanitize_ttl(ttl)
 
       guard_max_value(key, value) do
         req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:add])
@@ -288,6 +290,7 @@ module Dalli
 
     def replace(key, value, ttl, cas, options)
       (value, flags) = serialize(key, value, options)
+      ttl = sanitize_ttl(ttl)
 
       guard_max_value(key, value) do
         req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:replace])
@@ -309,7 +312,7 @@ module Dalli
     end
 
     def decr(key, count, ttl, default)
-      expiry = default ? ttl : 0xFFFFFFFF
+      expiry = default ? sanitize_ttl(ttl) : 0xFFFFFFFF
       default ||= 0
       (h, l) = split(count)
       (dh, dl) = split(default)
@@ -320,7 +323,7 @@ module Dalli
     end
 
     def incr(key, count, ttl, default)
-      expiry = default ? ttl : 0xFFFFFFFF
+      expiry = default ? sanitize_ttl(ttl) : 0xFFFFFFFF
       default ||= 0
       (h, l) = split(count)
       (dh, dl) = split(default)
@@ -376,6 +379,7 @@ module Dalli
     end
 
     def touch(key, ttl)
+      ttl = sanitize_ttl(ttl)
       write_generic [REQUEST, OPCODES[:touch], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:touch])
     end
 
@@ -453,6 +457,18 @@ module Dalli
       else
         Dalli.logger.warn "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
         false
+      end
+    end
+
+    # https://code.google.com/p/memcached/wiki/NewCommands#Standard_Protocol
+    # > An expiration time, in seconds. Can be up to 30 days. After 30 days, is treated as a unix timestamp of an exact date.
+    MAX_ACCEPTABLE_EXPIRATION_INTERVAL = 30*24*60*60 # 30 days
+    def sanitize_ttl(ttl)
+      if ttl > MAX_ACCEPTABLE_EXPIRATION_INTERVAL
+        Dalli.logger.debug "Expiration interval too long for Memcached, converting to an expiration timestamp"
+        Time.now.to_i + ttl
+      else
+        ttl
       end
     end
 
