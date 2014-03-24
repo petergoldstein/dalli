@@ -44,7 +44,7 @@ If you have problems, please enter an issue.
 Installation and Usage
 ------------------------
 
-Remember, Dalli **requires** memcached 1.4+. You can check the version with `memcached -h`. Please note that memcached that Mac OS X Snow Leopard ships with is 1.2.8 and won't work. Install 1.4.x using Homebrew with
+Remember, Dalli **requires** memcached 1.4+. You can check the version with `memcached -h`. Please note that the memcached version that *Mac OS X Snow Leopard* ships with is 1.2.8 and it won't work. Install memcached 1.4.x using Homebrew with
 
     brew install memcached
 
