@@ -115,6 +115,14 @@ describe Rack::Session::Dalli do
     refute_match(/#{bad_cookie}/, cookie)
   end
 
+  it "accepts forged blank cookie" do
+    bad_cookie = "rack.session="
+    rsd = Rack::Session::Dalli.new(incrementor)
+    res = Rack::MockRequest.new(rsd).
+      get("/", "HTTP_COOKIE" => bad_cookie)
+    assert_equal '{"counter"=>1}', res.body
+  end
+
   it "maintains freshness" do
     rsd = Rack::Session::Dalli.new(incrementor, :expire_after => 3)
     res = Rack::MockRequest.new(rsd).get('/')
@@ -242,10 +250,10 @@ describe Rack::Session::Dalli do
 
     res0 = req.get("/")
     session_id = (cookie = res0["Set-Cookie"])[session_match, 1]
-    ses0 = rsd.pool.get(session_id, true)
+    ses0 = rsd.pool.get("_session_id:#{session_id}", true)
 
     req.get("/", "HTTP_COOKIE" => cookie)
-    ses1 = rsd.pool.get(session_id, true)
+    ses1 = rsd.pool.get("_session_id:#{session_id}", true)
 
     refute_equal ses0, ses1
   end
