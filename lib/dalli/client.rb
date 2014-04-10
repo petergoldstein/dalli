@@ -354,6 +354,7 @@ module Dalli
     end
 
     def namespace
+      return nil unless @options[:namespace]
       @options[:namespace].is_a?(Proc) ? @options[:namespace].call.to_s : @options[:namespace].to_s
     end
 
