@@ -156,7 +156,7 @@ module Dalli
     # exist.  To increase an existing counter and update its TTL, use
     # #cas.
     def incr(key, amt=1, ttl=nil, default=nil)
-      raise ArgumentError, "Positive values only: #{amt}" if amt < 0
+      raise Dalli::ArgumentError, "Positive values only: #{amt}" if amt < 0
       ttl ||= @options[:expires_in].to_i
       perform(:incr, key, amt.to_i, ttl, default)
     end
@@ -176,7 +176,7 @@ module Dalli
     # exist.  To decrease an existing counter and update its TTL, use
     # #cas.
     def decr(key, amt=1, ttl=nil, default=nil)
-      raise ArgumentError, "Positive values only: #{amt}" if amt < 0
+      raise Dalli::ArgumentError, "Positive values only: #{amt}" if amt < 0
       ttl ||= @options[:expires_in].to_i
       perform(:decr, key, amt.to_i, ttl, default)
     end
@@ -196,7 +196,7 @@ module Dalli
     # You can optionally pass a type including :items or :slabs to get specific stats
     # Returns a hash like { 'hostname:port' => { 'stat1' => 'value1', ... }, 'hostname2:port' => { ... } }
     def stats(type=nil)
-      type = nil if ![nil, :items,:slabs].include? type
+      type = nil if ![nil, :items, :slabs].include? type
       values = {}
       ring.servers.each do |server|
         values["#{server.hostname}:#{server.port}"] = server.alive? ? server.request(:stats,type.to_s) : nil
@@ -336,7 +336,7 @@ module Dalli
     end
 
     def validate_key(key)
-      raise ArgumentError, "key cannot be blank" if !key || key.length == 0
+      raise Dalli::ArgumentError, "key cannot be blank" if !key || key.length == 0
       key = key_with_namespace(key)
       if key.length > 250
         max_length_before_namespace = 212 - (namespace || '').size
@@ -366,7 +366,7 @@ module Dalli
       begin
         opts[:expires_in] = opts[:expires_in].to_i if opts[:expires_in]
       rescue NoMethodError
-        raise ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
+        raise Dalli::ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
       end
       opts
     end
