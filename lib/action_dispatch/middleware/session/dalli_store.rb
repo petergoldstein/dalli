@@ -32,9 +32,9 @@ module ActionDispatch
       private
 
       def get_session(env, sid)
-        sid ||= generate_sid
+        sid = generate_sid unless sid and !sid.empty?
         begin
-          session = @pool.get(cache_key(sid)) || {}
+          session = @pool.get(sid) || {}
         rescue Dalli::DalliError => ex
           # re-raise ArgumentError so Rails' session abstract_store.rb can autoload any missing models
           raise ArgumentError, ex.message if ex.message =~ /unmarshal/
@@ -45,10 +45,9 @@ module ActionDispatch
       end
 
       def set_session(env, sid, session_data, options = nil)
-        key = cache_key(sid)
         options ||= env[ENV_SESSION_OPTIONS_KEY]
         expiry  = options[:expire_after]
-        @pool.set(key, session_data, expiry)
+        @pool.set(sid, session_data, expiry)
         sid
       rescue Dalli::DalliError
         Rails.logger.warn("Session::DalliStore#set: #{$!.message}")
@@ -58,7 +57,7 @@ module ActionDispatch
 
       def destroy_session(env, session_id, options)
         begin
-          @pool.delete(cache_key(session_id))
+          @pool.delete(session_id)
         rescue Dalli::DalliError
           Rails.logger.warn("Session::DalliStore#destroy_session: #{$!.message}")
           raise if @raise_errors
@@ -69,7 +68,7 @@ module ActionDispatch
 
       def destroy(env)
         if sid = current_session_id(env)
-          @pool.delete(cache_key(sid))
+          @pool.delete(sid)
         end
       rescue Dalli::DalliError
         Rails.logger.warn("Session::DalliStore#destroy: #{$!.message}")
@@ -77,11 +76,6 @@ module ActionDispatch
         false
       end
 
-      private
-        # Turn the session id into a cache key.
-        def cache_key(sid)
-          "_session_id:#{sid}"
-        end
     end
   end
 end
