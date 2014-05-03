@@ -115,6 +115,15 @@ describe Rack::Session::Dalli do
     refute_match(/#{bad_cookie}/, cookie)
   end
 
+  it "survives nonexistant blank cookies" do
+    bad_cookie = "rack.session="
+    rsd = Rack::Session::Dalli.new(incrementor)
+    res = Rack::MockRequest.new(rsd).
+      get("/", "HTTP_COOKIE" => bad_cookie)
+    cookie = res["Set-Cookie"][session_match]
+    refute_match(/#{bad_cookie}$/, cookie)
+  end
+
   it "maintains freshness" do
     rsd = Rack::Session::Dalli.new(incrementor, :expire_after => 3)
     res = Rack::MockRequest.new(rsd).get('/')

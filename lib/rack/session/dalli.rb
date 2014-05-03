@@ -28,7 +28,7 @@ module Rack
 
       def get_session(env, sid)
         with_lock(env, [nil, {}]) do
-          unless sid and session = @pool.get(sid)
+          unless sid and !sid.empty? and session = @pool.get(sid)
             sid, session = generate_sid, {}
             unless @pool.add(sid, session)
               raise "Session collision on '#{sid.inspect}'"
