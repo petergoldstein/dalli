@@ -24,6 +24,6 @@ Gem::Specification.new do |s|
   s.test_files = Dir.glob("test/**/*")
   s.add_development_dependency(%q<minitest>, [">= 4.2.0"])
   s.add_development_dependency(%q<mocha>, [">= 0"])
-  s.add_development_dependency(%q<rails>, ["~> 3"])
+  s.add_development_dependency(%q<rails>, ["~> 4"])
 end
 

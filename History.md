@@ -1,7 +1,7 @@
 Dalli Changelog
 =====================
 
-HEAD
+2.7.1
 ==========
 
 - Rack session will check if servers are up on initialization (arthurnn, #423)
