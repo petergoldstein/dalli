@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+2.7.2
+==========
+
+- The fix for #423 didn't make it into the released 2.7.1 gem somehow.
+
 2.7.1
 ==========
 
