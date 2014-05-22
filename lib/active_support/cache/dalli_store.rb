@@ -104,7 +104,7 @@ module ActiveSupport
             result = instrument(:generate, name, options) do |payload|
               yield
             end
-            write(name, result, options)
+            write(name, result, options) unless result.nil?
             result
           end
         else
