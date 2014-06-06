@@ -451,6 +451,7 @@ module Dalli
     CAS_HEADER = '@4CCnNNQ'
     NORMAL_HEADER = '@4CCnN'
     KV_HEADER = '@2n@6nN@16Q'
+    NIL_DATA_FOUND = :nil_data_found
 
     def guard_max_value(key, value)
       if value.bytesize <= @options[:value_max_bytes]
@@ -485,7 +486,11 @@ module Dalli
       elsif data
         flags = data[0...extras].unpack('N')[0]
         value = data[extras..-1]
-        unpack ? deserialize(value, flags) : value
+        found_data = unpack ? deserialize(value, flags) : value
+
+        # Differentiate between the key not being found (status == 1, returns nil)
+        # and a nil value being stored by the key. Use this special constant.
+        found_data.nil? ? NIL_DATA_FOUND : found_data
       else
         true
       end

@@ -74,7 +74,11 @@ module Dalli
         val = yield
         add(key, val, ttl, options)
       end
-      val
+
+      # Differentiate between a key not existing in the store (val.nil? => true)
+      # and the key storing a nil value - in the latter case, using this special
+      # constant. Here, convert it back to nil.
+      val == Server::NIL_DATA_FOUND ? nil : val
     end
 
     ##
