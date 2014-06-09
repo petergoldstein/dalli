@@ -1,6 +1,10 @@
 Dalli Changelog
 =====================
 
+TBD
+==========
+- Differentiate between keys not stored in the cache, and keys that store nil. [danalvarez, refs issue #460]
+
 2.7.2
 ==========
 

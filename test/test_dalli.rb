@@ -115,9 +115,17 @@ describe 'Dalli' do
         dc.set('a', val1)
         val2 = dc.get('a')
         assert_equal val1, val2
+      end
+    end
+
+    it "gets a special constant for nil values to differentiate between keys not existing" do
+      memcached do |dc|
+        require "dalli/server"
+
+        dc.flush
 
         assert op_addset_succeeds(dc.set('a', nil))
-        assert_nil dc.get('a')
+        assert_equal Dalli::Server::NIL_DATA_FOUND, dc.get('a')
       end
     end
 
@@ -207,17 +215,21 @@ describe 'Dalli' do
       end
     end
 
-    it "support the fetch operation with falsey values" do
+    it "support the fetch operation with false" do
       memcached do |dc|
         dc.flush
 
         dc.set("fetch_key", false)
         res = dc.fetch("fetch_key") { flunk "fetch block called" }
         assert_equal false, res
+      end
+    end
 
+    it "support the fetch operation with nil stored for a key" do
+      memcached do |dc|
         dc.set("fetch_key", nil)
-        res = dc.fetch("fetch_key") { "bob" }
-        assert_equal 'bob', res
+        res = dc.fetch("fetch_key") { flunk "fetch block called" }
+        assert_equal nil, res
       end
     end
 
