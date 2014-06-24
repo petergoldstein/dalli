@@ -58,6 +58,8 @@ module Dalli
       raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}. If you are sure it is running, ensure memcached version is > 1.4." unless alive?
       begin
         send(op, *args)
+      rescue Timeout::Error
+        raise
       rescue Dalli::NetworkError
         raise
       rescue Dalli::MarshalError => ex
@@ -396,6 +398,8 @@ module Dalli
         marshalled = true
         begin
           self.serializer.dump(value)
+        rescue Timeout::Error
+          raise
         rescue => ex
           # Marshalling can throw several different types of generic Ruby exceptions.
           # Convert to a specific exception so we can special case it higher up the stack.

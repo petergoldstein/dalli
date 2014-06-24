@@ -8,4 +8,7 @@ gem "kgio", :platform=>:mri
 gem "appraisal"
 gem "rails", ">= 4.0.0.beta", "< 5"
 
+gem 'rubysl', '~> 2.0', :platform => :rbx
+gem 'rubinius-developer_tools', :platform => :rbx
+
 gemspec :path=>"../"
