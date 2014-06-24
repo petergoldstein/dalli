@@ -9,11 +9,14 @@ describe Rack::Session::Dalli do
   Rack::Session::Dalli::DEFAULT_OPTIONS[:memcache_server] = 'localhost:19129'
 
   before do
-    memcached(19129) do
-    end
+    memcached_server(19129)
 
     # test memcache connection
     Rack::Session::Dalli.new(incrementor)
+  end
+
+  after do
+    memcached_kill(19129)
   end
 
   let(:session_key) { Rack::Session::Dalli::DEFAULT_OPTIONS[:key] }

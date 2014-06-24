@@ -41,14 +41,14 @@ describe 'Dalli::Cas::Client' do
         # Invocation without block
         resp = dc.get_multi_cas(%w(a b c d e f))
         resp.each_pair do |k, data|
-          value, cas = [data.first, data.second]
+          value, cas = [data.first, data[1]]
           assert_equal expected_hash[k], value
           assert(cas && cas != 0)
         end
 
         # Invocation with block
         dc.get_multi_cas(%w(a b c d e f)) do |k, data|
-          value, cas = [data.first, data.second]
+          value, cas = [data.first, data[1]]
           assert_equal expected_hash[k], value
           assert(cas && cas != 0)
         end
