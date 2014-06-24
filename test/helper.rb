@@ -2,7 +2,7 @@ $TESTING = true
 require 'rubygems'
 # require 'simplecov'
 # SimpleCov.start
-require 'minitest/pride'
+require 'minitest/pride' unless RUBY_ENGINE == 'rbx'
 require 'minitest/autorun'
 require 'mocha/setup'
 require 'memcached_mock'
