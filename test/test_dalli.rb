@@ -37,7 +37,7 @@ describe 'Dalli' do
 
   describe 'key validation' do
     it 'not allow blanks' do
-      memcached do |dc|
+      memcached_persistent do |dc|
         dc.set '   ', 1
         assert_equal 1, dc.get('   ')
         dc.set "\t", 1
@@ -54,7 +54,8 @@ describe 'Dalli' do
     end
 
     it 'allow namespace to be a symbol' do
-      memcached(19122, '', :namespace => :wunderschoen) do |dc|
+      memcached_persistent do |dc, port|
+        dc = Dalli::Client.new("localhost:#{port}", :namespace => :wunderschoen)
         dc.set "x" * 251, 1
         assert 1, dc.get("#{'x' * 200}:md5:#{Digest::MD5.hexdigest('x' * 251)}")
       end
@@ -105,7 +106,7 @@ describe 'Dalli' do
   describe 'using a live server' do
 
     it "support get/set" do
-      memcached do |dc|
+      memcached_persistent do |dc|
         dc.flush
 
         val1 = "1234567890"*105000
@@ -122,7 +123,7 @@ describe 'Dalli' do
     end
 
     it 'supports delete' do
-      memcached do |dc|
+      memcached_persistent do |dc|
         dc.set('some_key', 'some_value')
         assert_equal 'some_value', dc.get('some_key')
 
@@ -132,20 +133,20 @@ describe 'Dalli' do
     end
 
     it 'returns nil for nonexist key' do
-      memcached do |dc|
+      memcached_persistent do |dc|
         assert_equal nil, dc.get('notexist')
       end
     end
 
     it 'allows "Not found" as value' do
-      memcached do |dc|
+      memcached_persistent do |dc|
         dc.set('key1', 'Not found')
         assert_equal 'Not found', dc.get('key1')
       end
     end
 
     it "support stats" do
-      memcached do |dc|
+      memcached_persistent do |dc|
         # make sure that get_hits would not equal 0
         dc.set(:a, "1234567890"*100000)
         dc.get(:a)
@@ -186,7 +187,7 @@ describe 'Dalli' do
     end
 
     it "support the fetch operation" do
-      memcached do |dc|
+      memcached_persistent do |dc|
         dc.flush
 
         expected = { 'blah' => 'blerg!' }
@@ -209,7 +210,7 @@ describe 'Dalli' do
     end
 
     it "support the fetch operation with falsey values" do
-      memcached do |dc|
+      memcached_persistent do |dc|
         dc.flush
 
         dc.set("fetch_key", false)
@@ -223,7 +224,7 @@ describe 'Dalli' do
     end
 
     it "support the cas operation" do
-      memcached do |dc|
+      memcached_persistent do |dc|
         dc.flush
 
         expected = { 'blah' => 'blerg!' }
@@ -247,7 +248,7 @@ describe 'Dalli' do
     end
 
     it "support multi-get" do
-      memcached do |dc|
+      memcached_persistent do |dc|
         dc.close
         dc.flush
         resp = dc.get_multi(%w(a b c d e f))
@@ -284,7 +285,7 @@ describe 'Dalli' do
     end
 
     it 'support raw incr/decr' do
-      memcached do |client|
+      memcached_persistent do |client|
         client.flush
 
         assert op_addset_succeeds(client.set('fakecounter', 0, 0, :raw => true))
@@ -314,7 +315,7 @@ describe 'Dalli' do
     end
 
     it "support incr/decr operations" do
-      memcached do |dc|
+      memcached_persistent do |dc|
         dc.flush
 
         resp = dc.decr('counter', 100, 5, 0)
@@ -362,7 +363,7 @@ describe 'Dalli' do
     end
 
     it 'support the append and prepend operations' do
-      memcached do |dc|
+      memcached_persistent do |dc|
         dc.flush
         assert op_addset_succeeds(dc.set('456', 'xyz', 0, :raw => true))
         assert_equal true, dc.prepend('456', '0')
@@ -376,7 +377,7 @@ describe 'Dalli' do
     end
 
     it 'supports replace operation' do
-      memcached do |dc|
+      memcached_persistent do |dc|
         dc.flush
         dc.set('key', 'value')
         assert op_replace_succeeds(dc.replace('key', 'value2'))
@@ -386,7 +387,7 @@ describe 'Dalli' do
     end
 
     it 'support touch operation' do
-      memcached do |dc|
+      memcached_persistent do |dc|
         begin
           dc.flush
           dc.set 'key', 'value'
@@ -402,7 +403,7 @@ describe 'Dalli' do
     end
 
     it 'support version operation' do
-      memcached do |dc|
+      memcached_persistent do |dc|
         v = dc.version
         servers = v.keys
         assert(servers.any? do |s|
@@ -412,7 +413,8 @@ describe 'Dalli' do
     end
 
     it 'allow TCP connections to be configured for keepalive' do
-      memcached(19122, '', :keepalive => true) do |dc|
+      memcached_persistent do |dc, port|
+        dc = Dalli::Client.new("localhost:#{port}", :keepalive => true)
         dc.set(:a, 1)
         ring = dc.send(:ring)
         server = ring.servers.first
@@ -426,7 +428,7 @@ describe 'Dalli' do
     end
 
     it "pass a simple smoke test" do
-      memcached do |dc|
+      memcached_persistent do |dc, port|
         resp = dc.flush
         refute_nil resp
         assert_equal [true, true], resp
@@ -454,7 +456,7 @@ describe 'Dalli' do
         dc.close
         dc = nil
 
-        dc = Dalli::Client.new('localhost:19122')
+        dc = Dalli::Client.new("localhost:#{port}")
 
         assert op_addset_succeeds(dc.set('456', 'xyz', 0, :raw => true))
 
@@ -480,7 +482,7 @@ describe 'Dalli' do
     end
 
     it "support multithreaded access" do
-      memcached do |cache|
+      memcached_persistent do |cache|
         cache.flush
         workers = []
 
@@ -523,10 +525,10 @@ describe 'Dalli' do
     end
 
     it "handle namespaced keys" do
-      memcached do |dc|
-        dc = Dalli::Client.new('localhost:19122', :namespace => 'a')
+      memcached_persistent do |dc, port|
+        dc = Dalli::Client.new("localhost:#{port}", :namespace => 'a')
         dc.set('namespaced', 1)
-        dc2 = Dalli::Client.new('localhost:19122', :namespace => 'b')
+        dc2 = Dalli::Client.new("localhost:#{port}", :namespace => 'b')
         dc2.set('namespaced', 2)
         assert_equal 1, dc.get('namespaced')
         assert_equal 2, dc2.get('namespaced')
@@ -534,15 +536,15 @@ describe 'Dalli' do
     end
 
     it "handle nil namespace" do
-      memcached do |dc|
-        dc = Dalli::Client.new('localhost:19122', :namespace => nil)
+      memcached_persistent do |dc, port|
+        dc = Dalli::Client.new("localhost:#{port}", :namespace => nil)
         assert_equal 'key', dc.send(:validate_key, 'key')
       end
     end
 
     it 'truncate cache keys that are too long' do
-      memcached do
-        dc = Dalli::Client.new('localhost:19122', :namespace => 'some:namspace')
+      memcached_persistent do |dc, port|
+        dc = Dalli::Client.new("localhost:#{port}", :namespace => 'some:namspace')
         key = "this cache key is far too long so it must be hashed and truncated and stuff" * 10
         value = "some value"
         assert op_addset_succeeds(dc.set(key, value))
@@ -551,8 +553,8 @@ describe 'Dalli' do
     end
 
     it "handle namespaced keys in multi_get" do
-      memcached do |dc|
-        dc = Dalli::Client.new('localhost:19122', :namespace => 'a')
+      memcached_persistent do |dc, port|
+        dc = Dalli::Client.new("localhost:#{port}", :namespace => 'a')
         dc.set('a', 1)
         dc.set('b', 2)
         assert_equal({'a' => 1, 'b' => 2}, dc.get_multi('a', 'b'))
@@ -560,7 +562,7 @@ describe 'Dalli' do
     end
 
     it "handle application marshalling issues" do
-      memcached do |dc|
+      memcached_persistent do |dc|
         old = Dalli.logger
         Dalli.logger = Logger.new(nil)
         begin
@@ -573,7 +575,7 @@ describe 'Dalli' do
 
     describe 'with compression' do
       it 'allow large values' do
-        memcached do |dc|
+        memcached_persistent do |dc|
           dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), :compress => true)
 
           value = "0"*1024*1024
@@ -586,7 +588,7 @@ describe 'Dalli' do
     describe 'in low memory conditions' do
 
       it 'handle error response correctly' do
-        memcached(19125, '-m 1 -M') do |dc|
+        memcached_low_mem_persistent do |dc|
           failed = false
           value = "1234567890"*100
           1_000.times do |idx|
@@ -603,8 +605,8 @@ describe 'Dalli' do
       end
 
       it 'fit more values with compression' do
-        memcached(19126, '-m 1 -M') do |dc|
-          dalli = Dalli::Client.new('localhost:19126', :compress => true)
+        memcached_low_mem_persistent do |dc, port|
+          dalli = Dalli::Client.new("localhost:#{port}", :compress => true)
           failed = false
           value = "1234567890"*1000
           10_000.times do |idx|

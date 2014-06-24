@@ -7,7 +7,8 @@ require 'minitest/autorun'
 require 'mocha/setup'
 require 'memcached_mock'
 
-ENV['MEMCACHED_SASL_PWDB'] = "#{File.dirname(__FILE__)}/sasldb"
+ENV['MEMCACHED_SASL_PWDB'] = "#{File.dirname(__FILE__)}/sasl/sasldb"
+ENV['SASL_CONF_PATH'] = "#{File.dirname(__FILE__)}/sasl/memcached.conf"
 
 WANT_RAILS_VERSION = ENV['RAILS_VERSION'] || '>= 3.0.0'
 gem 'rails', WANT_RAILS_VERSION
