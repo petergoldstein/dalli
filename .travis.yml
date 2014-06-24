@@ -3,14 +3,14 @@ rvm:
   - 1.9.3
   - 2.0.0
   - 2.1.0
-  - rbx
+  - rbx-2
   - jruby
 gemfile:
   - gemfiles/rails3.gemfile
   - gemfiles/rails4.gemfile
 matrix:
   allow_failures:
-    - rvm: rbx
+    - rvm: rbx-2
 env: JRUBY_OPTS='--1.9'
 before_install:
   - sudo apt-get -y remove memcached

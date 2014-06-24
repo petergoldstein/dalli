@@ -17,26 +17,30 @@ describe 'ActiveSupport' do
     end
 
     it 'allow mute and silence' do
-      @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122')
-      @dalli.mute do
-        assert op_addset_succeeds(@dalli.write('foo', 'bar', nil))
-        assert_equal 'bar', @dalli.read('foo', nil)
+      memcached do
+        @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122')
+        @dalli.mute do
+          assert op_addset_succeeds(@dalli.write('foo', 'bar', nil))
+          assert_equal 'bar', @dalli.read('foo', nil)
+        end
+        refute @dalli.silence?
+        @dalli.silence!
+        assert_equal true, @dalli.silence?
       end
-      refute @dalli.silence?
-      @dalli.silence!
-      assert_equal true, @dalli.silence?
     end
 
     it 'handle nil options' do
-      @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122')
-      assert op_addset_succeeds(@dalli.write('foo', 'bar', nil))
-      assert_equal 'bar', @dalli.read('foo', nil)
-      assert_equal 18, @dalli.fetch('lkjsadlfk', nil) { 18 }
-      assert_equal 18, @dalli.fetch('lkjsadlfk', nil) { 18 }
-      assert_equal 1, @dalli.increment('lkjsa', 1, nil)
-      assert_equal 2, @dalli.increment('lkjsa', 1, nil)
-      assert_equal 1, @dalli.decrement('lkjsa', 1, nil)
-      assert_equal true, @dalli.delete('lkjsa')
+      memcached do
+        @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, 'localhost:19122')
+        assert op_addset_succeeds(@dalli.write('foo', 'bar', nil))
+        assert_equal 'bar', @dalli.read('foo', nil)
+        assert_equal 18, @dalli.fetch('lkjsadlfk', nil) { 18 }
+        assert_equal 18, @dalli.fetch('lkjsadlfk', nil) { 18 }
+        assert_equal 1, @dalli.increment('lkjsa', 1, nil)
+        assert_equal 2, @dalli.increment('lkjsa', 1, nil)
+        assert_equal 1, @dalli.decrement('lkjsa', 1, nil)
+        assert_equal true, @dalli.delete('lkjsa')
+      end
     end
 
     it 'support fetch' do

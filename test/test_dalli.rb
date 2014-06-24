@@ -147,6 +147,7 @@ describe 'Dalli' do
     it "support stats" do
       memcached do |dc|
         # make sure that get_hits would not equal 0
+        dc.set(:a, "1234567890"*100000)
         dc.get(:a)
 
         stats = dc.stats

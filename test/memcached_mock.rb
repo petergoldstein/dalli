@@ -68,12 +68,14 @@ module MemcachedMock
     def memcached(port=19122, args='', options={})
       memcached_server(port, args)
       yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
+      memcached_kill(port)
     end
 
     def memcached_cas(port=19122, args='', options={})
       memcached_server(port, args)
       require 'dalli/cas/client'
       yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
+      memcached_kill(port)
     end
 
     def memcached_server(port=19122, args='')
@@ -82,7 +84,7 @@ module MemcachedMock
       cmd = "#{Memcached.path}memcached #{args} -p #{port}"
 
       $started[port] ||= begin
-        #puts "Starting: #{cmd}..."
+        # puts "Starting: #{cmd}..."
         pid = IO.popen(cmd).pid
         at_exit do
           begin
