@@ -153,7 +153,7 @@ Dalli::Client accepts the following options. All times are in seconds.
 
 **failover**: Boolean, if true Dalli will failover to another server if the main server for a key is down.  Default is true.
 
-**compress**: Boolean, if true Dalli will gzip-compress values larger than 1K. Defaults to false.
+**compress**: Boolean, if true Dalli will gzip-compress values larger than 1K. Default is false.
 
 **compression_min_size**: Minimum value byte size for which to attempt compression. Default is 1K.
 
