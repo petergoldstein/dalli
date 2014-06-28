@@ -26,11 +26,7 @@ describe 'Sasl' do
         ENV['MEMCACHE_PASSWORD'] = nil
       end
 
-      it 'provide one test that passes' do
-        assert true
-      end
-
-      it 'gracefully handle authentication failures' do
+      xit 'gracefully handle authentication failures' do
         memcached_sasl_persistent do |dc|
           assert_error Dalli::DalliError, /32/ do
             dc.set('abc', 123)
@@ -39,7 +35,7 @@ describe 'Sasl' do
       end
     end
 
-    it 'fail SASL authentication with wrong options' do
+    xit 'fail SASL authentication with wrong options' do
       memcached_sasl_persistent do |dc, port|
         dc = Dalli::Client.new("localhost:#{port}", :username => 'testuser', :password => 'testtest')
         assert_error Dalli::DalliError, /32/ do
