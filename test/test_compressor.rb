@@ -16,15 +16,14 @@ end
 describe 'Compressor' do
 
   it 'default to Dalli::Compressor' do
-    memcached_kill(29199) do |dc|
-      memcache = Dalli::Client.new('127.0.0.1:29199')
-      memcache.set 1,2
-      assert_equal Dalli::Compressor, memcache.instance_variable_get('@ring').servers.first.compressor
+    memcached(29199) do |dc|
+      dc.set 1,2
+      assert_equal Dalli::Compressor, dc.instance_variable_get('@ring').servers.first.compressor
     end
   end
 
   it 'support a custom compressor' do
-    memcached_kill(29199) do |dc|
+    memcached(29199) do |dc|
       memcache = Dalli::Client.new('127.0.0.1:29199', :compressor => NoopCompressor)
       memcache.set 1,2
       begin

@@ -65,26 +65,75 @@ module MemcachedMock
       raise Errno::ENOENT, "Unable to find memcached 1.4+ locally"
     end
 
-    def memcached(port=19122, args='', options={})
-      memcached_server(port, args)
-      yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
-      memcached_kill(port)
+    def memcached_persistent(port=21345)
+      dc = start_and_flush_with_retry(port, '', {})
+      yield dc, port if block_given?
     end
 
-    def memcached_cas(port=19122, args='', options={})
-      memcached_server(port, args)
+    def sasl_credentials
+      { :username => 'testuser', :password => 'testtest' }
+    end
+
+    def sasl_env
+      {
+        'MEMCACHED_SASL_PWDB' => "#{File.dirname(__FILE__)}/sasl/sasldb",
+        'SASL_CONF_PATH' => "#{File.dirname(__FILE__)}/sasl/memcached.conf"
+      }
+    end
+
+    def memcached_sasl_persistent(port=21397)
+      dc = start_and_flush_with_retry(port, '-S', sasl_credentials)
+      yield dc, port if block_given?
+    end
+
+    def memcached_cas_persistent(port = 25662)
       require 'dalli/cas/client'
-      yield Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], options)
+      dc = start_and_flush_with_retry(port)
+      yield dc, port if block_given?
+    end
+
+
+    def memcached_low_mem_persistent(port = 19128)
+      dc = start_and_flush_with_retry(port, '-m 1 -M')
+      yield dc, port if block_given?
+    end
+
+    def start_and_flush_with_retry(port, args = '', client_options = {})
+      dc = nil
+      retry_count = 0
+      while dc.nil? do
+        begin
+          dc = start_and_flush(port, args, client_options, (retry_count == 0))
+        rescue StandardError => e
+          $started[port] = nil
+          retry_count += 1
+          raise e if retry_count >= 3
+        end
+      end
+      dc
+    end
+
+    def start_and_flush(port, args = '', client_options = {}, flush = true)
+      memcached_server(port, args)
+      dc = Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], client_options)
+      dc.flush_all if flush
+      dc
+    end
+
+    def memcached(port, args='', client_options={})
+      dc = start_and_flush_with_retry(port, args, client_options)
+      yield dc, port if block_given?
       memcached_kill(port)
     end
 
-    def memcached_server(port=19122, args='')
+    def memcached_server(port, args='')
       Memcached.path ||= find_memcached
+      port = port.to_i
 
       cmd = "#{Memcached.path}memcached #{args} -p #{port}"
 
       $started[port] ||= begin
-        # puts "Starting: #{cmd}..."
+        # puts "Starting: #{cmd}... with #{env_vars.inspect}"
         pid = IO.popen(cmd).pid
         at_exit do
           begin
@@ -93,7 +142,8 @@ module MemcachedMock
           rescue Errno::ECHILD, Errno::ESRCH
           end
         end
-        sleep 0.1
+        wait_time = (args && args =~ /\-S/) ? 0.1 : 0.1
+        sleep wait_time
         pid
       end
     end
@@ -108,7 +158,8 @@ module MemcachedMock
         begin
           Process.kill("TERM", pid)
           Process.wait(pid)
-        rescue Errno::ECHILD, Errno::ESRCH
+        rescue Errno::ECHILD, Errno::ESRCH => e
+          puts e.inspect
         end
       end
     end

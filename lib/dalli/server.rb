@@ -67,6 +67,8 @@ module Dalli
         false
       rescue Dalli::DalliError
         raise
+      rescue Timeout::Error
+        raise
       rescue => ex
         Dalli.logger.error "Unexpected exception in Dalli: #{ex.class.name}: #{ex.message}"
         Dalli.logger.error "This is a bug in Dalli, please enter an issue in Github if it does not already exist."
@@ -396,6 +398,8 @@ module Dalli
         marshalled = true
         begin
           self.serializer.dump(value)
+        rescue TimeoutError => e
+          raise e
         rescue => ex
           # Marshalling can throw several different types of generic Ruby exceptions.
           # Convert to a specific exception so we can special case it higher up the stack.
