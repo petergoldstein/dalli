@@ -18,7 +18,7 @@ describe 'Dalli' do
     it 'raises error with invalid expires_in' do
       bad_data = [{:bad => 'expires in data'}, Hash, [1,2,3]]
       bad_data.each do |bad|
-        assert_raises ArgumentError do
+        assert_raises Dalli::ArgumentError do
           Dalli::Client.new('foo', {:expires_in => bad})
         end
       end
@@ -44,10 +44,10 @@ describe 'Dalli' do
         assert_equal 1, dc.get("\t")
         dc.set "\n", 1
         assert_equal 1, dc.get("\n")
-        assert_raises ArgumentError do
+        assert_raises Dalli::ArgumentError do
           dc.set "", 1
         end
-        assert_raises ArgumentError do
+        assert_raises Dalli::ArgumentError do
           dc.set nil, 1
         end
       end
