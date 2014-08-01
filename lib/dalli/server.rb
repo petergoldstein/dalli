@@ -564,8 +564,8 @@ module Dalli
       begin
         @pid = Process.pid
         @sock = KSocket.open(hostname, port, self, options)
-        @version = version # trigger actual connect
         sasl_authentication if need_auth?
+        @version = version # trigger actual connect
         up!
       rescue Dalli::DalliError # SASL auth failure
         raise
@@ -670,7 +670,7 @@ module Dalli
 
       (extras, type, status, count) = read_header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
-      content = read(count)
+      content = read(count).gsub(/\u0000/, ' ')
       return (Dalli.logger.debug("Authentication not required/supported by server")) if status == 0x81
       mechanisms = content.split(' ')
       raise NotImplementedError, "Dalli only supports the PLAIN authentication mechanism" if !mechanisms.include?('PLAIN')
