@@ -68,6 +68,7 @@ module ActiveSupport
         end
 
         extend Strategy::LocalCache
+        extend LocalCacheEntryUnwrapAndRaw
       end
 
       ##
@@ -366,6 +367,25 @@ module ActiveSupport
 
       def raise_errors?
         !!@options[:raise_errors]
+      end
+
+      # Make sure LocalCache is giving raw values, not `Entry`s, and
+      # respect `raw` option.
+      module LocalCacheEntryUnwrapAndRaw # :nodoc:
+        protected
+          def read_entry(key, options)
+            retval = super
+            if retval.is_a? ActiveSupport::Cache::Entry
+              # Must have come from LocalStore, unwrap it
+              if options[:raw]
+                retval.value.to_s
+              else
+                retval.value
+              end
+            else
+              retval
+            end
+          end
       end
     end
   end
