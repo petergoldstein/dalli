@@ -61,14 +61,18 @@ module Dalli
       rescue Dalli::NetworkError
         raise
       rescue Dalli::MarshalError => ex
-        log_marshal_error(ex, args.first)
+        Dalli.logger.error "Marshalling error for key '#{args.first}': #{ex.message}"
+        Dalli.logger.error "You are trying to cache a Ruby object which cannot be serialized to memcached."
+        internal_error ex, key: args.first
         false
       rescue Dalli::DalliError
         raise
       rescue Timeout::Error
         raise
       rescue => ex
-        log_unexpected_error(ex)
+        Dalli.logger.error "Unexpected exception in Dalli: #{ex.class.name}: #{ex.message}"
+        Dalli.logger.error "This is a bug in Dalli, please enter an issue in Github if it does not already exist."
+        internal_error ex
         down!
       end
     end
@@ -214,15 +218,8 @@ module Dalli
       end
     end
 
-    def log_marshal_error(exception, key)
-      Dalli.logger.error "Marshalling error for key '#{key}': #{exception.message}"
-      Dalli.logger.error "You are trying to cache a Ruby object which cannot be serialized to memcached."
-      Dalli.logger.error exception.backtrace.join("\n\t")
-    end
-
-    def log_unexpected_error(exception)
-      Dalli.logger.error "Unexpected exception in Dalli: #{exception.class.name}: #{exception.message}"
-      Dalli.logger.error "This is a bug in Dalli, please enter an issue in Github if it does not already exist."
+    # feel free to monkey patch this
+    def internal_error(exception, options={})
       Dalli.logger.error exception.backtrace.join("\n\t")
     end
 
