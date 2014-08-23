@@ -151,7 +151,14 @@ Dalli::Client accepts the following options. All times are in seconds.
 
 **expires_in**: Global default for key TTL.  Default is 0, which means no expiry.
 
+**namespace**: If specified, prepends each key with this value to provide simple namespacing.  Default is nil.
+
 **failover**: Boolean, if true Dalli will failover to another server if the main server for a key is down.  Default is true.
+
+**threadsafe**: Boolean.  If true Dalli ensures that only one thread is using a socket at a given time.  Default is true.  Set to false at your own peril.
+
+**serializer**: The serializer to use for objects being stored (ex. JSON).
+Default is Marshal.
 
 **compress**: Boolean, if true Dalli will gzip-compress values larger than 1K. Default is false.
 
@@ -159,8 +166,11 @@ Dalli::Client accepts the following options. All times are in seconds.
 
 **compression_max_size**: Maximum value byte size for which to attempt compression. Default is unlimited.
 
-**serializer**: The serializer to use for objects being stored (ex. JSON).
-Default is Marshal.
+**compressor**: The compressor to use for objects being stored.
+Default is zlib, implemented under `Dalli::Compressor`.
+If serving compressed data using nginx's HttpMemcachedModule, set `memcached_gzip_flag 2` and use `Dalli::GzipCompressor`
+
+**keepalive**: Boolean. If true, Dalli will enable keep-alive for socket connections.  Default is true.
 
 **socket_timeout**: Timeout for all socket operations (connect, read, write). Default is 0.5.
 
@@ -168,19 +178,13 @@ Default is Marshal.
 
 **socket_failure_delay**: Before retrying a socket operation, the process sleeps for this amount of time. Default is 0.01.  Set to nil for no delay.
 
-**down_retry_delay**: When a server has been marked down due to many failures, the server will be checked again for being alive only after this amount of time. Don't set this value to low, otherwise each request which tries the failed server might hang for the maximum **socket_timeout**. Default is 1 second.
+**down_retry_delay**: When a server has been marked down due to many failures, the server will be checked again for being alive only after this amount of time. Don't set this value too low, otherwise each request which tries the failed server might hang for the maximum **socket_timeout**. Default is 1 second.
 
 **value_max_bytes**: The maximum size of a value in memcached.  Defaults to 1MB, this can be increased with memcached's -I parameter.  You must also configure Dalli to allow the larger size here.
 
 **username**: The username to use for authenticating this client instance against a SASL-enabled memcached server.  Heroku users should not need to use this normally.
 
 **password**: The password to use for authenticating this client instance against a SASL-enabled memcached server.  Heroku users should not need to use this normally.
-
-**keepalive**: Boolean. If true, Dalli will enable keep-alive for socket connections.  Default is true.
-
-**compressor**: The compressor to use for objects being stored.
-Default is zlib, implemented under `Dalli::Compressor`.
-If serving compressed data using nginx's HttpMemcachedModule, set `memcached_gzip_flag 2` and use `Dalli::GzipCompressor`
 
 Features and Changes
 ------------------------
