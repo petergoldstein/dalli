@@ -58,10 +58,11 @@ module Dalli
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
     def get_multi(*keys)
+      return {} if keys.flatten.compact.empty?
       if block_given?
         get_multi_yielder(keys) {|k, data| yield k, data.first}
       else
-         Hash.new.tap do |hash|
+        Hash.new.tap do |hash|
           get_multi_yielder(keys) {|k, data| hash[k] = data.first}
         end
       end
