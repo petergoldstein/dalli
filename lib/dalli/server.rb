@@ -471,9 +471,9 @@ module Dalli
     def sanitize_ttl(ttl)
       if ttl > MAX_ACCEPTABLE_EXPIRATION_INTERVAL
         Dalli.logger.debug "Expiration interval too long for Memcached, converting to an expiration timestamp"
-        Time.now.to_i + ttl
+        Time.now.to_i + ttl.to_i
       else
-        ttl
+        ttl.to_i
       end
     end
 
