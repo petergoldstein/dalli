@@ -155,8 +155,8 @@ module ActiveSupport
       # Reads multiple keys from the cache using a single call to the
       # servers for all keys. Keys must be Strings.
       def read_multi(*names)
-        names.extract_options!
-        mapping = names.inject({}) { |memo, name| memo[expanded_key(name)] = name; memo }
+        options  = names.extract_options!
+        mapping = names.inject({}) { |memo, name| memo[namespaced_key(name, options)] = name; memo }
         instrument(:read_multi, names) do
           results = {}
           if local_cache
@@ -186,7 +186,7 @@ module ActiveSupport
       # and the result will be written to the cache and returned.
       def fetch_multi(*names)
         options = names.extract_options!
-        mapping = names.inject({}) { |memo, name| memo[expanded_key(name)] = name; memo }
+        mapping = names.inject({}) { |memo, name| memo[namespaced_key(name, options)] = name; memo }
 
         instrument(:fetch_multi, names) do
           with do |connection|
