@@ -83,12 +83,12 @@ module ActiveSupport
 
       def fetch(name, options=nil)
         options ||= {}
-        name = expanded_key name
+        namespaced_name = namespaced_key(name, options)
 
         if block_given?
           unless options[:force]
-            entry = instrument(:read, name, options) do |payload|
-              read_entry(name, options).tap do |result|
+            entry = instrument(:read, namespaced_name, options) do |payload|
+              read_entry(namespaced_name, options).tap do |result|
                 if payload
                   payload[:super_operation] = :fetch
                   payload[:hit] = !!result
@@ -114,7 +114,7 @@ module ActiveSupport
 
       def read(name, options=nil)
         options ||= {}
-        name = expanded_key name
+        name = namespaced_key(name, options)
 
         instrument(:read, name, options) do |payload|
           entry = read_entry(name, options)
@@ -125,7 +125,7 @@ module ActiveSupport
 
       def write(name, value, options=nil)
         options ||= {}
-        name = expanded_key name
+        name = namespaced_key(name, options)
 
         instrument(:write, name, options) do |payload|
           with do |connection|
@@ -137,7 +137,7 @@ module ActiveSupport
 
       def exist?(name, options=nil)
         options ||= {}
-        name = expanded_key name
+        name = namespaced_key(name, options)
 
         log(:exist, name, options)
         !read_entry(name, options).nil?
@@ -145,7 +145,7 @@ module ActiveSupport
 
       def delete(name, options=nil)
         options ||= {}
-        name = expanded_key name
+        name = namespaced_key(name, options)
 
         instrument(:delete, name, options) do |payload|
           delete_entry(name, options)
@@ -155,8 +155,8 @@ module ActiveSupport
       # Reads multiple keys from the cache using a single call to the
       # servers for all keys. Keys must be Strings.
       def read_multi(*names)
-        names.extract_options!
-        mapping = names.inject({}) { |memo, name| memo[expanded_key(name)] = name; memo }
+        options  = names.extract_options!
+        mapping = names.inject({}) { |memo, name| memo[namespaced_key(name, options)] = name; memo }
         instrument(:read_multi, names) do
           results = {}
           if local_cache
@@ -186,7 +186,7 @@ module ActiveSupport
       # and the result will be written to the cache and returned.
       def fetch_multi(*names)
         options = names.extract_options!
-        mapping = names.inject({}) { |memo, name| memo[expanded_key(name)] = name; memo }
+        mapping = names.inject({}) { |memo, name| memo[namespaced_key(name, options)] = name; memo }
 
         instrument(:fetch_multi, names) do
           with do |connection|
@@ -216,7 +216,7 @@ module ActiveSupport
       # memcached counters cannot hold negative values.
       def increment(name, amount = 1, options=nil)
         options ||= {}
-        name = expanded_key name
+        name = namespaced_key(name, options)
         initial = options.has_key?(:initial) ? options[:initial] : amount
         expires_in = options[:expires_in]
         instrument(:increment, name, :amount => amount) do
@@ -235,7 +235,7 @@ module ActiveSupport
       # memcached counters cannot hold negative values.
       def decrement(name, amount = 1, options=nil)
         options ||= {}
-        name = expanded_key name
+        name = namespaced_key(name, options)
         initial = options.has_key?(:initial) ? options[:initial] : 0
         expires_in = options[:expires_in]
         instrument(:decrement, name, :amount => amount) do
@@ -317,6 +317,15 @@ module ActiveSupport
       end
 
       private
+
+      def namespaced_key(key, options)
+        key = expanded_key(key)
+        namespace = options[:namespace] if options
+        prefix = namespace.is_a?(Proc) ? namespace.call : namespace
+        key = "#{prefix}:#{key}" if prefix
+        key
+      end
+
       # Expand key to be a consistent string value. Invoke +cache_key+ if
       # object responds to +cache_key+. Otherwise, to_param method will be
       # called. If the key is a Hash, then keys will be sorted alphabetically.

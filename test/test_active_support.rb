@@ -209,6 +209,51 @@ describe 'ActiveSupport' do
       end
     end
 
+    it 'support read, write and delete with local namespace' do
+      with_activesupport do
+        memcached_persistent(@port) do
+          connect(@port, '')
+          key = 'key_with_namespace'
+          namespace_value = @dalli.fetch(key, :namespace => 'namespace') { 123 }
+          assert_equal 123, namespace_value
+
+          res = @dalli.read(key, :namespace => 'namespace')
+          assert_equal 123, res
+
+          res = @dalli.delete(key, :namespace => 'namespace')
+          assert_equal true, res
+
+          res = @dalli.write(key, "foo", :namespace => 'namespace')
+          assert op_addset_succeeds(res)
+
+          res = @dalli.read(key, :namespace => 'namespace')
+          assert_equal "foo", res
+        end
+      end
+    end
+
+    it 'support multi_read and multi_fetch with local namespace' do
+      with_activesupport do
+        memcached_persistent(@port) do
+          connect(@port, '')
+          x         = rand_key.to_s
+          y         = rand_key
+          namespace = 'namespace'
+          hash      = { x => 'ABC', y => 'DEF' }
+
+          results = @dalli.fetch_multi(x, y, :namespace => namespace) { |key| hash[key] }
+
+          assert_equal({ x => 'ABC', y => 'DEF' }, results)
+          assert_equal('ABC', @dalli.read(x, :namespace => namespace))
+          assert_equal('DEF', @dalli.read(y, :namespace => namespace))
+
+          @dalli.write("abc", 5, :namespace => 'namespace')
+          @dalli.write("cba", 5, :namespace => 'namespace')
+          assert_equal({'abc' => 5, 'cba' => 5 }, @dalli.read_multi("abc", "cba", :namespace => 'namespace'))
+        end
+      end
+    end
+
     it 'support read, write and delete with LocalCache' do
       with_activesupport do
         memcached_persistent(@port) do
@@ -437,8 +482,8 @@ describe 'ActiveSupport' do
     end
   end
 
-  def connect(port = 19122)
-    @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, "localhost:#{port}", :expires_in => 10.seconds, :namespace => lambda{33.to_s(36)})
+  def connect(port = 19122, namespace = lambda{33.to_s(36)})
+    @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, "localhost:#{port}", :expires_in => 10.seconds, :namespace => namespace)
     @dalli.clear
   end
 
