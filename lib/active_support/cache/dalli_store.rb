@@ -83,12 +83,12 @@ module ActiveSupport
 
       def fetch(name, options=nil)
         options ||= {}
-        namesapced_name = namespaced_key(name, options)
+        namespaced_name = namespaced_key(name, options)
 
         if block_given?
           unless options[:force]
-            entry = instrument(:read, namesapced_name, options) do |payload|
-              read_entry(namesapced_name, options).tap do |result|
+            entry = instrument(:read, namespaced_name, options) do |payload|
+              read_entry(namespaced_name, options).tap do |result|
                 if payload
                   payload[:super_operation] = :fetch
                   payload[:hit] = !!result
