@@ -209,6 +209,30 @@ describe 'ActiveSupport' do
       end
     end
 
+
+    it 'support local namesapce' do
+      with_activesupport do
+        memcached_persistent(@port) do
+          connect(@port, '')
+          key = 'key_with_namespace'
+          namespace_value = @dalli.fetch(key, :namespace => 'namespace') { 123 }
+          assert_equal 123, namespace_value
+
+          res = @dalli.read(key, :namespace => 'namespace')
+          assert_equal 123, res
+
+          res = @dalli.delete(key, :namespace => 'namespace')
+          assert_equal true, res
+
+          res = @dalli.write(key, "foo", :namespace => 'namespace')
+          assert op_addset_succeeds(res)
+
+          res = @dalli.read(key, :namespace => 'namespace')
+          assert_equal "foo", res
+        end
+      end
+    end
+
     it 'support read, write and delete with LocalCache' do
       with_activesupport do
         memcached_persistent(@port) do
@@ -437,8 +461,8 @@ describe 'ActiveSupport' do
     end
   end
 
-  def connect(port = 19122)
-    @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, "localhost:#{port}", :expires_in => 10.seconds, :namespace => lambda{33.to_s(36)})
+  def connect(port = 19122, namespace = lambda{33.to_s(36)})
+    @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, "localhost:#{port}", :expires_in => 10.seconds, :namespace => namespace)
     @dalli.clear
   end
 
