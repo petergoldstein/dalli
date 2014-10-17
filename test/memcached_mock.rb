@@ -3,16 +3,16 @@ require "socket"
 $started = {}
 
 module MemcachedMock
-  def self.start(port=19123, &block)
+  def self.start(port=19123)
     server = TCPServer.new("localhost", port)
     session = server.accept
-    block.call session
+    yield(session)
   end
 
-  def self.delayed_start(port=19123, wait=1, &block)
+  def self.delayed_start(port=19123, wait=1)
     server = TCPServer.new("localhost", port)
     sleep wait
-    block.call server
+    yield(server)
   end
 
   module Helper
