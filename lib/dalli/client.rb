@@ -88,12 +88,12 @@ module Dalli
     # - nil if the key did not exist.
     # - false if the value was changed by someone else.
     # - true if the value was successfully updated.
-    def cas(key, ttl=nil, options=nil, &block)
+    def cas(key, ttl=nil, options=nil)
       ttl ||= @options[:expires_in].to_i
       (value, cas) = perform(:cas, key)
       value = (!value || value == 'Not found') ? nil : value
       if value
-        newvalue = block.call(value)
+        newvalue = yield(value)
         perform(:set, key, newvalue, ttl, cas, options)
       end
     end
