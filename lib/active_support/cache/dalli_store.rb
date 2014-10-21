@@ -160,7 +160,7 @@ module ActiveSupport
         instrument(:read_multi, names) do
           results = {}
           if local_cache
-            mapping.keys.each do |key|
+            mapping.each_key do |key|
               if value = local_cache.read_entry(key, options)
                 results[key] = value
               end
