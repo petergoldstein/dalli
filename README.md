@@ -130,7 +130,7 @@ add :pool\_size to your `dalli_store` config:
 config.cache_store = :dalli_store, 'cache-1.example.com', { :pool_size => 5 }
 ```
 
-You can then use the Rails cache as normal or check out a Dalli client directly from the pool:
+You can then use the Rails cache as normal and Rails.cache will use the pool transparently under the covers, or you can check out a Dalli client directly from the pool:
 
 ```ruby
 Rails.cache.fetch('foo', :expires_in => 300) do
