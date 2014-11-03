@@ -209,7 +209,7 @@ We're not accepting new compressors. They are trivial to add in an initializer. 
 Thanks
 ------------
 
-Eric Wong - for help using his [kgio](http://unicorn.bogomips.org/kgio/index.html) library.
+Eric Wong - for help using his [kgio](http://bogomips.org/kgio/) library.
 
 Brian Mitchell - for his remix-stash project which was helpful when implementing and testing the binary protocol support.
 
