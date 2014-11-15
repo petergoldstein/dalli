@@ -694,6 +694,7 @@ module Dalli
 
     def parse_hostname(str)
       res = str.match(/\A(\[([\h:]+)\]|[^:]+)(:(\d+))?(:(\d+))?\z/)
+      raise Dalli::DalliError, "Could not parse hostname #{str}" if res.nil?
       return res[2] || res[1], res[4], res[6]
     end
   end
