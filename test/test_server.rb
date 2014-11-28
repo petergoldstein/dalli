@@ -64,6 +64,12 @@ describe Dalli::Server do
       assert_equal 11212, s.port
       assert_equal 2, s.weight
     end
+
+    it 'throws an exception if the hostname cannot be parsed' do
+      lambda { Dalli::Server.new('my.fqdn.com:') }.must_raise Dalli::DalliError
+      lambda { Dalli::Server.new('my.fqdn.com:11212,:2') }.must_raise Dalli::DalliError
+      lambda { Dalli::Server.new('my.fqdn.com:11212:abc') }.must_raise Dalli::DalliError
+    end
   end
 
   describe 'ttl translation' do
