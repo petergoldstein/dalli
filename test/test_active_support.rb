@@ -114,6 +114,15 @@ describe 'ActiveSupport' do
       end
     end
 
+    it 'support read_multi with an empty array' do
+      with_activesupport do
+        memcached_persistent(@port) do
+          connect(@port)
+          assert_equal({}, @dalli.read_multi([]))
+        end
+      end
+    end
+
     it 'support raw read_multi' do
       with_activesupport do
         memcached_persistent(@port) do
