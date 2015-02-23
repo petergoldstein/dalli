@@ -118,7 +118,7 @@ module ActiveSupport
 
         instrument(:read, name, options) do |payload|
           entry = read_entry(name, options)
-          payload[:hit] = !!entry if payload
+          payload[:hit] = !entry.nil? if payload
           entry
         end
       end
