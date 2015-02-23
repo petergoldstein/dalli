@@ -21,6 +21,16 @@ describe 'Network' do
         end
       end
 
+      it 'handle connection reset with unix socket' do
+        socket_path = MemcachedMock::UNIX_SOCKET_PATH
+        memcached_mock(lambda {|sock| sock.close }, :start_unix, socket_path) do
+          assert_raises Dalli::RingError, :message => "No server available" do
+            dc = Dalli::Client.new(socket_path)
+            dc.get('abc')
+          end
+        end
+      end
+
       it 'handle malformed response' do
         memcached_mock(lambda {|sock| sock.write('123') }) do
           assert_raises Dalli::RingError, :message => "No server available" do

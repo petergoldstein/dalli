@@ -11,8 +11,7 @@ describe 'Sasl' do
       @server = mock()
       @server.stubs(:request).returns(true)
       @server.stubs(:weight).returns(1)
-      @server.stubs(:hostname).returns("localhost")
-      @server.stubs(:port).returns("19124")
+      @server.stubs(:name).returns("localhost:19124")
     end
 
     describe 'without authentication credentials' do

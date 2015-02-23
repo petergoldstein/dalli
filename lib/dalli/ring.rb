@@ -15,7 +15,7 @@ module Dalli
         continuum = []
         servers.each do |server|
           entry_count_for(server, servers.size, total_weight).times do |idx|
-            hash = Digest::SHA1.hexdigest("#{server.hostname}:#{server.port}:#{idx}")
+            hash = Digest::SHA1.hexdigest("#{server.name}:#{idx}")
             value = Integer("0x#{hash[0..7]}")
             continuum << Dalli::Ring::Entry.new(value, server)
           end

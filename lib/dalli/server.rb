@@ -8,7 +8,10 @@ module Dalli
     attr_accessor :weight
     attr_accessor :options
     attr_reader :sock
+    attr_reader :socket_type  # possible values: :unix, :tcp
 
+    DEFAULT_PORT = 11211
+    DEFAULT_WEIGHT = 1
     DEFAULTS = {
       # seconds between trying to contact a remote server
       :down_retry_delay => 1,
@@ -32,11 +35,7 @@ module Dalli
     }
 
     def initialize(attribs, options = {})
-      (@hostname, @port, @weight) = parse_hostname(attribs)
-      @port ||= 11211
-      @port = Integer(@port)
-      @weight ||= 1
-      @weight = Integer(@weight)
+      @hostname, @port, @weight, @socket_type = parse_hostname(attribs)
       @fail_count = 0
       @down_at = nil
       @last_down_at = nil
@@ -49,13 +48,17 @@ module Dalli
     end
 
     def name
-      "#{@hostname}:#{@port}"
+      if socket_type == :unix
+        hostname
+      else
+        "#{hostname}:#{port}"
+      end
     end
 
     # Chokepoint method for instrumentation
     def request(op, *args)
       verify_state
-      raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}. If you are sure it is running, ensure memcached version is > 1.4." unless alive?
+      raise Dalli::NetworkError, "#{name} is down: #{@error} #{@msg}. If you are sure it is running, ensure memcached version is > 1.4." unless alive?
       begin
         send(op, *args)
       rescue Dalli::NetworkError
@@ -82,7 +85,7 @@ module Dalli
 
       if @last_down_at && @last_down_at + options[:down_retry_delay] >= Time.now
         time = @last_down_at + options[:down_retry_delay] - Time.now
-        Dalli.logger.debug { "down_retry_delay not reached for #{hostname}:#{port} (%.3f seconds left)" % time }
+        Dalli.logger.debug { "down_retry_delay not reached for #{name} (%.3f seconds left)" % time }
         return false
       end
 
@@ -205,7 +208,7 @@ module Dalli
     end
 
     def failure!(exception)
-      message = "#{hostname}:#{port} failed (count: #{@fail_count}) #{exception.class}: #{exception.message}"
+      message = "#{name} failed (count: #{@fail_count}) #{exception.class}: #{exception.message}"
       Dalli.logger.info { message }
 
       @fail_count += 1
@@ -225,21 +228,21 @@ module Dalli
 
       if @down_at
         time = Time.now - @down_at
-        Dalli.logger.debug { "#{hostname}:#{port} is still down (for %.3f seconds now)" % time }
+        Dalli.logger.debug { "#{name} is still down (for %.3f seconds now)" % time }
       else
         @down_at = @last_down_at
-        Dalli.logger.warn { "#{hostname}:#{port} is down" }
+        Dalli.logger.warn { "#{name} is down" }
       end
 
       @error = $! && $!.class.name
       @msg = @msg || ($! && $!.message && !$!.message.empty? && $!.message)
-      raise Dalli::NetworkError, "#{hostname}:#{port} is down: #{@error} #{@msg}"
+      raise Dalli::NetworkError, "#{name} is down: #{@error} #{@msg}"
     end
 
     def up!
       if @down_at
         time = Time.now - @down_at
-        Dalli.logger.warn { "#{hostname}:#{port} is back (downtime was %.3f seconds)" % time }
+        Dalli.logger.warn { "#{name} is back (downtime was %.3f seconds)" % time }
       end
 
       @fail_count = 0
@@ -559,11 +562,15 @@ module Dalli
     end
 
     def connect
-      Dalli.logger.debug { "Dalli::Server#connect #{hostname}:#{port}" }
+      Dalli.logger.debug { "Dalli::Server#connect #{name}" }
 
       begin
         @pid = Process.pid
-        @sock = KSocket.open(hostname, port, self, options)
+        if socket_type == :unix
+          @sock = KSocket::UNIX.open(hostname, self, options)
+        else
+          @sock = KSocket::TCP.open(hostname, port, self, options)
+        end
         sasl_authentication if need_auth?
         @version = version # trigger actual connect
         up!
@@ -693,9 +700,23 @@ module Dalli
     end
 
     def parse_hostname(str)
-      res = str.match(/\A(\[([\h:]+)\]|[^:]+)(:(\d+))?(:(\d+))?\z/)
-      raise Dalli::DalliError, "Could not parse hostname #{str}" if res.nil?
-      return res[2] || res[1], res[4], res[6]
+      res = str.match(/\A(\[([\h:]+)\]|[^:]+)(?::(\d+))?(?::(\d+))?\z/)
+      raise Dalli::DalliError, "Could not parse hostname #{str}" if res.nil? || res[1] == '[]'
+      hostnam = res[2] || res[1]
+      if hostnam =~ /\A\//
+        socket_type = :unix
+        # in case of unix socket, allow only setting of weight, not port
+        raise Dalli::DalliError, "Could not parse hostname #{str}" if res[4]
+        weigh = res[3]
+      else
+        socket_type = :tcp
+        por = res[3] || DEFAULT_PORT
+        por = Integer(por)
+        weigh = res[4]
+      end
+      weigh ||= DEFAULT_WEIGHT
+      weigh = Integer(weigh)
+      return hostnam, por, weigh, socket_type
     end
   end
 end

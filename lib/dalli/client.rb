@@ -9,12 +9,15 @@ module Dalli
     # Dalli::Client is the main class which developers will use to interact with
     # the memcached server.  Usage:
     #
-    #   Dalli::Client.new(['localhost:11211:10', 'cache-2.example.com:11211:5', '192.168.0.1:22122:5'],
+    #   Dalli::Client.new(['localhost:11211:10', 'cache-2.example.com:11211:5', '192.168.0.1:22122:5', '/var/run/memcached/socket'],
     #                   :threadsafe => true, :failover => true, :expires_in => 300)
     #
     # servers is an Array of "host:port:weight" where weight allows you to distribute cache unevenly.
     # Both weight and port are optional.  If you pass in nil, Dalli will use the <tt>MEMCACHE_SERVERS</tt>
-    # environment variable or default to 'localhost:11211' if it is not present.
+    # environment variable or default to 'localhost:11211' if it is not present.  Dalli also supports
+    # the ability to connect to Memcached on localhost through a UNIX socket.  To use this functionality,
+    # use a full pathname (beginning with a slash character '/') in place of the "host:port" pair in
+    # the server configuration.
     #
     # Options:
     # - :namespace - prepend each key with this value to provide simple namespacing.
@@ -200,7 +203,7 @@ module Dalli
       type = nil if ![nil, :items,:slabs,:settings].include? type
       values = {}
       ring.servers.each do |server|
-        values["#{server.hostname}:#{server.port}"] = server.alive? ? server.request(:stats,type.to_s) : nil
+        values["#{server.name}"] = server.alive? ? server.request(:stats,type.to_s) : nil
       end
       values
     end
@@ -224,7 +227,7 @@ module Dalli
     def version
       values = {}
       ring.servers.each do |server|
-        values["#{server.hostname}:#{server.port}"] = server.alive? ? server.request(:version) : nil
+        values["#{server.name}"] = server.alive? ? server.request(:version) : nil
       end
       values
     end
@@ -273,7 +276,7 @@ module Dalli
           server.request(:send_multiget, keys_for_server)
         rescue DalliError, NetworkError => e
           Dalli.logger.debug { e.inspect }
-          Dalli.logger.debug { "unable to get keys for server #{server.hostname}:#{server.port}" }
+          Dalli.logger.debug { "unable to get keys for server #{server.name}" }
         end
       end
     end
