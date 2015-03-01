@@ -210,6 +210,11 @@ describe 'ActiveSupport' do
           dres = @dalli.delete(user)
           assert_equal true, dres
 
+          dres = @dalli.write(:false_value, false)
+          assert op_addset_succeeds(dres)
+          dres = @dalli.read(:false_value)
+          assert_equal false, dres
+
           bigkey = '１２３４５６７８９０１２３４５６７８９０１２３４５６７８９０'
           @dalli.write(bigkey, 'double width')
           assert_equal 'double width', @dalli.read(bigkey)
@@ -411,6 +416,40 @@ describe 'ActiveSupport' do
           assert_equal @dalli.read_multi('foo', 'bar'), {}
           assert_raises(*exception) { @dalli.delete 'foo' }
           assert_raises(*exception) { @dalli.fetch('foo') { 42 } }
+        end
+      end
+    end
+
+    describe 'instruments' do
+      it 'payload hits' do
+        with_activesupport do
+          memcached_persistent(@port) do
+            connect(@port)
+
+            payload = {}
+            dres = @dalli.write('false', false)
+            assert op_addset_succeeds(dres)
+            foo = @dalli.fetch('burrito') do 'tacos' end
+            assert 'tacos', foo
+
+            # NOTE: mocha stubbing for yields
+            #       makes the result of the block nil in all cases
+            #       there was a ticket about this:
+            #       http://floehopper.lighthouseapp.com/projects/22289/tickets/14-8687-blocks-return-value-is-dropped-on-stubbed-yielding-methods
+            @dalli.stubs(:instrument).yields payload
+
+            @dalli.read('false')
+            assert_equal true, payload.delete(:hit)
+
+
+            foo = @dalli.fetch('unset_key') do 'tacos' end
+            assert_equal false, payload.delete(:hit)
+
+            @dalli.fetch('burrito') do 'tacos' end
+            assert_equal true, payload.delete(:hit)
+
+            @dalli.unstub(:instrument)
+          end
         end
       end
     end

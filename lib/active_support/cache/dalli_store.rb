@@ -91,7 +91,7 @@ module ActiveSupport
               read_entry(namespaced_name, options).tap do |result|
                 if payload
                   payload[:super_operation] = :fetch
-                  payload[:hit] = !!result
+                  payload[:hit] = !result.nil?
                 end
               end
             end
