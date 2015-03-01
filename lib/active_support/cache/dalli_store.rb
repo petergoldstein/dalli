@@ -91,7 +91,7 @@ module ActiveSupport
               read_entry(namespaced_name, options).tap do |result|
                 if payload
                   payload[:super_operation] = :fetch
-                  payload[:hit] = !!result
+                  payload[:hit] = !result.nil?
                 end
               end
             end
@@ -118,7 +118,7 @@ module ActiveSupport
 
         instrument(:read, name, options) do |payload|
           entry = read_entry(name, options)
-          payload[:hit] = !!entry if payload
+          payload[:hit] = !entry.nil? if payload
           entry
         end
       end
