@@ -481,6 +481,60 @@ describe 'Dalli' do
       end
     end
 
+    it "pass a simple smoke test on unix socket" do
+      memcached_persistent(MemcachedMock::UNIX_SOCKET_PATH) do |dc, path|
+        resp = dc.flush
+        refute_nil resp
+        assert_equal [true], resp
+
+        assert op_addset_succeeds(dc.set(:foo, 'bar'))
+        assert_equal 'bar', dc.get(:foo)
+
+        resp = dc.get('123')
+        assert_equal nil, resp
+
+        assert op_addset_succeeds(dc.set('123', 'xyz'))
+
+        resp = dc.get('123')
+        assert_equal 'xyz', resp
+
+        assert op_addset_succeeds(dc.set('123', 'abc'))
+
+        dc.prepend('123', '0')
+        dc.append('123', '0')
+
+        assert_raises Dalli::UnmarshalError do
+          resp = dc.get('123')
+        end
+
+        dc.close
+        dc = nil
+
+        dc = Dalli::Client.new(path)
+
+        assert op_addset_succeeds(dc.set('456', 'xyz', 0, :raw => true))
+
+        resp = dc.prepend '456', '0'
+        assert_equal true, resp
+
+        resp = dc.append '456', '9'
+        assert_equal true, resp
+
+        resp = dc.get('456', :raw => true)
+        assert_equal '0xyz9', resp
+
+        assert op_addset_succeeds(dc.set('456', false))
+
+        resp = dc.get('456')
+        assert_equal false, resp
+
+        resp = dc.stats
+        assert_equal Hash, resp.class
+
+        dc.close
+      end
+    end
+
     it "support multithreaded access" do
       memcached_persistent do |cache|
         cache.flush

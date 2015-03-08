@@ -13,17 +13,6 @@ begin
       IO.select(nil, [self], nil, options[:socket_timeout]) || raise(Timeout::Error, "IO timeout")
     end
 
-    def self.open(host, port, server, options = {})
-      addr = Socket.pack_sockaddr_in(port, host)
-      sock = start(addr)
-      sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
-      sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
-      sock.options = options
-      sock.server = server
-      sock.kgio_wait_writable
-      sock
-    end
-
     alias :write :kgio_write
 
     def readfull(count)
@@ -50,7 +39,30 @@ begin
       end
       value
     end
+  end
 
+  class Dalli::Server::KSocket::TCP < Dalli::Server::KSocket
+    def self.open(host, port, server, options = {})
+      addr = Socket.pack_sockaddr_in(port, host)
+      sock = start(addr)
+      sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
+      sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
+      sock.options = options
+      sock.server = server
+      sock.kgio_wait_writable
+      sock
+    end
+  end
+
+  class Dalli::Server::KSocket::UNIX < Dalli::Server::KSocket
+    def self.open(path, server, options = {})
+      addr = Socket.pack_sockaddr_un(path)
+      sock = start(addr)
+      sock.options = options
+      sock.server = server
+      sock.kgio_wait_writable
+      sock
+    end
   end
 
   if ::Kgio.respond_to?(:wait_readable=)
@@ -61,48 +73,70 @@ begin
 rescue LoadError
 
   puts "Using standard socket IO (#{RUBY_DESCRIPTION})" if defined?($TESTING) && $TESTING
-  class Dalli::Server::KSocket < TCPSocket
-    attr_accessor :options, :server
+  module Dalli::Server::KSocket
+    module InstanceMethods
+      def readfull(count)
+        value = ''
+        begin
+          loop do
+            value << read_nonblock(count - value.bytesize)
+            break if value.bytesize == count
+          end
+        rescue Errno::EAGAIN, Errno::EWOULDBLOCK
+          if IO.select([self], nil, nil, options[:socket_timeout])
+            retry
+          else
+            raise Timeout::Error, "IO timeout: #{options.inspect}"
+          end
+        end
+        value
+      end
+
+      def read_available
+        value = ''
+        loop do
+          begin
+            value << read_nonblock(8196)
+          rescue Errno::EAGAIN, Errno::EWOULDBLOCK
+            break
+          end
+        end
+        value
+      end
+    end
+
+    def self.included(receiver)
+      receiver.send(:attr_accessor, :options, :server)
+      receiver.send(:include, InstanceMethods)
+    end
+  end
+
+  class Dalli::Server::KSocket::TCP < TCPSocket
+    include Dalli::Server::KSocket
 
     def self.open(host, port, server, options = {})
       Timeout.timeout(options[:socket_timeout]) do
         sock = new(host, port)
         sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
         sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
-        sock.options = { :host => host, :port => port }.merge(options)
+        sock.options = {:host => host, :port => port}.merge(options)
         sock.server = server
         sock
       end
     end
-
-    def readfull(count)
-      value = ''
-      begin
-        loop do
-          value << read_nonblock(count - value.bytesize)
-          break if value.bytesize == count
-        end
-      rescue Errno::EAGAIN, Errno::EWOULDBLOCK
-        if IO.select([self], nil, nil, options[:socket_timeout])
-          retry
-        else
-          raise Timeout::Error, "IO timeout: #{options.inspect}"
-        end
-      end
-      value
-    end
-
-    def read_available
-      value = ''
-      loop do
-        begin
-          value << read_nonblock(8196)
-        rescue Errno::EAGAIN, Errno::EWOULDBLOCK
-          break
-        end
-      end
-      value
-    end
-
   end
+
+  class Dalli::Server::KSocket::UNIX < UNIXSocket
+    include Dalli::Server::KSocket
+
+    def self.open(path, server, options = {})
+      Timeout.timeout(options[:socket_timeout]) do
+        sock = new(path)
+        sock.options = {:path => path}.merge(options)
+        sock.server = server
+        sock
+      end
+    end
+  end
+
 end

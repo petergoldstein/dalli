@@ -1,10 +1,23 @@
 require "socket"
+require "tempfile"
 
 $started = {}
 
 module MemcachedMock
+  UNIX_SOCKET_PATH = (f = Tempfile.new('dalli_test'); f.close; f.path)
+
   def self.start(port=19123)
     server = TCPServer.new("localhost", port)
+    session = server.accept
+    yield(session)
+  end
+
+  def self.start_unix(path=UNIX_SOCKET_PATH)
+    begin
+      File.delete(path)
+    rescue Errno::ENOENT
+    end
+    server = UNIXServer.new(path)
     session = server.accept
     yield(session)
   end
@@ -23,13 +36,13 @@ module MemcachedMock
     #       assert_equal "PONG", Dalli::Client.new('localhost:22122').get('abc')
     #     end
     #
-    def memcached_mock(proc, meth = :start)
+    def memcached_mock(proc, meth=:start, meth_args=[])
       return unless supports_fork?
       begin
         pid = fork do
           trap("TERM") { exit }
 
-          MemcachedMock.send(meth) do |*args|
+          MemcachedMock.send(meth, *meth_args) do |*args|
             proc.call(*args)
           end
         end
@@ -115,7 +128,12 @@ module MemcachedMock
 
     def start_and_flush(port, args = '', client_options = {}, flush = true)
       memcached_server(port, args)
-      dc = Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], client_options)
+      if "#{port}" =~ /\A\//
+        # unix socket
+        dc = Dalli::Client.new(port, client_options)
+      else
+        dc = Dalli::Client.new(["localhost:#{port}", "127.0.0.1:#{port}"], client_options)
+      end
       dc.flush_all if flush
       dc
     end
@@ -128,12 +146,21 @@ module MemcachedMock
 
     def memcached_server(port, args='')
       Memcached.path ||= find_memcached
-      port = port.to_i
+      if "#{port}" =~ /\A\//
+        # unix socket
+        port_socket_arg = '-s'
+        begin
+          File.delete(port)
+        rescue Errno::ENOENT
+        end
+      else
+        port_socket_arg = '-p'
+        port = port.to_i
+      end
 
-      cmd = "#{Memcached.path}memcached #{args} -p #{port}"
+      cmd = "#{Memcached.path}memcached #{args} #{port_socket_arg} #{port}"
 
       $started[port] ||= begin
-        # puts "Starting: #{cmd}... with #{env_vars.inspect}"
         pid = IO.popen(cmd).pid
         at_exit do
           begin

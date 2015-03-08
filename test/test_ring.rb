@@ -5,8 +5,8 @@ describe 'Ring' do
   describe 'a ring of servers' do
 
     it "have the continuum sorted by value" do
-      servers = [stub(:hostname => "localhost", :port => "11211", :weight => 1),
-                 stub(:hostname => "localhost", :port => "9500", :weight => 1)]
+      servers = [stub(:name => "localhost:11211", :weight => 1),
+                 stub(:name => "localhost:9500", :weight => 1)]
       ring = Dalli::Ring.new(servers, {})
       previous_value = 0
       ring.continuum.each do |entry|
