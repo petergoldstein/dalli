@@ -73,8 +73,7 @@ module Dalli
       rescue Timeout::Error
         raise
       rescue => ex
-        Dalli.logger.error "Unexpected exception in Dalli: #{ex.class.name}: #{ex.message}"
-        Dalli.logger.error "This is a bug in Dalli, please enter an issue in Github if it does not already exist."
+        Dalli.logger.error "Unexpected exception during Dalli request: #{ex.class.name}: #{ex.message}"
         Dalli.logger.error ex.backtrace.join("\n\t")
         down!
       end
