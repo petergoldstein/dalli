@@ -1,6 +1,20 @@
 Dalli Changelog
 =====================
 
+2.7.3
+==========
+
+- Assorted spec improvements
+- README changes to specify defaults for failover and compress options (keen99, #470)
+- SASL authentication changes to deal with Unicode characters (flypiggy, #477)
+- Call to_i on ttl to accomodate ActiveSupport::Duration (#494)
+- Change to implicit blocks for performance (glaucocustodio, #495)
+- Change to each_key for performance (jastix, #496)
+- Support stats settings - (dterei, #500)
+- Raise DallError if hostname canno be parsed (dannyfallon, #501)
+- Fix instrumentation for falsey values (AlexRiedler, #514)
+- Support UNIX socket configurations (r-stu31, #515)
+
 2.7.2
 ==========
 
