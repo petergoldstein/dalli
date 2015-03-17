@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+2.7.4
+==========
+
+- Restore Windows compatibility (dfens, #524)
+
 2.7.3
 ==========
 
