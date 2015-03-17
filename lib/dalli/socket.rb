@@ -1,3 +1,5 @@
+require 'rbconfig'
+
 begin
   require 'kgio'
   puts "Using kgio socket IO" if defined?($TESTING) && $TESTING
@@ -126,7 +128,7 @@ rescue LoadError
     end
   end
 
-  if RUBY_PLATFORM =~ /mingw|mswin/
+  if RbConfig::CONFIG['host_os'] =~ /mingw|mswin/
     class Dalli::Server::KSocket::UNIX
       def initialize(*args)
         raise Dalli::DalliError, "Unix sockets are not supported on Windows platform."
