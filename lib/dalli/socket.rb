@@ -126,17 +126,25 @@ rescue LoadError
     end
   end
 
-  class Dalli::Server::KSocket::UNIX < UNIXSocket
-    include Dalli::Server::KSocket
-
-    def self.open(path, server, options = {})
-      Timeout.timeout(options[:socket_timeout]) do
-        sock = new(path)
-        sock.options = {:path => path}.merge(options)
-        sock.server = server
-        sock
+  if RUBY_PLATFORM =~ /mingw|mswin/
+    class Dalli::Server::KSocket::UNIX
+      def initialize(*args)
+        raise Dalli::DalliError, "Unix sockets are not supported on Windows platform."
       end
     end
-  end
+  else
+    class Dalli::Server::KSocket::UNIX < UNIXSocket
+      include Dalli::Server::KSocket
 
+      def self.open(path, server, options = {})
+        Timeout.timeout(options[:socket_timeout]) do
+          sock = new(path)
+          sock.options = {:path => path}.merge(options)
+          sock.server = server
+          sock
+        end
+      end
+    end
+
+  end
 end
