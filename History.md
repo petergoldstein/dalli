@@ -5,6 +5,7 @@ Dalli Changelog
 ==========
 
 - Restore Windows compatibility (dfens, #524)
+- Log retryable server errors with 'warn' instead of 'info'
 
 2.7.3
 ==========
