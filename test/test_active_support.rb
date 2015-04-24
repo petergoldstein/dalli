@@ -54,6 +54,9 @@ describe 'ActiveSupport' do
           dvalue = @dalli.fetch('someotherkeywithoutspaces', :expires_in => 1.second) { 123 }
           assert_equal 123, dvalue
 
+          dvalue = @dalli.fetch('somekey', :expires_in => -> { 1.second } ) { 234 }
+          assert_equal 234, dvalue
+
           o = Object.new
           o.instance_variable_set :@foo, 'bar'
           dvalue = @dalli.fetch(rand_key, :raw => true) { o }
@@ -474,6 +477,9 @@ describe 'ActiveSupport' do
         assert_equal 1, @dalli.instance_variable_get(:@data).instance_variable_get(:@options)[:expires_in]
         assert_equal 'foo', @dalli.instance_variable_get(:@data).instance_variable_get(:@options)[:namespace]
         assert_equal ["localhost:#{@port}"], @dalli.instance_variable_get(:@data).instance_variable_get(:@servers)
+
+        @dalli = ActiveSupport::Cache::DalliStore.new("localhost:#{@port}", :expires_in => -> { 2 })
+        assert_equal 2, @dalli.instance_variable_get(:@data).instance_variable_get(:@options)[:expires_in]
       end
     end
   end

@@ -35,7 +35,7 @@ module Dalli
     # Set the key-value pair, verifying existing CAS.
     # Returns the resulting CAS value if succeeded, and falsy otherwise.
     def set_cas(key, value, cas, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in].to_i
+      ttl ||= expires_in_value @options
       perform(:set, key, value, ttl, cas, options)
     end
 
@@ -44,7 +44,7 @@ module Dalli
     # key already exists on the server.  Returns the new CAS value if the
     # operation succeeded, or falsy otherwise.
     def replace_cas(key, value, cas, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in].to_i
+      ttl ||= expires_in_value @options
       perform(:replace, key, value, ttl, cas, options)
     end
 
