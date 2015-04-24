@@ -380,8 +380,7 @@ module Dalli
     # options - The Hash with options.
     #           :expires_in - The String, Integer or Proc TTL in seconds.
     #
-    # Returns Numeric number of seconds which should passed as :expires_in key
-    # value, or nil if no state change is to occur.
+    # Returns Numeric number of seconds which should passed as :expires_in key value.
     def expires_in_value(options)
       expires_in = options[:expires_in]
       expires_in = expires_in.call if expires_in.is_a?(Proc)
