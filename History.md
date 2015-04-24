@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+2.7.5
+==========
+
+- Add ability to use `Proc` as `:expires_in` key (avokhmin, #531)
+
 2.7.4
 ==========
 
