@@ -72,10 +72,10 @@ module Dalli
     end
 
     def fetch(key, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in].to_i
       val = get(key, options)
       if val.nil? && block_given?
-        val = yield
+        val   = yield
+        ttl ||= expires_in_value @options
         add(key, val, ttl, options)
       end
       val
@@ -93,17 +93,17 @@ module Dalli
     # - false if the value was changed by someone else.
     # - true if the value was successfully updated.
     def cas(key, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in].to_i
       (value, cas) = perform(:cas, key)
       value = (!value || value == 'Not found') ? nil : value
       if value
-        newvalue = yield(value)
+        newvalue  = yield(value)
+        ttl     ||= expires_in_value @options
         perform(:set, key, newvalue, ttl, cas, options)
       end
     end
 
     def set(key, value, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in].to_i
+      ttl ||= expires_in_value @options
       perform(:set, key, value, ttl, 0, options)
     end
 
@@ -111,7 +111,7 @@ module Dalli
     # Conditionally add a key/value pair, if the key does not already exist
     # on the server.  Returns truthy if the operation succeeded.
     def add(key, value, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in].to_i
+      ttl ||= expires_in_value @options
       perform(:add, key, value, ttl, options)
     end
 
@@ -119,7 +119,7 @@ module Dalli
     # Conditionally add a key/value pair, only if the key already exists
     # on the server.  Returns truthy if the operation succeeded.
     def replace(key, value, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in].to_i
+      ttl ||= expires_in_value @options
       perform(:replace, key, value, ttl, 0, options)
     end
 
@@ -161,7 +161,7 @@ module Dalli
     # #cas.
     def incr(key, amt=1, ttl=nil, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
-      ttl ||= @options[:expires_in].to_i
+      ttl ||= expires_in_value @options
       perform(:incr, key, amt.to_i, ttl, default)
     end
 
@@ -181,7 +181,7 @@ module Dalli
     # #cas.
     def decr(key, amt=1, ttl=nil, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
-      ttl ||= @options[:expires_in].to_i
+      ttl ||= expires_in_value @options
       perform(:decr, key, amt.to_i, ttl, default)
     end
 
@@ -190,7 +190,7 @@ module Dalli
     #
     # Returns true if key exists, otherwise nil.
     def touch(key, ttl=nil)
-      ttl ||= @options[:expires_in].to_i
+      ttl ||= expires_in_value @options
       resp = perform(:touch, key, ttl)
       resp.nil? ? nil : true
     end
@@ -368,11 +368,24 @@ module Dalli
         opts[:compress] = opts.delete(:compression)
       end
       begin
-        opts[:expires_in] = opts[:expires_in].to_i if opts[:expires_in]
+        opts[:expires_in] = expires_in_value(opts) if opts[:expires_in]
       rescue NoMethodError
         raise ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
       end
       opts
+    end
+
+    # Private: Get expiration time.
+    #
+    # options - The Hash with options.
+    #           :expires_in - The String, Integer or Proc TTL in seconds.
+    #
+    # Returns Numeric number of seconds which should passed as :expires_in key
+    # value, or nil if no state change is to occur.
+    def expires_in_value(options)
+      expires_in = options[:expires_in]
+      expires_in = expires_in.call if expires_in.is_a?(Proc)
+      expires_in.to_i
     end
 
     ##
