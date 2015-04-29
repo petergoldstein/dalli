@@ -95,7 +95,7 @@ module MemcachedMock
     end
 
     def memcached_sasl_persistent(port=21397)
-      dc = start_and_flush_with_retry(port, '-S', sasl_credentials)
+      dc = start_and_flush_with_retry(port, '-S')
       yield dc, port if block_given?
     end
 
