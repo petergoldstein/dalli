@@ -413,7 +413,8 @@ module Dalli
         value.to_s
       end
       compressed = false
-      if @options[:compress] && value.bytesize >= @options[:compression_min_size] &&
+      set_compress_option = true if options && options[:compress]
+      if (@options[:compress] || set_compress_option) && value.bytesize >= @options[:compression_min_size] &&
         (!@options[:compression_max_size] || value.bytesize <= @options[:compression_max_size])
         value = self.compressor.compress(value)
         compressed = true
