@@ -637,6 +637,13 @@ describe 'Dalli' do
           dalli.set('verylarge', value)
         end
       end
+
+      it 'allow large values to be set' do
+        memcached_persistent do |dc|
+          value = "0"*1024*1024
+          assert dc.set('verylarge', value, nil, :compress => true)
+        end
+      end
     end
 
     describe 'in low memory conditions' do
