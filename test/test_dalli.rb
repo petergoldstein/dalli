@@ -427,6 +427,39 @@ describe 'Dalli' do
       end
     end
 
+    it 'allow TCP connections to be configured using hash' do
+      memcached_persistent do |dc, port|
+        value = 5000
+        sock_opt = {:level => Socket::SOL_SOCKET, :name => Socket::SO_RCVBUF, :value => value}
+        dc = Dalli::Client.new("localhost:#{port}", :sockopts => [sock_opt])
+        dc.set(:a, 1)
+        ring = dc.send(:ring)
+        server = ring.servers.first
+        socket = server.instance_variable_get('@sock')
+
+        optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF)
+        expected = jruby? ? value : value * 2
+        assert_equal expected, optval.unpack('i')[0]
+      end
+    end
+
+    unless jruby?
+      it 'allow TCP connections to be configured using Socket::Option' do
+        memcached_persistent do |dc, port|
+          value = 5000
+          sockopt = Socket::Option.new(Socket::AF_INET, Socket::SOL_SOCKET, Socket::SO_SNDBUF, [value].pack('i'))
+          dc = Dalli::Client.new("localhost:#{port}", :sockopts => [sockopt])
+          dc.set(:a, 1)
+          ring = dc.send(:ring)
+          server = ring.servers.first
+          socket = server.instance_variable_get('@sock')
+
+          optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF)
+          assert_equal value * 2, optval.unpack('i')[0]
+        end
+      end
+    end
+
     it "pass a simple smoke test" do
       memcached_persistent do |dc, port|
         resp = dc.flush

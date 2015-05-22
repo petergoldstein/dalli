@@ -31,7 +31,11 @@ module Dalli
       :serializer => Marshal,
       :username => nil,
       :password => nil,
-      :keepalive => true
+      :keepalive => true,
+      # an array of hash or Socket::Option
+      # [{level: Socket::SOL_SOCKET, name: Socket::SO_RCVBUF, value: 1024 * 1024},
+      #  Socket::Option.new(level, family, optname, value)]
+      :sockopts => []
     }
 
     def initialize(attribs, options = {})

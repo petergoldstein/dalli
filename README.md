@@ -16,8 +16,7 @@ Design
 I decided to write Dalli after maintaining memcache-client for two years for a few specific reasons:
 
  0. The code is mostly old and gross.  The bulk of the code is a single 1000 line .rb file.
- 1. It has a lot of options that are infrequently used which complicate the codebase.
- 2. The implementation has no single point to attach monitoring hooks.
+ 1. It has a lot of options that are infrequently used which complicate the codebase.  2. The implementation has no single point to attach monitoring hooks.
  3. Uses the old text protocol, which hurts raw performance.
 
 So a few notes.  Dalli:
@@ -185,6 +184,8 @@ If serving compressed data using nginx's HttpMemcachedModule, set `memcached_gzi
 **username**: The username to use for authenticating this client instance against a SASL-enabled memcached server.  Heroku users should not need to use this normally.
 
 **password**: The password to use for authenticating this client instance against a SASL-enabled memcached server.  Heroku users should not need to use this normally.
+
+**sockopts**: Set socket options such as SO_SNDBUF and SO_RCVBUF.  
 
 Features and Changes
 ------------------------
