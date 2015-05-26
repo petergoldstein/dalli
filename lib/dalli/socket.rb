@@ -1,5 +1,14 @@
 require 'rbconfig'
 
+module Dalli::Server::TCPSocketOptions
+  def setsockopts(sock, options)
+    sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
+    sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
+    sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF, options[:rcvbuf]) if options[:rcvbuf]
+    sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, options[:sndbuf]) if options[:sndbuf]
+  end
+end
+
 begin
   require 'kgio'
   puts "Using kgio socket IO" if defined?($TESTING) && $TESTING
@@ -44,11 +53,12 @@ begin
   end
 
   class Dalli::Server::KSocket::TCP < Dalli::Server::KSocket
+    extend Dalli::Server::TCPSocketOptions
+
     def self.open(host, port, server, options = {})
       addr = Socket.pack_sockaddr_in(port, host)
       sock = start(addr)
-      sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
-      sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
+      setsockopts(sock, options)
       sock.options = options
       sock.server = server
       sock.kgio_wait_writable
@@ -114,13 +124,13 @@ rescue LoadError
   end
 
   class Dalli::Server::KSocket::TCP < TCPSocket
+    extend Dalli::Server::TCPSocketOptions
     include Dalli::Server::KSocket
 
     def self.open(host, port, server, options = {})
       Timeout.timeout(options[:socket_timeout]) do
         sock = new(host, port)
-        sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
-        sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
+        setsockopts(sock, options)
         sock.options = {:host => host, :port => port}.merge(options)
         sock.server = server
         sock

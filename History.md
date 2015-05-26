@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+2.7.5
+==========
+
+- Support rcvbuff and sndbuff byte configuration. (btatnall)
+
 2.7.4
 ==========
 

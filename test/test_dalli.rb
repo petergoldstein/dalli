@@ -427,6 +427,36 @@ describe 'Dalli' do
       end
     end
 
+    it 'allow TCP connections to configure SO_RCVBUF' do
+      memcached_persistent do |dc, port|
+        value = 5000
+        dc = Dalli::Client.new("localhost:#{port}", :rcvbuf => value)
+        dc.set(:a, 1)
+        ring = dc.send(:ring)
+        server = ring.servers.first
+        socket = server.instance_variable_get('@sock')
+
+        optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF)
+        expected = jruby? ? value : value * 2
+        assert_equal expected, optval.unpack('i')[0]
+      end
+    end
+
+    it 'allow TCP connections to configure SO_SNDBUF' do
+      memcached_persistent do |dc, port|
+        value = 5000
+        dc = Dalli::Client.new("localhost:#{port}", :sndbuf => value)
+        dc.set(:a, 1)
+        ring = dc.send(:ring)
+        server = ring.servers.first
+        socket = server.instance_variable_get('@sock')
+
+        optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF)
+        expected = jruby? ? value : value * 2
+        assert_equal expected, optval.unpack('i')[0]
+      end
+    end
+
     it "pass a simple smoke test" do
       memcached_persistent do |dc, port|
         resp = dc.flush

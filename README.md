@@ -186,6 +186,10 @@ If serving compressed data using nginx's HttpMemcachedModule, set `memcached_gzi
 
 **password**: The password to use for authenticating this client instance against a SASL-enabled memcached server.  Heroku users should not need to use this normally.
 
+**sndbuf**: In bytes, set the socket SO_SNDBUF. Defaults to operating system default.
+
+**rcvbuf**: In bytes, set the socket SO_RCVBUF. Defatuls to operating system default.
+
 Features and Changes
 ------------------------
 

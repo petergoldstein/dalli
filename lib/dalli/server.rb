@@ -31,7 +31,11 @@ module Dalli
       :serializer => Marshal,
       :username => nil,
       :password => nil,
-      :keepalive => true
+      :keepalive => true,
+      # max byte size for SO_SNDBUF
+      :sndbuf => nil,
+      # max byte size for SO_RCVBUF
+      :rcvbuf => nil
     }
 
     def initialize(attribs, options = {})
