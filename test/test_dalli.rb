@@ -427,11 +427,10 @@ describe 'Dalli' do
       end
     end
 
-    it 'allow TCP connections to be configured using hash' do
+    it 'allow TCP connections to configure SO_RCVBUF' do
       memcached_persistent do |dc, port|
         value = 5000
-        sock_opt = {:level => Socket::SOL_SOCKET, :name => Socket::SO_RCVBUF, :value => value}
-        dc = Dalli::Client.new("localhost:#{port}", :sockopts => [sock_opt])
+        dc = Dalli::Client.new("localhost:#{port}", :rcvbuf => value)
         dc.set(:a, 1)
         ring = dc.send(:ring)
         server = ring.servers.first
@@ -443,20 +442,18 @@ describe 'Dalli' do
       end
     end
 
-    unless jruby?
-      it 'allow TCP connections to be configured using Socket::Option' do
-        memcached_persistent do |dc, port|
-          value = 5000
-          sockopt = Socket::Option.new(Socket::AF_INET, Socket::SOL_SOCKET, Socket::SO_SNDBUF, [value].pack('i'))
-          dc = Dalli::Client.new("localhost:#{port}", :sockopts => [sockopt])
-          dc.set(:a, 1)
-          ring = dc.send(:ring)
-          server = ring.servers.first
-          socket = server.instance_variable_get('@sock')
+    it 'allow TCP connections to configure SO_SNDBUF' do
+      memcached_persistent do |dc, port|
+        value = 5000
+        dc = Dalli::Client.new("localhost:#{port}", :sndbuf => value)
+        dc.set(:a, 1)
+        ring = dc.send(:ring)
+        server = ring.servers.first
+        socket = server.instance_variable_get('@sock')
 
-          optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF)
-          assert_equal value * 2, optval.unpack('i')[0]
-        end
+        optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF)
+        expected = jruby? ? value : value * 2
+        assert_equal expected, optval.unpack('i')[0]
       end
     end
 

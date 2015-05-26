@@ -32,10 +32,10 @@ module Dalli
       :username => nil,
       :password => nil,
       :keepalive => true,
-      # an array of hash or Socket::Option
-      # [{level: Socket::SOL_SOCKET, name: Socket::SO_RCVBUF, value: 1024 * 1024},
-      #  Socket::Option.new(level, family, optname, value)]
-      :sockopts => []
+      # max byte size for SO_SNDBUF
+      :sndbuf => nil,
+      # max byte size for SO_RCVBUF
+      :rcvbuf => nil
     }
 
     def initialize(attribs, options = {})

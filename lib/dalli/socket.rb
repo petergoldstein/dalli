@@ -4,13 +4,8 @@ module Dalli::Server::TCPSocketOptions
   def setsockopts(sock, options)
     sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
     sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true) if options[:keepalive]
-    options[:sockopts].each do |sockopt|
-      if sockopt.instance_of?(Socket::Option)
-        sock.setsockopt(sockopt)
-      else
-        sock.setsockopt(sockopt[:level], sockopt[:name], sockopt[:value])
-      end
-    end
+    sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF, options[:rcvbuf]) if options[:rcvbuf]
+    sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, options[:sndbuf]) if options[:sndbuf]
   end
 end
 
