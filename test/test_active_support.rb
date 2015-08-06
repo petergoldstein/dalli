@@ -358,6 +358,46 @@ describe 'ActiveSupport' do
       end
     end
 
+    it 'support increment/decrement and raw commands with LocalCache' do
+      with_activesupport do
+        memcached_persistent(@port) do
+          connect(@port)
+          @dalli.with_local_cache do
+            assert op_addset_succeeds(@dalli.write('counter', 0, :raw => true))
+            assert_equal 1, @dalli.increment('counter')
+            assert_equal 2, @dalli.increment('counter')
+            assert_equal 1, @dalli.decrement('counter')
+            assert_equal "1", @dalli.read('counter', :raw => true)
+
+            assert_equal 1, @dalli.increment('counterX')
+            assert_equal 2, @dalli.increment('counterX')
+            assert_equal 2, @dalli.read('counterX', :raw => true).to_i
+
+            assert_equal 5, @dalli.increment('counterY1', 1, :initial => 5)
+            assert_equal 6, @dalli.increment('counterY1', 1, :initial => 5)
+            assert_equal 6, @dalli.read('counterY1', :raw => true).to_i
+
+            assert_equal nil, @dalli.increment('counterZ1', 1, :initial => nil)
+            assert_equal nil, @dalli.read('counterZ1')
+
+            assert_equal 5, @dalli.decrement('counterY2', 1, :initial => 5)
+            assert_equal 4, @dalli.decrement('counterY2', 1, :initial => 5)
+            assert_equal 4, @dalli.read('counterY2', :raw => true).to_i
+
+            assert_equal nil, @dalli.decrement('counterZ2', 1, :initial => nil)
+            assert_equal nil, @dalli.read('counterZ2')
+
+            user = MockUser.new
+            assert op_addset_succeeds(@dalli.write(user, 0, :raw => true))
+            assert_equal 1, @dalli.increment(user)
+            assert_equal 2, @dalli.increment(user)
+            assert_equal 1, @dalli.decrement(user)
+            assert_equal "1", @dalli.read(user, :raw => true)
+          end
+        end
+      end
+    end
+
     it 'support exist command' do
       with_activesupport do
         memcached_persistent(@port) do
