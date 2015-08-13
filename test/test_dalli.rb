@@ -132,6 +132,30 @@ describe 'Dalli' do
       end
     end
 
+    it 'supports flush' do
+      memcached_persistent do |dc|
+        dc.set('some_key', 'some_value')
+        assert_equal 'some_value', dc.get('some_key')
+
+        dc.flush
+        assert_nil dc.get('some_key')
+      end
+    end
+
+    it 'supports flush by other process' do
+      memcached_persistent do |dc, port|
+        dc.set('some_key', 'some_value')
+        pid = Process.fork do
+          dc = Dalli::Client.new("localhost:#{port}")
+          assert_equal 'some_value', dc.get('some_key')
+          dc.flush
+          exit!
+        end
+        Process.waitpid pid
+        assert_nil dc.get('some_key')
+      end
+    end
+
     it 'returns nil for nonexist key' do
       memcached_persistent do |dc|
         assert_equal nil, dc.get('notexist')
