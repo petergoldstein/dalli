@@ -296,8 +296,9 @@ module Dalli
     end
 
     ##
-    # Normalizes the argument into an array of servers. If the argument is a string, it's expected to be of
-    # the format "memcache1.example.com:11211[,memcache2.example.com:11211[,memcache3.example.com:11211[...]]]
+    # Normalizes the argument into an array of servers.
+    # If the argument is a string, it's expected that the URIs are comma separated e.g.
+    # "memcache1.example.com:11211,memcache2.example.com:11211,memcache3.example.com:11211"
     def normalize_servers(servers)
       if servers.is_a? String
         return servers.split(",")
