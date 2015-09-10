@@ -207,7 +207,17 @@ module Dalli
 
     def verify_state
       failure!(RuntimeError.new('Already writing to socket')) if @inprogress
-      failure!(RuntimeError.new('Cannot share client between multiple processes')) if @pid && @pid != Process.pid
+      if @pid && @pid != Process.pid
+        message = 'Fork detected, re-connecting child process...'
+        Dalli.logger.info { message }
+        reconnect! message
+      end
+    end
+
+    def reconnect!(message)
+      close
+      sleep(options[:socket_failure_delay]) if options[:socket_failure_delay]
+      raise Dalli::NetworkError, message
     end
 
     def failure!(exception)
@@ -218,9 +228,7 @@ module Dalli
       if @fail_count >= options[:socket_max_failures]
         down!
       else
-        close
-        sleep(options[:socket_failure_delay]) if options[:socket_failure_delay]
-        raise Dalli::NetworkError, "Socket operation failed, retrying..."
+        reconnect! 'Socket operation failed, retrying...'
       end
     end
 
