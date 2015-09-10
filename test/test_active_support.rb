@@ -204,6 +204,19 @@ describe 'ActiveSupport' do
       end
     end
 
+    it 'support read_multi with special Regexp characters in namespace' do
+      with_activesupport do
+        memcached_persistent(@port) do
+          # /(?!)/ is a contradictory PCRE and should never be able to match
+          @dalli = ActiveSupport::Cache::DalliStore.new("localhost:#{@port}", :namespace => '(?!)')
+          @dalli.write('abc', 123)
+          @dalli.write('xyz', 456)
+
+          assert_equal({'abc' => 123, 'xyz' => 456}, @dalli.read_multi('abc', 'xyz'))
+        end
+      end
+    end
+
     it 'supports fetch_multi' do
       with_activesupport do
         memcached_persistent(@port) do

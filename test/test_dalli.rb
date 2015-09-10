@@ -660,6 +660,16 @@ describe 'Dalli' do
       end
     end
 
+    it 'handle special Regexp characters in namespace with get_multi' do
+      memcached_persistent do |dc, port|
+        # /(?!)/ is a contradictory PCRE and should never be able to match
+        dc = Dalli::Client.new("localhost:#{port}", :namespace => '(?!)')
+        dc.set('a', 1)
+        dc.set('b', 2)
+        assert_equal({'a' => 1, 'b' => 2}, dc.get_multi('a', 'b'))
+      end
+    end
+
     it "handle application marshalling issues" do
       memcached_persistent do |dc|
         old = Dalli.logger
