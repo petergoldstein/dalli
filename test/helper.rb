@@ -48,6 +48,16 @@ class MiniTest::Spec
     yield
   end
 
+  def with_activesupport_memcached
+    port = 19987
+    with_activesupport do
+      memcached_persistent(port) do
+        connect(port)
+        yield
+      end
+    end
+  end
+
   def with_actionpack
     require 'action_dispatch'
     require 'action_controller'

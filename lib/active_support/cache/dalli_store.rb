@@ -82,31 +82,41 @@ module ActiveSupport
         @data.with(&block)
       end
 
+      # Fetch the value associated with the key.
+      # If a value is found, then it is returned.
+      #
+      # If a value is not found and no block is given, then nil is returned.
+      #
+      # If a value is not found (or if the found value is nil and :cache_nils is false)
+      # and a block is given, the block will be invoked and its return value
+      # written to the cache and returned.
       def fetch(name, options=nil)
         options ||= {}
+        options[:cache_nils] = true if @options[:cache_nils]
         namespaced_name = namespaced_key(name, options)
-
+        not_found = options[:cache_nils] ? Dalli::Server::NOT_FOUND : nil
         if block_given?
+          entry = not_found
           unless options[:force]
             entry = instrument(:read, namespaced_name, options) do |payload|
               read_entry(namespaced_name, options).tap do |result|
                 if payload
                   payload[:super_operation] = :fetch
-                  payload[:hit] = !result.nil?
+                  payload[:hit] = result != not_found
                 end
               end
             end
           end
 
-          if !entry.nil?
-            instrument(:fetch_hit, name, options) { |payload| }
-            entry
-          else
+          if entry == not_found
             result = instrument(:generate, name, options) do |payload|
               yield
             end
             write(name, result, options)
             result
+          else
+            instrument(:fetch_hit, name, options) { |payload|}
+            entry
           end
         else
           read(name, options)
