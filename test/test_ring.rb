@@ -82,4 +82,18 @@ describe 'Ring' do
       end
     end
   end
+
+  it 'defaults to Dalli::Ring' do
+    client = Dalli::Client.new('127.0.0.1:29199')
+    assert_kind_of Dalli::Ring, client.send(:ring)
+  end
+
+  it 'can be passed a custom ring class' do
+    class NoopRing
+      def initialize(*args); end
+    end
+
+    client = Dalli::Client.new('127.0.0.1:29199', :ring_class => NoopRing)
+    assert_kind_of NoopRing, client.send(:ring)
+  end
 end
