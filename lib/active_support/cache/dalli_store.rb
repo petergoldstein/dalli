@@ -98,14 +98,7 @@ module ActiveSupport
         if block_given?
           entry = not_found
           unless options[:force]
-            entry = instrument(:read, namespaced_name, options) do |payload|
-              read_entry(namespaced_name, options).tap do |result|
-                if payload
-                  payload[:super_operation] = :fetch
-                  payload[:hit] = result != not_found
-                end
-              end
-            end
+            entry = find_cached_entry(namespaced_name, options)
           end
 
           if entry == not_found
@@ -129,6 +122,7 @@ module ActiveSupport
 
         instrument(:read, name, options) do |payload|
           entry = read_entry(name, options)
+          entry = entry.is_a?(Entry) ? entry.value : entry
           payload[:hit] = !entry.nil? if payload
           entry
         end
@@ -141,7 +135,17 @@ module ActiveSupport
         instrument(:write, name, options) do |payload|
           with do |connection|
             options = options.merge(:connection => connection)
-            write_entry(name, value, options)
+            # Support :race_condition_ttl by appending a secondary expiration to the value.
+            if options[:race_condition_ttl] &&
+              (ttl = options[:expires_in] || @options[:expires_in])
+              options[:expires_in] = ttl + options[:race_condition_ttl] * 2
+              entry = Entry.new
+              entry.value = value
+              entry.expires_at = ttl + Time.now.to_f
+              write_entry(name, entry, options)
+            else
+              write_entry(name, value, options)
+            end
           end
         end
       end
@@ -328,6 +332,74 @@ module ActiveSupport
       end
 
       private
+      # Minimal wrapper around a value object to provide a secondary expiration time.
+      # Used to support :race_condition_ttl on #fetch.
+      #
+      # To ensure backwards compatibility, Entry#new is delegated
+      # to subclasses with fixed serializer/deserializer implementations.
+      # Whenever the serialization format is updated, a new Entry subclass should be created.
+      class Entry
+        attr_accessor :value, :expires_at
+
+        # Per-object overhead, in bytes.
+        OVERHEAD = 83
+
+        def initialize
+          @value = nil
+          @expires_at = nil
+        end
+
+        # Delegates calls to Entry.new to a default serializer subclass.
+        def self.new(*args)
+          default_serializer = ::Dalli::E
+          serializer_class = (self == Entry) ? default_serializer : self
+          entry = serializer_class.allocate
+          entry.send(:initialize, *args)
+          entry
+        end
+      end
+
+      # Optimized Entry subclass for smaller per-object overhead.
+      class ::Dalli::E < Entry # :nodoc:
+        OVERHEAD = 18
+
+        def _dump(levels)
+          [@expires_at].pack('L') << Marshal.dump(@value, levels)
+        end
+
+        def self._load(str)
+          self.allocate.send(:marshal_load, str)
+        end
+
+        private
+        def marshal_load(str)
+          @expires_at = str.slice!(0,4).unpack('L').first
+          @value = Marshal.load(str)
+          self
+        end
+      end
+
+      def find_cached_entry(key, options)
+        not_found = options[:cache_nils] ? Dalli::Server::NOT_FOUND : nil
+        instrument(:read, key, options) do |payload|
+          entry_object = read_entry(key, options)
+          entry = entry_object.is_a?(Entry) ? entry_object.value : entry_object
+          if options[:race_condition_ttl] &&
+            entry_object.is_a?(Entry) && entry_object.expires_at <= Time.now.to_f
+              # If the entry exists but is expired, write it back into the cache
+              # for a brief period while it is being recalculated.
+              entry_object.expires_at = Time.now.to_f + options[:race_condition_ttl]
+              options[:expires_in] = options[:race_condition_ttl] * 2
+              with { |c| write_entry(key, entry_object, options.merge(connection: c)) }
+              entry = not_found
+          end
+          if payload
+            payload[:super_operation] = :fetch
+            payload[:hit] = entry != not_found
+          end
+          entry
+        end
+      end
 
       def namespaced_key(key, options)
         key = expanded_key(key)

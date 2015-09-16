@@ -6,6 +6,7 @@ Dalli Changelog
 
 - Support rcvbuff and sndbuff byte configuration. (btatnall)
 - Add `:cache_nils` option to support nil values in `DalliStore#fetch` and `Dalli::Client#fetch` (wjordan, #559)
+- Support `:race_condition_ttl` option for `DalliStore#write` and `#fetch` (wjordan, #560)
 
 2.7.4
 ==========

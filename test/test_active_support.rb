@@ -1,6 +1,7 @@
 # encoding: utf-8
 require 'helper'
 require 'connection_pool'
+require 'active_support/cache/dalli_store'
 
 class MockUser
   def cache_key
@@ -618,6 +619,95 @@ describe 'ActiveSupport' do
           assert op_addset_succeeds(@dalli.write(k, v))
         end
         assert_equal map, @dalli.read_multi(*(map.keys))
+      end
+    end
+  end
+
+  describe 'race_condition_ttl' do
+    def overhead(entry)
+      entry.value = ''
+      entry.expires_at = 1442605140.405094
+      Marshal.dump(entry).bytesize - Marshal.dump('').bytesize
+    end
+
+    it 'has an explicit overhead for entry object' do
+      base_entry = ActiveSupport::Cache::DalliStore::Entry.allocate
+      base_entry.send(:initialize)
+      assert_equal ActiveSupport::Cache::DalliStore::Entry::OVERHEAD, overhead(base_entry)
+
+      entry = ActiveSupport::Cache::DalliStore::Entry.new
+      assert_equal entry.class::OVERHEAD, overhead(entry)
+
+      assert entry.is_a? ActiveSupport::Cache::DalliStore::Entry
+      refute_equal entry.class, ActiveSupport::Cache::DalliStore::Entry
+    end
+
+    # Tests derived from ActiveSupport tests:
+    # https://github.com/rails/rails/blob/2f28e5/activesupport/test/caching_test.rb#L417-L470
+    def with_cache
+      with_activesupport do
+        memcached_persistent(@port) do
+          @cache = ActiveSupport::Cache.lookup_store(
+            :dalli_store,
+            "localhost:#{@port}",
+            namespace: 'x'
+          )
+          @cache.clear
+          yield @cache
+        end
+      end
+    end
+    it 'works when enabled' do
+      with_cache do |cache|
+        cache.write('foo', 'bar', expires_in: 1, race_condition_ttl: 10)
+        sleep 2
+        result = cache.fetch('foo', race_condition_ttl: 10) do
+          assert_equal 'bar', cache.read('foo')
+          'baz'
+        end
+        assert_equal 'baz', result
+      end
+    end
+
+    it 'skips when not defined' do
+      with_cache do |cache|
+        cache.write('foo', 'bar', expires_in: 1)
+        sleep 2
+        result = cache.fetch('foo') do
+          assert_equal nil, cache.read('foo')
+          'baz'
+        end
+        assert_equal 'baz', result
+      end
+    end
+
+    it 'is limited' do
+      with_cache do |cache|
+        cache.write('foo', 'bar', expires_in: 1, race_condition_ttl: 1)
+        sleep 3
+        result = cache.fetch('foo', race_condition_ttl: 1) do
+          assert_equal nil, cache.read('foo')
+          'baz'
+        end
+        assert_equal 'baz', result
+      end
+    end
+
+    it 'is safe' do
+      with_cache do |cache|
+        cache.write('foo', 'bar', expires_in: 1, race_condition_ttl: 1)
+        sleep 1
+        begin
+          cache.fetch('foo', expires_in: 1, race_condition_ttl: 1) do
+            assert_equal 'bar', cache.read('foo')
+            raise ArgumentError.new
+          end
+        rescue ArgumentError
+          # ignored
+        end
+        assert_equal 'bar', cache.read('foo')
+        sleep 2
+        assert_nil cache.read('foo')
       end
     end
   end
