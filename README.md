@@ -188,7 +188,9 @@ If serving compressed data using nginx's HttpMemcachedModule, set `memcached_gzi
 
 **sndbuf**: In bytes, set the socket SO_SNDBUF. Defaults to operating system default.
 
-**rcvbuf**: In bytes, set the socket SO_RCVBUF. Defatuls to operating system default.
+**rcvbuf**: In bytes, set the socket SO_RCVBUF. Defaults to operating system default.
+
+**cache_nils**: Boolean. If true Dalli will not treat cached `nil` values as 'not found' for `#fetch` operations. Default is false.
 
 Features and Changes
 ------------------------

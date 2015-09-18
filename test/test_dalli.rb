@@ -216,10 +216,25 @@ describe 'Dalli' do
         dc.set("fetch_key", false)
         res = dc.fetch("fetch_key") { flunk "fetch block called" }
         assert_equal false, res
+      end
+    end
+
+    it "support the fetch operation with nil values when cache_nils: true" do
+      memcached_persistent(21345, cache_nils: true) do |dc|
+        dc.flush
 
         dc.set("fetch_key", nil)
-        res = dc.fetch("fetch_key") { "bob" }
-        assert_equal 'bob', res
+        res = dc.fetch("fetch_key") { flunk "fetch block called" }
+        assert_equal nil, res
+      end
+
+      memcached_persistent(21345, cache_nils: false) do |dc|
+        dc.flush
+        dc.set("fetch_key", nil)
+        executed = false
+        res = dc.fetch("fetch_key") { executed = true; 'bar' }
+        assert_equal 'bar', res
+        assert_equal true, executed
       end
     end
 

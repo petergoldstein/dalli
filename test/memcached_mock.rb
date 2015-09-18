@@ -78,8 +78,8 @@ module MemcachedMock
       raise Errno::ENOENT, "Unable to find memcached 1.4+ locally"
     end
 
-    def memcached_persistent(port=21345)
-      dc = start_and_flush_with_retry(port, '', {})
+    def memcached_persistent(port=21345, options={})
+      dc = start_and_flush_with_retry(port, '', options)
       yield dc, port if block_given?
     end
 

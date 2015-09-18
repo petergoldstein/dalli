@@ -267,10 +267,10 @@ module Dalli
       Thread.current[:dalli_multi]
     end
 
-    def get(key)
+    def get(key, options=nil)
       req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
       write(req)
-      generic_response(true)
+      generic_response(true, !!(options && options.is_a?(Hash) && options[:cache_nils]))
     end
 
     def send_multiget(keys)
@@ -492,11 +492,15 @@ module Dalli
       end
     end
 
-    def generic_response(unpack=false)
+    # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.
+    class NilObject; end
+    NOT_FOUND = NilObject.new
+
+    def generic_response(unpack=false, cache_nils=false)
       (extras, _, status, count) = read_header.unpack(NORMAL_HEADER)
       data = read(count) if count > 0
       if status == 1
-        nil
+        cache_nils ? NOT_FOUND : nil
       elsif status == 2 || status == 5
         false # Not stored, normal status for add operation
       elsif status != 0

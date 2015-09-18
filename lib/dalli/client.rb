@@ -27,6 +27,7 @@ module Dalli
     # - :compress - defaults to false, if true Dalli will compress values larger than 1024 bytes before sending them to memcached.
     # - :serializer - defaults to Marshal
     # - :compressor - defaults to zlib
+    # - :cache_nils - defaults to false, if true Dalli will not treat cached nil values as 'not found' for #fetch operations.
     #
     def initialize(servers=nil, options={})
       @servers = normalize_servers(servers || ENV["MEMCACHE_SERVERS"] || '127.0.0.1:11211')
@@ -52,8 +53,9 @@ module Dalli
 
     ##
     # Get the value associated with the key.
+    # If a value is not found, then +nil+ is returned.
     def get(key, options=nil)
-      perform(:get, key)
+      perform(:get, key, options)
     end
 
     ##
@@ -71,10 +73,24 @@ module Dalli
       end
     end
 
+    CACHE_NILS = {cache_nils: true}.freeze
+
+    # Fetch the value associated with the key.
+    # If a value is found, then it is returned.
+    #
+    # If a value is not found and no block is given, then nil is returned.
+    #
+    # If a value is not found (or if the found value is nil and :cache_nils is false)
+    # and a block is given, the block will be invoked and its return value
+    # written to the cache and returned.
     def fetch(key, ttl=nil, options=nil)
       ttl ||= @options[:expires_in].to_i
+      options = options.nil? ? CACHE_NILS : options.merge(CACHE_NILS) if @options[:cache_nils]
       val = get(key, options)
-      if val.nil? && block_given?
+      not_found = @options[:cache_nils] ?
+        val == Dalli::Server::NOT_FOUND :
+        val.nil?
+      if not_found && block_given?
         val = yield
         add(key, val, ttl, options)
       end

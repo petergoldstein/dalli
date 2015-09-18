@@ -47,25 +47,64 @@ describe 'ActiveSupport' do
       end
     end
 
-    it 'support fetch' do
-      with_activesupport do
-        memcached_persistent(@port) do
-          connect(@port)
-          dvalue = @dalli.fetch('someotherkeywithoutspaces', :expires_in => 1.second) { 123 }
-          assert_equal 123, dvalue
+    describe 'fetch' do
+      it 'support expires_in' do
+        with_activesupport_memcached do
+            dvalue = @dalli.fetch('someotherkeywithoutspaces', :expires_in => 1.second) { 123 }
+            assert_equal 123, dvalue
+        end
+      end
 
+      it 'support object' do
+        with_activesupport_memcached do
+          o = Object.new
+          o.instance_variable_set :@foo, 'bar'
+          dvalue = @dalli.fetch(rand_key) { o }
+          assert_equal o, dvalue
+        end
+      end
+
+      it 'support object with raw' do
+        with_activesupport_memcached do
           o = Object.new
           o.instance_variable_set :@foo, 'bar'
           dvalue = @dalli.fetch(rand_key, :raw => true) { o }
           assert_equal o, dvalue
+        end
+      end
 
-          dvalue = @dalli.fetch(rand_key) { o }
-          assert_equal o, dvalue
-
+      it 'support false value' do
+        with_activesupport_memcached do
           @dalli.write('false', false)
           dvalue = @dalli.fetch('false') { flunk }
           assert_equal false, dvalue
+        end
+      end
 
+      it 'support nil value when cache_nils: true' do
+        @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, "localhost:#{@port}", cache_nils: true)
+        @dalli.clear
+
+        memcached_persistent(@port) do
+          @dalli.write('nil', nil)
+          dvalue = @dalli.fetch('nil') { flunk }
+          assert_equal nil, dvalue
+        end
+
+        @dalli = ActiveSupport::Cache.lookup_store(:dalli_store, "localhost:#{@port}", cache_nils: false)
+        @dalli.clear
+
+        memcached_persistent(@port) do
+          @dalli.write('nil', nil)
+          executed = false
+          dvalue = @dalli.fetch('nil') { executed = true; 'bar' }
+          assert_equal true, executed
+          assert_equal 'bar', dvalue
+        end
+      end
+
+      it 'support object with cache_key' do
+        with_activesupport_memcached do
           user = MockUser.new
           @dalli.write(user.cache_key, false)
           dvalue = @dalli.fetch(user) { flunk }
