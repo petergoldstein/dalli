@@ -371,7 +371,7 @@ module Dalli
     end
 
     def key_without_namespace(key)
-      (ns = namespace) ? key.sub(%r(\A#{ns}:), '') : key
+      (ns = namespace) ? key.sub(%r(\A#{Regexp.escape ns}:), '') : key
     end
 
     def namespace
