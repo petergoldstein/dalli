@@ -426,23 +426,27 @@ describe 'ActiveSupport::Cache::DalliStore' do
 
         memcached_kill(new_port)
 
-        assert_equal @dalli.read('foo'), nil
+        silence_logger do
+          assert_equal @dalli.read('foo'), nil
+        end
       end
 
       with_cache port: new_port, :raise_errors => true do
         memcached_kill(new_port)
         exception = [Dalli::RingError, { :message => "No server available" }]
 
-        assert_raises(*exception) { @dalli.read 'foo' }
-        assert_raises(*exception) { @dalli.read 'foo', :raw => true }
-        assert_raises(*exception) { @dalli.write 'foo', 'bar' }
-        assert_raises(*exception) { @dalli.exist? 'foo' }
-        assert_raises(*exception) { @dalli.increment 'foo' }
-        assert_raises(*exception) { @dalli.decrement 'foo' }
-        assert_raises(*exception) { @dalli.delete 'foo' }
-        assert_equal @dalli.read_multi('foo', 'bar'), {}
-        assert_raises(*exception) { @dalli.delete 'foo' }
-        assert_raises(*exception) { @dalli.fetch('foo') { 42 } }
+        silence_logger do
+          assert_raises(*exception) { @dalli.read 'foo' }
+          assert_raises(*exception) { @dalli.read 'foo', :raw => true }
+          assert_raises(*exception) { @dalli.write 'foo', 'bar' }
+          assert_raises(*exception) { @dalli.exist? 'foo' }
+          assert_raises(*exception) { @dalli.increment 'foo' }
+          assert_raises(*exception) { @dalli.decrement 'foo' }
+          assert_raises(*exception) { @dalli.delete 'foo' }
+          assert_equal @dalli.read_multi('foo', 'bar'), {}
+          assert_raises(*exception) { @dalli.delete 'foo' }
+          assert_raises(*exception) { @dalli.fetch('foo') { 42 } }
+        end
       end
     end
 
@@ -531,6 +535,14 @@ describe 'ActiveSupport::Cache::DalliStore' do
       end
       assert_equal map, @dalli.read_multi(*(map.keys))
     end
+  end
+
+  def silence_logger
+    old = Dalli.logger.level
+    Dalli.logger.level = Logger::ERROR + 1
+    yield
+  ensure
+    Dalli.logger.level = old
   end
 
   def with_cache(options={})
