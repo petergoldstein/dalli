@@ -1,9 +1,7 @@
 # encoding: utf-8
-require 'helper'
-require 'memcached_mock'
+require_relative 'helper'
 
 describe 'Encoding' do
-
   describe 'using a live server' do
     it 'support i18n content' do
       memcached_persistent do |dc|
@@ -27,6 +25,5 @@ describe 'Encoding' do
         assert_equal nil, dc.get(key)
       end
     end
-
   end
 end

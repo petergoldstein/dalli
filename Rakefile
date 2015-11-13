@@ -2,14 +2,12 @@ require 'bundler/gem_tasks'
 require 'appraisal'
 require 'rake/testtask'
 Rake::TestTask.new(:test) do |test|
-  test.libs << 'test'
   test.pattern = 'test/**/test_*.rb'
   test.warning = true
   test.verbose = true
 end
 
 Rake::TestTask.new(:bench) do |test|
-  test.libs << 'test'
   test.pattern = 'test/benchmark_test.rb'
 end
 

@@ -1,5 +1,4 @@
-require 'helper'
-require 'memcached_mock'
+require_relative 'helper'
 
 describe 'Dalli::Cas::Client' do
   describe 'using a live server' do

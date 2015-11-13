@@ -1,4 +1,4 @@
-require 'helper'
+require_relative 'helper'
 
 require 'rack/session/dalli'
 require 'rack/lint'

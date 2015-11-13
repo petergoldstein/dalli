@@ -1,5 +1,4 @@
-require 'helper'
-require 'memcached_mock'
+require_relative 'helper'
 
 describe 'Dalli' do
   describe 'options parsing' do
