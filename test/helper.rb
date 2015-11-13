@@ -5,7 +5,7 @@ require 'rubygems'
 require 'minitest/pride' unless RUBY_ENGINE == 'rbx'
 require 'minitest/autorun'
 require 'mocha/setup'
-require 'memcached_mock'
+require_relative 'memcached_mock'
 
 ENV['MEMCACHED_SASL_PWDB'] = "#{File.dirname(__FILE__)}/sasl/sasldb"
 ENV['SASL_CONF_PATH'] = "#{File.dirname(__FILE__)}/sasl/memcached.conf"
@@ -46,16 +46,6 @@ class MiniTest::Spec
     require 'active_support/all'
     require 'active_support/cache/dalli_store'
     yield
-  end
-
-  def with_activesupport_memcached
-    port = 19987
-    with_activesupport do
-      memcached_persistent(port) do
-        connect(port)
-        yield
-      end
-    end
   end
 
   def with_actionpack
