@@ -1,7 +1,6 @@
 # encoding: utf-8
-require 'helper'
+require_relative 'helper'
 require 'json'
-require 'memcached_mock'
 
 class NoopCompressor
   def self.compress(data)

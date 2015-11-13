@@ -1,10 +1,8 @@
 # encoding: utf-8
-require 'helper'
+require_relative 'helper'
 require 'json'
-require 'memcached_mock'
 
 describe 'Serializer' do
-
   it 'default to Marshal' do
     memcached(29198) do |dc|
       dc.set 1,2
