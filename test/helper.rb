@@ -1,5 +1,5 @@
 $TESTING = true
-require 'rubygems'
+require 'bundler/setup'
 # require 'simplecov'
 # SimpleCov.start
 require 'minitest/pride' unless RUBY_ENGINE == 'rbx'
@@ -10,8 +10,6 @@ require_relative 'memcached_mock'
 ENV['MEMCACHED_SASL_PWDB'] = "#{File.dirname(__FILE__)}/sasl/sasldb"
 ENV['SASL_CONF_PATH'] = "#{File.dirname(__FILE__)}/sasl/memcached.conf"
 
-WANT_RAILS_VERSION = ENV['RAILS_VERSION'] || '>= 3.0.0'
-gem 'rails', WANT_RAILS_VERSION
 require 'rails'
 puts "Testing with Rails #{Rails.version}"
 
