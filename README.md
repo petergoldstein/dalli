@@ -13,7 +13,7 @@ Dalli's initial development was sponsored by [CouchBase](http://www.couchbase.co
 Design
 ------------
 
-I decided to write Dalli after maintaining memcache-client for two years for a few specific reasons:
+Mike Perham decided to write Dalli after maintaining memcache-client for two years for a few specific reasons:
 
  0. The code is mostly old and gross.  The bulk of the code is a single 1000 line .rb file.
  1. It has a lot of options that are infrequently used which complicate the codebase.
@@ -215,20 +215,22 @@ We're not accepting new compressors. They are trivial to add in an initializer. 
 Thanks
 ------------
 
+Mike Perham - for originally authoring the Dalli project and serving as maintainer and primary contributor
+
 Eric Wong - for help using his [kgio](http://bogomips.org/kgio/) library.
 
 Brian Mitchell - for his remix-stash project which was helpful when implementing and testing the binary protocol support.
 
 [CouchBase](http://couchbase.com) - for their project sponsorship
 
-
-Author
+Authors
 ----------
 
-Mike Perham, [mikeperham.com](http://mikeperham.com), [@mperham](http://twitter.com/mperham)
+* [Peter M. Goldstein](https://github.com/petergoldstein) - current maintainer
+* [Mike Perham](https://github.com/mperham) and contributors
 
 
 Copyright
 -----------
 
-Copyright (c) Mike Perham. See LICENSE for details.
+Copyright (c) Mike Perham, Peter M. Goldstein. See LICENSE for details.
