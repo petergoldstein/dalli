@@ -14,7 +14,7 @@ Gem::Specification.new do |s|
     'History.md',
     'Gemfile'
   ]
-  s.homepage = 'https://github.com/mperham/dalli'
+  s.homepage = 'https://github.com/petergoldstein/dalli'
   s.rdoc_options = ["--charset=UTF-8"]
   s.add_development_dependency 'minitest', '>= 4.2.0'
   s.add_development_dependency 'mocha'
