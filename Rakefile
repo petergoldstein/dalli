@@ -14,8 +14,6 @@ Rake::TestTask.new(:bench) do |test|
   test.pattern = 'test/benchmark_test.rb'
 end
 
-require 'metric_fu'
-
 task :test_all do
   system('rake test RAILS_VERSION="~> 3.0.0"')
   system('rake test RAILS_VERSION=">= 3.0.0"')
