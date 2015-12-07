@@ -1,8 +1,8 @@
 language: ruby
 cache: bundler
 rvm:
-  - 2.2
-  - 2.1
+  - 2.2.3
+  - 2.1.7
   - 2.0.0
   - 1.9.3
   - rbx-2
@@ -15,6 +15,7 @@ matrix:
     - rvm: rbx-2
 env: JRUBY_OPTS='--1.9'
 before_install:
+  - gem install bundler
   - sudo apt-get -y remove memcached
   - echo "yes" | sudo add-apt-repository ppa:travis-ci/memcached-sasl
   - sudo apt-get update
