@@ -418,12 +418,10 @@ module Dalli
               # calculate remaining timeout
               elapsed = Time.now - start
               timeout = servers.first.options[:socket_timeout]
-              if elapsed > timeout
-                readable = nil
-              else
-                sockets = servers.map(&:sock)
-                readable, _ = IO.select(sockets, nil, nil, timeout - elapsed)
-              end
+              time_left = (elapsed > timeout) ? 0 : timeout - elapsed
+
+              sockets = servers.map(&:sock)
+              readable, _ = IO.select(sockets, nil, nil, time_left)
 
               if readable.nil?
                 # no response within timeout; abort pending connections
