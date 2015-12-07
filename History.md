@@ -6,6 +6,12 @@ Dalli Changelog
 
 - Support rcvbuff and sndbuff byte configuration. (btatnall)
 - Add `:cache_nils` option to support nil values in `DalliStore#fetch` and `Dalli::Client#fetch` (wjordan, #559)
+- Log retryable server errors with 'warn' instead of 'info' (phrinx)
+- Clean up gemspec, and use Bundler for loading (grosser)
+- Fix timeout issue with Dalli::Client#get_multi_yielder (dspeterson)
+- Escape namespaces with special regexp characters (Steven Peckins)
+- Ensure LocalCache supports the `:raw` option and Entry unwrapping (sj26)
+- Dry up local cache testing (grosser)
 
 2.7.4
 ==========

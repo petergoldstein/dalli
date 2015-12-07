@@ -222,7 +222,7 @@ module Dalli
 
     def failure!(exception)
       message = "#{name} failed (count: #{@fail_count}) #{exception.class}: #{exception.message}"
-      Dalli.logger.info { message }
+      Dalli.logger.warn { message }
 
       @fail_count += 1
       if @fail_count >= options[:socket_max_failures]
