@@ -215,11 +215,12 @@ module Dalli
     # Collect the stats for each server.
     # You can optionally pass a type including :items, :slabs or :settings to get specific stats
     # Returns a hash like { 'hostname:port' => { 'stat1' => 'value1', ... }, 'hostname2:port' => { ... } }
-    def stats(type=nil)
-      type = nil if ![nil, :items,:slabs,:settings].include? type
+    def stats(type=nil, *args)
+      type = nil if ![nil, :items,:slabs,:settings,:cachedump].include? type
+      args = nil if type != :cachedump
       values = {}
       ring.servers.each do |server|
-        values["#{server.name}"] = server.alive? ? server.request(:stats,type.to_s) : nil
+        values["#{server.name}"] = server.alive? ? server.request(:stats,type.to_s,*args) : nil
       end
       values
     end
