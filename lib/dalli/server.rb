@@ -484,12 +484,10 @@ module Dalli
     # > An expiration time, in seconds. Can be up to 30 days. After 30 days, is treated as a unix timestamp of an exact date.
     MAX_ACCEPTABLE_EXPIRATION_INTERVAL = 30*24*60*60 # 30 days
     def sanitize_ttl(ttl)
-      if ttl > MAX_ACCEPTABLE_EXPIRATION_INTERVAL
-        Dalli.logger.debug "Expiration interval too long for Memcached, converting to an expiration timestamp"
-        Time.now.to_i + ttl.to_i
-      else
-        ttl.to_i
-      end
+      ttl_as_i = ttl.to_i
+      return ttl_as_i if ttl_as_i <= MAX_ACCEPTABLE_EXPIRATION_INTERVAL
+      Dalli.logger.debug "Expiration interval (ttl_as_i) too long for Memcached, converting to an expiration timestamp"
+      Time.now.to_i + ttl_as_i
     end
 
     # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.

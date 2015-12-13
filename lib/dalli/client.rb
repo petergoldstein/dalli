@@ -84,7 +84,6 @@ module Dalli
     # and a block is given, the block will be invoked and its return value
     # written to the cache and returned.
     def fetch(key, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in].to_i
       options = options.nil? ? CACHE_NILS : options.merge(CACHE_NILS) if @options[:cache_nils]
       val = get(key, options)
       not_found = @options[:cache_nils] ?
@@ -92,7 +91,7 @@ module Dalli
         val.nil?
       if not_found && block_given?
         val = yield
-        add(key, val, ttl, options)
+        add(key, val, ttl_or_default(ttl), options)
       end
       val
     end
@@ -109,34 +108,31 @@ module Dalli
     # - false if the value was changed by someone else.
     # - true if the value was successfully updated.
     def cas(key, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in].to_i
+      ttl = ttl_or_default(ttl)
       (value, cas) = perform(:cas, key)
       value = (!value || value == 'Not found') ? nil : value
       if value
         newvalue = yield(value)
-        perform(:set, key, newvalue, ttl, cas, options)
+        perform(:set, key, newvalue, ttl_or_default(ttl), cas, options)
       end
     end
 
     def set(key, value, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in].to_i
-      perform(:set, key, value, ttl, 0, options)
+      perform(:set, key, value, ttl_or_default(ttl), 0, options)
     end
 
     ##
     # Conditionally add a key/value pair, if the key does not already exist
     # on the server.  Returns truthy if the operation succeeded.
     def add(key, value, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in].to_i
-      perform(:add, key, value, ttl, options)
+      perform(:add, key, value, ttl_or_default(ttl), options)
     end
 
     ##
     # Conditionally add a key/value pair, only if the key already exists
     # on the server.  Returns truthy if the operation succeeded.
     def replace(key, value, ttl=nil, options=nil)
-      ttl ||= @options[:expires_in].to_i
-      perform(:replace, key, value, ttl, 0, options)
+      perform(:replace, key, value, ttl_or_default(ttl), 0, options)
     end
 
     def delete(key)
@@ -177,8 +173,7 @@ module Dalli
     # #cas.
     def incr(key, amt=1, ttl=nil, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
-      ttl ||= @options[:expires_in].to_i
-      perform(:incr, key, amt.to_i, ttl, default)
+      perform(:incr, key, amt.to_i, ttl_or_default(ttl), default)
     end
 
     ##
@@ -197,8 +192,7 @@ module Dalli
     # #cas.
     def decr(key, amt=1, ttl=nil, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
-      ttl ||= @options[:expires_in].to_i
-      perform(:decr, key, amt.to_i, ttl, default)
+      perform(:decr, key, amt.to_i, ttl_or_default(ttl), default)
     end
 
     ##
@@ -206,8 +200,7 @@ module Dalli
     #
     # Returns true if key exists, otherwise nil.
     def touch(key, ttl=nil)
-      ttl ||= @options[:expires_in].to_i
-      resp = perform(:touch, key, ttl)
+      resp = perform(:touch, key, ttl_or_default(ttl))
       resp.nil? ? nil : true
     end
 
@@ -265,6 +258,12 @@ module Dalli
     end
 
     private
+
+    def ttl_or_default(ttl)
+      (ttl || @options[:expires_in]).to_i
+    rescue NoMethodError
+      raise ArgumentError, "Cannot convert ttl (#{ttl}) to an integer"
+    end
 
     def groups_for_keys(*keys)
       groups = mapped_keys(keys).flatten.group_by do |key|

@@ -61,6 +61,16 @@ describe 'Dalli' do
     end
   end
 
+  describe 'ttl validation' do
+    it 'generated an ArgumentError for ttl that does not support to_i' do
+      memcached_persistent do |dc|
+        assert_raises ArgumentError do
+          dc.set('foo', 'bar', [])
+        end
+      end
+    end
+  end
+
   it "default to localhost:11211" do
     dc = Dalli::Client.new
     ring = dc.send(:ring)
