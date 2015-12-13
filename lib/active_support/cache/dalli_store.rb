@@ -109,13 +109,13 @@ module ActiveSupport
           end
 
           if entry == not_found
-            result = instrument(:generate, name, options) do |payload|
+            result = instrument(:generate, namespaced_name, options) do |payload|
               yield
             end
             write(name, result, options)
             result
           else
-            instrument(:fetch_hit, name, options) { |payload|}
+            instrument(:fetch_hit, namespaced_name, options) { |payload| }
             entry
           end
         else
@@ -168,7 +168,7 @@ module ActiveSupport
       def read_multi(*names)
         options  = names.extract_options!
         mapping = names.inject({}) { |memo, name| memo[namespaced_key(name, options)] = name; memo }
-        instrument(:read_multi, names) do
+        instrument(:read_multi, mapping.keys) do
           results = {}
           if local_cache
             mapping.each_key do |key|
@@ -199,7 +199,7 @@ module ActiveSupport
         options = names.extract_options!
         mapping = names.inject({}) { |memo, name| memo[namespaced_key(name, options)] = name; memo }
 
-        instrument(:fetch_multi, names) do
+        instrument(:fetch_multi, mapping.keys) do
           with do |connection|
             results = connection.get_multi(mapping.keys)
 
