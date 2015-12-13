@@ -108,7 +108,6 @@ module Dalli
     # - false if the value was changed by someone else.
     # - true if the value was successfully updated.
     def cas(key, ttl=nil, options=nil)
-      ttl = ttl_or_default(ttl)
       (value, cas) = perform(:cas, key)
       value = (!value || value == 'Not found') ? nil : value
       if value
