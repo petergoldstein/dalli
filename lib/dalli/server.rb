@@ -412,7 +412,7 @@ module Dalli
         marshalled = true
         begin
           self.serializer.dump(value)
-        rescue TimeoutError => e
+        rescue Timeout::Error => e
           raise e
         rescue => ex
           # Marshalling can throw several different types of generic Ruby exceptions.
