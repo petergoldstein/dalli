@@ -23,6 +23,14 @@ describe 'Dalli' do
       end
     end
 
+    it 'raises error with invalid ttl' do
+      memcached_persistent do |dc|
+        assert_raises ArgumentError do
+          dc.set('foo', 'bar', Time.now)
+        end
+      end
+    end
+
     it 'return string type for namespace attribute' do
       dc = Dalli::Client.new('foo', :namespace => :wunderschoen)
       assert_equal "wunderschoen", dc.send(:namespace)

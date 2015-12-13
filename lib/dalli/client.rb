@@ -85,6 +85,7 @@ module Dalli
     # written to the cache and returned.
     def fetch(key, ttl=nil, options=nil)
       ttl ||= @options[:expires_in].to_i
+      validate_ttl(ttl)
       options = options.nil? ? CACHE_NILS : options.merge(CACHE_NILS) if @options[:cache_nils]
       val = get(key, options)
       not_found = @options[:cache_nils] ?
@@ -110,6 +111,7 @@ module Dalli
     # - true if the value was successfully updated.
     def cas(key, ttl=nil, options=nil)
       ttl ||= @options[:expires_in].to_i
+      validate_ttl(ttl)
       (value, cas) = perform(:cas, key)
       value = (!value || value == 'Not found') ? nil : value
       if value
@@ -120,6 +122,7 @@ module Dalli
 
     def set(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in].to_i
+      validate_ttl(ttl)
       perform(:set, key, value, ttl, 0, options)
     end
 
@@ -128,6 +131,7 @@ module Dalli
     # on the server.  Returns truthy if the operation succeeded.
     def add(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in].to_i
+      validate_ttl(ttl)
       perform(:add, key, value, ttl, options)
     end
 
@@ -136,6 +140,7 @@ module Dalli
     # on the server.  Returns truthy if the operation succeeded.
     def replace(key, value, ttl=nil, options=nil)
       ttl ||= @options[:expires_in].to_i
+      validate_ttl(ttl)
       perform(:replace, key, value, ttl, 0, options)
     end
 
@@ -178,6 +183,7 @@ module Dalli
     def incr(key, amt=1, ttl=nil, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
       ttl ||= @options[:expires_in].to_i
+      validate_ttl(ttl)
       perform(:incr, key, amt.to_i, ttl, default)
     end
 
@@ -198,6 +204,7 @@ module Dalli
     def decr(key, amt=1, ttl=nil, default=nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
       ttl ||= @options[:expires_in].to_i
+      validate_ttl(ttl)
       perform(:decr, key, amt.to_i, ttl, default)
     end
 
@@ -207,6 +214,7 @@ module Dalli
     # Returns true if key exists, otherwise nil.
     def touch(key, ttl=nil)
       ttl ||= @options[:expires_in].to_i
+      validate_ttl(ttl)
       resp = perform(:touch, key, ttl)
       resp.nil? ? nil : true
     end
@@ -390,6 +398,12 @@ module Dalli
         raise ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
       end
       opts
+    end
+
+    def validate_ttl(ttl)
+      unless ttl.is_a?(Integer)
+        raise ArgumentError, "ttl must be an integer but got #{ttl.inspect}"
+      end
     end
 
     ##
