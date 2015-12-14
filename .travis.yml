@@ -7,6 +7,7 @@ rvm:
   - 1.9.3
   - rbx-2
   - jruby
+  - jruby-9.0.4.0
 gemfile:
   - gemfiles/rails3.gemfile
   - gemfiles/rails4.gemfile
