@@ -28,7 +28,7 @@ begin
 
     def readfull(count)
       value = ''
-      loop do
+      while true
         value << kgio_read!(count - value.bytesize)
         break if value.bytesize == count
       end
@@ -37,7 +37,7 @@ begin
 
     def read_available
       value = ''
-      loop do
+      while true
         ret = kgio_tryread(8196)
         case ret
         when nil
@@ -90,7 +90,7 @@ rescue LoadError
       def readfull(count)
         value = ''
         begin
-          loop do
+          while true
             value << read_nonblock(count - value.bytesize)
             break if value.bytesize == count
           end
@@ -106,7 +106,7 @@ rescue LoadError
 
       def read_available
         value = ''
-        loop do
+        while true
           begin
             value << read_nonblock(8196)
           rescue Errno::EAGAIN, Errno::EWOULDBLOCK
