@@ -46,11 +46,11 @@ module Dalli
     end
 
     def lock
-      @servers.each { |s| s.lock! }
+      @servers.each(&:lock!)
       begin
         return yield
       ensure
-        @servers.each { |s| s.unlock! }
+        @servers.each(&:unlock!)
       end
     end
 
