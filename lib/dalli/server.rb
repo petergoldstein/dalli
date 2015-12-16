@@ -528,7 +528,7 @@ module Dalli
 
     def keyvalue_response
       hash = {}
-      loop do
+      while true
         (key_length, _, body_length, _) = read_header.unpack(KV_HEADER)
         return hash if key_length == 0
         key = read(key_length)
@@ -539,7 +539,7 @@ module Dalli
 
     def multi_response
       hash = {}
-      loop do
+      while true
         (key_length, _, body_length, _) = read_header.unpack(KV_HEADER)
         return hash if key_length == 0
         flags = read(4).unpack('N')[0]

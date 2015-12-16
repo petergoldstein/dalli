@@ -408,7 +408,7 @@ module Dalli
             servers = perform_multi_response_start(servers)
 
             start = Time.now
-            loop do
+            while true
               # remove any dead servers
               servers.delete_if { |s| s.sock.nil? }
               break if servers.empty?
