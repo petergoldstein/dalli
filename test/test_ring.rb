@@ -8,11 +8,7 @@ describe 'Ring' do
       servers = [stub(:name => "localhost:11211", :weight => 1),
                  stub(:name => "localhost:9500", :weight => 1)]
       ring = Dalli::Ring.new(servers, {})
-      previous_value = 0
-      ring.continuum.each do |entry|
-        assert entry.value > previous_value
-        previous_value = entry.value
-      end
+      assert_equal ring.continuum.sort_by { |h| h[:value] }.reverse, ring.continuum
     end
 
     it 'raise when no servers are available/defined' do
