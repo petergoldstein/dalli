@@ -337,8 +337,8 @@ module Dalli
     end
 
     # Chokepoint method for instrumentation
-    def perform(*all_args, &blk)
-      return blk.call if blk
+    def perform(*all_args)
+      return yield if block_given?
       op, key, *args = *all_args
 
       key = key.to_s
