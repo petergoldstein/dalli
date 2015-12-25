@@ -8,7 +8,9 @@ module Rack
 
       DEFAULT_OPTIONS = Abstract::ID::DEFAULT_OPTIONS.merge \
         :namespace => 'rack:session',
-        :memcache_server => 'localhost:11211'
+        :memcache_server => 'localhost:11211',
+        :username => nil,
+        :password => nil
 
       def initialize(app, options={})
         super
