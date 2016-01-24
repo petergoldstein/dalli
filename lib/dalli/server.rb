@@ -603,6 +603,8 @@ module Dalli
     REQUEST = 0x80
     RESPONSE = 0x81
 
+    # Response codes taken from:
+    # https://code.google.com/p/memcached/wiki/BinaryProtocolRevamped#Response_Status
     RESPONSE_CODES = {
       0 => 'No error',
       1 => 'Key not found',
@@ -611,9 +613,16 @@ module Dalli
       4 => 'Invalid arguments',
       5 => 'Item not stored',
       6 => 'Incr/decr on a non-numeric value',
+      7 => 'The vbucket belongs to another server',
+      8 => 'Authentication error',
+      9 => 'Authentication continue',
       0x20 => 'Authentication required',
       0x81 => 'Unknown command',
       0x82 => 'Out of memory',
+      0x83 => 'Not supported',
+      0x84 => 'Internal error',
+      0x85 => 'Busy',
+      0x86 => 'Temporary failure'
     }
 
     OPCODES = {
