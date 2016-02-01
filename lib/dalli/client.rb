@@ -107,13 +107,19 @@ module Dalli
     # - nil if the key did not exist.
     # - false if the value was changed by someone else.
     # - true if the value was successfully updated.
-    def cas(key, ttl=nil, options=nil)
-      (value, cas) = perform(:cas, key)
-      value = (!value || value == 'Not found') ? nil : value
-      if value
-        newvalue = yield(value)
-        perform(:set, key, newvalue, ttl_or_default(ttl), cas, options)
-      end
+    def cas(key, ttl=nil, options=nil, &block)
+      cas_core(key, false, ttl, options, &block)
+    end
+
+    ##
+    # like #cas, but will yield to the block whether or not the value
+    # already exists.
+    #
+    # Returns:
+    # - false if the value was changed by someone else.
+    # - true if the value was successfully updated.
+    def cas!(key, ttl=nil, options=nil, &block)
+      cas_core(key, true, ttl, options, &block)
     end
 
     def set(key, value, ttl=nil, options=nil)
@@ -257,6 +263,14 @@ module Dalli
     end
 
     private
+
+    def cas_core(key, always_set, ttl=nil, options=nil)
+      (value, cas) = perform(:cas, key)
+      value = (!value || value == 'Not found') ? nil : value
+      return if value.nil? && !always_set
+      newvalue = yield(value)
+      perform(:set, key, newvalue, ttl_or_default(ttl), cas, options)
+    end
 
     def ttl_or_default(ttl)
       (ttl || @options[:expires_in]).to_i
