@@ -271,6 +271,22 @@ describe 'Dalli' do
       end
     end
 
+    it "support the cas! operation" do
+      memcached_persistent do |dc|
+        dc.flush
+
+        mutated = { 'blah' => 'foo!' }
+        resp = dc.cas!('cas_key') do |value|
+          assert_nil value
+          mutated
+        end
+        assert op_cas_succeeds(resp)
+
+        resp = dc.get('cas_key')
+        assert_equal mutated, resp
+      end
+    end
+
     it "support multi-get" do
       memcached_persistent do |dc|
         dc.close
