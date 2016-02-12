@@ -11,7 +11,7 @@ describe Rack::Session::Dalli do
   before do
     @port = 19129
     memcached_persistent(@port)
-    Rack::Session::Dalli::DEFAULT_OPTIONS[:memcache_server] = "localhost:#{@port}"
+    Rack::Session::Dalli::DEFAULT_DALLI_OPTIONS[:memcache_server] = "localhost:#{@port}"
 
     # test memcache connection
     Rack::Session::Dalli.new(incrementor)
@@ -68,8 +68,42 @@ describe Rack::Session::Dalli do
   end
 
   it "passes options to MemCache" do
-    rsd = Rack::Session::Dalli.new(incrementor, :namespace => 'test:rack:session')
+    opts = {
+      :namespace => 'test:rack:session',
+      :compression_min_size => 1234
+    }
+
+    rsd = Rack::Session::Dalli.new(incrementor, opts)
+    assert_equal(opts[:namespace], rsd.pool.instance_eval { @options[:namespace] })
+    assert_equal(opts[:compression_min_size], rsd.pool.instance_eval { @options[:compression_min_size] })
+  end
+
+  it "accepts and prioritizes a :cache option" do
+    server = Rack::Session::Dalli::DEFAULT_DALLI_OPTIONS[:memcache_server]
+    cache = Dalli::Client.new(server, :namespace => 'test:rack:session')
+    rsd = Rack::Session::Dalli.new(incrementor, :cache => cache, :namespace => 'foobar')
     assert_equal('test:rack:session', rsd.pool.instance_eval { @options[:namespace] })
+  end
+
+  it "generates sids without an existing Dalli::Client" do
+    rsd = Rack::Session::Dalli.new(incrementor)
+    assert rsd.send :generate_sid
+  end
+
+  it "upgrades to a connection pool" do
+    opts = {
+      :namespace => 'test:rack:session',
+      :pool_size => 10
+    }
+
+    with_connectionpool do
+      rsd = Rack::Session::Dalli.new(incrementor, opts)
+      assert rsd.pool.is_a? ConnectionPool
+      rsd.pool.with do |mc|
+        assert mc.instance_eval { !@options[:threadsafe] }
+        assert_equal(opts[:namespace], mc.instance_eval { @options[:namespace] })
+      end
+    end
   end
 
   it "creates a new cookie" do
@@ -125,7 +159,19 @@ describe Rack::Session::Dalli do
     refute_match(/#{bad_cookie}$/, cookie)
   end
 
-  it "maintains freshness" do
+  it "sets an expiration on new sessions" do
+    rsd = Rack::Session::Dalli.new(incrementor, :expire_after => 3)
+    res = Rack::MockRequest.new(rsd).get('/')
+    assert res.body.include?('"counter"=>1')
+    cookie = res["Set-Cookie"]
+    puts 'Sleeping to expire session' if $DEBUG
+    sleep 4
+    res = Rack::MockRequest.new(rsd).get('/', "HTTP_COOKIE" => cookie)
+    refute_equal cookie, res["Set-Cookie"]
+    assert res.body.include?('"counter"=>1')
+  end
+
+  it "maintains freshness of existing sessions" do
     rsd = Rack::Session::Dalli.new(incrementor, :expire_after => 3)
     res = Rack::MockRequest.new(rsd).get('/')
     assert res.body.include?('"counter"=>1')

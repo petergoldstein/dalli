@@ -55,4 +55,9 @@ class MiniTest::Spec
     require 'action_controller'
     yield
   end
+
+  def with_connectionpool
+    require 'connection_pool'
+    yield
+  end
 end
