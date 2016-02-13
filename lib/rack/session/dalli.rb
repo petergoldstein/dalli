@@ -3,7 +3,7 @@ require 'dalli'
 
 module Rack
   module Session
-    class Dalli < Abstract::ID
+    class Dalli < defined?(Abstract::Persisted) ? Abstract::Persisted : Abstract::ID
       attr_reader :pool, :mutex
 
       DEFAULT_OPTIONS = Abstract::ID::DEFAULT_OPTIONS.merge \
@@ -17,6 +17,20 @@ module Rack
         mopts = @default_options.reject{|k,v| !DEFAULT_OPTIONS.include? k }
         @pool = options[:cache] || ::Dalli::Client.new(mserv, mopts)
         @pool.alive!
+      end
+
+      if defined?(Abstract::Persisted)
+        def find_session(req, sid)
+          get_session req.env, sid
+        end
+
+        def write_session(req, sid, session, options)
+          set_session req.env, sid, session, options
+        end
+
+        def delete_session(req, sid, options)
+          destroy_session req.env, sid, options
+        end
       end
 
       def generate_sid
