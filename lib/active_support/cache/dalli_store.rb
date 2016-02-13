@@ -336,6 +336,7 @@ module ActiveSupport
         key = "#{prefix}:#{key}" if prefix
         key
       end
+      alias :normalize_key :namespaced_key
 
       # Expand key to be a consistent string value. Invoke +cache_key+ if
       # object responds to +cache_key+. Otherwise, to_param method will be
