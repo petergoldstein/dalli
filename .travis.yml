@@ -13,6 +13,17 @@ gemfile:
   - gemfiles/rails3.gemfile
   - gemfiles/rails4.gemfile
 matrix:
+  exclude:
+    - rvm: 2.1.7
+      gemfile: gemfiles/rails5.gemfile
+    - rvm: 2.0.0
+      gemfile: gemfiles/rails5.gemfile
+    - rvm: 1.9.3
+      gemfile: gemfiles/rails5.gemfile
+    - rvm: rbx-2
+      gemfile: gemfiles/rails5.gemfile
+    - rvm: jruby
+      gemfile: gemfiles/rails5.gemfile
   allow_failures:
     - rvm: rbx-2
 env: JRUBY_OPTS='--1.9'
