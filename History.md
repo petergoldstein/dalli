@@ -1,6 +1,13 @@
 Dalli Changelog
 =====================
 
+2.7.6
+==========
+- Rails 5.0.0.beta2 compatibility (yui-knk, petergoldstein)
+- Add cas!, a variant of the #cas method that yields to the block whether or not the key already exist (mwpastore)
+- Performance improvements (nateberkopec)
+- Add Ruby 2.3.0 to support matrix (tricknotes)
+
 2.7.5
 ==========
 
