@@ -12,6 +12,7 @@ rvm:
 gemfile:
   - gemfiles/rails3.gemfile
   - gemfiles/rails4.gemfile
+  - gemfiles/rails5.gemfile
 matrix:
   exclude:
     - rvm: 2.1.8
