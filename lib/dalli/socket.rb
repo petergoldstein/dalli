@@ -27,7 +27,7 @@ begin
     alias :write :kgio_write
 
     def readfull(count)
-      value = ''
+      value = String.new('')
       while true
         value << kgio_read!(count - value.bytesize)
         break if value.bytesize == count
@@ -36,7 +36,7 @@ begin
     end
 
     def read_available
-      value = ''
+      value = String.new('')
       while true
         ret = kgio_tryread(8196)
         case ret

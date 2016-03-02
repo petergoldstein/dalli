@@ -14,7 +14,7 @@ module Dalli
 
   class GzipCompressor
     def self.compress(data)
-      io = StringIO.new("w")
+      io = StringIO.new(String.new(""), "w")
       gz = Zlib::GzipWriter.new(io)
       gz.write(data)
       gz.close
