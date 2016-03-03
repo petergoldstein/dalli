@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require_relative 'helper'
 require 'benchmark'
 require 'active_support/cache/dalli_store'
