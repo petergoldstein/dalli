@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require 'dalli/client'
 
 module Dalli

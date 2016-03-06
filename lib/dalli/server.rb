@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require 'socket'
 require 'timeout'
 
@@ -128,7 +129,7 @@ module Dalli
     def multi_response_start
       verify_state
       write_noop
-      @multi_buffer = ''
+      @multi_buffer = String.new('')
       @position = 0
       @inprogress = true
     end
@@ -274,7 +275,7 @@ module Dalli
     end
 
     def send_multiget(keys)
-      req = ""
+      req = String.new("")
       keys.each do |key|
         req << [REQUEST, OPCODES[:getkq], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:getkq])
       end

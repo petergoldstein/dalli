@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require 'dalli/compressor'
 require 'dalli/client'
 require 'dalli/ring'

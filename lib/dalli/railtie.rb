@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 module Dalli
   class Railtie < ::Rails::Railtie
     config.before_configuration do
