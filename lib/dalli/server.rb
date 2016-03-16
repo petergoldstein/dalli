@@ -65,8 +65,11 @@ module Dalli
       verify_state
       raise Dalli::NetworkError, "#{name} is down: #{@error} #{@msg}. If you are sure it is running, ensure memcached version is > 1.4." unless alive?
       begin
-        send(op, *args)
+        response = send(op, *args)
       rescue Dalli::NetworkError
+        connect(false)
+        retry unless @down_at
+        up!
         raise
       rescue Dalli::MarshalError => ex
         Dalli.logger.error "Marshalling error for key '#{args.first}': #{ex.message}"
@@ -81,6 +84,9 @@ module Dalli
         Dalli.logger.error "Unexpected exception during Dalli request: #{ex.class.name}: #{ex.message}"
         Dalli.logger.error ex.backtrace.join("\n\t")
         down!
+      else
+        up! if @fail_count > 0
+        return response
       end
     end
 
@@ -576,7 +582,7 @@ module Dalli
       read(24) || raise(Dalli::NetworkError, 'No response')
     end
 
-    def connect
+    def connect(reset=true)
       Dalli.logger.debug { "Dalli::Server#connect #{name}" }
 
       begin
@@ -588,7 +594,7 @@ module Dalli
         end
         sasl_authentication if need_auth?
         @version = version # trigger actual connect
-        up!
+        up! if reset
       rescue Dalli::DalliError # SASL auth failure
         raise
       rescue SystemCallError, Timeout::Error, EOFError, SocketError => e
