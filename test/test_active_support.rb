@@ -376,7 +376,7 @@ describe 'ActiveSupport::Cache::DalliStore' do
 
       with_cache port: new_port, :raise_errors => true do
         memcached_kill(new_port)
-        exception = [Dalli::RingError, { :message => "No server available" }]
+        exception = [Dalli::DalliError, { :message => "No server available" }]
 
         silence_logger do
           assert_raises(*exception) { @dalli.read 'foo' }

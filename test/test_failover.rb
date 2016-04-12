@@ -62,7 +62,7 @@ describe 'failover' do
 
           memcached_kill(second_port)
 
-          assert_raises Dalli::RingError, :message => "No server available" do
+          assert_raises Dalli::NetworkError, :message => "No server available" do
             dc.set 'foo', 'bar'
           end
         end
@@ -100,10 +100,10 @@ describe 'failover' do
 
           memcached_kill(first_port)
 
-          dc.set 'foo', 'foo1'
+          assert_raises(Dalli::NetworkError) { dc.set 'foo', 'foo1' }
           dc.set 'bar', 'bar1'
           result = dc.get_multi ['foo', 'bar']
-          assert_equal result, {'foo' => 'foo1', 'bar' => 'bar1'}
+          assert_equal result, {'bar' => 'bar1'}
 
           memcached_kill(second_port)
 
