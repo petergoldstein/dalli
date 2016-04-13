@@ -19,6 +19,8 @@ module Dalli
   class MarshalError < DalliError; end
   # application error in marshalling deserialization or decompression
   class UnmarshalError < DalliError; end
+  # payload too big for memcached
+  class ValueOverMaxSize < RuntimeError; end
 
   def self.logger
     @logger ||= (rails_logger || default_logger)
