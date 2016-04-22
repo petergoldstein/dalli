@@ -25,6 +25,10 @@ matrix:
       gemfile: gemfiles/rails5.gemfile
     - rvm: jruby
       gemfile: gemfiles/rails5.gemfile
+    - rvm: 1.9.3
+      gemfile: gemfiles/rails4.gemfile
+    - rvm: jruby
+      gemfile: gemfiles/rails4.gemfile
   allow_failures:
     - rvm: rbx-2
 env: JRUBY_OPTS='--1.9'
