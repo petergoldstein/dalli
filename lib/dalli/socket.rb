@@ -89,7 +89,7 @@ rescue LoadError
   module Dalli::Server::KSocket
     module InstanceMethods
       def readfull(count)
-        value = ''
+        value = String.new('')
         begin
           while true
             value << read_nonblock(count - value.bytesize)
@@ -106,7 +106,7 @@ rescue LoadError
       end
 
       def read_available
-        value = ''
+        value = String.new('')
         while true
           begin
             value << read_nonblock(8196)
