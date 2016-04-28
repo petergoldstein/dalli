@@ -55,7 +55,7 @@ module Rack
 
       def set_session(env, session_id, new_session, options)
         return false unless session_id
-        expiry = options[:expire_after]
+        expiry = new_session['expire_after'] || options[:expire_after]
         expiry = expiry.nil? ? 0 : expiry + 1
 
         with_lock(env, false) do
