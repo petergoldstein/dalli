@@ -107,5 +107,11 @@ describe Dalli::Server do
       s = Dalli::Server.new('localhost')
       assert_equal s.send(:sanitize_ttl, 30*24*60*60 + 1), Time.now.to_i + 30*24*60*60+1
     end
+
+    it 'does not translate ttls which are already timestamps' do
+      s = Dalli::Server.new('localhost')
+      timestamp_ttl = Time.now.to_i + 60
+      assert_equal s.send(:sanitize_ttl, timestamp_ttl), timestamp_ttl
+    end
   end
 end
