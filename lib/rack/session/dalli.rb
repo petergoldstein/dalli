@@ -5,7 +5,7 @@ require 'dalli'
 module Rack
   module Session
     class Dalli < defined?(Abstract::Persisted) ? Abstract::Persisted : Abstract::ID
-      attr_reader :pool
+      attr_reader :pool, :mutex
 
       DEFAULT_DALLI_OPTIONS = {
         :namespace => 'rack:session',
@@ -85,11 +85,15 @@ module Rack
             ::Dalli::Client.new(mserv, mopts)
           end
 
-        @pool.alive! if @pool.respond_to? :alive!
+        if @pool.respond_to?(:alive!) # is a Dalli::Client
+          @mutex = Mutex.new
+
+          @pool.alive!
+        end
       end
 
-      def get_session(_, sid)
-        with_block([nil, {}]) do |dc|
+      def get_session(env, sid)
+        with_block(env, [nil, {}]) do |dc|
           unless sid and !sid.empty? and session = dc.get(sid)
             old_sid, sid, session = sid, generate_sid_with(dc), {}
             unless dc.add(sid, session, @default_ttl)
@@ -101,28 +105,34 @@ module Rack
         end
       end
 
-      def set_session(_, session_id, new_session, options)
+      def set_session(env, session_id, new_session, options)
         return false unless session_id
 
-        with_block(false) do |dc|
+        with_block(env, false) do |dc|
           dc.set(session_id, new_session, ttl(options[:expire_after]))
           session_id
         end
       end
 
-      def destroy_session(_, session_id, options)
-        with_block do |dc|
+      def destroy_session(env, session_id, options)
+        with_block(env) do |dc|
           dc.delete(session_id)
           generate_sid_with(dc) unless options[:drop]
         end
       end
 
       if defined?(Abstract::Persisted)
-        # We don't need to destructure the request, because we're not using
-        # request.env in the methods above, so simply alias the method names.
-        alias_method :find_session, :get_session
-        alias_method :write_session, :set_session
-        alias_method :delete_session, :destroy_session
+        def find_session(req, sid)
+          get_session req.env, sid
+        end
+
+        def write_session(req, sid, session, options)
+          set_session req.env, sid, session, options
+        end
+
+        def delete_session(req, sid, options)
+          destroy_session req.env, sid, options
+        end
       end
 
       private
@@ -151,7 +161,9 @@ module Rack
       alias_method :generate_sid_super, :generate_sid
 
       def generate_sid
-        with_block {|dc| generate_sid_with(dc) }
+        # no way to check env['rack.multithread'] here so fall back on
+        # Dalli::Client or ConnectionPool's internal mutex cf. our own
+        @pool.with {|dc| generate_sid_with(dc) }
       end
 
       def generate_sid_with(dc)
@@ -161,7 +173,8 @@ module Rack
         end
       end
 
-      def with_block(default=nil, &block)
+      def with_block(env, default=nil, &block)
+        @mutex.lock if @mutex and env['rack.multithread']
         @pool.with(&block)
       rescue ::Dalli::DalliError, Errno::ECONNREFUSED
         raise if $!.message =~ /undefined class/
@@ -170,6 +183,8 @@ module Rack
           warn $!.inspect
         end
         default
+      ensure
+        @mutex.unlock if @mutex and @mutex.locked?
       end
 
       def ttl(expire_after)
