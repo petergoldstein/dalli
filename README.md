@@ -182,6 +182,8 @@ If serving compressed data using nginx's HttpMemcachedModule, set `memcached_gzi
 
 **value_max_bytes**: The maximum size of a value in memcached.  Defaults to 1MB, this can be increased with memcached's -I parameter.  You must also configure Dalli to allow the larger size here.
 
+**error_when_over_max_size**: Boolean. If true, Dalli will throw a Dalli::ValueOverMaxSize exception when trying to store data larger than **value_max_bytes**. Defaults to false, meaning only a warning is logged.
+
 **username**: The username to use for authenticating this client instance against a SASL-enabled memcached server.  Heroku users should not need to use this normally.
 
 **password**: The password to use for authenticating this client instance against a SASL-enabled memcached server.  Heroku users should not need to use this normally.

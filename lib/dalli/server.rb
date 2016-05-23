@@ -24,6 +24,8 @@ module Dalli
       :socket_failure_delay => 0.01,
       # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
       :value_max_bytes => 1024 * 1024,
+      # surpassing value_max_bytes either warns (false) or throws (true)
+      :error_when_over_max_size => false,
       :compressor => Compressor,
       # min byte size to attempt compression
       :compression_min_size => 1024,
@@ -476,7 +478,10 @@ module Dalli
       if value.bytesize <= @options[:value_max_bytes]
         yield
       else
-        Dalli.logger.warn "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
+        message = "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
+        raise Dalli::ValueOverMaxSize, message if @options[:error_when_over_max_size]
+
+        Dalli.logger.warn message
         false
       end
     end

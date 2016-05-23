@@ -114,4 +114,36 @@ describe Dalli::Server do
       assert_equal s.send(:sanitize_ttl, timestamp_ttl), timestamp_ttl
     end
   end
+
+  describe 'guard_max_value' do
+    it 'yields when size is under max' do
+      s = Dalli::Server.new('127.0.0.1')
+      value = OpenStruct.new(:bytesize => 1_048_576)
+
+      yielded = false
+      s.send(:guard_max_value, :foo, value) do
+        yielded = true
+      end
+
+      assert_equal yielded, true
+    end
+
+    it 'warns when size is over max' do
+      s = Dalli::Server.new('127.0.0.1')
+      value = OpenStruct.new(:bytesize => 1_048_577)
+
+      Dalli.logger.expects(:warn).once.with("Value for foo over max size: 1048576 <= 1048577")
+
+      s.send(:guard_max_value, :foo, value)
+    end
+
+    it 'throws when size is over max and error_over_max_size true' do
+      s = Dalli::Server.new('127.0.0.1', :error_when_over_max_size => true)
+      value = OpenStruct.new(:bytesize => 1_048_577)
+
+      lambda do
+        s.send(:guard_max_value, :foo, value)
+      end.must_raise Dalli::ValueOverMaxSize
+    end
+  end
 end
