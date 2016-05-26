@@ -411,7 +411,7 @@ module Dalli
 
     def serialize(key, value, options=nil)
       marshalled = false
-      value = unless options && options[:raw]
+      value = unless (options && options[:raw]) || @options[:raw]
         marshalled = true
         begin
           self.serializer.dump(value)

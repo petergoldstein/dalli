@@ -252,10 +252,10 @@ describe Rack::Session::Dalli do
 
     res0 = req.get("/")
     session_id = (cookie = res0["Set-Cookie"])[session_match, 1]
-    ses0 = rsd.pool.get(session_id, true)
+    ses0 = rsd.pool.get(session_id, cache_nils: true)
 
     req.get("/", "HTTP_COOKIE" => cookie)
-    ses1 = rsd.pool.get(session_id, true)
+    ses1 = rsd.pool.get(session_id, cache_nils: true)
 
     refute_equal ses0, ses1
   end

@@ -56,7 +56,7 @@ module Dalli
     # Get the value associated with the key.
     # If a value is not found, then +nil+ is returned.
     def get(key, options=nil)
-      perform(:get, key, options.merge(raw: @options[:raw]))
+      perform(:get, key, options)
     end
 
     ##
@@ -124,7 +124,7 @@ module Dalli
     end
 
     def set(key, value, ttl=nil, options=nil)
-      perform(:set, key, value, ttl_or_default(ttl), 0, options.merge(raw: @options[:raw]))
+      perform(:set, key, value, ttl_or_default(ttl), 0, options)
     end
 
     ##

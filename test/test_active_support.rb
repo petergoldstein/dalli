@@ -473,6 +473,22 @@ describe 'ActiveSupport::Cache::DalliStore' do
     assert_equal map, @dalli.read_multi(*(map.keys))
   end
 
+  it 'support raw read_multi' do # TODO fails with LocalCache
+    with_cache do
+      @dalli.write("abc", 5, :raw => true)
+      @dalli.write("cba", 5, :raw => true)
+      assert_equal({'abc' => '5', 'cba' => '5' }, @dalli.read_multi("abc", "cba"))
+    end
+  end
+
+  it 'set global config raw' do
+    with_cache(raw: true) do
+      @dalli.write("aaa", 5)
+      @dalli.write("bbb", 5)
+      assert_equal({'aaa' => '5', 'bbb' => '5' }, @dalli.read_multi("aaa", "bbb"))
+    end
+  end
+
   def silence_logger
     old = Dalli.logger.level
     Dalli.logger.level = Logger::ERROR + 1
