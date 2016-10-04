@@ -1,12 +1,18 @@
 # frozen_string_literal: true
 require 'active_support/cache'
-require 'action_dispatch/middleware/session/abstract_store'
+if defined?(ActionDispatch::Sesssion::CacheStore)
+  # Rails 5 support
+  require 'action_dispatch/middleware/session/cache_store'
+else
+  # Rails 3-4 support
+  require 'action_dispatch/middleware/session/abstract_store'
+end
 require 'dalli'
 
-# Dalli-based session store for Rails 3.0.
+# Dalli-based session store for Rails 3.0, 4.0, and 5.0.
 module ActionDispatch
   module Session
-    class DalliStore < AbstractStore
+    class DalliStore < (defined?(CacheStore) CacheStore : AbstractStore)
       def initialize(app, options = {})
         # Support old :expires option
         options[:expire_after] ||= options[:expires]
