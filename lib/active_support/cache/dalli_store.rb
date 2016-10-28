@@ -260,10 +260,16 @@ module ActiveSupport
       end
 
       # Clear the entire cache on all memcached servers. This method should
-      # be used with care when using a shared cache.
+      # be used with care when using a shared cache. 
+      # Accepts an options hash with a :delay key. Delay is the number of seconds
+      # to delay the flush command. This number is compounded per memcached server.
+      # For example, with {:delay => 5} and three memcached servers, the first server
+      # will wait 5 seconds to flush it's keys, the second server will wait 10, third
+      # will wait 15, etc...
       def clear(options=nil)
         instrument(:clear, 'flushing all keys') do
-          with { |c| c.flush_all }
+          delay = (options ? options[:delay] : 0) || 0
+          with { |c| c.flush_all(delay) }
         end
       rescue Dalli::DalliError => e
         logger.error("DalliError: #{e.message}") if logger

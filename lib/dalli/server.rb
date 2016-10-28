@@ -320,8 +320,8 @@ module Dalli
       generic_response unless multi?
     end
 
-    def flush(ttl)
-      req = [REQUEST, OPCODES[:flush], 0, 4, 0, 0, 4, 0, 0, 0].pack(FORMAT[:flush])
+    def flush(delay)
+      req = [REQUEST, OPCODES[:flush], 0, 4, 0, 0, 4, 0, 0, delay].pack(FORMAT[:flush])
       write(req)
       generic_response
     end
