@@ -198,7 +198,11 @@ module ActiveSupport
       # and the result will be written to the cache and returned.
       def fetch_multi(*names)
         options = names.extract_options!
-        mapping = names.inject({}) { |memo, name| memo[namespaced_key(name, options)] = name; memo }
+        mapping = names.inject({}) { |memo, name|
+          key = (name.is_a?(Hash)) ? name[:key] : name
+          memo[namespaced_key(key, options)] = name;
+          memo
+        }
 
         instrument(:fetch_multi, mapping.keys) do
           with do |connection|
@@ -206,10 +210,11 @@ module ActiveSupport
 
             connection.multi do
               mapping.inject({}) do |memo, (expanded, name)|
-                memo[name] = results[expanded]
-                if memo[name].nil?
+                key = (name.is_a?(Hash)) ? name[:key] : name
+                memo[key] = results[expanded]
+                if memo[key].nil?
                   value = yield(name)
-                  memo[name] = value
+                  memo[key] = value
                   options = options.merge(:connection => connection)
                   write_entry(expanded, value, options)
                 end
