@@ -608,7 +608,7 @@ module Dalli
     RESPONSE = 0x81
 
     # Response codes taken from:
-    # https://code.google.com/p/memcached/wiki/BinaryProtocolRevamped#Response_Status
+    # https://github.com/memcached/memcached/wiki/BinaryProtocolRevamped#response-status
     RESPONSE_CODES = {
       0 => 'No error',
       1 => 'Key not found',
