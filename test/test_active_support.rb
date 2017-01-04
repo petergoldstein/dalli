@@ -394,6 +394,19 @@ describe 'ActiveSupport::Cache::DalliStore' do
     end
 
     describe 'instruments' do
+      it 'notifies errors' do
+        new_port = 29333
+        key = 'foo'
+        with_cache port: new_port, :instrument_errors => true do
+          memcached_kill(new_port)
+          payload_proc = Proc.new { |payload| payload }
+          @dalli.expects(:instrument).with(:read, { :key => key }).yields(&payload_proc).once
+          @dalli.expects(:instrument).with(:error, { :key => "DalliError",
+                                                     :message => "No server available" }).once
+          @dalli.read(key)
+        end
+      end
+
       it 'payload hits' do
         with_cache do
           payload = {}

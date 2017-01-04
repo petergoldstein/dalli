@@ -99,7 +99,7 @@ module ActiveSupport
         if block_given?
           entry = not_found
           unless options[:force]
-            entry = instrument(:read, namespaced_name, options) do |payload|
+            entry = instrument_with_log(:read, namespaced_name, options) do |payload|
               read_entry(namespaced_name, options).tap do |result|
                 if payload
                   payload[:super_operation] = :fetch
@@ -110,13 +110,13 @@ module ActiveSupport
           end
 
           if entry == not_found
-            result = instrument(:generate, namespaced_name, options) do |payload|
+            result = instrument_with_log(:generate, namespaced_name, options) do |payload|
               yield
             end
             write(name, result, options)
             result
           else
-            instrument(:fetch_hit, namespaced_name, options) { |payload| }
+            instrument_with_log(:fetch_hit, namespaced_name, options) { |payload| }
             entry
           end
         else
@@ -128,7 +128,7 @@ module ActiveSupport
         options ||= {}
         name = namespaced_key(name, options)
 
-        instrument(:read, name, options) do |payload|
+        instrument_with_log(:read, name, options) do |payload|
           entry = read_entry(name, options)
           payload[:hit] = !entry.nil? if payload
           entry
@@ -139,7 +139,7 @@ module ActiveSupport
         options ||= {}
         name = namespaced_key(name, options)
 
-        instrument(:write, name, options) do |payload|
+        instrument_with_log(:write, name, options) do |payload|
           with do |connection|
             options = options.merge(:connection => connection)
             write_entry(name, value, options)
@@ -159,7 +159,7 @@ module ActiveSupport
         options ||= {}
         name = namespaced_key(name, options)
 
-        instrument(:delete, name, options) do |payload|
+        instrument_with_log(:delete, name, options) do |payload|
           delete_entry(name, options)
         end
       end
@@ -169,7 +169,7 @@ module ActiveSupport
       def read_multi(*names)
         options  = names.extract_options!
         mapping = names.inject({}) { |memo, name| memo[namespaced_key(name, options)] = name; memo }
-        instrument(:read_multi, mapping.keys) do
+        instrument_with_log(:read_multi, mapping.keys) do
           results = {}
           if local_cache
             mapping.each_key do |key|
@@ -200,7 +200,7 @@ module ActiveSupport
         options = names.extract_options!
         mapping = names.inject({}) { |memo, name| memo[namespaced_key(name, options)] = name; memo }
 
-        instrument(:fetch_multi, mapping.keys) do
+        instrument_with_log(:fetch_multi, mapping.keys) do
           with do |connection|
             results = connection.get_multi(mapping.keys)
 
@@ -231,11 +231,12 @@ module ActiveSupport
         name = namespaced_key(name, options)
         initial = options.has_key?(:initial) ? options[:initial] : amount
         expires_in = options[:expires_in]
-        instrument(:increment, name, :amount => amount) do
+        instrument_with_log(:increment, name, :amount => amount) do
           with { |c| c.incr(name, amount, expires_in, initial) }
         end
       rescue Dalli::DalliError => e
-        logger.error("DalliError: #{e.message}") if logger
+        log_dalli_error(e)
+        instrument_error(e) if instrument_errors?
         raise if raise_errors?
         nil
       end
@@ -250,11 +251,12 @@ module ActiveSupport
         name = namespaced_key(name, options)
         initial = options.has_key?(:initial) ? options[:initial] : 0
         expires_in = options[:expires_in]
-        instrument(:decrement, name, :amount => amount) do
+        instrument_with_log(:decrement, name, :amount => amount) do
           with { |c| c.decr(name, amount, expires_in, initial) }
         end
       rescue Dalli::DalliError => e
-        logger.error("DalliError: #{e.message}") if logger
+        log_dalli_error(e)
+        instrument_error(e) if instrument_errors?
         raise if raise_errors?
         nil
       end
@@ -262,11 +264,12 @@ module ActiveSupport
       # Clear the entire cache on all memcached servers. This method should
       # be used with care when using a shared cache.
       def clear(options=nil)
-        instrument(:clear, 'flushing all keys') do
+        instrument_with_log(:clear, 'flushing all keys') do
           with { |c| c.flush_all }
         end
       rescue Dalli::DalliError => e
-        logger.error("DalliError: #{e.message}") if logger
+        log_dalli_error(e)
+        instrument_error(e) if instrument_errors?
         raise if raise_errors?
         nil
       end
@@ -300,7 +303,8 @@ module ActiveSupport
         # NB Backwards data compatibility, to be removed at some point
         entry.is_a?(ActiveSupport::Cache::Entry) ? entry.value : entry
       rescue Dalli::DalliError => e
-        logger.error("DalliError: #{e.message}") if logger
+        log_dalli_error(e)
+        instrument_error(e) if instrument_errors?
         raise if raise_errors?
         nil
       end
@@ -314,7 +318,8 @@ module ActiveSupport
         connection = options.delete(:connection)
         connection.send(method, key, value, expires_in, options)
       rescue Dalli::DalliError => e
-        logger.error("DalliError: #{e.message}") if logger
+        log_dalli_error(e)
+        instrument_error(e) if instrument_errors?
         raise if raise_errors?
         false
       end
@@ -323,7 +328,8 @@ module ActiveSupport
       def delete_entry(key, options) # :nodoc:
         with { |c| c.delete(key) }
       rescue Dalli::DalliError => e
-        logger.error("DalliError: #{e.message}") if logger
+        log_dalli_error(e)
+        instrument_error(e) if instrument_errors?
         raise if raise_errors?
         false
       end
@@ -364,12 +370,26 @@ module ActiveSupport
         key
       end
 
-      def instrument(operation, key, options=nil)
+      def log_dalli_error(error)
+        logger.error("DalliError: #{error.message}") if logger
+      end
+
+      def instrument_with_log(operation, key, options=nil)
         log(operation, key, options)
 
         payload = { :key => key }
         payload.merge!(options) if options.is_a?(Hash)
-        ActiveSupport::Notifications.instrument("cache_#{operation}.active_support", payload){ yield(payload) }
+        instrument(operation, payload) { |p| yield(p) }
+      end
+
+      def instrument_error(error)
+        instrument(:error, { :key => 'DalliError', :message => error.message })
+      end
+
+      def instrument(operation, payload)
+        ActiveSupport::Notifications.instrument("cache_#{operation}.active_support", payload) do
+          yield(payload) if block_given?
+        end
       end
 
       def log(operation, key, options=nil)
@@ -379,6 +399,10 @@ module ActiveSupport
 
       def raise_errors?
         !!@options[:raise_errors]
+      end
+
+      def instrument_errors?
+        !!@options[:instrument_errors]
       end
 
       # Make sure LocalCache is giving raw values, not `Entry`s, and
