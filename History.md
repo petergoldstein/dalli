@@ -1,6 +1,8 @@
 Dalli Changelog
 =====================
 
+- Instrument DalliStore errors with instrument_errors configuration option. (btatnall)
+
 2.7.6
 ==========
 - Rails 5.0.0.beta2 compatibility (yui-knk, petergoldstein)

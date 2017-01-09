@@ -194,6 +194,10 @@ If serving compressed data using nginx's HttpMemcachedModule, set `memcached_gzi
 
 **cache_nils**: Boolean. If true Dalli will not treat cached `nil` values as 'not found' for `#fetch` operations. Default is false.
 
+**raise_errors**: Boolean. When true DalliStore will reraise Dalli:DalliError instead swallowing the error. Default is false.
+
+**instrument_errors**: Boolean. When true DalliStore will send notification of Dalli::DalliError via a 'cache_error.active_support' event. Default is false.
+
 Features and Changes
 ------------------------
 
