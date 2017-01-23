@@ -64,6 +64,9 @@ begin
       sock.server = server
       sock.kgio_wait_writable
       sock
+    rescue Timeout::Error
+      sock.close if sock
+      raise
     end
   end
 
@@ -75,6 +78,9 @@ begin
       sock.server = server
       sock.kgio_wait_writable
       sock
+    rescue Timeout::Error
+      sock.close if sock
+      raise
     end
   end
 
