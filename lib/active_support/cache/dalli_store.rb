@@ -152,7 +152,7 @@ module ActiveSupport
         name = namespaced_key(name, options)
 
         log(:exist, name, options)
-        !read_entry(name, options).nil?
+        options[:cache_nils] ? read_entry(name, options) != Dalli::Server::NOT_FOUND : !read_entry(name, options).nil?
       end
 
       def delete(name, options=nil)

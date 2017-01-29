@@ -97,6 +97,38 @@ describe 'ActiveSupport::Cache::DalliStore' do
         end
       end
 
+      it 'return true when caching nil and cache_nils: true' do
+        with_cache cache_nils: true do
+          @dalli.write('nil', nil)
+          dvalue = @dalli.exist?('nil')
+          assert_equal true, dvalue
+        end
+      end
+
+      it 'return false when caching nil and cache_nils: false' do
+        with_cache cache_nils: false do
+          @dalli.write('nil', nil)
+          dvalue = @dalli.exist?('nil')
+          assert_equal false, dvalue
+        end
+      end
+
+      it 'return true when caching non-nil and cache_nils: false' do
+        with_cache cache_nils: true do
+          @dalli.write('nil', 'nil')
+          dvalue = @dalli.exist?('nil')
+          assert_equal true, dvalue
+        end
+      end
+
+      it 'return false when caching non-nil and cache_nils: false' do
+        with_cache cache_nils: false do
+          @dalli.write('nil', 'nil')
+          dvalue = @dalli.exist?('nil')
+          assert_equal true, dvalue
+        end
+      end
+
       it_with_and_without_local_cache 'support object with cache_key' do
         user = MockUser.new
         @dalli.write(user.cache_key, false)
