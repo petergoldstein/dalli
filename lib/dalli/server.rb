@@ -15,7 +15,7 @@ module Dalli
     DEFAULT_WEIGHT = 1
     DEFAULTS = {
       # seconds between trying to contact a remote server
-      :down_retry_delay => 1,
+      :down_retry_delay => 60,
       # connect/read/write timeout for socket operations
       :socket_timeout => 0.5,
       # times a socket operation may fail before considering the server dead
