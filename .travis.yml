@@ -1,6 +1,8 @@
 language: ruby
 cache: bundler
 rvm:
+  - ruby-head
+  - 2.4.1
   - 2.3.0
   - 2.2.4
   - 2.1.8
@@ -30,7 +32,9 @@ matrix:
     - rvm: jruby
       gemfile: gemfiles/rails4.gemfile
   allow_failures:
+    - rvm: ruby-head
     - rvm: rbx-2
+  fast_finish: true
 env: JRUBY_OPTS='--1.9'
 before_install:
   - gem install bundler
