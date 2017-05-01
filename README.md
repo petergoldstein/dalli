@@ -90,9 +90,11 @@ config.cache_store = :dalli_store
 Here's a more comprehensive example that sets a reasonable default for maximum cache entry lifetime (one day), enables compression for large values and namespaces all entries for this rails app.  Remove the namespace if you have multiple apps which share cached values.
 
 ```ruby
-config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com',
+config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com:11211:2',
   { :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true }
 ```
+
+You can specify a port and a weight by appending to the server name. You may wish to increase the weight of a server with more memory configured.  (e.g. to specify port 11211 and a weight of 2, append `:11211:2` ) 
 
 If your servers are specified in `ENV["MEMCACHE_SERVERS"]` (e.g. on Heroku when using a third-party hosted addon), simply provide `nil` for the servers:
 
@@ -146,6 +148,8 @@ end
 
 Configuration
 ------------------------
+
+**servers**: An Array of "host:port:weight" where weight allows you to distribute cache unevenly.
 
 Dalli::Client accepts the following options. All times are in seconds.
 
