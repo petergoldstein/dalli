@@ -149,6 +149,8 @@ end
 Configuration
 ------------------------
 
+**servers**: An Array of "host:port:weight" where weight allows you to distribute cache unevenly.
+
 Dalli::Client accepts the following options. All times are in seconds.
 
 **expires_in**: Global default for key TTL.  Default is 0, which means no expiry.
