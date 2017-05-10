@@ -135,6 +135,19 @@ module ActiveSupport
         end
       end
 
+      def read_cas(name, options=nil)
+        options ||= {}
+        name = namespaced_key(name, options)
+
+        instrument(:get_cas, name) do |payload|
+          with { |c| c.get_cas(name) }
+        end
+      rescue Dalli::DalliError => e
+        logger.error("DalliError: #{e.message}") if logger
+        raise if raise_errors?
+        false
+      end
+
       def write(name, value, options=nil)
         options ||= {}
         name = namespaced_key(name, options)
@@ -145,6 +158,22 @@ module ActiveSupport
             write_entry(name, value, options)
           end
         end
+      end
+
+      def write_cas(name, value, options=nil)
+        options ||= {}
+        name = namespaced_key(name, options)
+        expires_in = options[:expires_in]
+
+        instrument(:set_cas, name, value) do |payload|
+          cas = options.delete(:cas) || 0
+          expires_in = options.delete(:expires_in)
+          with { |c| c.set_cas(name, value, cas, expires_in, options) }
+        end
+      rescue Dalli::DalliError => e
+        logger.error("DalliError: #{e.message}") if logger
+        raise if raise_errors?
+        false
       end
 
       def exist?(name, options=nil)
@@ -161,6 +190,12 @@ module ActiveSupport
 
         instrument_with_log(:delete, name, options) do |payload|
           delete_entry(name, options)
+        end
+      end
+
+      def delete_cas(name, cas)
+        instrument(:delete_cas, name, cas) do |payload|
+          with { |c| c.delete_cas(name) }
         end
       end
 
@@ -189,6 +224,15 @@ module ActiveSupport
             local_cache.write_entry(inner, value, options) if local_cache
             memo
           end
+        end
+      end
+
+      def read_multi_cas(*names)
+        options  = names.extract_options!
+        mapping = names.inject({}) { |memo, name| memo[namespaced_key(name, options)] = name; memo }
+        instrument(:read_multi_cas, names) do
+          results = {}
+          data = with { |c| c.get_multi_cas(mapping.keys) }
         end
       end
 
