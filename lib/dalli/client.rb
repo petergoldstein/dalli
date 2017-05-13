@@ -250,10 +250,20 @@ module Dalli
     ##
     # Close our connection to each server.
     # If you perform another operation after this, the connections will be re-established.
-    def close
+    def close!
       if @ring
         @ring.servers.each { |s| s.close }
         @ring = nil
+      end
+    end
+    alias_method :reset!, :close!
+
+    ##
+    # Close our connection to each server like +#close!+ but do not clear ring
+    # so that one can reuse it for next operation.
+    def close
+      if @ring
+        @ring.servers.each { |s| s.close }
       end
     end
     alias_method :reset, :close
