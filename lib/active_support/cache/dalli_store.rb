@@ -5,7 +5,9 @@ require 'dalli'
 module ActiveSupport
   module Cache
     class DalliStore
-
+      
+      BINARY_ENCODING = 'binary'.freeze
+      
       attr_reader :silence, :options
       alias_method :silence?, :silence
 
@@ -365,7 +367,7 @@ module ActiveSupport
         key = key.to_param
         if key.respond_to? :force_encoding
           key = key.dup
-          key.force_encoding('binary')
+          key.force_encoding(BINARY_ENCODING)
         end
         key
       end
