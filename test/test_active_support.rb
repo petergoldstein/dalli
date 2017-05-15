@@ -180,6 +180,20 @@ describe 'ActiveSupport::Cache::DalliStore' do
       end
     end
 
+    it_with_and_without_local_cache 'supports fetch_multi with splay of hashes' do
+      x = rand_key.to_s
+      y = rand_key
+
+      @dalli.write(y, '123')
+
+      hashes = [{key: x, value: 'ABC'}, {key: y, value: 'DEF'}, {}]
+      results = @dalli.fetch_multi(*hashes) { |hashes| hashes[:value] }
+
+      assert_equal({ x => 'ABC', y => '123' }, results)
+      assert_equal('ABC', @dalli.read(x))
+      assert_equal('123', @dalli.read(y))
+    end
+
     it_with_and_without_local_cache 'supports fetch_multi' do
       x = rand_key.to_s
       y = rand_key
