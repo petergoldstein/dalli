@@ -74,7 +74,7 @@ module Dalli
       end
     end
 
-    CACHE_NILS = {cache_nils: true}.freeze
+    CACHE_NILS = {:cache_nils => true}.freeze
 
     # Fetch the value associated with the key.
     # If a value is found, then it is returned.
