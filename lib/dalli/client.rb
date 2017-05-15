@@ -65,6 +65,10 @@ module Dalli
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
     def get_multi(*keys)
       return {} if keys.flatten.compact.empty?
+      # This is an Appboy modification, added specifically to handle a bug in ActiveSupport.
+      # See: https://github.com/rails/rails/issues/27066
+      keys.select!{|key| key != {raw: true}}
+
       if block_given?
         get_multi_yielder(keys) {|k, data| yield k, data.first}
       else

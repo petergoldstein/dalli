@@ -325,6 +325,17 @@ describe 'Dalli' do
       end
     end
 
+    # This tests an Appboy modification, added specifically to handle a bug in ActiveSupport.
+    # See: https://github.com/rails/rails/issues/27066
+    it 'filters garbage key incorrectly passed by ActiveSupport' do
+      memcached_persistent do |dc|
+        dc.set('a', 1)
+        dc.set('b', 2)
+        dc.set({raw: true}, 3)
+        assert_equal({'a' => 1, 'b' => 2}, dc.get_multi(['a', 'b'], raw: true))
+      end
+    end
+
     it 'support raw incr/decr' do
       memcached_persistent do |client|
         client.flush
