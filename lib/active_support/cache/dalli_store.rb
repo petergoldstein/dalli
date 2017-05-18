@@ -147,6 +147,16 @@ module ActiveSupport
         end
       end
 
+      def touch(name, options=nil)
+        options ||= {}
+        name = expanded_key name
+        expires_in = options[:expires_in]
+
+        instrument(:touch, name, options) do |payload|
+          touch_entry(name, expires_in)
+        end
+      end
+
       def exist?(name, options=nil)
         options ||= {}
         name = namespaced_key(name, options)
@@ -320,6 +330,15 @@ module ActiveSupport
       rescue Dalli::DalliError => e
         log_dalli_error(e)
         instrument_error(e) if instrument_errors?
+        raise if raise_errors?
+        false
+      end
+
+      # Touch an entry to the cache.
+      def touch_entry(key, expires_in)
+        with { |c| c.touch(key, expires_in) }
+      rescue Dalli::DalliError => e
+        logger.error("DalliError: #{e.message}") if logger
         raise if raise_errors?
         false
       end
