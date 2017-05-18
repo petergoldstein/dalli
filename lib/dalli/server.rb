@@ -729,8 +729,8 @@ module Dalli
     def parse_hostname(str)
       res = str.match(/\A(\[([\h:]+)\]|[^:]+)(?::(\d+))?(?::(\d+))?\z/)
       raise Dalli::DalliError, "Could not parse hostname #{str}" if res.nil? || res[1] == '[]'
-      hostnam = res[2] || res[1]
-      if hostnam =~ /\A\//
+      hostname = res[2] || res[1]
+      if hostname =~ /\A\//
         socket_type = :unix
         # in case of unix socket, allow only setting of weight, not port
         raise Dalli::DalliError, "Could not parse hostname #{str}" if res[4]
@@ -743,7 +743,7 @@ module Dalli
       end
       weigh ||= DEFAULT_WEIGHT
       weigh = Integer(weigh)
-      return hostnam, por, weigh, socket_type
+      return hostname, por, weigh, socket_type
     end
   end
 end
