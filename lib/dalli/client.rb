@@ -161,7 +161,13 @@ module Dalli
 
     def flush(delay=0)
       time = -delay
-      ring.servers.map { |s| s.request(:flush, time += delay) }
+      ring.servers.map do |server|
+        begin
+          server.request(:flush, time += delay) if server.alive?
+        rescue NetworkError => e
+          retry
+        end
+      end
     end
 
     alias_method :flush_all, :flush

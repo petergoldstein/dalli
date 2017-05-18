@@ -12,6 +12,7 @@ describe 'Sasl' do
       @server = mock()
       @server.stubs(:request).returns(true)
       @server.stubs(:weight).returns(1)
+      @server.stubs(:alive?).returns(true)
       @server.stubs(:name).returns("localhost:19124")
     end
 
