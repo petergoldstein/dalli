@@ -113,7 +113,7 @@ module ActiveSupport
             result = instrument_with_log(:generate, namespaced_name, options) do |payload|
               yield
             end
-            write(name, result, options)
+            write(name, result, options) unless result.nil?
             result
           else
             instrument_with_log(:fetch_hit, namespaced_name, options) { |payload| }
