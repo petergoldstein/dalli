@@ -50,3 +50,16 @@ describe 'GzipCompressor' do
   end
 
 end
+
+describe 'LZ4Compressor' do
+
+  it 'compress and uncompress data using LZ4Compressor' do
+    memcached(19127,nil,{:compress=>true,:compressor=>Dalli::LZ4Compressor}) do |dc|
+      data = (0...1025).map{65.+(rand(26)).chr}.join
+      assert dc.set("test", data)
+      assert_equal Dalli::LZ4Compressor, dc.instance_variable_get('@ring').servers.first.compressor
+      assert_equal(data, dc.get("test"))
+    end
+  end
+
+end
