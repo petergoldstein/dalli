@@ -9,6 +9,12 @@ class MockUser
   end
 end
 
+class ObjectRaisingEquality
+  def ==(other)
+    raise "Equality called on fetched object."
+  end
+end
+
 describe 'ActiveSupport::Cache::DalliStore' do
   # with and without local cache
   def self.it_with_and_without_local_cache(message, &block)
@@ -59,6 +65,16 @@ describe 'ActiveSupport::Cache::DalliStore' do
       it_with_and_without_local_cache 'support expires_in' do
         dvalue = @dalli.fetch('someotherkeywithoutspaces', :expires_in => 1.second) { 123 }
         assert_equal 123, dvalue
+      end
+
+      it_with_and_without_local_cache 'tests cache misses using correct operand ordering' do
+        # Some objects customise their equality methods. If you call #== on these objects this can mean your
+        # returned value from the gem to your application is technically different to what's serialised in the cache.
+        #
+        # See https://github.com/petergoldstein/dalli/pull/662
+        #
+        obj = ObjectRaisingEquality.new
+        @dalli.fetch('obj') { obj }
       end
 
       it_with_and_without_local_cache 'support object' do

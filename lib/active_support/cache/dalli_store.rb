@@ -103,13 +103,13 @@ module ActiveSupport
               read_entry(namespaced_name, options).tap do |result|
                 if payload
                   payload[:super_operation] = :fetch
-                  payload[:hit] = result != not_found
+                  payload[:hit] = not_found != result
                 end
               end
             end
           end
 
-          if entry == not_found
+          if not_found == entry
             result = instrument_with_log(:generate, namespaced_name, options) do |payload|
               yield
             end
