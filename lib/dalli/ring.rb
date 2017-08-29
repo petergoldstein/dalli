@@ -21,7 +21,7 @@ module Dalli
             continuum << Dalli::Ring::Entry.new(value, server)
           end
         end
-        @continuum = continuum.sort { |a, b| a.value <=> b.value }
+        @continuum = continuum.sort_by(&:value)
       end
 
       threadsafe! unless options[:threadsafe] == false
@@ -111,7 +111,6 @@ module Dalli
       def binary_search(ary, value)
         upper = ary.size - 1
         lower = 0
-        idx = 0
 
         while (lower <= upper) do
           idx = (lower + upper) / 2
@@ -125,7 +124,7 @@ module Dalli
             lower = idx + 1
           end
         end
-        return upper
+        upper
       end
     end
 
