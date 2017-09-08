@@ -702,7 +702,7 @@ module Dalli
       req = [REQUEST, OPCODES[:auth_negotiation], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
       write(req)
 
-      (extras, type, status, count) = read_header.unpack(NORMAL_HEADER)
+      (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
       content = read(count).gsub(/\u0000/, ' ')
       return (Dalli.logger.debug("Authentication not required/supported by server")) if status == 0x81
@@ -715,7 +715,7 @@ module Dalli
       req = [REQUEST, OPCODES[:auth_request], mechanism.bytesize, 0, 0, 0, mechanism.bytesize + msg.bytesize, 0, 0, mechanism, msg].pack(FORMAT[:auth_request])
       write(req)
 
-      (extras, type, status, count) = read_header.unpack(NORMAL_HEADER)
+      (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
       content = read(count)
       return Dalli.logger.info("Dalli/SASL: #{content}") if status == 0
