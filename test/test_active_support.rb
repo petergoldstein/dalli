@@ -85,7 +85,7 @@ describe 'ActiveSupport::Cache::DalliStore' do
         with_cache cache_nils: true do
           @dalli.write('nil', nil)
           dvalue = @dalli.fetch('nil') { flunk }
-          assert_equal nil, dvalue
+          assert_nil dvalue
         end
 
         with_cache cache_nils: false do
@@ -282,7 +282,7 @@ describe 'ActiveSupport::Cache::DalliStore' do
           @dalli.delete(y)
           Dalli::Client.any_instance.expects(:get).with(y, {}).once.returns(nil)
           dres = @dalli.read(y)
-          assert_equal nil, dres
+          assert_nil dres
         end
       end
     end
@@ -321,15 +321,15 @@ describe 'ActiveSupport::Cache::DalliStore' do
       assert_equal 6, @dalli.increment('counterY1', 1, :initial => 5)
       assert_equal 6, @dalli.read('counterY1', :raw => true).to_i
 
-      assert_equal nil, @dalli.increment('counterZ1', 1, :initial => nil)
-      assert_equal nil, @dalli.read('counterZ1')
+      assert_nil @dalli.increment('counterZ1', 1, :initial => nil)
+      assert_nil @dalli.read('counterZ1')
 
       assert_equal 5, @dalli.decrement('counterY2', 1, :initial => 5)
       assert_equal 4, @dalli.decrement('counterY2', 1, :initial => 5)
       assert_equal 4, @dalli.read('counterY2', :raw => true).to_i
 
-      assert_equal nil, @dalli.decrement('counterZ2', 1, :initial => nil)
-      assert_equal nil, @dalli.read('counterZ2')
+      assert_nil @dalli.decrement('counterZ2', 1, :initial => nil)
+      assert_nil @dalli.read('counterZ2')
 
       user = MockUser.new
       assert op_addset_succeeds(@dalli.write(user, 0, :raw => true))
@@ -370,7 +370,7 @@ describe 'ActiveSupport::Cache::DalliStore' do
         memcached_kill(new_port)
 
         silence_logger do
-          assert_equal @dalli.read('foo'), nil
+          assert_nil @dalli.read('foo')
         end
       end
 
@@ -460,7 +460,7 @@ describe 'ActiveSupport::Cache::DalliStore' do
 
   it 'supports connection pooling' do
     with_cache :expires_in => 1, :namespace => 'foo', :compress => true, :pool_size => 3 do
-      assert_equal nil, @dalli.read('foo')
+      assert_nil @dalli.read('foo')
       assert @dalli.write('foo', 1)
       assert_equal 1, @dalli.fetch('foo') { raise 'boom' }
       assert_equal true, @dalli.dalli.is_a?(ConnectionPool)
