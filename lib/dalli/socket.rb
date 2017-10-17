@@ -105,7 +105,8 @@ rescue LoadError
           if IO.select([self], nil, nil, options[:socket_timeout])
             retry
           else
-            raise Timeout::Error, "IO timeout: #{options.inspect}"
+            safe_options = options.reject{|k,v| [:username, :password].include? k}
+            raise Timeout::Error, "IO timeout: #{safe_options.inspect}"
           end
         end
         value
