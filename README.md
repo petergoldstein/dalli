@@ -1,4 +1,4 @@
-Dalli [![Build Status](https://secure.travis-ci.org/petergoldstein/dalli.png)](http://travis-ci.org/petergoldstein/dalli) [![Dependency Status](https://gemnasium.com/petergoldstein/dalli.png)](https://gemnasium.com/petergoldstein/dalli) [![Code Climate](https://codeclimate.com/github/petergoldstein/dalli.png)](https://codeclimate.com/github/petergoldstein/dalli)
+Dalli [![Build Status](https://secure.travis-ci.org/petergoldstein/dalli.svg)](http://travis-ci.org/petergoldstein/dalli) [![Dependency Status](https://gemnasium.com/petergoldstein/dalli.svg)](https://gemnasium.com/petergoldstein/dalli) [![Code Climate](https://codeclimate.com/github/petergoldstein/dalli.svg)](https://codeclimate.com/github/petergoldstein/dalli)
 =====
 
 Dalli is a high performance pure Ruby client for accessing memcached servers.  It works with memcached 1.4+ only as it uses the newer binary protocol.  It should be considered a replacement for the memcache-client gem.
