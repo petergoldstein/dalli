@@ -36,9 +36,15 @@ matrix:
     - rvm: rbx-2
   fast_finish: true
 env: JRUBY_OPTS='--1.9'
+script:
+  - bundle exec rake
 before_install:
   - gem install bundler
   - sudo apt-get -y remove memcached
-  - echo "yes" | sudo add-apt-repository ppa:travis-ci/memcached-sasl
-  - sudo apt-get update
-  - sudo apt-get install -y memcached=1.4.13-0ubuntu2+travis1
+  - sudo apt-get install libevent-dev
+  - wget https://memcached.org/files/memcached-1.4.15.tar.gz
+  - tar -zxvf memcached-1.4.15.tar.gz
+  - cd memcached-1.4.15
+  - ./configure --enable-sasl
+  - make
+  - sudo make install
