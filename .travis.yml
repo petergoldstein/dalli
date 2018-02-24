@@ -1,7 +1,6 @@
 language: ruby
 cache: bundler
 rvm:
-  - ruby-head
   - 2.5.0
   - 2.4.3
   - 2.3.6
@@ -9,9 +8,7 @@ rvm:
   - 2.1.10
   - 2.0.0
   - 1.9.3
-  - rbx-2
-  - jruby
-  - jruby-9.0.4.0
+  - jruby-9.1.16.0
 gemfile:
   - gemfiles/rails3.gemfile
   - gemfiles/rails4.gemfile
@@ -24,19 +21,12 @@ matrix:
       gemfile: gemfiles/rails5.gemfile
     - rvm: 1.9.3
       gemfile: gemfiles/rails5.gemfile
-    - rvm: rbx-2
-      gemfile: gemfiles/rails5.gemfile
-    - rvm: jruby
-      gemfile: gemfiles/rails5.gemfile
     - rvm: 1.9.3
       gemfile: gemfiles/rails4.gemfile
-    - rvm: jruby
-      gemfile: gemfiles/rails4.gemfile
-  allow_failures:
-    - rvm: ruby-head
-    - rvm: rbx-2
   fast_finish: true
-env: JRUBY_OPTS='--1.9'
+env:
+  global:
+    - JRUBY_OPTS='--debug'
 script:
   - bundle exec rake
 before_install:
