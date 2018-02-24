@@ -2,10 +2,11 @@ language: ruby
 cache: bundler
 rvm:
   - ruby-head
-  - 2.4.1
-  - 2.3.0
-  - 2.2.4
-  - 2.1.8
+  - 2.5.0
+  - 2.4.3
+  - 2.3.6
+  - 2.2.9
+  - 2.1.10
   - 2.0.0
   - 1.9.3
   - rbx-2
@@ -17,7 +18,7 @@ gemfile:
   - gemfiles/rails5.gemfile
 matrix:
   exclude:
-    - rvm: 2.1.8
+    - rvm: 2.1.10
       gemfile: gemfiles/rails5.gemfile
     - rvm: 2.0.0
       gemfile: gemfiles/rails5.gemfile
@@ -36,9 +37,15 @@ matrix:
     - rvm: rbx-2
   fast_finish: true
 env: JRUBY_OPTS='--1.9'
+script:
+  - bundle exec rake
 before_install:
   - gem install bundler
   - sudo apt-get -y remove memcached
-  - echo "yes" | sudo add-apt-repository ppa:travis-ci/memcached-sasl
-  - sudo apt-get update
-  - sudo apt-get install -y memcached=1.4.13-0ubuntu2+travis1
+  - sudo apt-get install libevent-dev
+  - wget https://memcached.org/files/memcached-1.4.15.tar.gz
+  - tar -zxvf memcached-1.4.15.tar.gz
+  - cd memcached-1.4.15
+  - ./configure --enable-sasl
+  - make
+  - sudo make install
