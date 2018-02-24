@@ -144,7 +144,7 @@ describe 'Dalli' do
 
     it 'returns nil for nonexist key' do
       memcached_persistent do |dc|
-        assert_equal nil, dc.get('notexist')
+        assert_nil dc.get('notexist')
       end
     end
 
@@ -235,7 +235,7 @@ describe 'Dalli' do
 
         dc.set("fetch_key", nil)
         res = dc.fetch("fetch_key") { flunk "fetch block called" }
-        assert_equal nil, res
+        assert_nil res
       end
 
       memcached_persistent(21345, cache_nils: false) do |dc|
@@ -508,7 +508,7 @@ describe 'Dalli' do
         assert_equal 'bar', dc.get(:foo)
 
         resp = dc.get('123')
-        assert_equal nil, resp
+        assert_nil resp
 
         assert op_addset_succeeds(dc.set('123', 'xyz'))
 
@@ -562,7 +562,7 @@ describe 'Dalli' do
         assert_equal 'bar', dc.get(:foo)
 
         resp = dc.get('123')
-        assert_equal nil, resp
+        assert_nil resp
 
         assert op_addset_succeeds(dc.set('123', 'xyz'))
 
