@@ -210,6 +210,20 @@ describe 'ActiveSupport::Cache::DalliStore' do
       assert_equal('123', @dalli.read(y))
     end
 
+    it_with_and_without_local_cache 'supports fetch_multi with large cache keys' do
+      x = "x" * 512
+      y = "y" * 512
+      hash = { x => 'ABC', y => 'DEF' }
+
+      @dalli.write(y, '123')
+
+      results = @dalli.fetch_multi(x, y) { |key| hash[key] }
+
+      assert_equal({ x => 'ABC', y => '123' }, results)
+      assert_equal('ABC', @dalli.read(x))
+      assert_equal('123', @dalli.read(y))
+    end
+
     it_with_and_without_local_cache 'support read, write and delete' do
       y = rand_key
       assert_nil @dalli.read(y)
