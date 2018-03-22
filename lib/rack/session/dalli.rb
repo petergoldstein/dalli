@@ -157,18 +157,9 @@ module Rack
         [nil, mserv, mopts, popts]
       end
 
-      # Capture generate_sid's super so we can call it from generate_sid_with
-      alias_method :generate_sid_super, :generate_sid
-
-      def generate_sid
-        # no way to check env['rack.multithread'] here so fall back on
-        # Dalli::Client or ConnectionPool's internal mutex cf. our own
-        @pool.with {|dc| generate_sid_with(dc) }
-      end
-
       def generate_sid_with(dc)
         while true
-          sid = generate_sid_super
+          sid = generate_sid
           break sid unless dc.get(sid)
         end
       end
