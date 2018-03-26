@@ -463,6 +463,18 @@ describe 'ActiveSupport::Cache::DalliStore' do
           @dalli.unstub(:instrument)
         end
       end
+
+      it 'payload with instrument namespace' do
+        with_cache instrument_errors: true, instrument_namespace: "service_007" do
+          ActiveSupport::Notifications.expects(:instrument)
+            .with('cache_read.active_support', {
+              :key => 'burrito',
+              :instrument_namespace => 'service_007',
+            })
+          
+          @dalli.read('burrito')
+        end
+      end
     end
   end
 

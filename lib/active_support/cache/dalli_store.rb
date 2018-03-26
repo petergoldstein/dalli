@@ -388,6 +388,8 @@ module ActiveSupport
       end
 
       def instrument(operation, payload)
+        payload[:instrument_namespace] = @options[:instrument_namespace] if @options[:instrument_namespace]
+
         ActiveSupport::Notifications.instrument("cache_#{operation}.active_support", payload) do
           yield(payload) if block_given?
         end
