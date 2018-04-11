@@ -1,6 +1,20 @@
 Dalli Changelog
 =====================
 
+2.7.8
+==========
+- Rails 5.2 compatibility (pbougie)
+- Fix Session Cache compatibility (pixeltrix)
+
+2.7.7
+==========
+- Support large cache keys on fetch multi (sobrinho)
+- Not found checks no longer trigger the result's equality method (dannyfallon)
+- Use SVG build badges (olleolleolle)
+- Travis updates (junaruga, tiarly, petergoldstein)
+- Update default down_retry_delay (jaredhales)
+- Close kgio socket after IO.select timeouts
+- Documentation updates (tipair)
 - Instrument DalliStore errors with instrument_errors configuration option. (btatnall)
 
 2.7.6
