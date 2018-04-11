@@ -29,6 +29,8 @@ module Dalli
     # - :serializer - defaults to Marshal
     # - :compressor - defaults to zlib
     # - :cache_nils - defaults to false, if true Dalli will not treat cached nil values as 'not found' for #fetch operations.
+    # - :discovery - discovery object which responds to #refresh.servers with array of [ "host:port", "host:port"] for Amazon Elasticache Node Discovery
+    # - :discovery_interval - time interval (default: 1.hour) at which to refresh discovered serves
     #
     def initialize(servers=nil, options={})
       @servers = normalize_servers(servers || ENV["MEMCACHE_SERVERS"] || '127.0.0.1:11211')
@@ -336,7 +338,46 @@ module Dalli
       end
     end
 
+    ##
+    # If @options[:discovery] are set then discover servers
+    def rediscover
+      if @options[:discovery]
+        @options[:discovery_interval] ||= 1.hour # reasonable refresh default, more frequent if not a heavy call
+        some_server_is_dead = false
+        some_server_is_dead = @ring.servers.any? {|svr| svr.alive? == false} unless @ring.nil?
+	servers_are_stale = @last_discovery.nil? || Time.now > (@last_discovery + @options[:discovery_interval])
+
+        Dalli.logger.debug { "rediscover: some server died" } if some_server_is_dead 
+        Dalli.logger.debug { "rediscover: stale server list" } if servers_are_stale
+		
+	if servers_are_stale || some_server_is_dead
+	  Dalli.logger.debug { "rediscover: refresh stale data" }
+	  begin
+	    new_servers = @options[:discovery].refresh.servers
+	    if new_servers.nil?
+	      Dalli.logger.debug { "rediscover: failed" }
+	    else
+	      @last_discovery = Time.now
+	      if new_servers != @servers
+	        Dalli.logger.debug { "rediscover: new servers available" }
+	        close
+	        @servers = new_servers
+	      else
+	        Dalli.logger.debug { "rediscover: no change" }
+	      end
+              Dalli.logger.debug { new_servers.inspect }
+	    end
+	  rescue Errno::ECONNREFUSED # AWS DNS for configuration hostname could be pointing to a node that was just removed
+            Dalli.logger.debug { "rediscover: No Changes Because: Errno::ECONNREFUSED for memcached configuration server." }
+	  end
+	else
+          Dalli.logger.debug { "rediscover: %d more seconds"  % (@last_discovery + @options[:discovery_interval] - Time.now) }
+	end
+      end
+    end
+
     def ring
+      rediscover
       @ring ||= Dalli::Ring.new(
         @servers.map do |s|
          server_options = {}
