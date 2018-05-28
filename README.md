@@ -68,7 +68,8 @@ value = dc.get('abc')
 
 The test suite requires memcached 1.4.3+ with SASL enabled (brew install memcached --enable-sasl ; mv /usr/bin/memcached /usr/bin/memcached.old).  Currently only supports the PLAIN mechanism.
 
-Dalli has no runtime dependencies and never will.  You can optionally install the 'kgio' gem to
+Dalli has no runtime dependencies and never will. If you are using Ruby <2.3,
+you can optionally install the '[kgio](https://bogomips.org/kgio/)' gem to
 give Dalli a 20-30% performance boost.
 
 
