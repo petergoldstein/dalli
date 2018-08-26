@@ -66,7 +66,7 @@ dc.set('abc', 123)
 value = dc.get('abc')
 ```
 
-The test suite requires memcached 1.4.3+ with SASL enabled (brew install memcached --enable-sasl ; mv /usr/bin/memcached /usr/bin/memcached.old).  Currently only supports the PLAIN mechanism.
+The test suite requires memcached 1.4.3+ with SASL enabled (`brew install memcached --enable-sasl ; mv /usr/bin/memcached /usr/bin/memcached.old`).  Currently only supports the PLAIN mechanism.
 
 Dalli has no runtime dependencies and never will. If you are using Ruby <2.3,
 you can optionally install the '[kgio](https://bogomips.org/kgio/)' gem to
@@ -219,7 +219,7 @@ Note that Dalli does not require ActiveSupport or Rails.  You can safely use it 
 Helping Out
 -------------
 
-If you have a fix you wish to provide, please fork the code, fix in your local project and then send a pull request on github.  Please ensure that you include a test which verifies your fix and update History.md with a one sentence description of your fix so you get credit as a contributor.
+If you have a fix you wish to provide, please fork the code, fix in your local project and then send a pull request on github.  Please ensure that you include a test which verifies your fix and update `History.md` with a one sentence description of your fix so you get credit as a contributor.
 
 We're not accepting new compressors. They are trivial to add in an initializer. See #385 (LZ4), #406 (Snappy)
 
