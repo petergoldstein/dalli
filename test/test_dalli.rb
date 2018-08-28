@@ -738,7 +738,7 @@ describe 'Dalli' do
               assert op_addset_succeeds(dc.set(idx, value))
             rescue Dalli::DalliError
               failed = true
-              assert((800..960).include?(idx), "unexpected failure on iteration #{idx}")
+              assert((800..960).cover?(idx), "unexpected failure on iteration #{idx}")
               break
             end
           end
@@ -756,7 +756,7 @@ describe 'Dalli' do
               assert op_addset_succeeds(dalli.set(idx, value))
             rescue Dalli::DalliError
               failed = true
-              assert((6000..7800).include?(idx), "unexpected failure on iteration #{idx}")
+              assert((6000..7800).cover?(idx), "unexpected failure on iteration #{idx}")
               break
             end
           end

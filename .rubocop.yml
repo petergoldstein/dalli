@@ -1,0 +1,6 @@
+AllCops:
+  DisabledByDefault: true
+  DisplayCopNames: true
+
+Performance:
+  Enabled: true

@@ -704,7 +704,7 @@ module Dalli
 
       (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
-      content = read(count).gsub(/\u0000/, ' ')
+      content = read(count).tr("\u0000", ' ')
       return (Dalli.logger.debug("Authentication not required/supported by server")) if status == 0x81
       mechanisms = content.split(' ')
       raise NotImplementedError, "Dalli only supports the PLAIN authentication mechanism" if !mechanisms.include?('PLAIN')
