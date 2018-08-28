@@ -351,6 +351,7 @@ module ActiveSupport
       # called. If the key is a Hash, then keys will be sorted alphabetically.
       def expanded_key(key) # :nodoc:
         return key.cache_key.to_s if key.respond_to?(:cache_key)
+        original_object_id = key.object_id
 
         case key
         when Array
@@ -365,7 +366,7 @@ module ActiveSupport
 
         key = key.to_param
         if key.respond_to? :force_encoding
-          key = key.dup
+          key = key.dup if key.object_id == original_object_id
           key.force_encoding('binary')
         end
         key
