@@ -64,7 +64,10 @@ module Dalli
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
     def get_multi(*keys)
-      return {} if keys.flatten.compact.empty?
+      check_keys = keys.flatten
+      check_keys.compact!
+
+      return {} if check_keys.empty?
       if block_given?
         get_multi_yielder(keys) {|k, data| yield k, data.first}
       else
@@ -292,7 +295,9 @@ module Dalli
     end
 
     def mapped_keys(keys)
-      keys.flatten.map {|a| validate_key(a.to_s)}
+      keys_array = keys.flatten
+      keys_array.map! { |a| validate_key(a.to_s) }
+      keys_array
     end
 
     def make_multi_get_requests(groups)
