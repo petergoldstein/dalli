@@ -350,25 +350,26 @@ module ActiveSupport
       # object responds to +cache_key+. Otherwise, to_param method will be
       # called. If the key is a Hash, then keys will be sorted alphabetically.
       def expanded_key(key) # :nodoc:
-        return key.cache_key.to_s if key.respond_to?(:cache_key)
-        original_object_id = key.object_id
-
         case key
         when Array
           if key.size > 1
-            key = key.collect{|element| expanded_key(element)}
+            key = key.collect { |element| expanded_key(element).to_param }.join("/")
           else
-            key = key.first
+            key = key.first.to_param
           end
         when Hash
-          key = key.sort_by { |k,_| k.to_s }.collect{|k,v| "#{k}=#{v}"}
+          keys = key.sort_by { |k,_| k.to_s }
+          keys.collect! { |k,v| "#{k}=#{v}".to_param }
+          key = keys.join('/')
+        when String
+          key = key.dup.to_param
+        else
+          return key.cache_key.to_s if key.respond_to?(:cache_key)
+          key = key.to_param
         end
 
-        key = key.to_param
-        if key.respond_to? :force_encoding
-          key = key.dup if key.object_id == original_object_id
-          key.force_encoding('binary')
-        end
+        key.force_encoding('binary') if key.respond_to? :force_encoding
+
         key
       end
 
