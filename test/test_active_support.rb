@@ -9,6 +9,12 @@ class MockUser
   end
 end
 
+class MockUserVersioning
+  def cache_key_with_version
+    "users/1/241012793847982434"
+  end
+end
+
 class ObjectRaisingEquality
   def ==(other)
     raise "Equality called on fetched object."
@@ -116,6 +122,13 @@ describe 'ActiveSupport::Cache::DalliStore' do
       it_with_and_without_local_cache 'support object with cache_key' do
         user = MockUser.new
         @dalli.write(user.cache_key, false)
+        dvalue = @dalli.fetch(user) { flunk }
+        assert_equal false, dvalue
+      end
+
+      it_with_and_without_local_cache 'support object with cache_key_with_version' do
+        user = MockUserVersioning.new
+        @dalli.write(user.cache_key_with_version, false)
         dvalue = @dalli.fetch(user) { flunk }
         assert_equal false, dvalue
       end
