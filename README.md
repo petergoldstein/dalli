@@ -121,6 +121,16 @@ Rails.application.config.session_store :dalli_store, :memcache_server => ['host1
 Dalli does not support Rails 2.x.
 
 
+Usage with Rails 5.2 and 6.x
+---------------------------
+
+Dalli does not currently support `cache_versioning`, which was introduced in Rails 5.2 and which is turned on by default in new Rails >= 5.2 applications. If you are using the default Rails 5.2 or later configuration, you will need to add the following line to your Rails configuration for Dalli to work as expected:
+
+```ruby
+config.active_record.cache_versioning = false
+```
+
+
 Multithreading and Rails
 --------------------------
 
