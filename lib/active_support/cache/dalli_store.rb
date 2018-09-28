@@ -111,7 +111,7 @@ module ActiveSupport
 
           if not_found == entry
             result = instrument_with_log(:generate, namespaced_name, options) do |payload|
-              yield
+              yield(name)
             end
             write(name, result, options)
             result
