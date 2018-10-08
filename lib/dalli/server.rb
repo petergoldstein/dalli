@@ -204,6 +204,15 @@ module Dalli
 
     private
 
+    SKIP_WARNING_DATA_TYPES = [Array, FalseClass, TrueClass, Hash, Float, Fixnum, NilClass, String, Symbol]
+    private_constant :SKIP_WARNING_DATA_TYPES
+
+    def warn_unless_value_is_basic_data_type value
+      if [value].flatten.detect { |v| !SKIP_WARNING_DATA_TYPES.include?(v.class) }
+        Dalli.logger.warn("You're serializing a Ruby Class object which may not be serialized properly. Please convert to basic data type first.")
+      end
+    end
+
     def verify_state
       failure!(RuntimeError.new('Already writing to socket')) if @inprogress
       if @pid && @pid != Process.pid
@@ -410,6 +419,7 @@ module Dalli
       value = unless options && options[:raw]
         marshalled = true
         begin
+          warn_unless_value_is_basic_data_type(value)
           self.serializer.dump(value)
         rescue Timeout::Error => e
           raise e
