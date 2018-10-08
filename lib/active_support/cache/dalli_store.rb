@@ -346,10 +346,12 @@ module ActiveSupport
       end
       alias :normalize_key :namespaced_key
 
-      # Expand key to be a consistent string value. Invoke +cache_key+ if
-      # object responds to +cache_key+. Otherwise, to_param method will be
-      # called. If the key is a Hash, then keys will be sorted alphabetically.
+      # Expand key to be a consistent string value. Invokes +cache_key_with_version+
+      # first to support Rails 5.2 cache versioning.
+      # Invoke +cache_key+ if object responds to +cache_key+. Otherwise, to_param method
+      # will be called. If the key is a Hash, then keys will be sorted alphabetically.
       def expanded_key(key) # :nodoc:
+        return key.cache_key_with_version.to_s if key.respond_to?(:cache_key_with_version)
         return key.cache_key.to_s if key.respond_to?(:cache_key)
         original_object_id = key.object_id
 
