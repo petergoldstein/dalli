@@ -83,6 +83,14 @@ describe 'ActiveSupport::Cache::DalliStore' do
         @dalli.fetch('obj') { obj }
       end
 
+      it_with_and_without_local_cache 'fallback block gets a key as a parameter' do
+        key = rand_key
+        o = Object.new
+        o.instance_variable_set :@foo, 'bar'
+        dvalue = @dalli.fetch(key) { |k| "#{k}-#{o}" }
+        assert_equal "#{key}-#{o}", dvalue
+      end
+
       it_with_and_without_local_cache 'support object' do
         o = Object.new
         o.instance_variable_set :@foo, 'bar'
