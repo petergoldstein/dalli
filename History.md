@@ -1,6 +1,12 @@
 Dalli Changelog
 =====================
 
+2.7.9
+==========
+- Fix behavior for Rails 5.2+ cache_versioning (GriwMF)
+- Ensure fetch provides the key to the fallback block as an argument (0exp)
+- Assorted performance improvements (schneems)
+
 2.7.8
 ==========
 - Rails 5.2 compatibility (pbougie)
