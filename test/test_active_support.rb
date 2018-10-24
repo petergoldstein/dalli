@@ -207,6 +207,12 @@ describe 'ActiveSupport::Cache::DalliStore' do
       end
     end
 
+    it 'supports frozen strings' do
+      with_cache do
+        @dalli.read(["foo".freeze])
+      end
+    end
+
     it 'support read_multi with special Regexp characters in namespace' do
       # /(?!)/ is a contradictory PCRE and should never be able to match
       with_cache :namespace => '(?!)' do
