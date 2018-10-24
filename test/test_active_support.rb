@@ -21,6 +21,12 @@ class ObjectRaisingEquality
   end
 end
 
+class MyToParamIsFrozen
+  def to_param
+    "frozen".freeze
+  end
+end
+
 describe 'ActiveSupport::Cache::DalliStore' do
   # with and without local cache
   def self.it_with_and_without_local_cache(message, &block)
@@ -210,6 +216,12 @@ describe 'ActiveSupport::Cache::DalliStore' do
     it 'supports frozen strings' do
       with_cache do
         @dalli.read(["foo".freeze])
+      end
+    end
+
+    it 'supports frozen strings in more contrived scenarios' do
+      with_cache do
+        @dalli.read(MyToParamIsFrozen.new)
       end
     end
 
