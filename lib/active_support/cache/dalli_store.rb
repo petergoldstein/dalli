@@ -9,6 +9,10 @@ module ActiveSupport
       attr_reader :silence, :options
       alias_method :silence?, :silence
 
+      def self.supports_cache_versioning?
+        true
+      end
+
       # Silence the logger.
       def silence!
         @silence = true
