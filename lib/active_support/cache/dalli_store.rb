@@ -357,7 +357,6 @@ module ActiveSupport
       def expanded_key(key) # :nodoc:
         return key.cache_key_with_version.to_s if key.respond_to?(:cache_key_with_version)
         return key.cache_key.to_s if key.respond_to?(:cache_key)
-        original_object_id = key.object_id
 
         case key
         when Array
@@ -372,7 +371,7 @@ module ActiveSupport
 
         key = key.to_param
         if key.respond_to? :force_encoding
-          key = key.dup if key.object_id == original_object_id
+          key = key.dup
           key.force_encoding('binary')
         end
         key
