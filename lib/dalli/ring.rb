@@ -106,7 +106,7 @@ module Dalli
         }
         EOM
       end
-    rescue LoadError
+    rescue LoadError, ::CompilationError
       # Find the closest index in the Ring with value <= the given value
       def binary_search(ary, value)
         upper = ary.size - 1
