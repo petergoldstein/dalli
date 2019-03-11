@@ -477,7 +477,9 @@ module Dalli
         message = "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
         raise Dalli::ValueOverMaxSize, message if @options[:error_when_over_max_size]
 
-        Dalli.logger.warn message
+        Dalli.logger.error message
+        Dalli.logger.error "You are trying to cache a Ruby object which might be truncated by memcached."
+        Dalli.logger.error caller.join("\n\t")
         false
       end
     end
