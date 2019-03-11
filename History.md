@@ -1,6 +1,8 @@
 Dalli Changelog
 =====================
 
+- Increase log level of "over max size" to error (Takumasa Ochi, #715)
+
 2.7.9
 ==========
 - Fix behavior for Rails 5.2+ cache_versioning (GriwMF)
