@@ -60,4 +60,14 @@ class MiniTest::Spec
     require 'connection_pool'
     yield
   end
+
+  def with_nil_logger
+    old = Dalli.logger
+    Dalli.logger = Logger.new(nil)
+    begin
+      yield
+    ensure
+      Dalli.logger = old
+    end
+  end
 end
