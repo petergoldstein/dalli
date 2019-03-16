@@ -1,28 +1,14 @@
 language: ruby
 cache: bundler
 rvm:
-  - 2.5.3
-  - 2.4.4
+  - 2.6.2
+  - 2.5.5
+  - 2.4.5
   - 2.3.8
-  - 2.2.10
-  - 2.1.10
-  - 2.0.0
-  - 1.9.3
   - jruby-9.1.16.0
 gemfile:
-  - gemfiles/rails3.gemfile
-  - gemfiles/rails4.gemfile
   - gemfiles/rails5.gemfile
 matrix:
-  exclude:
-    - rvm: 2.1.10
-      gemfile: gemfiles/rails5.gemfile
-    - rvm: 2.0.0
-      gemfile: gemfiles/rails5.gemfile
-    - rvm: 1.9.3
-      gemfile: gemfiles/rails5.gemfile
-    - rvm: 1.9.3
-      gemfile: gemfiles/rails4.gemfile
   fast_finish: true
 env:
   global:
