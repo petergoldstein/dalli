@@ -120,7 +120,9 @@ describe 'Dalli' do
         dc.flush
 
         val1 = "1234567890"*105000
-        assert_equal false, dc.set('a', val1)
+        with_nil_logger do
+          assert_equal false, dc.set('a', val1)
+        end
 
         val1 = "1234567890"*100000
         dc.set('a', val1)
@@ -698,12 +700,8 @@ describe 'Dalli' do
 
     it "handle application marshalling issues" do
       memcached_persistent do |dc|
-        old = Dalli.logger
-        Dalli.logger = Logger.new(nil)
-        begin
+        with_nil_logger do
           assert_equal false, dc.set('a', Proc.new { true })
-        ensure
-          Dalli.logger = old
         end
       end
     end
@@ -714,7 +712,9 @@ describe 'Dalli' do
           dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), :compress => true)
 
           value = "0"*1024*1024
-          assert_equal false, dc.set('verylarge', value)
+          with_nil_logger do
+            assert_equal false, dc.set('verylarge', value)
+          end
           dalli.set('verylarge', value)
         end
       end
