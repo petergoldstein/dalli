@@ -177,11 +177,7 @@ module MemcachedMock
     end
 
     def supports_fork?
-      !defined?(RUBY_ENGINE) || !jruby?
-    end
-
-    def jruby?
-      RUBY_ENGINE == 'jruby'
+      Process.respond_to?(:fork)
     end
 
     def memcached_kill(port)
