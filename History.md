@@ -1,6 +1,13 @@
 Dalli Changelog
 =====================
 
+2.7.10
+==========
+- Revert frozen string change (schneems)
+- Advertise supports_cached_versioning? in DalliStore (schneems)
+- Better detection of fork support, to allow specs to run under Truffle Ruby
+- Update logging for over max size to log as error
+
 2.7.9
 ==========
 - Fix behavior for Rails 5.2+ cache_versioning (GriwMF)
