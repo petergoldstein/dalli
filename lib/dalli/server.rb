@@ -477,7 +477,7 @@ module Dalli
         message = "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
         raise Dalli::ValueOverMaxSize, message if @options[:error_when_over_max_size]
 
-        Dalli.logger.warn message
+        Dalli.logger.error "#{message} - this value may be truncated by memcached"
         false
       end
     end
