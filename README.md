@@ -68,11 +68,6 @@ value = dc.get('abc')
 
 The test suite requires memcached 1.4.3+ with SASL enabled (`brew install memcached --enable-sasl ; mv /usr/bin/memcached /usr/bin/memcached.old`).  Currently only supports the PLAIN mechanism.
 
-Dalli has no runtime dependencies and never will. If you are using Ruby <2.3,
-you can optionally install the '[kgio](https://bogomips.org/kgio/)' gem to
-give Dalli a 20-30% performance boost.
-
-
 Usage with Rails 3.x and 4.x
 ---------------------------
 
@@ -95,7 +90,7 @@ config.cache_store = :dalli_store, 'cache-1.example.com', 'cache-2.example.com:1
   { :namespace => NAME_OF_RAILS_APP, :expires_in => 1.day, :compress => true }
 ```
 
-You can specify a port and a weight by appending to the server name. You may wish to increase the weight of a server with more memory configured.  (e.g. to specify port 11211 and a weight of 2, append `:11211:2` ) 
+You can specify a port and a weight by appending to the server name. You may wish to increase the weight of a server with more memory configured.  (e.g. to specify port 11211 and a weight of 2, append `:11211:2` )
 
 If your servers are specified in `ENV["MEMCACHE_SERVERS"]` (e.g. on Heroku when using a third-party hosted addon), simply provide `nil` for the servers:
 
