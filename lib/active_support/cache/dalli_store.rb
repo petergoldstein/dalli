@@ -345,7 +345,7 @@ module ActiveSupport
         namespace = options[:namespace] if options
         prefix = namespace.is_a?(Proc) ? namespace.call : namespace
         key = "#{prefix}:#{key}" if prefix
-        key = "#{key[0, 213]}:md5:#{::Digest::MD5.hexdigest(key)}" if key && key.size > 250
+        key = "#{key[0, 213]}:md5:#{@options[:digest_class].hexdigest(key)}" if key && key.size > 250
         key
       end
       alias :normalize_key :namespaced_key

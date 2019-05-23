@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 require_relative 'helper'
+require 'openssl'
 
 describe 'Dalli' do
   describe 'options parsing' do
@@ -32,6 +33,12 @@ describe 'Dalli' do
       dc = Dalli::Client.new('foo', :namespace => Proc.new{:wunderschoen})
       assert_equal "wunderschoen", dc.send(:namespace)
       dc.close
+    end
+
+    it 'raises error with invalid digest_class' do
+      assert_raises ArgumentError do
+        Dalli::Client.new('foo', {:expires_in => 10, :digest_class => Object })
+      end
     end
   end
 
@@ -529,7 +536,7 @@ describe 'Dalli' do
         dc.close
         dc = nil
 
-        dc = Dalli::Client.new("localhost:#{port}")
+        dc = Dalli::Client.new("localhost:#{port}", :digest_class => ::OpenSSL::Digest::SHA1)
 
         assert op_addset_succeeds(dc.set('456', 'xyz', 0, :raw => true))
 

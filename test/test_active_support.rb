@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 require_relative 'helper'
 require 'connection_pool'
+require 'openssl'
 
 class MockUser
   def cache_key
@@ -49,6 +50,17 @@ describe 'ActiveSupport::Cache::DalliStore' do
     it 'has accessible options' do
       with_cache :expires_in => 5.minutes, :frob => 'baz' do
         assert_equal 'baz', @dalli.options[:frob]
+      end
+
+      with_cache :expires_in => 5.minutes, :digest_class => OpenSSL::Digest::SHA1 do
+        assert_equal OpenSSL::Digest::SHA1, @dalli.options[:digest_class]
+      end
+    end
+
+    it 'uses valid digest_class option' do
+      with_cache :expires_in => 5.minutes, :digest_class => OpenSSL::Digest::SHA1 do
+        dvalue = @dalli.fetch('a_key') { 123 }
+        assert_equal 123, dvalue
       end
     end
 
