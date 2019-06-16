@@ -355,17 +355,17 @@ module ActiveSupport
       # Invoke +cache_key+ if object responds to +cache_key+. Otherwise, to_param method
       # will be called. If the key is a Hash, then keys will be sorted alphabetically.
       def expanded_key(key) # :nodoc:
-        return key.cache_key_with_version.to_s if key.respond_to?(:cache_key_with_version)
-        return key.cache_key.to_s if key.respond_to?(:cache_key)
-
-        case key
-        when Array
+        if key.respond_to?(:cache_key_with_version)
+          key = key.cache_key_with_version.to_s
+        elsif key.respond_to?(:cache_key)
+          key = key.cache_key.to_s
+        elsif key.is_a?(Array)
           if key.size > 1
             key = key.collect{|element| expanded_key(element)}
           else
             key = key.first
           end
-        when Hash
+        elsif key.is_a?(Hash)
           key = key.sort_by { |k,_| k.to_s }.collect{|k,v| "#{k}=#{v}"}
         end
 
