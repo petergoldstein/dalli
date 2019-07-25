@@ -447,6 +447,9 @@ module Dalli
     rescue ArgumentError
       raise if $!.message !~ /undefined class|marshal data too short/
       raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
+    rescue NameError
+      raise if $!.message !~ /uninitialized constant/
+      raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
     rescue Zlib::Error
       raise UnmarshalError, "Unable to uncompress value: #{$!.message}"
     end
