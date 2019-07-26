@@ -146,4 +146,69 @@ describe Dalli::Server do
       end.must_raise Dalli::ValueOverMaxSize
     end
   end
+
+  describe 'deserialize' do
+    subject { Dalli::Server.new('127.0.0.1') }
+
+    it 'uses Marshal as default serializer' do
+      assert_equal subject.serializer, Marshal
+    end
+
+    it 'deserializes serialized value' do
+      value = 'some_value'
+      deserialized = subject.send(:deserialize, Marshal.dump(value), Dalli::Server::FLAG_SERIALIZED)
+      assert_equal value, deserialized
+    end
+
+    it 'raises UnmarshalError for broken data' do
+      assert_raises Dalli::UnmarshalError do
+        subject.send(:deserialize, :not_marshaled_value, Dalli::Server::FLAG_SERIALIZED)
+      end
+    end
+
+    describe 'custom serializer' do
+      let(:serializer) { Minitest::Mock.new }
+      subject { Dalli::Server.new('127.0.0.1', serializer: serializer) }
+
+      it 'uses custom serializer' do
+        assert subject.serializer === serializer
+      end
+
+      it 'reraises general NameError' do
+        serializer.expect(:load, nil) do
+          raise NameError, 'ddd'
+        end
+        assert_raises NameError do
+          subject.send(:deserialize, :some_value, Dalli::Server::FLAG_SERIALIZED)
+        end
+      end
+
+      it 'raises UnmarshalError on uninitialized constant' do
+        serializer.expect(:load, nil) do
+          raise NameError, 'uninitialized constant Ddd'
+        end
+        assert_raises Dalli::UnmarshalError do
+          subject.send(:deserialize, :some_value, Dalli::Server::FLAG_SERIALIZED)
+        end
+      end
+
+      it 'reraises general ArgumentError' do
+        serializer.expect(:load, nil) do
+          raise ArgumentError, 'ddd'
+        end
+        assert_raises ArgumentError do
+          subject.send(:deserialize, :some_value, Dalli::Server::FLAG_SERIALIZED)
+        end
+      end
+
+      it 'raises UnmarshalError on undefined class' do
+        serializer.expect(:load, nil) do
+          raise ArgumentError, 'undefined class Ddd'
+        end
+        assert_raises Dalli::UnmarshalError do
+          subject.send(:deserialize, :some_value, Dalli::Server::FLAG_SERIALIZED)
+        end
+      end
+    end
+  end
 end
