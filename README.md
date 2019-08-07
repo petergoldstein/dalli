@@ -160,7 +160,9 @@ Dalli::Client accepts the following options. All times are in seconds.
 
 **failover**: Boolean, if true Dalli will failover to another server if the main server for a key is down.  Default is true.
 
-**threadsafe**: Boolean.  If true Dalli ensures that only one thread is using a socket at a given time.  Default is true.  Set to false at your own peril.
+**threadsafe**: Boolean.  If true Dalli ensures that only one thread is using a socket at a given time.  Default is true.  Set to false at your own peril. It will be ignored and set to false if `pool_size` option is specified.
+
+**pool_size**: Integer. Number of Dalli clients in a pool that can be used in multithreaded servers (check **Multithreading and Rails** above). Default is 5.
 
 **serializer**: The serializer to use for objects being stored (ex. JSON).
 Default is Marshal.
@@ -206,11 +208,9 @@ If serving compressed data using nginx's HttpMemcachedModule, set `memcached_gzi
 Features and Changes
 ------------------------
 
-By default, Dalli is thread-safe.  Disable thread-safety at your own peril.
+By default, Dalli is thread-safe. Disable thread-safety at your own peril.
 
-Dalli does not need anything special in Unicorn/Passenger since 2.0.4.
-It will detect sockets shared with child processes and gracefully reopen the
-socket.
+Dalli does not need anything special in Unicorn/Passenger since 2.0.4. It will detect sockets shared with child processes and gracefully reopen the socket.
 
 Note that Dalli does not require ActiveSupport or Rails.  You can safely use it in your own Ruby projects.
 
