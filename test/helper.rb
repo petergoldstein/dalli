@@ -44,18 +44,6 @@ class MiniTest::Spec
     rsp.is_a?(Integer) && rsp > 0
   end
 
-  def with_activesupport
-    require 'active_support/all'
-    require 'active_support/cache/dalli_store'
-    yield
-  end
-
-  def with_actionpack
-    require 'action_dispatch'
-    require 'action_controller'
-    yield
-  end
-
   def with_connectionpool
     require 'connection_pool'
     yield
