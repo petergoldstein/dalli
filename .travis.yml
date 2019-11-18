@@ -8,8 +8,14 @@ rvm:
   - jruby-9.1.16.0
 gemfile:
   - gemfiles/rails5.gemfile
+  - gemfiles/rails6.gemfile
 matrix:
   fast_finish: true
+  exclude:
+    - rvm: 2.4.5
+      gemfile: gemfiles/rails6.gemfile
+    - rvm: 2.3.8
+      gemfile: gemfiles/rails6.gemfile
 env:
   global:
     - JRUBY_OPTS='--debug'
