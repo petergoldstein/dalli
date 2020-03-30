@@ -338,6 +338,8 @@ module Dalli
     def normalize_servers(servers)
       if servers.is_a? String
         return servers.split(",")
+      elsif servers.is_a? Array
+        return servers.map { |server| normalize_servers(server) }.flatten!
       else
         return servers
       end

@@ -111,6 +111,15 @@ describe 'Dalli' do
     assert_equal "server2.example.com", s2
   end
 
+  it 'accepts comma separated server within array' do
+    servers = ["foo:11211,bar:11211", "localhost:11211"]
+    expectedServers = ["foo", "bar", "localhost"]
+    dc = Dalli::Client.new(servers)
+    ring = dc.send(:ring)
+    assert_equal 3, ring.servers.size
+    assert_equal expectedServers, ring.servers.map(&:hostname)
+  end
+
   it "accept array of servers" do
     dc = Dalli::Client.new(["server1.example.com:11211","server2.example.com:11211"])
     ring = dc.send(:ring)
