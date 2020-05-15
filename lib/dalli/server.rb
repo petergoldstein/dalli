@@ -315,7 +315,7 @@ module Dalli
       cas_response unless multi?
     end
 
-    def delete(key, cas)
+    def delete(key, cas, options = nil)
       req = [REQUEST, OPCODES[multi? ? :deleteq : :delete], key.bytesize, 0, 0, 0, key.bytesize, 0, cas, key].pack(FORMAT[:delete])
       write(req)
       generic_response unless multi?
@@ -327,7 +327,7 @@ module Dalli
       generic_response
     end
 
-    def decr_incr(opcode, key, count, ttl, default)
+    def decr_incr(opcode, key, count, ttl, default, options = nil)
       expiry = default ? sanitize_ttl(ttl) : 0xFFFFFFFF
       default ||= 0
       (h, l) = split(count)
@@ -338,12 +338,12 @@ module Dalli
       body ? body.unpack1("Q>") : body
     end
 
-    def decr(key, count, ttl, default)
-      decr_incr :decr, key, count, ttl, default
+    def decr(key, count, ttl, default, options = nil)
+      decr_incr :decr, key, count, ttl, default, options
     end
 
-    def incr(key, count, ttl, default)
-      decr_incr :incr, key, count, ttl, default
+    def incr(key, count, ttl, default, options = nil)
+      decr_incr :incr, key, count, ttl, default, options
     end
 
     def write_append_prepend(opcode, key, value)
@@ -367,11 +367,11 @@ module Dalli
       multi_response
     end
 
-    def append(key, value)
+    def append(key, value, options = nil)
       write_append_prepend :append, key, value
     end
 
-    def prepend(key, value)
+    def prepend(key, value, options = nil)
       write_append_prepend :prepend, key, value
     end
 
@@ -385,7 +385,7 @@ module Dalli
       write_generic [REQUEST, OPCODES[:stat], "reset".bytesize, 0, 0, 0, "reset".bytesize, 0, 0, "reset"].pack(FORMAT[:stat])
     end
 
-    def cas(key)
+    def cas(key, options = nil)
       req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
       write(req)
       data_cas_response
@@ -395,7 +395,7 @@ module Dalli
       write_generic [REQUEST, OPCODES[:version], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
     end
 
-    def touch(key, ttl)
+    def touch(key, ttl, options = nil)
       ttl = sanitize_ttl(ttl)
       write_generic [REQUEST, OPCODES[:touch], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:touch])
     end

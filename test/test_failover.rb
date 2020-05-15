@@ -66,6 +66,44 @@ describe "failover" do
       end
     end
 
+    it "skips failover when disabled" do
+      port_1 = 31777
+      port_2 = 32113
+      memcached_persistent(port_1) do |first_dc, first_port|
+        memcached_persistent(port_2) do |second_dc, second_port|
+          dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"], failover: false
+          dc.set 'foo', 'bar'
+          foo = dc.get 'foo'
+          assert_equal foo, 'bar'
+
+          memcached_kill(second_port)
+
+          assert_raises Dalli::RingError, :message => "No server available" do
+            dc.set 'foo', 'bar'
+          end
+        end
+      end
+    end
+
+    it "supports disabling failover in get/set calls" do
+      port_1 = 31777
+      port_2 = 32113
+      memcached_persistent(port_1) do |first_dc, first_port|
+        memcached_persistent(port_2) do |second_dc, second_port|
+          dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
+          dc.set 'foo', 'bar', nil, failover: false
+          foo = dc.get 'foo', failover: false
+          assert_equal foo, 'bar'
+
+          memcached_kill(second_port)
+
+          assert_raises Dalli::RingError, :message => "No server available" do
+            dc.set 'foo', 'bar', nil, failover: false
+          end
+        end
+      end
+    end
+
     it "handle them gracefully in get_multi" do
       port_1 = 32971
       port_2 = 34312

@@ -65,15 +65,16 @@ module Dalli
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
     def get_multi(*keys)
+      options = keys.last.is_a?(::Hash) ? keys.pop : {}
       keys.flatten!
       keys.compact!
 
       return {} if keys.empty?
       if block_given?
-        get_multi_yielder(keys) { |k, data| yield k, data.first }
+        get_multi_yielder(keys, options) { |k, data| yield k, data.first }
       else
         {}.tap do |hash|
-          get_multi_yielder(keys) { |k, data| hash[k] = data.first }
+          get_multi_yielder(keys, options) { |k, data| hash[k] = data.first }
         end
       end
     end
@@ -145,22 +146,22 @@ module Dalli
       perform(:replace, key, value, ttl_or_default(ttl), 0, options)
     end
 
-    def delete(key)
-      perform(:delete, key, 0)
+    def delete(key, options = nil)
+      perform(:delete, key, 0, options)
     end
 
     ##
     # Append value to the value already stored on the server for 'key'.
     # Appending only works for values stored with :raw => true.
-    def append(key, value)
-      perform(:append, key, value.to_s)
+    def append(key, value, options = nil)
+      perform(:append, key, value.to_s, options)
     end
 
     ##
     # Prepend value to the value already stored on the server for 'key'.
     # Prepending only works for values stored with :raw => true.
-    def prepend(key, value)
-      perform(:prepend, key, value.to_s)
+    def prepend(key, value, options = nil)
+      perform(:prepend, key, value.to_s, options)
     end
 
     def flush(delay = 0)
@@ -181,9 +182,9 @@ module Dalli
     # Note that the ttl will only apply if the counter does not already
     # exist.  To increase an existing counter and update its TTL, use
     # #cas.
-    def incr(key, amt = 1, ttl = nil, default = nil)
+    def incr(key, amt = 1, ttl = nil, default = nil, options = nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
-      perform(:incr, key, amt.to_i, ttl_or_default(ttl), default)
+      perform(:incr, key, amt.to_i, ttl_or_default(ttl), default, options)
     end
 
     ##
@@ -200,17 +201,17 @@ module Dalli
     # Note that the ttl will only apply if the counter does not already
     # exist.  To decrease an existing counter and update its TTL, use
     # #cas.
-    def decr(key, amt = 1, ttl = nil, default = nil)
+    def decr(key, amt = 1, ttl = nil, default = nil, options = nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
-      perform(:decr, key, amt.to_i, ttl_or_default(ttl), default)
+      perform(:decr, key, amt.to_i, ttl_or_default(ttl), default, options)
     end
 
     ##
     # Touch updates expiration time for a given key.
     #
     # Returns true if key exists, otherwise nil.
-    def touch(key, ttl = nil)
-      resp = perform(:touch, key, ttl_or_default(ttl))
+    def touch(key, ttl = nil, options = nil)
+      resp = perform(:touch, key, ttl_or_default(ttl), options)
       resp.nil? ? nil : true
     end
 
@@ -254,8 +255,8 @@ module Dalli
     ##
     # Get the value and CAS ID associated with the key.  If a block is provided,
     # value and CAS will be passed to the block.
-    def get_cas(key)
-      (value, cas) = perform(:cas, key)
+    def get_cas(key, options = nil)
+      (value, cas) = perform(:cas, key, options)
       value = !value || value == "Not found" ? nil : value
       if block_given?
         yield value, cas
@@ -271,11 +272,12 @@ module Dalli
     # If no block is given, returns a hash of
     #   { 'key' => [value, cas_id] }
     def get_multi_cas(*keys)
+      options = keys.last.is_a?(::Hash) ? keys.pop : {}
       if block_given?
-        get_multi_yielder(keys) { |*args| yield(*args) }
+        get_multi_yielder(keys, options) { |*args| yield(*args) }
       else
         {}.tap do |hash|
-          get_multi_yielder(keys) { |k, data| hash[k] = data }
+          get_multi_yielder(keys, options) { |k, data| hash[k] = data }
         end
       end
     end
@@ -299,8 +301,8 @@ module Dalli
 
     # Delete a key/value pair, verifying existing CAS.
     # Returns true if succeeded, and falsy otherwise.
-    def delete_cas(key, cas = 0)
-      perform(:delete, key, cas)
+    def delete_cas(key, cas = 0, options = nil)
+      perform(:delete, key, cas, options)
     end
 
     ##
@@ -317,7 +319,7 @@ module Dalli
     private
 
     def cas_core(key, always_set, ttl = nil, options = nil)
-      (value, cas) = perform(:cas, key)
+      (value, cas) = perform(:cas, key, options)
       value = !value || value == "Not found" ? nil : value
       return if value.nil? && !always_set
       newvalue = yield(value)
@@ -331,12 +333,13 @@ module Dalli
     end
 
     def groups_for_keys(*keys)
+      options = keys.last.is_a?(::Hash) ? keys.pop : {}
       keys.flatten!
       keys.map! { |a| validate_key(a.to_s) }
 
       keys.group_by { |key|
         begin
-          ring.server_for_key(key)
+          ring.server_for_key(key, options)
         rescue Dalli::RingError
           Dalli.logger.debug { "unable to get key #{key}" }
           nil
@@ -404,11 +407,12 @@ module Dalli
     def perform(*all_args)
       return yield if block_given?
       op, key, *args = all_args
+      options = args.last.is_a?(::Hash) ? args.last : {}
 
       key = key.to_s
       key = validate_key(key)
       begin
-        server = ring.server_for_key(key)
+        server = ring.server_for_key(key, options)
         server.request(op, key, *args)
       rescue NetworkError => e
         Dalli.logger.debug { e.inspect }
@@ -459,11 +463,11 @@ module Dalli
 
     ##
     # Yields, one at a time, keys and their values+attributes.
-    def get_multi_yielder(keys)
+    def get_multi_yielder(keys, options = nil)
       perform do
         return {} if keys.empty?
         ring.lock do
-          groups = groups_for_keys(keys)
+          groups = groups_for_keys(keys, options)
           if (unfound_keys = groups.delete(nil))
             Dalli.logger.debug { "unable to get keys for #{unfound_keys.length} keys because no matching server was found" }
           end

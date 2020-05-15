@@ -29,8 +29,10 @@ module Dalli
       @failover = options[:failover] != false
     end
 
-    def server_for_key(key)
+    def server_for_key(key, options = nil)
+      options ||= {}
       if @continuum
+        failover = options.key?(:failover) ? options[:failover] : @failover
         hkey = hash_for(key)
         20.times do |try|
           # Find the closest index in the Ring with value <= the given value
@@ -42,7 +44,7 @@ module Dalli
           end
           server = @continuum[entryidx].server
           return server if server.alive?
-          break unless @failover
+          break unless failover
           hkey = hash_for("#{try}#{key}")
         end
       else
