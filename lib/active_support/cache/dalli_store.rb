@@ -341,11 +341,12 @@ module ActiveSupport
       private
 
       def namespaced_key(key, options)
+        digest_class = @options[:digest_class] || ::Digest::MD5
         key = expanded_key(key)
         namespace = options[:namespace] if options
         prefix = namespace.is_a?(Proc) ? namespace.call : namespace
         key = "#{prefix}:#{key}" if prefix
-        key = "#{key[0, 213]}:md5:#{@options[:digest_class].hexdigest(key)}" if key && key.size > 250
+        key = "#{key[0, 213]}:md5:#{digest_class.hexdigest(key)}" if key && key.size > 250
         key
       end
       alias :normalize_key :namespaced_key

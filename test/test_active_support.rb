@@ -59,7 +59,16 @@ describe 'ActiveSupport::Cache::DalliStore' do
 
     it 'uses valid digest_class option' do
       with_cache :expires_in => 5.minutes, :digest_class => OpenSSL::Digest::SHA1 do
-        dvalue = @dalli.fetch('a_key') { 123 }
+        key = "k" * 300
+        dvalue = @dalli.fetch(key) { 123 }
+        assert_equal 123, dvalue
+      end
+    end
+
+    it 'uses a fallback digest_class' do
+      with_cache :expires_in => 5.minutes do
+        key = "k" * 300
+        dvalue = @dalli.fetch(key) { 123 }
         assert_equal 123, dvalue
       end
     end
