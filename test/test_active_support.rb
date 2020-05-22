@@ -548,6 +548,16 @@ describe 'ActiveSupport::Cache::DalliStore' do
     assert_equal ["127.0.0.1:11211"], @dalli.instance_variable_get(:@data).instance_variable_get(:@servers)
   end
 
+  it 'normalizes servers passed in as comma separated' do
+    @dalli = ActiveSupport::Cache::DalliStore.new('server1:2,server3:4')
+    assert_equal ['server1:2', 'server3:4'], @dalli.instance_variable_get(:@data).instance_variable_get(:@servers)
+  end
+
+  it 'normalizes servers passed in as comma separated, nested in an array' do
+    @dalli = ActiveSupport::Cache::DalliStore.new(['server1:2,server3:4', 'server5:6'])
+    assert_equal ['server1:2', 'server3:4', 'server5:6'], @dalli.instance_variable_get(:@data).instance_variable_get(:@servers)
+  end
+
   it 'supports connection pooling' do
     with_cache :expires_in => 1, :namespace => 'foo', :compress => true, :pool_size => 3 do
       assert_nil @dalli.read('foo')

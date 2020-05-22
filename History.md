@@ -1,6 +1,10 @@
 Dalli Changelog
 =====================
 
+2.7.11
+==========
+- Handle nested comma separated server strings (sambostock)
+
 2.7.10
 ==========
 - Revert frozen string change (schneems)
