@@ -410,12 +410,13 @@ module Dalli
 
     # Chokepoint method for instrumentation
     def perform(*all_args)
-      return yield if block_given?
-      op, key, *args = all_args
-
-      key = key.to_s
-      key = validate_key(key)
       begin
+        return yield if block_given?
+        op, key, *args = all_args
+
+        key = key.to_s
+        key = validate_key(key)
+
         server = ring.server_for_key(key)
         server.request(op, key, *args)
       rescue NetworkError => e
@@ -515,8 +516,9 @@ module Dalli
                   if server.multi_response_completed?
                     servers.delete(server)
                   end
-                rescue NetworkError
+                rescue NetworkError => e
                   servers.delete(server)
+                  raise e
                 end
               end
             end
