@@ -163,6 +163,8 @@ describe "failover" do
         memcached(29199) do |new_dc|
           new_dc.set 'foo', 'bar'
 
+          sleep(3)
+
           # get_multi should repair the broken socket
           assert_equal({ 'foo' => 'bar' }, old_dc.get_multi('foo'))
         end
