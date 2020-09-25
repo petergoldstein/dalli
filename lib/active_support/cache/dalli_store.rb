@@ -418,7 +418,7 @@ module ActiveSupport
       module LocalCacheEntryUnwrapAndRaw # :nodoc:
         protected
           def read_entry(key, options)
-            retval = super
+            retval = super(key, **options)
             if retval.is_a? ActiveSupport::Cache::Entry
               # Must have come from LocalStore, unwrap it
               if options[:raw]

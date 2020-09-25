@@ -477,36 +477,6 @@ describe 'Dalli' do
       end
     end
 
-    it 'allow TCP connections to configure SO_RCVBUF' do
-      memcached_persistent do |dc, port|
-        value = 5000
-        dc = Dalli::Client.new("localhost:#{port}", :rcvbuf => value)
-        dc.set(:a, 1)
-        ring = dc.send(:ring)
-        server = ring.servers.first
-        socket = server.instance_variable_get('@sock')
-
-        optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF)
-        expected = jruby? ? value : value * 2
-        assert_equal expected, optval.unpack('i')[0]
-      end
-    end
-
-    it 'allow TCP connections to configure SO_SNDBUF' do
-      memcached_persistent do |dc, port|
-        value = 5000
-        dc = Dalli::Client.new("localhost:#{port}", :sndbuf => value)
-        dc.set(:a, 1)
-        ring = dc.send(:ring)
-        server = ring.servers.first
-        socket = server.instance_variable_get('@sock')
-
-        optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF)
-        expected = jruby? ? value : value * 2
-        assert_equal expected, optval.unpack('i')[0]
-      end
-    end
-
     it "pass a simple smoke test" do
       memcached_persistent do |dc, port|
         resp = dc.flush
@@ -739,13 +709,13 @@ describe 'Dalli' do
       it 'handle error response correctly' do
         memcached_low_mem_persistent do |dc|
           failed = false
-          value = "1234567890"*100
+          value = "1234567890"*1000
           1_000.times do |idx|
             begin
               assert op_addset_succeeds(dc.set(idx, value))
             rescue Dalli::DalliError
               failed = true
-              assert((800..960).include?(idx), "unexpected failure on iteration #{idx}")
+              assert((10..200).include?(idx), "unexpected failure on iteration #{idx}")
               break
             end
           end
@@ -757,13 +727,13 @@ describe 'Dalli' do
         memcached_low_mem_persistent do |dc, port|
           dalli = Dalli::Client.new("localhost:#{port}", :compress => true)
           failed = false
-          value = "1234567890"*1000
+          value = "1234567890"*100
           10_000.times do |idx|
             begin
               assert op_addset_succeeds(dalli.set(idx, value))
             rescue Dalli::DalliError
               failed = true
-              assert((6000..7800).include?(idx), "unexpected failure on iteration #{idx}")
+              assert((800..2000).include?(idx), "unexpected failure on iteration #{idx}")
               break
             end
           end

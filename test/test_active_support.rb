@@ -88,9 +88,9 @@ describe 'ActiveSupport::Cache::DalliStore' do
       assert_equal 'bar', @dalli.read('foo', nil)
       assert_equal 18, @dalli.fetch('lkjsadlfk', nil) { 18 }
       assert_equal 18, @dalli.fetch('lkjsadlfk', nil) { 18 }
-      assert_equal 1, @dalli.increment('lkjsa', 1, nil)
-      assert_equal 2, @dalli.increment('lkjsa', 1, nil)
-      assert_equal 1, @dalli.decrement('lkjsa', 1, nil)
+      assert_equal 1, @dalli.increment('lkjsa', 1)
+      assert_equal 2, @dalli.increment('lkjsa', 1)
+      assert_equal 1, @dalli.decrement('lkjsa', 1)
       assert_equal true, @dalli.delete('lkjsa')
     end
 
