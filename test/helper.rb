@@ -5,7 +5,7 @@ require 'bundler/setup'
 # SimpleCov.start
 require 'minitest/pride' unless RUBY_ENGINE == 'rbx'
 require 'minitest/autorun'
-require 'mocha/setup'
+require 'mocha/minitest'
 require_relative 'memcached_mock'
 
 ENV['MEMCACHED_SASL_PWDB'] = "#{File.dirname(__FILE__)}/sasl/sasldb"
