@@ -5,6 +5,7 @@ Dalli Changelog
 ==========
 - Add new `digest_class` option to Dalli::Client [#724]
 - Don't treat NameError as a network error [#728]
+- Handle nested comma separated server strings (sambostock)
 
 2.7.10
 ==========
