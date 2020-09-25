@@ -15,14 +15,5 @@ Gem::Specification.new do |s|
     'Gemfile'
   ]
   s.homepage = 'https://github.com/petergoldstein/dalli'
-  s.rdoc_options = ["--charset=UTF-8"]
-  s.add_development_dependency 'minitest', '>= 4.2.0'
-  s.add_development_dependency 'mocha'
-  s.add_development_dependency 'rails', '~> 5'
-  s.add_development_dependency 'rake'
-  s.add_development_dependency 'appraisal'
-  s.add_development_dependency 'connection_pool'
-  s.add_development_dependency 'rdoc'
-  s.add_development_dependency 'simplecov'
 end
 
