@@ -9,26 +9,6 @@ The name is a variant of Salvador Dali for his famous painting [The Persistence 
 
 Dalli's initial development was sponsored by [CouchBase](http://www.couchbase.com/).  Many thanks to them!
 
-
-Design
-------------
-
-Mike Perham decided to write Dalli after maintaining memcache-client for two years for a few specific reasons:
-
- 0. The code is mostly old and gross.  The bulk of the code is a single 1000 line .rb file.
- 1. It has a lot of options that are infrequently used which complicate the codebase.
- 2. The implementation has no single point to attach monitoring hooks.
- 3. Uses the old text protocol, which hurts raw performance.
-
-So a few notes.  Dalli:
-
- 0. uses the exact same algorithm to choose a server so existing memcached clusters with TBs of data will work identically to memcache-client.
- 1. is approximately 20% faster than memcache-client (which itself was heavily optimized) in Ruby 1.9.2.
- 2. contains explicit "chokepoint" methods which handle all requests; these can be hooked into by monitoring tools (NewRelic, Rack::Bug, etc) to track memcached usage.
- 3. supports SASL for use in managed environments, e.g. Heroku.
- 4. provides proper failover with recovery and adjustable timeouts
-
-
 Supported Ruby versions and implementations
 ------------------------------------------------
 
@@ -68,10 +48,7 @@ value = dc.get('abc')
 
 The test suite requires memcached 1.4.3+ with SASL enabled (`brew install memcached --enable-sasl ; mv /usr/bin/memcached /usr/bin/memcached.old`).  Currently only supports the PLAIN mechanism.
 
-Dalli has no runtime dependencies and never will. If you are using Ruby <2.3,
-you can optionally install the '[kgio](https://bogomips.org/kgio/)' gem to
-give Dalli a 20-30% performance boost.
-
+Dalli has no runtime dependencies.
 
 Usage with Rails 3.x and 4.x
 ---------------------------
@@ -160,7 +137,7 @@ Dalli::Client accepts the following options. All times are in seconds.
 
 **failover**: Boolean, if true Dalli will failover to another server if the main server for a key is down.  Default is true.
 
-**threadsafe**: Boolean.  If true Dalli ensures that only one thread is using a socket at a given time.  Default is true.  Set to false at your own peril.
+**threadsafe**: Boolean.  If true Dalli ensures that only one thread is using a socket at a given time. Default is true. You can set to false if you are using the Client within a thread-safe connection pool.
 
 **serializer**: The serializer to use for objects being stored (ex. JSON).
 Default is Marshal.
@@ -206,7 +183,7 @@ If serving compressed data using nginx's HttpMemcachedModule, set `memcached_gzi
 Features and Changes
 ------------------------
 
-By default, Dalli is thread-safe.  Disable thread-safety at your own peril.
+By default, Dalli is thread-safe. Disable thread-safety at your own peril.
 
 Dalli does not need anything special in Unicorn/Passenger since 2.0.4.
 It will detect sockets shared with child processes and gracefully reopen the
