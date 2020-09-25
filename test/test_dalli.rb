@@ -739,13 +739,13 @@ describe 'Dalli' do
       it 'handle error response correctly' do
         memcached_low_mem_persistent do |dc|
           failed = false
-          value = "1234567890"*100
+          value = "1234567890"*1000
           1_000.times do |idx|
             begin
               assert op_addset_succeeds(dc.set(idx, value))
             rescue Dalli::DalliError
               failed = true
-              assert((800..960).include?(idx), "unexpected failure on iteration #{idx}")
+              assert((100..200).include?(idx), "unexpected failure on iteration #{idx}")
               break
             end
           end
@@ -757,13 +757,13 @@ describe 'Dalli' do
         memcached_low_mem_persistent do |dc, port|
           dalli = Dalli::Client.new("localhost:#{port}", :compress => true)
           failed = false
-          value = "1234567890"*1000
+          value = "1234567890"*100
           10_000.times do |idx|
             begin
               assert op_addset_succeeds(dalli.set(idx, value))
             rescue Dalli::DalliError
               failed = true
-              assert((6000..7800).include?(idx), "unexpected failure on iteration #{idx}")
+              assert((800..900).include?(idx), "unexpected failure on iteration #{idx}")
               break
             end
           end
