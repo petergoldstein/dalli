@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+2.7.11
+==========
+- Add new `digest_class` option to Dalli::Client [#724]
+- Don't treat NameError as a network error [#728]
+
 2.7.10
 ==========
 - Revert frozen string change (schneems)
