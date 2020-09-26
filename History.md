@@ -3,6 +3,9 @@ Dalli Changelog
 
 2.7.11
 ==========
+- DEPRECATION: :dalli_store will be removed in Dalli 3.0.
+  Use Rails' official :mem_cache_store instead.
+  https://guides.rubyonrails.org/caching_with_rails.html
 - Add new `digest_class` option to Dalli::Client [#724]
 - Don't treat NameError as a network error [#728]
 - Handle nested comma separated server strings (sambostock)

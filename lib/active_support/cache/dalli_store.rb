@@ -50,6 +50,11 @@ module ActiveSupport
       # wish to use pool support.
       #
       def initialize(*addresses)
+        puts <<-EOS
+DEPRECATION: :dalli_store will be removed in Dalli 3.0.
+Please use Rails' official :mem_cache_store instead.
+https://guides.rubyonrails.org/caching_with_rails.html
+EOS
         addresses = addresses.flatten
         options = addresses.extract_options!
         @options = options.dup
