@@ -1,4 +1,4 @@
 # frozen_string_literal: true
 module Dalli
-  VERSION = '2.7.11'
+  VERSION = "3.0.0"
 end
