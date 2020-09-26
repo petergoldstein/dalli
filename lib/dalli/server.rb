@@ -588,9 +588,9 @@ module Dalli
       begin
         @pid = Process.pid
         if socket_type == :unix
-          @sock = KSocket::UNIX.open(hostname, self, options)
+          @sock = Dalli::Socket::UNIX.open(hostname, self, options)
         else
-          @sock = KSocket::TCP.open(hostname, port, self, options)
+          @sock = Dalli::Socket::TCP.open(hostname, port, self, options)
         end
         sasl_authentication if need_auth?
         @version = version # trigger actual connect
