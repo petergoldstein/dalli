@@ -18,7 +18,6 @@ require 'dalli'
 require 'logger'
 
 require 'active_support/time'
-require 'active_support/cache/dalli_store'
 
 Dalli.logger = Logger.new(STDOUT)
 Dalli.logger.level = Logger::ERROR
