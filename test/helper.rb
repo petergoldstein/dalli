@@ -6,7 +6,6 @@ require "bundler/setup"
 # SimpleCov.start
 require "minitest/pride"
 require "minitest/autorun"
-require "mocha/minitest"
 require_relative "memcached_mock"
 
 ENV["MEMCACHED_SASL_PWDB"] = "#{File.dirname(__FILE__)}/sasl/sasldb"

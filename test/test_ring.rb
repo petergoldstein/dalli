@@ -3,10 +3,11 @@
 require_relative "helper"
 
 describe "Ring" do
+
   describe "a ring of servers" do
+    Server = Struct.new(:name, :weight)
     it "have the continuum sorted by value" do
-      servers = [stub(name: "localhost:11211", weight: 1),
-        stub(name: "localhost:9500", weight: 1)]
+      servers = [Server.new("localhost:11211", 1),Server.new("localhost:9500", 1)]
       ring = Dalli::Ring.new(servers, {})
       previous_value = 0
       ring.continuum.each do |entry|

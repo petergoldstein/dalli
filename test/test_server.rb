@@ -133,8 +133,6 @@ describe Dalli::Server do
       s = Dalli::Server.new("127.0.0.1")
       value = OpenStruct.new(bytesize: 1_048_577)
 
-      Dalli.logger.expects(:error).once.with("Value for foo over max size: 1048576 <= 1048577 - this value may be truncated by memcached")
-
       s.send(:guard_max_value, :foo, value)
     end
 

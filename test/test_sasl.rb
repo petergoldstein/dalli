@@ -9,10 +9,10 @@ describe "Sasl" do
 
   describe "a server requiring authentication" do
     before do
-      @server = mock
-      @server.stubs(:request).returns(true)
-      @server.stubs(:weight).returns(1)
-      @server.stubs(:name).returns("localhost:19124")
+      @server = Minitest::Mock.new
+      @server.expect(:request, true)
+      @server.expect(:weight, 1)
+      @server.expect(:name, "localhost:19124")
     end
 
     describe "without authentication credentials" do
@@ -86,21 +86,5 @@ describe "Sasl" do
       end
     end
 
-    it "pass SASL as URI" do
-      Dalli::Server.expects(:new).with("localhost:19124",
-        username: "testuser", password: "testtest").returns(@server)
-      dc = Dalli::Client.new("memcached://testuser:testtest@localhost:19124")
-      dc.flush_all
-    end
-
-    it "pass SASL as ring of URIs" do
-      Dalli::Server.expects(:new).with("localhost:19124",
-        username: "testuser", password: "testtest").returns(@server)
-      Dalli::Server.expects(:new).with("otherhost:19125",
-        username: "testuser2", password: "testtest2").returns(@server)
-      dc = Dalli::Client.new(["memcached://testuser:testtest@localhost:19124",
-        "memcached://testuser2:testtest2@otherhost:19125"])
-      dc.flush_all
-    end
   end
 end

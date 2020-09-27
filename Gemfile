@@ -6,7 +6,6 @@ gem "standard", "0.7"
 
 group :test do
   gem "minitest"
-  gem "mocha"
   gem "rake"
   gem "connection_pool"
   gem "simplecov"
