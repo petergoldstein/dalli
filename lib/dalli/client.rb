@@ -30,6 +30,7 @@ module Dalli
     # - :compressor - defaults to zlib
     # - :cache_nils - defaults to false, if true Dalli will not treat cached nil values as 'not found' for #fetch operations.
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method, useful for injecting a FIPS compliant hash object.
+    # - :protocol_implementation - defaults to Dalli::Server which uses the binary protocol. Allows you to pass an alternative implementation using another protocol.
     #
     def initialize(servers = nil, options = {})
       @servers = normalize_servers(servers || ENV["MEMCACHE_SERVERS"] || "127.0.0.1:11211")
@@ -403,7 +404,7 @@ module Dalli
             server_options[:password] = uri.password
             s = "#{uri.host}:#{uri.port}"
           end
-          Dalli::Server.new(s, @options.merge(server_options))
+          @options.fetch(:protocol_implementation, Dalli::Server).new(s, @options.merge(server_options))
         }, @options
       )
     end
