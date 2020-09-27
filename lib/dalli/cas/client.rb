@@ -1,5 +1,6 @@
 # frozen_string_literal: true
-require 'dalli/client'
+
+require "dalli/client"
 
 module Dalli
   class Client
@@ -8,7 +9,7 @@ module Dalli
     # value and CAS will be passed to the block.
     def get_cas(key)
       (value, cas) = perform(:cas, key)
-      value = (!value || value == 'Not found') ? nil : value
+      value = !value || value == "Not found" ? nil : value
       if block_given?
         yield value, cas
       else
@@ -24,10 +25,10 @@ module Dalli
     #   { 'key' => [value, cas_id] }
     def get_multi_cas(*keys)
       if block_given?
-        get_multi_yielder(keys) {|*args| yield(*args)}
+        get_multi_yielder(keys) { |*args| yield(*args) }
       else
-        Hash.new.tap do |hash|
-          get_multi_yielder(keys) {|k, data| hash[k] = data}
+        {}.tap do |hash|
+          get_multi_yielder(keys) { |k, data| hash[k] = data }
         end
       end
     end
@@ -35,7 +36,7 @@ module Dalli
     ##
     # Set the key-value pair, verifying existing CAS.
     # Returns the resulting CAS value if succeeded, and falsy otherwise.
-    def set_cas(key, value, cas, ttl=nil, options=nil)
+    def set_cas(key, value, cas, ttl = nil, options = nil)
       ttl ||= @options[:expires_in].to_i
       perform(:set, key, value, ttl, cas, options)
     end
@@ -44,16 +45,15 @@ module Dalli
     # Conditionally add a key/value pair, verifying existing CAS, only if the
     # key already exists on the server.  Returns the new CAS value if the
     # operation succeeded, or falsy otherwise.
-    def replace_cas(key, value, cas, ttl=nil, options=nil)
+    def replace_cas(key, value, cas, ttl = nil, options = nil)
       ttl ||= @options[:expires_in].to_i
       perform(:replace, key, value, ttl, cas, options)
     end
 
     # Delete a key/value pair, verifying existing CAS.
     # Returns true if succeeded, and falsy otherwise.
-    def delete_cas(key, cas=0)
+    def delete_cas(key, cas = 0)
       perform(:delete, key, cas)
     end
-
   end
 end

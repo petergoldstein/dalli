@@ -1,6 +1,7 @@
 # frozen_string_literal: true
-require 'zlib'
-require 'stringio'
+
+require "zlib"
+require "stringio"
 
 module Dalli
   class Compressor
@@ -15,7 +16,7 @@ module Dalli
 
   class GzipCompressor
     def self.compress(data)
-      io = StringIO.new(String.new(""), "w")
+      io = StringIO.new(+"", "w")
       gz = Zlib::GzipWriter.new(io)
       gz.write(data)
       gz.close

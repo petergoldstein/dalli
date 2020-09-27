@@ -1,8 +1,9 @@
 # frozen_string_literal: true
-require_relative 'helper'
-require 'benchmark'
 
-describe 'performance' do
+require_relative "helper"
+require "benchmark"
+
+describe "performance" do
   before do
     puts "Testing #{Dalli::VERSION} with #{RUBY_DESCRIPTION}"
     # We'll use a simple @value to try to avoid spending time in Marshal,
@@ -13,31 +14,29 @@ describe 'performance' do
     @port = 23417
     @servers = ["127.0.0.1:#{@port}", "localhost:#{@port}"]
     @key1 = "Short"
-    @key2 = "Sym1-2-3::45"*8
-    @key3 = "Long"*40
-    @key4 = "Medium"*8
+    @key2 = "Sym1-2-3::45" * 8
+    @key3 = "Long" * 40
+    @key4 = "Medium" * 8
     # 5 and 6 are only used for multiget miss test
-    @key5 = "Medium2"*8
-    @key6 = "Long3"*40
-    @counter = 'counter'
+    @key5 = "Medium2" * 8
+    @key6 = "Long3" * 40
+    @counter = "counter"
   end
 
-  it 'runs benchmarks' do
+  it "runs benchmarks" do
     memcached(@port) do
-
       Benchmark.bm(37) do |x|
-
         n = 2500
 
         @m = Dalli::Client.new(@servers)
         x.report("set:plain:dalli") do
           n.times do
-            @m.set @key1, @marshalled, 0, :raw => true
-            @m.set @key2, @marshalled, 0, :raw => true
-            @m.set @key3, @marshalled, 0, :raw => true
-            @m.set @key1, @marshalled, 0, :raw => true
-            @m.set @key2, @marshalled, 0, :raw => true
-            @m.set @key3, @marshalled, 0, :raw => true
+            @m.set @key1, @marshalled, 0, raw: true
+            @m.set @key2, @marshalled, 0, raw: true
+            @m.set @key3, @marshalled, 0, raw: true
+            @m.set @key1, @marshalled, 0, raw: true
+            @m.set @key2, @marshalled, 0, raw: true
+            @m.set @key3, @marshalled, 0, raw: true
           end
         end
 
@@ -45,12 +44,12 @@ describe 'performance' do
         x.report("setq:plain:dalli") do
           @m.multi do
             n.times do
-              @m.set @key1, @marshalled, 0, :raw => true
-              @m.set @key2, @marshalled, 0, :raw => true
-              @m.set @key3, @marshalled, 0, :raw => true
-              @m.set @key1, @marshalled, 0, :raw => true
-              @m.set @key2, @marshalled, 0, :raw => true
-              @m.set @key3, @marshalled, 0, :raw => true
+              @m.set @key1, @marshalled, 0, raw: true
+              @m.set @key2, @marshalled, 0, raw: true
+              @m.set @key3, @marshalled, 0, raw: true
+              @m.set @key1, @marshalled, 0, raw: true
+              @m.set @key2, @marshalled, 0, raw: true
+              @m.set @key3, @marshalled, 0, raw: true
             end
           end
         end
@@ -70,12 +69,12 @@ describe 'performance' do
         @m = Dalli::Client.new(@servers)
         x.report("get:plain:dalli") do
           n.times do
-            @m.get @key1, :raw => true
-            @m.get @key2, :raw => true
-            @m.get @key3, :raw => true
-            @m.get @key1, :raw => true
-            @m.get @key2, :raw => true
-            @m.get @key3, :raw => true
+            @m.get @key1, raw: true
+            @m.get @key2, raw: true
+            @m.get @key3, raw: true
+            @m.get @key1, raw: true
+            @m.get @key2, raw: true
+            @m.get @key3, raw: true
           end
         end
 
@@ -154,7 +153,7 @@ describe 'performance' do
 
         @m = Dalli::Client.new(@servers)
         x.report("incr:ruby:dalli") do
-          counter = 'foocount'
+          counter = "foocount"
           n.times do
             @m.incr counter, 1, 0, 1
           end
@@ -164,9 +163,7 @@ describe 'performance' do
 
           assert_equal 0, @m.incr(counter, 0)
         end
-
       end
     end
-
   end
 end

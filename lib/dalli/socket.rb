@@ -2,10 +2,9 @@
 
 module Dalli
   module Socket
-
     module InstanceMethods
       def readfull(count)
-        value = String.new('')
+        value = +""
         loop do
           result = read_nonblock(count - value.bytesize, exception: false)
           if result == :wait_readable
@@ -23,7 +22,7 @@ module Dalli
       end
 
       def read_available
-        value = String.new('')
+        value = +""
         loop do
           result = read_nonblock(8196, exception: false)
           if result == :wait_readable
@@ -40,7 +39,7 @@ module Dalli
       end
 
       def safe_options
-        options.reject{|k,v| [:username, :password].include? k}
+        options.reject { |k, v| [:username, :password].include? k }
       end
     end
 
@@ -51,7 +50,7 @@ module Dalli
       def self.open(host, port, server, options = {})
         Timeout.timeout(options[:socket_timeout]) do
           sock = new(host, port)
-          sock.options = {:host => host, :port => port}.merge(options)
+          sock.options = {host: host, port: port}.merge(options)
           sock.server = server
           sock.setsockopt(::Socket::IPPROTO_TCP, ::Socket::TCP_NODELAY, true)
           sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_KEEPALIVE, true) if options[:keepalive]
@@ -69,7 +68,7 @@ module Dalli
       def self.open(path, server, options = {})
         Timeout.timeout(options[:socket_timeout]) do
           sock = new(path)
-          sock.options = {:path => path}.merge(options)
+          sock.options = {path: path}.merge(options)
           sock.server = server
           sock
         end

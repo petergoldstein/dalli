@@ -1,6 +1,7 @@
 # frozen_string_literal: true
-require 'digest/sha1'
-require 'zlib'
+
+require "digest/sha1"
+require "zlib"
 
 module Dalli
   class Ring
@@ -46,7 +47,7 @@ module Dalli
         end
       else
         server = @servers.first
-        return server if server && server.alive?
+        return server if server&.alive?
       end
 
       raise Dalli::RingError, "No server available"
@@ -55,7 +56,7 @@ module Dalli
     def lock
       @servers.each(&:lock!)
       begin
-        return yield
+        yield
       ensure
         @servers.each(&:unlock!)
       end
@@ -86,6 +87,5 @@ module Dalli
         @server = srv
       end
     end
-
   end
 end

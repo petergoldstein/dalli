@@ -1,11 +1,13 @@
-source 'https://rubygems.org'
+source "https://rubygems.org"
 
 gemspec
 
+gem "standard", "0.7"
+
 group :test do
-  gem 'minitest'
-  gem 'mocha'
-  gem 'rake'
-  gem 'connection_pool'
-  gem 'simplecov'
+  gem "minitest"
+  gem "mocha"
+  gem "rake"
+  gem "connection_pool"
+  gem "simplecov"
 end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
-require 'socket'
-require 'timeout'
+
+require "socket"
+require "timeout"
 
 module Dalli
   class Server
@@ -9,36 +10,36 @@ module Dalli
     attr_accessor :weight
     attr_accessor :options
     attr_reader :sock
-    attr_reader :socket_type  # possible values: :unix, :tcp
+    attr_reader :socket_type # possible values: :unix, :tcp
 
     DEFAULT_PORT = 11211
     DEFAULT_WEIGHT = 1
     DEFAULTS = {
       # seconds between trying to contact a remote server
-      :down_retry_delay => 60,
+      down_retry_delay: 60,
       # connect/read/write timeout for socket operations
-      :socket_timeout => 0.5,
+      socket_timeout: 0.5,
       # times a socket operation may fail before considering the server dead
-      :socket_max_failures => 2,
+      socket_max_failures: 2,
       # amount of time to sleep between retries when a failure occurs
-      :socket_failure_delay => 0.01,
+      socket_failure_delay: 0.01,
       # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
-      :value_max_bytes => 1024 * 1024,
+      value_max_bytes: 1024 * 1024,
       # surpassing value_max_bytes either warns (false) or throws (true)
-      :error_when_over_max_size => false,
-      :compressor => Compressor,
+      error_when_over_max_size: false,
+      compressor: Compressor,
       # min byte size to attempt compression
-      :compression_min_size => 1024,
+      compression_min_size: 1024,
       # max byte size for compression
-      :compression_max_size => false,
-      :serializer => Marshal,
-      :username => nil,
-      :password => nil,
-      :keepalive => true,
+      compression_max_size: false,
+      serializer: Marshal,
+      username: nil,
+      password: nil,
+      keepalive: true,
       # max byte size for SO_SNDBUF
-      :sndbuf => nil,
+      sndbuf: nil,
       # max byte size for SO_RCVBUF
-      :rcvbuf => nil
+      rcvbuf: nil
     }
 
     def initialize(attribs, options = {})
@@ -99,7 +100,11 @@ module Dalli
 
     def close
       return unless @sock
-      @sock.close rescue nil
+      begin
+        @sock.close
+      rescue
+        nil
+      end
       @sock = nil
       @pid = nil
       @inprogress = false
@@ -127,7 +132,7 @@ module Dalli
     def multi_response_start
       verify_state
       write_noop
-      @multi_buffer = String.new('')
+      @multi_buffer = +""
       @position = 0
       @inprogress = true
     end
@@ -144,7 +149,7 @@ module Dalli
     #
     # Returns a Hash of kv pairs received.
     def multi_response_nonblock
-      raise 'multi_response has completed' if @multi_buffer.nil?
+      raise "multi_response has completed" if @multi_buffer.nil?
 
       @multi_buffer << @sock.read_available
       buf = @multi_buffer
@@ -163,7 +168,7 @@ module Dalli
           break
 
         elsif buf.bytesize - pos >= 24 + body_length
-          flags = buf.slice(pos + 24, 4).unpack('N')[0]
+          flags = buf.slice(pos + 24, 4).unpack1("N")
           key = buf.slice(pos + 24 + 4, key_length)
           value = buf.slice(pos + 24 + 4 + key_length, body_length - key_length - 4) if body_length - key_length - 4 > 0
 
@@ -195,7 +200,7 @@ module Dalli
       @multi_buffer = nil
       @position = nil
       @inprogress = false
-      failure!(RuntimeError.new('External timeout'))
+      failure!(RuntimeError.new("External timeout"))
     rescue NetworkError
       true
     end
@@ -205,9 +210,9 @@ module Dalli
     private
 
     def verify_state
-      failure!(RuntimeError.new('Already writing to socket')) if @inprogress
+      failure!(RuntimeError.new("Already writing to socket")) if @inprogress
       if @pid && @pid != Process.pid
-        message = 'Fork detected, re-connecting child process...'
+        message = "Fork detected, re-connecting child process..."
         Dalli.logger.info { message }
         reconnect! message
       end
@@ -227,7 +232,7 @@ module Dalli
       if @fail_count >= options[:socket_max_failures]
         down!
       else
-        reconnect! 'Socket operation failed, retrying...'
+        reconnect! "Socket operation failed, retrying..."
       end
     end
 
@@ -244,8 +249,8 @@ module Dalli
         Dalli.logger.warn { "#{name} is down" }
       end
 
-      @error = $! && $!.class.name
-      @msg = @msg || ($! && $!.message && !$!.message.empty? && $!.message)
+      @error = $!&.class&.name
+      @msg ||= $!&.message
       raise Dalli::NetworkError, "#{name} is down: #{@error} #{@msg}"
     end
 
@@ -266,14 +271,14 @@ module Dalli
       Thread.current[:dalli_multi]
     end
 
-    def get(key, options=nil)
+    def get(key, options = nil)
       req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
       write(req)
       generic_response(true, !!(options && options.is_a?(Hash) && options[:cache_nils]))
     end
 
     def send_multiget(keys)
-      req = String.new("")
+      req = +""
       keys.each do |key|
         req << [REQUEST, OPCODES[:getkq], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:getkq])
       end
@@ -334,7 +339,7 @@ module Dalli
       req = [REQUEST, OPCODES[opcode], key.bytesize, 20, 0, 0, key.bytesize + 20, 0, 0, h, l, dh, dl, expiry, key].pack(FORMAT[opcode])
       write(req)
       body = generic_response
-      body ? body.unpack('Q>').first : body
+      body ? body.unpack1("Q>") : body
     end
 
     def decr(key, count, ttl, default)
@@ -374,14 +379,14 @@ module Dalli
       write_append_prepend :prepend, key, value
     end
 
-    def stats(info='')
+    def stats(info = "")
       req = [REQUEST, OPCODES[:stat], info.bytesize, 0, 0, 0, info.bytesize, 0, 0, info].pack(FORMAT[:stat])
       write(req)
       keyvalue_response
     end
 
     def reset_stats
-      write_generic [REQUEST, OPCODES[:stat], 'reset'.bytesize, 0, 0, 0, 'reset'.bytesize, 0, 0, 'reset'].pack(FORMAT[:stat])
+      write_generic [REQUEST, OPCODES[:stat], "reset".bytesize, 0, 0, 0, "reset".bytesize, 0, 0, "reset"].pack(FORMAT[:stat])
     end
 
     def cas(key)
@@ -405,12 +410,14 @@ module Dalli
     FLAG_SERIALIZED = 0x1
     FLAG_COMPRESSED = 0x2
 
-    def serialize(key, value, options=nil)
+    def serialize(key, value, options = nil)
       marshalled = false
-      value = unless options && options[:raw]
+      value = if options && options[:raw]
+        value.to_s
+      else
         marshalled = true
         begin
-          self.serializer.dump(value)
+          serializer.dump(value)
         rescue Timeout::Error => e
           raise e
         rescue => ex
@@ -420,14 +427,12 @@ module Dalli
           exc.set_backtrace ex.backtrace
           raise exc
         end
-      else
-        value.to_s
       end
       compressed = false
       set_compress_option = true if options && options[:compress]
       if (@options[:compress] || set_compress_option) && value.bytesize >= @options[:compression_min_size] &&
-        (!@options[:compression_max_size] || value.bytesize <= @options[:compression_max_size])
-        value = self.compressor.compress(value)
+          (!@options[:compression_max_size] || value.bytesize <= @options[:compression_max_size])
+        value = compressor.compress(value)
         compressed = true
       end
 
@@ -438,17 +443,17 @@ module Dalli
     end
 
     def deserialize(value, flags)
-      value = self.compressor.decompress(value) if (flags & FLAG_COMPRESSED) != 0
-      value = self.serializer.load(value) if (flags & FLAG_SERIALIZED) != 0
+      value = compressor.decompress(value) if (flags & FLAG_COMPRESSED) != 0
+      value = serializer.load(value) if (flags & FLAG_SERIALIZED) != 0
       value
     rescue TypeError
-      raise if $!.message !~ /needs to have method `_load'|exception class\/object expected|instance of IO needed|incompatible marshal file format/
+      raise unless /needs to have method `_load'|exception class\/object expected|instance of IO needed|incompatible marshal file format/.match?($!.message)
       raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
     rescue ArgumentError
-      raise if $!.message !~ /undefined class|marshal data too short/
+      raise unless /undefined class|marshal data too short/.match?($!.message)
       raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
     rescue NameError
-      raise if $!.message !~ /uninitialized constant/
+      raise unless /uninitialized constant/.match?($!.message)
       raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
     rescue Zlib::Error
       raise UnmarshalError, "Unable to uncompress value: #{$!.message}"
@@ -462,16 +467,16 @@ module Dalli
       elsif status != 0
         raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
       elsif data
-        flags = data[0...extras].unpack('N')[0]
+        flags = data[0...extras].unpack1("N")
         value = data[extras..-1]
         data = deserialize(value, flags)
       end
       [data, cas]
     end
 
-    CAS_HEADER = '@4CCnNNQ'
-    NORMAL_HEADER = '@4CCnN'
-    KV_HEADER = '@2n@6nN@16Q'
+    CAS_HEADER = "@4CCnNNQ"
+    NORMAL_HEADER = "@4CCnN"
+    KV_HEADER = "@2n@6nN@16Q"
 
     def guard_max_value(key, value)
       if value.bytesize <= @options[:value_max_bytes]
@@ -487,7 +492,7 @@ module Dalli
 
     # https://github.com/memcached/memcached/blob/master/doc/protocol.txt#L79
     # > An expiration time, in seconds. Can be up to 30 days. After 30 days, is treated as a unix timestamp of an exact date.
-    MAX_ACCEPTABLE_EXPIRATION_INTERVAL = 30*24*60*60 # 30 days
+    MAX_ACCEPTABLE_EXPIRATION_INTERVAL = 30 * 24 * 60 * 60 # 30 days
     def sanitize_ttl(ttl)
       ttl_as_i = ttl.to_i
       return ttl_as_i if ttl_as_i <= MAX_ACCEPTABLE_EXPIRATION_INTERVAL
@@ -501,7 +506,7 @@ module Dalli
     class NilObject; end
     NOT_FOUND = NilObject.new
 
-    def generic_response(unpack=false, cache_nils=false)
+    def generic_response(unpack = false, cache_nils = false)
       (extras, _, status, count) = read_header.unpack(NORMAL_HEADER)
       data = read(count) if count > 0
       if status == 1
@@ -511,7 +516,7 @@ module Dalli
       elsif status != 0
         raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
       elsif data
-        flags = data[0...extras].unpack('N')[0]
+        flags = data[0...extras].unpack1("N")
         value = data[extras..-1]
         unpack ? deserialize(value, flags) : value
       else
@@ -521,7 +526,7 @@ module Dalli
 
     def cas_response
       (_, _, status, count, _, cas) = read_header.unpack(CAS_HEADER)
-      read(count) if count > 0  # this is potential data that we don't care about
+      read(count) if count > 0 # this is potential data that we don't care about
       if status == 1
         nil
       elsif status == 2 || status == 5
@@ -535,7 +540,7 @@ module Dalli
 
     def keyvalue_response
       hash = {}
-      while true
+      loop do
         (key_length, _, body_length, _) = read_header.unpack(KV_HEADER)
         return hash if key_length == 0
         key = read(key_length)
@@ -546,10 +551,10 @@ module Dalli
 
     def multi_response
       hash = {}
-      while true
+      loop do
         (key_length, _, body_length, _) = read_header.unpack(KV_HEADER)
         return hash if key_length == 0
-        flags = read(4).unpack('N')[0]
+        flags = read(4).unpack1("N")
         key = read(key_length)
         value = read(body_length - key_length - 4) if body_length - key_length - 4 > 0
         hash[key] = deserialize(value, flags)
@@ -557,29 +562,25 @@ module Dalli
     end
 
     def write(bytes)
-      begin
-        @inprogress = true
-        result = @sock.write(bytes)
-        @inprogress = false
-        result
-      rescue SystemCallError, Timeout::Error => e
-        failure!(e)
-      end
+      @inprogress = true
+      result = @sock.write(bytes)
+      @inprogress = false
+      result
+    rescue SystemCallError, Timeout::Error => e
+      failure!(e)
     end
 
     def read(count)
-      begin
-        @inprogress = true
-        data = @sock.readfull(count)
-        @inprogress = false
-        data
-      rescue SystemCallError, Timeout::Error, EOFError => e
-        failure!(e)
-      end
+      @inprogress = true
+      data = @sock.readfull(count)
+      @inprogress = false
+      data
+    rescue SystemCallError, Timeout::Error, EOFError => e
+      failure!(e)
     end
 
     def read_header
-      read(24) || raise(Dalli::NetworkError, 'No response')
+      read(24) || raise(Dalli::NetworkError, "No response")
     end
 
     def connect
@@ -587,10 +588,10 @@ module Dalli
 
       begin
         @pid = Process.pid
-        if socket_type == :unix
-          @sock = Dalli::Socket::UNIX.open(hostname, self, options)
+        @sock = if socket_type == :unix
+          Dalli::Socket::UNIX.open(hostname, self, options)
         else
-          @sock = Dalli::Socket::TCP.open(hostname, port, self, options)
+          Dalli::Socket::TCP.open(hostname, port, self, options)
         end
         sasl_authentication if need_auth?
         @version = version # trigger actual connect
@@ -613,89 +614,88 @@ module Dalli
     # Response codes taken from:
     # https://github.com/memcached/memcached/wiki/BinaryProtocolRevamped#response-status
     RESPONSE_CODES = {
-      0 => 'No error',
-      1 => 'Key not found',
-      2 => 'Key exists',
-      3 => 'Value too large',
-      4 => 'Invalid arguments',
-      5 => 'Item not stored',
-      6 => 'Incr/decr on a non-numeric value',
-      7 => 'The vbucket belongs to another server',
-      8 => 'Authentication error',
-      9 => 'Authentication continue',
-      0x20 => 'Authentication required',
-      0x81 => 'Unknown command',
-      0x82 => 'Out of memory',
-      0x83 => 'Not supported',
-      0x84 => 'Internal error',
-      0x85 => 'Busy',
-      0x86 => 'Temporary failure'
+      0 => "No error",
+      1 => "Key not found",
+      2 => "Key exists",
+      3 => "Value too large",
+      4 => "Invalid arguments",
+      5 => "Item not stored",
+      6 => "Incr/decr on a non-numeric value",
+      7 => "The vbucket belongs to another server",
+      8 => "Authentication error",
+      9 => "Authentication continue",
+      0x20 => "Authentication required",
+      0x81 => "Unknown command",
+      0x82 => "Out of memory",
+      0x83 => "Not supported",
+      0x84 => "Internal error",
+      0x85 => "Busy",
+      0x86 => "Temporary failure"
     }
 
     OPCODES = {
-      :get => 0x00,
-      :set => 0x01,
-      :add => 0x02,
-      :replace => 0x03,
-      :delete => 0x04,
-      :incr => 0x05,
-      :decr => 0x06,
-      :flush => 0x08,
-      :noop => 0x0A,
-      :version => 0x0B,
-      :getkq => 0x0D,
-      :append => 0x0E,
-      :prepend => 0x0F,
-      :stat => 0x10,
-      :setq => 0x11,
-      :addq => 0x12,
-      :replaceq => 0x13,
-      :deleteq => 0x14,
-      :incrq => 0x15,
-      :decrq => 0x16,
-      :auth_negotiation => 0x20,
-      :auth_request => 0x21,
-      :auth_continue => 0x22,
-      :touch => 0x1C,
+      get: 0x00,
+      set: 0x01,
+      add: 0x02,
+      replace: 0x03,
+      delete: 0x04,
+      incr: 0x05,
+      decr: 0x06,
+      flush: 0x08,
+      noop: 0x0A,
+      version: 0x0B,
+      getkq: 0x0D,
+      append: 0x0E,
+      prepend: 0x0F,
+      stat: 0x10,
+      setq: 0x11,
+      addq: 0x12,
+      replaceq: 0x13,
+      deleteq: 0x14,
+      incrq: 0x15,
+      decrq: 0x16,
+      auth_negotiation: 0x20,
+      auth_request: 0x21,
+      auth_continue: 0x22,
+      touch: 0x1C
     }
 
     HEADER = "CCnCCnNNQ"
     OP_FORMAT = {
-      :get => 'a*',
-      :set => 'NNa*a*',
-      :add => 'NNa*a*',
-      :replace => 'NNa*a*',
-      :delete => 'a*',
-      :incr => 'NNNNNa*',
-      :decr => 'NNNNNa*',
-      :flush => 'N',
-      :noop => '',
-      :getkq => 'a*',
-      :version => '',
-      :stat => 'a*',
-      :append => 'a*a*',
-      :prepend => 'a*a*',
-      :auth_request => 'a*a*',
-      :auth_continue => 'a*a*',
-      :touch => 'Na*',
+      get: "a*",
+      set: "NNa*a*",
+      add: "NNa*a*",
+      replace: "NNa*a*",
+      delete: "a*",
+      incr: "NNNNNa*",
+      decr: "NNNNNa*",
+      flush: "N",
+      noop: "",
+      getkq: "a*",
+      version: "",
+      stat: "a*",
+      append: "a*a*",
+      prepend: "a*a*",
+      auth_request: "a*a*",
+      auth_continue: "a*a*",
+      touch: "Na*"
     }
-    FORMAT = OP_FORMAT.inject({}) { |memo, (k, v)| memo[k] = HEADER + v; memo }
-
+    FORMAT = OP_FORMAT.each_with_object({}) { |(k, v), memo| memo[k] = HEADER + v; }
 
     #######
     # SASL authentication support for NorthScale
     #######
 
     def need_auth?
-      @options[:username] || ENV['MEMCACHE_USERNAME']
+      @options[:username] || ENV["MEMCACHE_USERNAME"]
     end
 
     def username
-      @options[:username] || ENV['MEMCACHE_USERNAME']
+      @options[:username] || ENV["MEMCACHE_USERNAME"]
     end
 
     def password
-      @options[:password] || ENV['MEMCACHE_PASSWORD']
+      @options[:password] || ENV["MEMCACHE_PASSWORD"]
     end
 
     def sasl_authentication
@@ -707,13 +707,13 @@ module Dalli
 
       (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
       raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
-      content = read(count).gsub(/\u0000/, ' ')
-      return (Dalli.logger.debug("Authentication not required/supported by server")) if status == 0x81
-      mechanisms = content.split(' ')
-      raise NotImplementedError, "Dalli only supports the PLAIN authentication mechanism" if !mechanisms.include?('PLAIN')
+      content = read(count).tr("\u0000", " ")
+      return Dalli.logger.debug("Authentication not required/supported by server") if status == 0x81
+      mechanisms = content.split(" ")
+      raise NotImplementedError, "Dalli only supports the PLAIN authentication mechanism" unless mechanisms.include?("PLAIN")
 
       # request
-      mechanism = 'PLAIN'
+      mechanism = "PLAIN"
       msg = "\x0#{username}\x0#{password}"
       req = [REQUEST, OPCODES[:auth_request], mechanism.bytesize, 0, 0, 0, mechanism.bytesize + msg.bytesize, 0, 0, mechanism, msg].pack(FORMAT[:auth_request])
       write(req)
@@ -731,9 +731,9 @@ module Dalli
 
     def parse_hostname(str)
       res = str.match(/\A(\[([\h:]+)\]|[^:]+)(?::(\d+))?(?::(\d+))?\z/)
-      raise Dalli::DalliError, "Could not parse hostname #{str}" if res.nil? || res[1] == '[]'
+      raise Dalli::DalliError, "Could not parse hostname #{str}" if res.nil? || res[1] == "[]"
       hostnam = res[2] || res[1]
-      if hostnam =~ /\A\//
+      if hostnam.start_with?("/")
         socket_type = :unix
         # in case of unix socket, allow only setting of weight, not port
         raise Dalli::DalliError, "Could not parse hostname #{str}" if res[4]
@@ -746,7 +746,7 @@ module Dalli
       end
       weigh ||= DEFAULT_WEIGHT
       weigh = Integer(weigh)
-      return hostnam, por, weigh, socket_type
+      [hostnam, por, weigh, socket_type]
     end
   end
 end

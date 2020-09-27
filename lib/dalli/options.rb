@@ -1,9 +1,8 @@
 # frozen_string_literal: true
-require 'thread'
-require 'monitor'
+
+require "monitor"
 
 module Dalli
-
   # Make Dalli threadsafe by using a lock around all
   # public server methods.
   #

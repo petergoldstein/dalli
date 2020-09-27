@@ -1,11 +1,12 @@
 # frozen_string_literal: true
-require 'dalli/compressor'
-require 'dalli/client'
-require 'dalli/ring'
-require 'dalli/server'
-require 'dalli/socket'
-require 'dalli/version'
-require 'dalli/options'
+
+require "dalli/compressor"
+require "dalli/client"
+require "dalli/ring"
+require "dalli/server"
+require "dalli/socket"
+require "dalli/version"
+require "dalli/options"
 
 module Dalli
   # generic error
@@ -27,12 +28,12 @@ module Dalli
 
   def self.rails_logger
     (defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger) ||
-    (defined?(RAILS_DEFAULT_LOGGER) && RAILS_DEFAULT_LOGGER.respond_to?(:debug) && RAILS_DEFAULT_LOGGER)
+      (defined?(RAILS_DEFAULT_LOGGER) && RAILS_DEFAULT_LOGGER.respond_to?(:debug) && RAILS_DEFAULT_LOGGER)
   end
 
   def self.default_logger
-    require 'logger'
-    l = Logger.new(STDOUT)
+    require "logger"
+    l = Logger.new($stdout)
     l.level = Logger::INFO
     l
   end

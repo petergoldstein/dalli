@@ -1,12 +1,12 @@
 # frozen_string_literal: true
-require_relative 'helper'
 
-describe 'failover' do
+require_relative "helper"
 
-  describe 'timeouts' do
-    it 'not lead to corrupt sockets' do
+describe "failover" do
+  describe "timeouts" do
+    it "not lead to corrupt sockets" do
       memcached_persistent do |dc|
-        value = {:test => "123"}
+        value = {test: "123"}
         begin
           Timeout.timeout 0.01 do
             start_time = Time.now
@@ -23,20 +23,17 @@ describe 'failover' do
     end
   end
 
-
-  describe 'assuming some bad servers' do
-
-    it 'silently reconnect if server hiccups' do
+  describe "assuming some bad servers" do
+    it "silently reconnect if server hiccups" do
       server_port = 30124
       memcached_persistent(server_port) do |dc, port|
-        dc.set 'foo', 'bar'
-        foo = dc.get 'foo'
-        assert_equal foo, 'bar'
+        dc.set "foo", "bar"
+        foo = dc.get "foo"
+        assert_equal foo, "bar"
 
         memcached_kill(port)
         memcached_persistent(port) do
-
-          foo = dc.get 'foo'
+          foo = dc.get "foo"
           assert_nil foo
 
           memcached_kill(port)
@@ -44,76 +41,76 @@ describe 'failover' do
       end
     end
 
-    it 'handle graceful failover' do
+    it "handle graceful failover" do
       port_1 = 31777
       port_2 = 32113
       memcached_persistent(port_1) do |first_dc, first_port|
         memcached_persistent(port_2) do |second_dc, second_port|
           dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
-          dc.set 'foo', 'bar'
-          foo = dc.get 'foo'
-          assert_equal foo, 'bar'
+          dc.set "foo", "bar"
+          foo = dc.get "foo"
+          assert_equal foo, "bar"
 
           memcached_kill(first_port)
 
-          dc.set 'foo', 'bar'
-          foo = dc.get 'foo'
-          assert_equal foo, 'bar'
+          dc.set "foo", "bar"
+          foo = dc.get "foo"
+          assert_equal foo, "bar"
 
           memcached_kill(second_port)
 
-          assert_raises Dalli::RingError, :message => "No server available" do
-            dc.set 'foo', 'bar'
+          assert_raises Dalli::RingError, message: "No server available" do
+            dc.set "foo", "bar"
           end
         end
       end
     end
 
-    it 'handle them gracefully in get_multi' do
+    it "handle them gracefully in get_multi" do
       port_1 = 32971
       port_2 = 34312
       memcached_persistent(port_1) do |first_dc, first_port|
         memcached(port_2) do |second_dc, second_port|
           dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
-          dc.set 'a', 'a1'
-          result = dc.get_multi ['a']
-          assert_equal result, {'a' => 'a1'}
+          dc.set "a", "a1"
+          result = dc.get_multi ["a"]
+          assert_equal result, {"a" => "a1"}
 
           memcached_kill(first_port)
 
-          result = dc.get_multi ['a']
-          assert_equal result, {'a' => 'a1'}
+          result = dc.get_multi ["a"]
+          assert_equal result, {"a" => "a1"}
         end
       end
     end
 
-    it 'handle graceful failover in get_multi' do
+    it "handle graceful failover in get_multi" do
       port_1 = 34541
       port_2 = 33044
       memcached_persistent(port_1) do |first_dc, first_port|
         memcached_persistent(port_2) do |second_dc, second_port|
           dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
-          dc.set 'foo', 'foo1'
-          dc.set 'bar', 'bar1'
-          result = dc.get_multi ['foo', 'bar']
-          assert_equal result, {'foo' => 'foo1', 'bar' => 'bar1'}
+          dc.set "foo", "foo1"
+          dc.set "bar", "bar1"
+          result = dc.get_multi ["foo", "bar"]
+          assert_equal result, {"foo" => "foo1", "bar" => "bar1"}
 
           memcached_kill(first_port)
 
-          dc.set 'foo', 'foo1'
-          dc.set 'bar', 'bar1'
-          result = dc.get_multi ['foo', 'bar']
-          assert_equal result, {'foo' => 'foo1', 'bar' => 'bar1'}
+          dc.set "foo", "foo1"
+          dc.set "bar", "bar1"
+          result = dc.get_multi ["foo", "bar"]
+          assert_equal result, {"foo" => "foo1", "bar" => "bar1"}
 
           memcached_kill(second_port)
 
-          result = dc.get_multi ['foo', 'bar']
+          result = dc.get_multi ["foo", "bar"]
           assert_equal result, {}
         end
       end
     end
 
-    it 'stats it still properly report' do
+    it "stats it still properly report" do
       port_1 = 34547
       port_2 = 33219
       memcached_persistent(port_1) do |first_dc, first_port|

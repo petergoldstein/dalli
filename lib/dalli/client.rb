@@ -1,11 +1,11 @@
 # frozen_string_literal: true
-require 'digest/md5'
-require 'set'
+
+require "digest/md5"
+require "set"
 
 # encoding: ascii
 module Dalli
   class Client
-
     ##
     # Dalli::Client is the main class which developers will use to interact with
     # the memcached server.  Usage:
@@ -31,8 +31,8 @@ module Dalli
     # - :cache_nils - defaults to false, if true Dalli will not treat cached nil values as 'not found' for #fetch operations.
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method, useful for injecting a FIPS compliant hash object.
     #
-    def initialize(servers=nil, options={})
-      @servers = normalize_servers(servers || ENV["MEMCACHE_SERVERS"] || '127.0.0.1:11211')
+    def initialize(servers = nil, options = {})
+      @servers = normalize_servers(servers || ENV["MEMCACHE_SERVERS"] || "127.0.0.1:11211")
       @options = normalize_options(options)
       @ring = nil
     end
@@ -56,7 +56,7 @@ module Dalli
     ##
     # Get the value associated with the key.
     # If a value is not found, then +nil+ is returned.
-    def get(key, options=nil)
+    def get(key, options = nil)
       perform(:get, key, options)
     end
 
@@ -70,10 +70,10 @@ module Dalli
 
       return {} if check_keys.empty?
       if block_given?
-        get_multi_yielder(keys) {|k, data| yield k, data.first}
+        get_multi_yielder(keys) { |k, data| yield k, data.first }
       else
-        Hash.new.tap do |hash|
-          get_multi_yielder(keys) {|k, data| hash[k] = data.first}
+        {}.tap do |hash|
+          get_multi_yielder(keys) { |k, data| hash[k] = data.first }
         end
       end
     end
@@ -88,7 +88,7 @@ module Dalli
     # If a value is not found (or if the found value is nil and :cache_nils is false)
     # and a block is given, the block will be invoked and its return value
     # written to the cache and returned.
-    def fetch(key, ttl=nil, options=nil)
+    def fetch(key, ttl = nil, options = nil)
       options = options.nil? ? CACHE_NILS : options.merge(CACHE_NILS) if @options[:cache_nils]
       val = get(key, options)
       not_found = @options[:cache_nils] ?
@@ -112,7 +112,7 @@ module Dalli
     # - nil if the key did not exist.
     # - false if the value was changed by someone else.
     # - true if the value was successfully updated.
-    def cas(key, ttl=nil, options=nil, &block)
+    def cas(key, ttl = nil, options = nil, &block)
       cas_core(key, false, ttl, options, &block)
     end
 
@@ -123,25 +123,25 @@ module Dalli
     # Returns:
     # - false if the value was changed by someone else.
     # - true if the value was successfully updated.
-    def cas!(key, ttl=nil, options=nil, &block)
+    def cas!(key, ttl = nil, options = nil, &block)
       cas_core(key, true, ttl, options, &block)
     end
 
-    def set(key, value, ttl=nil, options=nil)
+    def set(key, value, ttl = nil, options = nil)
       perform(:set, key, value, ttl_or_default(ttl), 0, options)
     end
 
     ##
     # Conditionally add a key/value pair, if the key does not already exist
     # on the server.  Returns truthy if the operation succeeded.
-    def add(key, value, ttl=nil, options=nil)
+    def add(key, value, ttl = nil, options = nil)
       perform(:add, key, value, ttl_or_default(ttl), options)
     end
 
     ##
     # Conditionally add a key/value pair, only if the key already exists
     # on the server.  Returns truthy if the operation succeeded.
-    def replace(key, value, ttl=nil, options=nil)
+    def replace(key, value, ttl = nil, options = nil)
       perform(:replace, key, value, ttl_or_default(ttl), 0, options)
     end
 
@@ -163,7 +163,7 @@ module Dalli
       perform(:prepend, key, value.to_s)
     end
 
-    def flush(delay=0)
+    def flush(delay = 0)
       time = -delay
       ring.servers.map { |s| s.request(:flush, time += delay) }
     end
@@ -181,7 +181,7 @@ module Dalli
     # Note that the ttl will only apply if the counter does not already
     # exist.  To increase an existing counter and update its TTL, use
     # #cas.
-    def incr(key, amt=1, ttl=nil, default=nil)
+    def incr(key, amt = 1, ttl = nil, default = nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
       perform(:incr, key, amt.to_i, ttl_or_default(ttl), default)
     end
@@ -200,7 +200,7 @@ module Dalli
     # Note that the ttl will only apply if the counter does not already
     # exist.  To decrease an existing counter and update its TTL, use
     # #cas.
-    def decr(key, amt=1, ttl=nil, default=nil)
+    def decr(key, amt = 1, ttl = nil, default = nil)
       raise ArgumentError, "Positive values only: #{amt}" if amt < 0
       perform(:decr, key, amt.to_i, ttl_or_default(ttl), default)
     end
@@ -209,7 +209,7 @@ module Dalli
     # Touch updates expiration time for a given key.
     #
     # Returns true if key exists, otherwise nil.
-    def touch(key, ttl=nil)
+    def touch(key, ttl = nil)
       resp = perform(:touch, key, ttl_or_default(ttl))
       resp.nil? ? nil : true
     end
@@ -218,11 +218,11 @@ module Dalli
     # Collect the stats for each server.
     # You can optionally pass a type including :items, :slabs or :settings to get specific stats
     # Returns a hash like { 'hostname:port' => { 'stat1' => 'value1', ... }, 'hostname2:port' => { ... } }
-    def stats(type=nil)
-      type = nil if ![nil, :items,:slabs,:settings].include? type
+    def stats(type = nil)
+      type = nil unless [nil, :items, :slabs, :settings].include? type
       values = {}
       ring.servers.each do |server|
-        values["#{server.name}"] = server.alive? ? server.request(:stats,type.to_s) : nil
+        values[server.name.to_s] = server.alive? ? server.request(:stats, type.to_s) : nil
       end
       values
     end
@@ -246,7 +246,7 @@ module Dalli
     def version
       values = {}
       ring.servers.each do |server|
-        values["#{server.name}"] = server.alive? ? server.request(:version) : nil
+        values[server.name.to_s] = server.alive? ? server.request(:version) : nil
       end
       values
     end
@@ -269,9 +269,9 @@ module Dalli
 
     private
 
-    def cas_core(key, always_set, ttl=nil, options=nil)
+    def cas_core(key, always_set, ttl = nil, options = nil)
       (value, cas) = perform(:cas, key)
-      value = (!value || value == 'Not found') ? nil : value
+      value = !value || value == "Not found" ? nil : value
       return if value.nil? && !always_set
       newvalue = yield(value)
       perform(:set, key, newvalue, ttl_or_default(ttl), cas, options)
@@ -284,15 +284,14 @@ module Dalli
     end
 
     def groups_for_keys(*keys)
-      groups = mapped_keys(keys).flatten.group_by do |key|
+      mapped_keys(keys).flatten.group_by { |key|
         begin
           ring.server_for_key(key)
         rescue Dalli::RingError
           Dalli.logger.debug { "unable to get key #{key}" }
           nil
         end
-      end
-      return groups
+      }
     end
 
     def mapped_keys(keys)
@@ -303,16 +302,14 @@ module Dalli
 
     def make_multi_get_requests(groups)
       groups.each do |server, keys_for_server|
-        begin
-          # TODO: do this with the perform chokepoint?
-          # But given the fact that fetching the response doesn't take place
-          # in that slot it's misleading anyway. Need to move all of this method
-          # into perform to be meaningful
-          server.request(:send_multiget, keys_for_server)
-        rescue DalliError, NetworkError => e
-          Dalli.logger.debug { e.inspect }
-          Dalli.logger.debug { "unable to get keys for server #{server.name}" }
-        end
+        # TODO: do this with the perform chokepoint?
+        # But given the fact that fetching the response doesn't take place
+        # in that slot it's misleading anyway. Need to move all of this method
+        # into perform to be meaningful
+        server.request(:send_multiget, keys_for_server)
+      rescue DalliError, NetworkError => e
+        Dalli.logger.debug { e.inspect }
+        Dalli.logger.debug { "unable to get keys for server #{server.name}" }
       end
     end
 
@@ -346,16 +343,16 @@ module Dalli
 
     def ring
       @ring ||= Dalli::Ring.new(
-        @servers.map do |s|
-         server_options = {}
-          if s =~ %r{\Amemcached://}
+        @servers.map { |s|
+          server_options = {}
+          if s.start_with?("memcached://")
             uri = URI.parse(s)
             server_options[:username] = uri.user
             server_options[:password] = uri.password
             s = "#{uri.host}:#{uri.port}"
           end
           Dalli::Server.new(s, @options.merge(server_options))
-        end, @options
+        }, @options
       )
     end
 
@@ -368,8 +365,7 @@ module Dalli
       key = validate_key(key)
       begin
         server = ring.server_for_key(key)
-        ret = server.request(op, key, *args)
-        ret
+        server.request(op, key, *args)
       rescue NetworkError => e
         Dalli.logger.debug { e.inspect }
         Dalli.logger.debug { "retrying request with new server" }
@@ -382,10 +378,10 @@ module Dalli
       key = key_with_namespace(key)
       if key.length > 250
         digest_class = @options[:digest_class] || ::Digest::MD5
-        max_length_before_namespace = 212 - (namespace || '').size
+        max_length_before_namespace = 212 - (namespace || "").size
         key = "#{key[0, max_length_before_namespace]}:md5:#{digest_class.hexdigest(key)}"
       end
-      return key
+      key
     end
 
     def key_with_namespace(key)
@@ -393,7 +389,7 @@ module Dalli
     end
 
     def key_without_namespace(key)
-      (ns = namespace) ? key.sub(%r(\A#{Regexp.escape ns}:), '') : key
+      (ns = namespace) ? key.sub(%r{\A#{Regexp.escape ns}:}, "") : key
     end
 
     def namespace
@@ -423,54 +419,52 @@ module Dalli
       perform do
         return {} if keys.empty?
         ring.lock do
-          begin
-            groups = groups_for_keys(keys)
-            if unfound_keys = groups.delete(nil)
-              Dalli.logger.debug { "unable to get keys for #{unfound_keys.length} keys because no matching server was found" }
-            end
-            make_multi_get_requests(groups)
+          groups = groups_for_keys(keys)
+          if (unfound_keys = groups.delete(nil))
+            Dalli.logger.debug { "unable to get keys for #{unfound_keys.length} keys because no matching server was found" }
+          end
+          make_multi_get_requests(groups)
 
-            servers = groups.keys
-            return if servers.empty?
-            servers = perform_multi_response_start(servers)
+          servers = groups.keys
+          return if servers.empty?
+          servers = perform_multi_response_start(servers)
 
-            start = Time.now
-            while true
-              # remove any dead servers
-              servers.delete_if { |s| s.sock.nil? }
-              break if servers.empty?
+          start = Time.now
+          loop do
+            # remove any dead servers
+            servers.delete_if { |s| s.sock.nil? }
+            break if servers.empty?
 
-              # calculate remaining timeout
-              elapsed = Time.now - start
-              timeout = servers.first.options[:socket_timeout]
-              time_left = (elapsed > timeout) ? 0 : timeout - elapsed
+            # calculate remaining timeout
+            elapsed = Time.now - start
+            timeout = servers.first.options[:socket_timeout]
+            time_left = elapsed > timeout ? 0 : timeout - elapsed
 
-              sockets = servers.map(&:sock)
-              readable, _ = IO.select(sockets, nil, nil, time_left)
+            sockets = servers.map(&:sock)
+            readable, _ = IO.select(sockets, nil, nil, time_left)
 
-              if readable.nil?
-                # no response within timeout; abort pending connections
-                servers.each do |server|
-                  Dalli.logger.debug { "memcached at #{server.name} did not response within timeout" }
-                  server.multi_response_abort
-                end
-                break
+            if readable.nil?
+              # no response within timeout; abort pending connections
+              servers.each do |server|
+                Dalli.logger.debug { "memcached at #{server.name} did not response within timeout" }
+                server.multi_response_abort
+              end
+              break
 
-              else
-                readable.each do |sock|
-                  server = sock.server
+            else
+              readable.each do |sock|
+                server = sock.server
 
-                  begin
-                    server.multi_response_nonblock.each_pair do |key, value_list|
-                      yield key_without_namespace(key), value_list
-                    end
+                begin
+                  server.multi_response_nonblock.each_pair do |key, value_list|
+                    yield key_without_namespace(key), value_list
+                  end
 
-                    if server.multi_response_completed?
-                      servers.delete(server)
-                    end
-                  rescue NetworkError
+                  if server.multi_response_completed?
                     servers.delete(server)
                   end
+                rescue NetworkError
+                  servers.delete(server)
                 end
               end
             end
@@ -478,6 +472,5 @@ module Dalli
         end
       end
     end
-
   end
 end

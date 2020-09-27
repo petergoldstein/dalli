@@ -1,0 +1,9 @@
+fix: false               # default: false
+parallel: true          # default: false
+ruby_version: 2.5.1     # default: RUBY_VERSION
+default_ignores: false  # default: true
+
+ignore:                 # default: []
+  - 'test/**/*':
+    - Style/GlobalVars
+    - Style/Semicolon
