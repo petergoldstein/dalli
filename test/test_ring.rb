@@ -7,7 +7,7 @@ describe "Ring" do
   describe "a ring of servers" do
     Server = Struct.new(:name, :weight)
     it "have the continuum sorted by value" do
-      servers = [Server.new("localhost:11211", 1),Server.new("localhost:9500", 1)]
+      servers = [Server.new("localhost:11211", 1), Server.new("localhost:9500", 1)]
       ring = Dalli::Ring.new(servers, {})
       previous_value = 0
       ring.continuum.each do |entry|
@@ -26,7 +26,7 @@ describe "Ring" do
     describe "containing only a single server" do
       it "raise correctly when it's not alive" do
         servers = [
-          Dalli::Server.new("localhost:12345")
+          Dalli::Protocol::Binary.new("localhost:12345")
         ]
         ring = Dalli::Ring.new(servers, {})
         assert_raises Dalli::RingError, message: "No server available" do
@@ -36,7 +36,7 @@ describe "Ring" do
 
       it "return the server when it's alive" do
         servers = [
-          Dalli::Server.new("localhost:19191")
+          Dalli::Protocol::Binary.new("localhost:19191")
         ]
         ring = Dalli::Ring.new(servers, {})
         memcached(19191) do |mc|
@@ -49,8 +49,8 @@ describe "Ring" do
     describe "containing multiple servers" do
       it "raise correctly when no server is alive" do
         servers = [
-          Dalli::Server.new("localhost:12345"),
-          Dalli::Server.new("localhost:12346")
+          Dalli::Protocol::Binary.new("localhost:12345"),
+          Dalli::Protocol::Binary.new("localhost:12346")
         ]
         ring = Dalli::Ring.new(servers, {})
         assert_raises Dalli::RingError, message: "No server available" do
@@ -60,8 +60,8 @@ describe "Ring" do
 
       it "return an alive server when at least one is alive" do
         servers = [
-          Dalli::Server.new("localhost:12346"),
-          Dalli::Server.new("localhost:19191")
+          Dalli::Protocol::Binary.new("localhost:12346"),
+          Dalli::Protocol::Binary.new("localhost:19191")
         ]
         ring = Dalli::Ring.new(servers, {})
         memcached(19191) do |mc|
