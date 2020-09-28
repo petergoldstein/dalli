@@ -678,7 +678,9 @@ describe "Dalli" do
     it "handle application marshalling issues" do
       memcached_persistent do |dc|
         with_nil_logger do
-          assert_equal false, dc.set("a", proc { true })
+          assert_raises Dalli::MarshalError do
+            dc.set("a", proc { true })
+          end
         end
       end
     end
