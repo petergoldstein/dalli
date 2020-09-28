@@ -10,7 +10,7 @@ def profile(&block)
   prof = RubyProf::Profile.new
   result = prof.profile(&block)
   rep = RubyProf::GraphHtmlPrinter.new(result)
-  rep.print("profile.html")
+  rep.print(File.new("profile.html", "w"), min_percent: 1)
 end
 
 puts "Testing #{Dalli::VERSION} with #{RUBY_DESCRIPTION}"
