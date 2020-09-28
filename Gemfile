@@ -6,4 +6,5 @@ group :test do
   gem "minitest"
   gem "rake"
   gem "simplecov"
+  gem "ruby-prof"
 end
