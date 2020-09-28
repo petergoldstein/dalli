@@ -3,12 +3,15 @@
 require "dalli/compressor"
 require "dalli/client"
 require "dalli/ring"
-require "dalli/server"
+require "dalli/protocol"
+require "dalli/protocol/binary"
 require "dalli/socket"
 require "dalli/version"
 require "dalli/options"
 
 module Dalli
+  autoload :Server, "dalli/server"
+
   # generic error
   class DalliError < RuntimeError; end
   # socket/server communication error
