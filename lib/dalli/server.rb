@@ -16,13 +16,13 @@ module Dalli
     DEFAULT_WEIGHT = 1
     DEFAULTS = {
       # seconds between trying to contact a remote server
-      down_retry_delay: 60,
+      down_retry_delay: 30,
       # connect/read/write timeout for socket operations
-      socket_timeout: 0.5,
+      socket_timeout: 1,
       # times a socket operation may fail before considering the server dead
       socket_max_failures: 2,
       # amount of time to sleep between retries when a failure occurs
-      socket_failure_delay: 0.01,
+      socket_failure_delay: 0.1,
       # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
       value_max_bytes: 1024 * 1024,
       compressor: Compressor,
