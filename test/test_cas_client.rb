@@ -5,7 +5,7 @@ require_relative "helper"
 describe "Dalli::Cas::Client" do
   describe "using a live server" do
     it "supports get with CAS" do
-      memcached_cas_persistent do |dc|
+      memcached_persistent do |dc|
         dc.flush
 
         expected = {"blah" => "blerg!"}
@@ -30,7 +30,7 @@ describe "Dalli::Cas::Client" do
     end
 
     it "supports multi-get with CAS" do
-      memcached_cas_persistent do |dc|
+      memcached_persistent do |dc|
         dc.close
         dc.flush
 
@@ -57,7 +57,7 @@ describe "Dalli::Cas::Client" do
     end
 
     it "supports replace-with-CAS operation" do
-      memcached_cas_persistent do |dc|
+      memcached_persistent do |dc|
         dc.flush
         cas = dc.set("key", "value")
 
@@ -70,7 +70,7 @@ describe "Dalli::Cas::Client" do
     end
 
     it "supports delete with CAS" do
-      memcached_cas_persistent do |dc|
+      memcached_persistent do |dc|
         cas = dc.set("some_key", "some_value")
         dc.delete_cas("some_key", cas)
         assert_nil dc.get("some_key")
@@ -78,7 +78,7 @@ describe "Dalli::Cas::Client" do
     end
 
     it "handles CAS round-trip operations" do
-      memcached_cas_persistent do |dc|
+      memcached_persistent do |dc|
         dc.flush
 
         expected = {"blah" => "blerg!"}

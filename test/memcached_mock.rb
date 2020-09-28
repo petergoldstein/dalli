@@ -101,12 +101,6 @@ module MemcachedMock
       yield dc, port if block_given?
     end
 
-    def memcached_cas_persistent(port = 25662)
-      require "dalli/cas/client"
-      dc = start_and_flush_with_retry(port)
-      yield dc, port if block_given?
-    end
-
     def memcached_low_mem_persistent(port = 19128)
       dc = start_and_flush_with_retry(port, "-m 2 -M")
       yield dc, port if block_given?
