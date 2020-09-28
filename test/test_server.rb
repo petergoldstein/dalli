@@ -91,10 +91,10 @@ describe Dalli::Server do
     end
 
     it "throws an exception if the hostname cannot be parsed" do
-      lambda { Dalli::Server.new("[]") }.must_raise Dalli::DalliError
-      lambda { Dalli::Server.new("my.fqdn.com:") }.must_raise Dalli::DalliError
-      lambda { Dalli::Server.new("my.fqdn.com:11212,:2") }.must_raise Dalli::DalliError
-      lambda { Dalli::Server.new("my.fqdn.com:11212:abc") }.must_raise Dalli::DalliError
+      _(lambda { Dalli::Server.new("[]") }).must_raise Dalli::DalliError
+      _(lambda { Dalli::Server.new("my.fqdn.com:") }).must_raise Dalli::DalliError
+      _(lambda { Dalli::Server.new("my.fqdn.com:11212,:2") }).must_raise Dalli::DalliError
+      _(lambda { Dalli::Server.new("my.fqdn.com:11212:abc") }).must_raise Dalli::DalliError
     end
   end
 
@@ -140,9 +140,9 @@ describe Dalli::Server do
       s = Dalli::Server.new("127.0.0.1", error_when_over_max_size: true)
       value = OpenStruct.new(bytesize: 1_048_577)
 
-      lambda do
+      _(lambda do
         s.send(:guard_max_value, :foo, value)
-      end.must_raise Dalli::ValueOverMaxSize
+      end).must_raise Dalli::ValueOverMaxSize
     end
   end
 
