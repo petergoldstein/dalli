@@ -25,8 +25,6 @@ module Dalli
       socket_failure_delay: 0.01,
       # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
       value_max_bytes: 1024 * 1024,
-      # surpassing value_max_bytes either warns (false) or throws (true)
-      error_when_over_max_size: false,
       compressor: Compressor,
       # min byte size to attempt compression
       compression_min_size: 1024,
@@ -289,33 +287,33 @@ module Dalli
       (value, flags) = serialize(key, value, options)
       ttl = sanitize_ttl(ttl)
 
-      guard_max_value(key, value) do
-        req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:set])
-        write(req)
-        cas_response unless multi?
-      end
+      guard_max_value(key, value)
+
+      req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:set])
+      write(req)
+      cas_response unless multi?
     end
 
     def add(key, value, ttl, options)
       (value, flags) = serialize(key, value, options)
       ttl = sanitize_ttl(ttl)
 
-      guard_max_value(key, value) do
-        req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:add])
-        write(req)
-        cas_response unless multi?
-      end
+      guard_max_value(key, value)
+
+      req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:add])
+      write(req)
+      cas_response unless multi?
     end
 
     def replace(key, value, ttl, cas, options)
       (value, flags) = serialize(key, value, options)
       ttl = sanitize_ttl(ttl)
 
-      guard_max_value(key, value) do
-        req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:replace])
-        write(req)
-        cas_response unless multi?
-      end
+      guard_max_value(key, value)
+
+      req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:replace])
+      write(req)
+      cas_response unless multi?
     end
 
     def delete(key, cas)
@@ -478,15 +476,10 @@ module Dalli
     KV_HEADER = "@2n@6nN@16Q"
 
     def guard_max_value(key, value)
-      if value.bytesize <= @options[:value_max_bytes]
-        yield
-      else
-        message = "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
-        raise Dalli::ValueOverMaxSize, message if @options[:error_when_over_max_size]
+      return if value.bytesize <= @options[:value_max_bytes]
 
-        Dalli.logger.error "#{message} - this value may be truncated by memcached"
-        false
-      end
+      message = "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
+      raise Dalli::ValueOverMaxSize, message
     end
 
     # https://github.com/memcached/memcached/blob/master/doc/protocol.txt#L79

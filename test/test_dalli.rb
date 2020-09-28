@@ -128,7 +128,9 @@ describe "Dalli" do
 
         val1 = "1234567890" * 105000
         with_nil_logger do
-          assert_equal false, dc.set("a", val1)
+          assert_raises Dalli::ValueOverMaxSize do
+            dc.set("a", val1)
+          end
         end
 
         val1 = "1234567890" * 100000
@@ -692,7 +694,9 @@ describe "Dalli" do
 
           value = "0" * 1024 * 1024
           with_nil_logger do
-            assert_equal false, dc.set("verylarge", value)
+            assert_raises Dalli::ValueOverMaxSize do
+              dc.set("verylarge", value)
+            end
           end
           dalli.set("verylarge", value)
         end
