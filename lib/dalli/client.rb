@@ -65,10 +65,10 @@ module Dalli
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
     def get_multi(*keys)
-      check_keys = keys.flatten
-      check_keys.compact!
+      keys.flatten!
+      keys.compact!
 
-      return {} if check_keys.empty?
+      return {} if keys.empty?
       if block_given?
         get_multi_yielder(keys) { |k, data| yield k, data.first }
       else
@@ -331,7 +331,10 @@ module Dalli
     end
 
     def groups_for_keys(*keys)
-      mapped_keys(keys).flatten.group_by { |key|
+      keys.flatten!
+      keys.map! { |a| validate_key(a.to_s) }
+
+      keys.group_by { |key|
         begin
           ring.server_for_key(key)
         rescue Dalli::RingError
@@ -339,12 +342,6 @@ module Dalli
           nil
         end
       }
-    end
-
-    def mapped_keys(keys)
-      keys_array = keys.flatten
-      keys_array.map! { |a| validate_key(a.to_s) }
-      keys_array
     end
 
     def make_multi_get_requests(groups)
@@ -406,7 +403,7 @@ module Dalli
     # Chokepoint method for instrumentation
     def perform(*all_args)
       return yield if block_given?
-      op, key, *args = *all_args
+      op, key, *args = all_args
 
       key = key.to_s
       key = validate_key(key)
@@ -519,5 +516,6 @@ module Dalli
         end
       end
     end
+
   end
 end

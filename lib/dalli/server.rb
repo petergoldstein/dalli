@@ -508,8 +508,8 @@ module Dalli
       elsif status != 0
         raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
       elsif data
-        flags = data[0...extras].unpack1("N")
-        value = data[extras..-1]
+        flags = data.byteslice(0, extras).unpack1("N")
+        value = data.byteslice(extras, data.bytesize - extras)
         unpack ? deserialize(value, flags) : value
       else
         true
