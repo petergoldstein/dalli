@@ -3,6 +3,7 @@
 module Dalli
   module Socket
     module InstanceMethods
+
       def readfull(count)
         value = +""
         loop do
