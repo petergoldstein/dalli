@@ -25,11 +25,10 @@ module Dalli
       socket_failure_delay: 0.1,
       # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
       value_max_bytes: 1024 * 1024,
+      compress: true,
       compressor: Compressor,
       # min byte size to attempt compression
-      compression_min_size: 1024,
-      # max byte size for compression
-      compression_max_size: false,
+      compression_min_size: 4 * 1024,
       serializer: Marshal,
       username: nil,
       password: nil,
@@ -427,8 +426,7 @@ module Dalli
       end
       compressed = false
       set_compress_option = true if options && options[:compress]
-      if (@options[:compress] || set_compress_option) && value.bytesize >= @options[:compression_min_size] &&
-          (!@options[:compression_max_size] || value.bytesize <= @options[:compression_max_size])
+      if (@options[:compress] || set_compress_option) && value.bytesize >= @options[:compression_min_size]
         value = compressor.compress(value)
         compressed = true
       end

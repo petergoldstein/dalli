@@ -2,6 +2,7 @@
 
 require_relative "helper"
 require "openssl"
+require "securerandom"
 
 describe "Dalli" do
   describe "options parsing" do
@@ -126,14 +127,7 @@ describe "Dalli" do
       memcached_persistent do |dc|
         dc.flush
 
-        val1 = "1234567890" * 105000
-        with_nil_logger do
-          assert_raises Dalli::ValueOverMaxSize do
-            dc.set("a", val1)
-          end
-        end
-
-        val1 = "1234567890" * 100000
+        val1 = "1234567890" * 999999
         dc.set("a", val1)
         val2 = dc.get("a")
         assert_equal val1, val2
@@ -688,17 +682,14 @@ describe "Dalli" do
     end
 
     describe "with compression" do
-      it "allow large values" do
+      it "does not allow large values" do
         memcached_persistent do |dc|
-          dalli = Dalli::Client.new(dc.instance_variable_get(:@servers), compress: true)
-
-          value = "0" * 1024 * 1024
+          value = SecureRandom.random_bytes(1024 * 1024 + 30_000)
           with_nil_logger do
             assert_raises Dalli::ValueOverMaxSize do
               dc.set("verylarge", value)
             end
           end
-          dalli.set("verylarge", value)
         end
       end
 
@@ -710,37 +701,5 @@ describe "Dalli" do
       end
     end
 
-    describe "in low memory conditions" do
-      it "handle error response correctly" do
-        memcached_low_mem_persistent do |dc|
-          failed = false
-          value = "1234567890" * 1000
-          1_000.times do |idx|
-            assert op_addset_succeeds(dc.set(idx, value))
-          rescue Dalli::DalliError
-            failed = true
-            assert((10..200).cover?(idx), "unexpected failure on iteration #{idx}")
-            break
-          end
-          assert failed, "did not fail under low memory conditions"
-        end
-      end
-
-      it "fit more values with compression" do
-        memcached_low_mem_persistent do |dc, port|
-          dalli = Dalli::Client.new("localhost:#{port}", compress: true)
-          failed = false
-          value = "1234567890" * 100
-          10_000.times do |idx|
-            assert op_addset_succeeds(dalli.set(idx, value))
-          rescue Dalli::DalliError
-            failed = true
-            assert((800..2000).cover?(idx), "unexpected failure on iteration #{idx}")
-            break
-          end
-          assert failed, "did not fail under low memory conditions"
-        end
-      end
-    end
   end
 end

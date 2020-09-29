@@ -101,11 +101,6 @@ module MemcachedMock
       yield dc, port if block_given?
     end
 
-    def memcached_low_mem_persistent(port = 19128)
-      dc = start_and_flush_with_retry(port, "-m 2 -M")
-      yield dc, port if block_given?
-    end
-
     def start_and_flush_with_retry(port, args = "", client_options = {})
       dc = nil
       retry_count = 0
