@@ -1,11 +1,12 @@
 # frozen_string_literal: true
 require 'rack/session/abstract/id'
 require 'dalli'
+require 'connection_pool'
 
 module Rack
   module Session
-    class Dalli < defined?(Abstract::Persisted) ? Abstract::Persisted : Abstract::ID
-      attr_reader :pool, :mutex
+    class Dalli < Abstract::Persisted
+      attr_reader :pool
 
       DEFAULT_DALLI_OPTIONS = {
         :namespace => 'rack:session',
@@ -74,26 +75,13 @@ module Rack
         @default_ttl = ttl @default_options[:expire_after]
 
         # Normalize and validate passed options
-        cache, mserv, mopts, popts = extract_dalli_options options
+        mserv, mopts, popts = extract_dalli_options(options)
 
-        @pool =
-          if cache # caller passed a Dalli::Client or ConnectionPool instance
-            cache
-          elsif popts # caller passed ConnectionPool options
-            ConnectionPool.new(popts) { ::Dalli::Client.new(mserv, mopts) }
-          else
-            ::Dalli::Client.new(mserv, mopts)
-          end
-
-        if @pool.respond_to?(:alive!) # is a Dalli::Client
-          @mutex = Mutex.new
-
-          @pool.alive!
-        end
+        @pool = ConnectionPool.new(popts || {}) { ::Dalli::Client.new(mserv, mopts) }
       end
 
       def get_session(env, sid)
-        with_block(env, [nil, {}]) do |dc|
+        with_block([nil, {}]) do |dc|
           unless sid and !sid.empty? and session = dc.get(sid)
             old_sid, sid, session = sid, generate_sid_with(dc), {}
             unless dc.add(sid, session, @default_ttl)
@@ -108,53 +96,49 @@ module Rack
       def set_session(env, session_id, new_session, options)
         return false unless session_id
 
-        with_block(env, false) do |dc|
+        with_block(false) do |dc|
           dc.set(session_id, new_session, ttl(options[:expire_after]))
           session_id
         end
       end
 
       def destroy_session(env, session_id, options)
-        with_block(env) do |dc|
+        with_block do |dc|
           dc.delete(session_id)
           generate_sid_with(dc) unless options[:drop]
         end
       end
 
-      if defined?(Abstract::Persisted)
-        def find_session(req, sid)
-          get_session req.env, sid
-        end
+      def find_session(req, sid)
+        get_session req.env, sid
+      end
 
-        def write_session(req, sid, session, options)
-          set_session req.env, sid, session, options
-        end
+      def write_session(req, sid, session, options)
+        set_session req.env, sid, session, options
+      end
 
-        def delete_session(req, sid, options)
-          destroy_session req.env, sid, options
-        end
+      def delete_session(req, sid, options)
+        destroy_session req.env, sid, options
       end
 
       private
 
       def extract_dalli_options(options)
-        return [options[:cache]] if options[:cache]
+        raise "Rack::Session::Dalli no longer supports the :cache option." if options[:cache]
 
+        popts = {}
         # Filter out Rack::Session-specific options and apply our defaults
         mopts = DEFAULT_DALLI_OPTIONS.merge \
           options.reject {|k, _| DEFAULT_OPTIONS.key? k }
         mserv = mopts.delete :memcache_server
 
         if mopts[:pool_size] || mopts[:pool_timeout]
-          popts = {}
           popts[:size] = mopts.delete :pool_size if mopts[:pool_size]
           popts[:timeout] = mopts.delete :pool_timeout if mopts[:pool_timeout]
-
-          # For a connection pool, locking is handled at the pool level
-          mopts[:threadsafe] = false unless mopts.key? :threadsafe
+          mopts[:threadsafe] = true
         end
 
-        [nil, mserv, mopts, popts]
+        [mserv, mopts, popts]
       end
 
       def generate_sid_with(dc)
@@ -164,8 +148,7 @@ module Rack
         end
       end
 
-      def with_block(env, default=nil, &block)
-        @mutex.lock if @mutex and env['rack.multithread']
+      def with_block(default=nil, &block)
         @pool.with(&block)
       rescue ::Dalli::DalliError, Errno::ECONNREFUSED
         raise if $!.message =~ /undefined class/
@@ -174,8 +157,6 @@ module Rack
           warn $!.inspect
         end
         default
-      ensure
-        @mutex.unlock if @mutex and @mutex.locked?
       end
 
       def ttl(expire_after)

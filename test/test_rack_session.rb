@@ -56,14 +56,15 @@ describe Rack::Session::Dalli do
 
   it "faults on no connection" do
     assert_raises Dalli::RingError do
-      Rack::Session::Dalli.new(incrementor, :memcache_server => 'nosuchserver')
+      rsd = Rack::Session::Dalli.new(incrementor, :memcache_server => 'nosuchserver')
+      rsd.pool.with {|c| c.set('ping', '') }
     end
   end
 
   it "connects to existing server" do
     assert_silent do
       rsd = Rack::Session::Dalli.new(incrementor, :namespace => 'test:rack:session')
-      rsd.pool.set('ping', '')
+      rsd.pool.with {|c| c.set('ping', '') }
     end
   end
 
@@ -74,15 +75,16 @@ describe Rack::Session::Dalli do
     }
 
     rsd = Rack::Session::Dalli.new(incrementor, opts)
-    assert_equal(opts[:namespace], rsd.pool.instance_eval { @options[:namespace] })
-    assert_equal(opts[:compression_min_size], rsd.pool.instance_eval { @options[:compression_min_size] })
+    assert_equal(opts[:namespace], rsd.pool.with{|c| c.instance_eval { @options[:namespace] }})
+    assert_equal(opts[:compression_min_size], rsd.pool.with{|c| c.instance_eval { @options[:compression_min_size] }})
   end
 
-  it "accepts and prioritizes a :cache option" do
+  it "rejects a :cache option" do
     server = Rack::Session::Dalli::DEFAULT_DALLI_OPTIONS[:memcache_server]
     cache = Dalli::Client.new(server, :namespace => 'test:rack:session')
-    rsd = Rack::Session::Dalli.new(incrementor, :cache => cache, :namespace => 'foobar')
-    assert_equal('test:rack:session', rsd.pool.instance_eval { @options[:namespace] })
+    assert_raises RuntimeError do
+      Rack::Session::Dalli.new(incrementor, :cache => cache, :namespace => 'foobar')
+    end
   end
 
   it "generates sids without an existing Dalli::Client" do
@@ -98,9 +100,8 @@ describe Rack::Session::Dalli do
 
     with_connectionpool do
       rsd = Rack::Session::Dalli.new(incrementor, opts)
-      assert rsd.pool.is_a? ConnectionPool
+      assert 10, rsd.pool.available
       rsd.pool.with do |mc|
-        assert mc.instance_eval { !@options[:threadsafe] }
         assert_equal(opts[:namespace], mc.instance_eval { @options[:namespace] })
       end
     end
@@ -298,91 +299,12 @@ describe Rack::Session::Dalli do
 
     res0 = req.get("/")
     session_id = (cookie = res0["Set-Cookie"])[session_match, 1]
-    ses0 = rsd.pool.get(session_id, true)
+    ses0 = rsd.pool.with {|c| c.get(session_id, true) }
 
     req.get("/", "HTTP_COOKIE" => cookie)
-    ses1 = rsd.pool.get(session_id, true)
+    ses1 = rsd.pool.with {|c| c.get(session_id, true) }
 
     refute_equal ses0, ses1
   end
 
-  # anyone know how to do this better?
-  it "cleanly merges sessions when multithreaded" do
-    unless $DEBUG
-      assert_equal 1, 1 # fake assertion to appease the mighty bacon
-      next
-    end
-    warn 'Running multithread test for Session::Dalli'
-    rsd = Rack::Session::Dalli.new(incrementor)
-    req = Rack::MockRequest.new(rsd)
-
-    res = req.get('/')
-    assert_equal '{"counter"=>1}', res.body
-    cookie = res["Set-Cookie"]
-    session_id = cookie[session_match, 1]
-
-    delta_incrementor = lambda do |env|
-      # emulate disconjoinment of threading
-      env['rack.session'] = env['rack.session'].dup
-      Thread.stop
-      env['rack.session'][(Time.now.usec*rand).to_i] = true
-      incrementor.call(env)
-    end
-    tses = Rack::Utils::Context.new rsd, delta_incrementor
-    treq = Rack::MockRequest.new(tses)
-    tnum = rand(7).to_i+5
-    r = Array.new(tnum) do
-      Thread.new(treq) do |run|
-        run.get('/', "HTTP_COOKIE" => cookie, 'rack.multithread' => true)
-      end
-    end.reverse.map{|t| t.run.join.value }
-    r.each do |request|
-      assert_equal cookie, request['Set-Cookie']
-      assert request.body.include?('"counter"=>2')
-    end
-
-    session = rsd.pool.get(session_id)
-    assert_equal tnum+1, session.size  # counter
-    assert_equal 2, session['counter'] # meeeh
-
-    tnum = rand(7).to_i+5
-    r = Array.new(tnum) do |i|
-      app = Rack::Utils::Context.new rsd, time_delta
-      req = Rack::MockRequest.new app
-      Thread.new(req) do |run|
-        run.get('/', "HTTP_COOKIE" => cookie, 'rack.multithread' => true)
-      end
-    end.reverse.map{|t| t.run.join.value }
-    r.each do |request|
-      assert_equal cookie, request['Set-Cookie']
-      assert request.body.include?('"counter"=>3')
-    end
-
-    session = rsd.pool.get(session_id)
-    assert_equal tnum+1, session.size
-    assert_equal 3, session['counter']
-
-    drop_counter = proc do |env|
-      env['rack.session'].delete 'counter'
-      env['rack.session']['foo'] = 'bar'
-      [200, {'Content-Type'=>'text/plain'}, env['rack.session'].inspect]
-    end
-    tses = Rack::Utils::Context.new rsd, drop_counter
-    treq = Rack::MockRequest.new(tses)
-    tnum = rand(7).to_i+5
-    r = Array.new(tnum) do
-      Thread.new(treq) do |run|
-        run.get('/', "HTTP_COOKIE" => cookie, 'rack.multithread' => true)
-      end
-    end.reverse.map{|t| t.run.join.value }
-    r.each do |request|
-      assert_equal cookie, request['Set-Cookie']
-      assert request.body.include?('"foo"=>"bar"')
-    end
-
-    session = rsd.pool.get(session_id)
-    assert_equal r.size+1, session.size
-    assert_nil session['counter']
-    assert_equal 'bar', session['foo']
-  end
 end

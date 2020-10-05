@@ -15,4 +15,6 @@ Gem::Specification.new do |s|
     "Gemfile"
   ]
   s.homepage = "https://github.com/petergoldstein/dalli"
+  s.add_development_dependency "rack"
+  s.add_development_dependency "connection_pool"
 end
