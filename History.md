@@ -1,6 +1,8 @@
 Dalli Changelog
 =====================
 
+- Add gat operation (tbeauvais, #769)
+
 2.7.11
 ==========
 - DEPRECATION: :dalli_store will be removed in Dalli 3.0.

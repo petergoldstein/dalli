@@ -449,6 +449,19 @@ describe "Dalli" do
       end
     end
 
+    it "support gat operation" do
+      memcached_persistent do |dc|
+        dc.flush
+        dc.set "key", "value"
+        assert_equal "value", dc.gat("key", 10)
+        assert_equal "value", dc.gat("key")
+        assert_nil dc.gat("notexist", 10)
+      rescue Dalli::DalliError => e
+        # This will happen when memcached is in lesser version than 1.4.8
+        assert_equal "Response error 129: Unknown command", e.message
+      end
+    end
+
     it "support version operation" do
       memcached_persistent do |dc|
         v = dc.version
