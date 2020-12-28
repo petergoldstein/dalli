@@ -215,6 +215,14 @@ module Dalli
     end
 
     ##
+    # Gat (get and touch) fetch an item and simultaneously update its expiration time.
+    #
+    # If a value is not found, then +nil+ is returned.
+    def gat(key, ttl = nil)
+      perform(:gat, key, ttl_or_default(ttl))
+    end
+
+    ##
     # Collect the stats for each server.
     # You can optionally pass a type including :items, :slabs or :settings to get specific stats
     # Returns a hash like { 'hostname:port' => { 'stat1' => 'value1', ... }, 'hostname2:port' => { ... } }

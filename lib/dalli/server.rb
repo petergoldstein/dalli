@@ -400,6 +400,13 @@ module Dalli
       write_generic [REQUEST, OPCODES[:touch], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:touch])
     end
 
+    def gat(key, ttl, options = nil)
+      ttl = sanitize_ttl(ttl)
+      req = [REQUEST, OPCODES[:gat], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:gat])
+      write(req)
+      generic_response(true, !!(options && options.is_a?(Hash) && options[:cache_nils]))
+    end
+
     # http://www.hjp.at/zettel/m/memcached_flags.rxml
     # Looks like most clients use bit 0 to indicate native language serialization
     # and bit 1 to indicate gzip compression.
@@ -647,7 +654,8 @@ module Dalli
       auth_negotiation: 0x20,
       auth_request: 0x21,
       auth_continue: 0x22,
-      touch: 0x1C
+      touch: 0x1C,
+      gat: 0x1D
     }
 
     HEADER = "CCnCCnNNQ"
@@ -668,7 +676,8 @@ module Dalli
       prepend: "a*a*",
       auth_request: "a*a*",
       auth_continue: "a*a*",
-      touch: "Na*"
+      touch: "Na*",
+      gat: "Na*"
     }
     FORMAT = OP_FORMAT.each_with_object({}) { |(k, v), memo| memo[k] = HEADER + v; }
 
