@@ -11,7 +11,9 @@ def profile(&block)
   prof = RubyProf::Profile.new
   result = prof.profile(&block)
   rep = RubyProf::GraphHtmlPrinter.new(result)
-  rep.print("profile.html")
+  file = File.new("profile.html", "w")
+  rep.print(file)
+  file.close
 end
 
 describe "performance" do
