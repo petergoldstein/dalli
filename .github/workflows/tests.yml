@@ -1,0 +1,32 @@
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+         include:
+         - ruby-version: 2.6.6
+           bundler-version: 1.17.2
+         - ruby-version: 2.7.2
+           bundler-version: 2.2.3
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install Memcached
+      working-directory: scripts
+      run: |
+        chmod +x ./install_memcached.sh
+        ./install_memcached.sh
+    - name: Set up Ruby ${{ matrix.ruby-version }}
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ matrix.ruby-version }}
+        bundler: ${{ matrix.bundler-version }} 
+    - name: Install dependencies
+      run: bundle install
+    - name: Run tests
+      run: bundle exec rake
