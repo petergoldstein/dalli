@@ -104,6 +104,16 @@ describe "Dalli" do
     assert_equal s2, s3
   end
 
+  it "can set options with default server" do
+    dc = Dalli::Client.new(compress: true)
+    assert dc.instance_variable_get(:@options)[:compress]
+
+    ring = dc.send(:ring)
+    assert_equal 1, ring.servers.size
+    s1 = ring.servers.first.hostname
+    assert_equal "127.0.0.1", s1
+  end
+
   it "accept comma separated string" do
     dc = Dalli::Client.new("server1.example.com:11211,server2.example.com:11211")
     ring = dc.send(:ring)

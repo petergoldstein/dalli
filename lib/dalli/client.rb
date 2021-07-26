@@ -31,9 +31,14 @@ module Dalli
     # - :cache_nils - defaults to false, if true Dalli will not treat cached nil values as 'not found' for #fetch operations.
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method, useful for injecting a FIPS compliant hash object.
     #
-    def initialize(servers = nil, options = {})
+    def initialize(servers = nil, options = nil)
+      if options.nil? && servers.is_a?(Hash)
+        options = servers
+        servers = nil
+      end
+
       @servers = normalize_servers(servers || ENV["MEMCACHE_SERVERS"] || "127.0.0.1:11211")
-      @options = normalize_options(options)
+      @options = normalize_options(options || {})
       @ring = nil
     end
 
