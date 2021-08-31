@@ -8,11 +8,7 @@ jobs:
 
     strategy:
       matrix:
-         include:
-         - ruby-version: 2.6.6
-           bundler-version: 1.17.2
-         - ruby-version: 2.7.2
-           bundler-version: 2.2.3
+        ruby-version: [2.5, 2.6, 2.7]
 
     steps:
     - uses: actions/checkout@v2
@@ -25,7 +21,6 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ matrix.ruby-version }}
-        bundler: ${{ matrix.bundler-version }} 
     - name: Install dependencies
       run: bundle install
     - name: Run tests
