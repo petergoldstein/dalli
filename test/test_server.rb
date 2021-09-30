@@ -191,4 +191,24 @@ describe Dalli::Server do
       end
     end
   end
+
+  describe "multi_response_nonblock" do
+    subject { Dalli::Server.new("127.0.0.1") }
+
+    it "raises NetworkError when called before multi_response_start" do
+      assert_raises Dalli::NetworkError do
+        subject.request(:send_multiget, ["a", "b"])
+        subject.multi_response_nonblock
+      end
+    end
+
+    it "raises NetworkError when called after multi_response_abort" do
+      assert_raises Dalli::NetworkError do
+        subject.request(:send_multiget, ["a", "b"])
+        subject.multi_response_start
+        subject.multi_response_abort
+        subject.multi_response_nonblock
+      end
+    end
+  end
 end
