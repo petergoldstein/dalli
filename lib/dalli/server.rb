@@ -145,7 +145,7 @@ module Dalli
     #
     # Returns a Hash of kv pairs received.
     def multi_response_nonblock
-      raise "multi_response has completed" if @multi_buffer.nil?
+      reconnect! "multi_response has completed" if @multi_buffer.nil?
 
       @multi_buffer << @sock.read_available
       buf = @multi_buffer
