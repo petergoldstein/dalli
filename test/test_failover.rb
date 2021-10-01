@@ -132,4 +132,45 @@ describe "failover" do
       end
     end
   end
+
+  describe "broken sockets" do
+
+    it 'get should replace the broken socket' do
+      memcached(29199) do |old_dc|
+        # Open a socket
+        assert_nil(old_dc.get('foo'))
+
+        # old_dc socket is now broken
+        memcached_kill(29199)
+
+        memcached(29199) do |new_dc|
+          new_dc.set 'foo', 'bar'
+
+          # get should repair the broken socket
+          assert_equal('bar', old_dc.get('foo'))
+        end
+      end
+    end
+
+    it 'get_multi should replace the broken socket' do
+      memcached(29199) do |old_dc|
+        # Open a socket
+        assert_equal({}, old_dc.get_multi('foo'))
+
+        # old_dc socket is now broken
+        memcached_kill(29199)
+
+        memcached(29199) do |new_dc|
+          new_dc.set 'foo', 'bar'
+
+          sleep(3)
+
+          # get_multi should repair the broken socket
+          assert_equal({ 'foo' => 'bar' }, old_dc.get_multi('foo'))
+        end
+      end
+    end
+
+  end
+
 end
