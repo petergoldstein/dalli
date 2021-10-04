@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'openssl'
+
 module Dalli
   module Socket
     module InstanceMethods
@@ -44,6 +46,13 @@ module Dalli
       end
     end
 
+    class SSLSocket < ::OpenSSL::SSL::SSLSocket
+      include Dalli::Socket::InstanceMethods
+      def options
+        io.options
+      end
+    end
+
     class TCP < TCPSocket
       include Dalli::Socket::InstanceMethods
       attr_accessor :options, :server
@@ -57,7 +66,14 @@ module Dalli
           sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_KEEPALIVE, true) if options[:keepalive]
           sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVBUF, options[:rcvbuf]) if options[:rcvbuf]
           sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDBUF, options[:sndbuf]) if options[:sndbuf]
-          sock
+
+          return sock unless options[:ssl_context]
+
+          ssl_socket = Dalli::Socket::SSLSocket.new(sock, options[:ssl_context])
+          ssl_socket.hostname = host
+          ssl_socket.sync_close = true
+          ssl_socket.connect
+          ssl_socket
         end
       end
     end

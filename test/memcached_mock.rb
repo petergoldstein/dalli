@@ -101,6 +101,61 @@ module MemcachedMock
       yield dc, port if block_given?
     end
 
+    def memcached_ssl_persistent(port = 21397)
+      generate_ssl_certificates
+
+      ssl_context = OpenSSL::SSL::SSLContext.new
+      ssl_context.ca_file = "/tmp/root.crt"
+      ssl_context.ssl_version = :SSLv23
+      ssl_context.verify_hostname = true
+      ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER
+
+      dc = start_and_flush_with_retry(port, "-Z -o ssl_chain_cert=/tmp/memcached.crt -o ssl_key=/tmp/memcached.key", {:ssl_context => ssl_context})
+      yield dc, port if block_given?
+    end
+
+    private def generate_ssl_certificates
+      require 'openssl'
+      require 'openssl-extensions/all'
+
+      root_key = OpenSSL::PKey::RSA.new 2048 # the CA's public/private key
+      root_cert = OpenSSL::X509::Certificate.new
+      root_cert.version = 2 # cf. RFC 5280 - to make it a "v3" certificate
+      root_cert.subject = OpenSSL::X509::Name.parse "/CN=Dalli CA"
+      root_cert.issuer = root_cert.subject # root CA's are "self-signed"
+      root_cert.public_key = root_key.public_key
+      root_cert.not_before = Time.now
+      root_cert.not_after = root_cert.not_before + 2 * 365 * 24 * 60 * 60 # 2 years
+      ef = OpenSSL::X509::ExtensionFactory.new
+      ef.subject_certificate = root_cert
+      ef.issuer_certificate = root_cert
+      root_cert.add_extension(ef.create_extension("basicConstraints","CA:TRUE",true))
+      root_cert.add_extension(ef.create_extension("keyUsage","keyCertSign, cRLSign", true))
+      root_cert.add_extension(ef.create_extension("subjectKeyIdentifier","hash",false))
+      root_cert.sign(root_key, OpenSSL::Digest::SHA256.new)
+      File.write("/tmp/root.key", root_key)
+      File.write("/tmp/root.crt", root_cert)
+
+      key = OpenSSL::PKey::RSA.new 2048
+      cert = OpenSSL::X509::Certificate.new
+      cert.version = 2
+      cert.subject = OpenSSL::X509::Name.parse "/CN=localhost"
+      cert.issuer = root_cert.subject # root CA is the issuer
+      cert.public_key = key.public_key
+      cert.not_before = Time.now
+      cert.not_after = cert.not_before + 2 * 365 * 24 * 60 * 60 # 2 years
+      ef = OpenSSL::X509::ExtensionFactory.new
+      ef.subject_certificate = cert
+      ef.issuer_certificate = root_cert
+      cert.add_extension(ef.create_extension("subjectAltName", "DNS:localhost,IP:127.0.0.1", false))
+      cert.add_extension(ef.create_extension("keyUsage","digitalSignature", true))
+      cert.add_extension(ef.create_extension("subjectKeyIdentifier","hash",false))
+      cert.sign(root_key, OpenSSL::Digest::SHA256.new)
+
+      File.write("/tmp/memcached.key", key)
+      File.write("/tmp/memcached.crt", cert)
+    end
+
     def start_and_flush_with_retry(port, args = "", client_options = {})
       dc = nil
       retry_count = 0

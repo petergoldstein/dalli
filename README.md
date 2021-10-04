@@ -46,6 +46,20 @@ dc.set('abc', 123)
 value = dc.get('abc')
 ```
 
+With SSL enabled:
+```ruby
+require 'dalli'
+ssl_context = OpenSSL::SSL::SSLContext.new
+ssl_context.ca_file = "./myCA.pem"
+ssl_context.ssl_version = :SSLv23
+ssl_context.verify_hostname = true
+ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER
+
+dc = Dalli::Client.new("memcached:11212", :ssl_context => ssl_context)
+dc.set("abc", 123)
+value = dc.get("abc")
+```
+
 The test suite requires memcached 1.4.3+ with SASL enabled (`brew install memcached --enable-sasl ; mv /usr/bin/memcached /usr/bin/memcached.old`).  Currently only supports the PLAIN mechanism.
 
 Dalli has no runtime dependencies.
