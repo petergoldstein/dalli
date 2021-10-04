@@ -42,6 +42,28 @@ describe "Dalli" do
         Dalli::Client.new("foo", {expires_in: 10, digest_class: Object})
       end
     end
+
+    it "opens a standard TCP connection" do
+      memcached_persistent do |dc|
+        server = dc.send(:ring).servers.first
+        sock = Dalli::Socket::TCP.open(server.hostname, server.port, server, server.options)
+        assert_equal Dalli::Socket::TCP, sock.class
+
+        dc.set("abc", 123)
+        assert_equal(123, dc.get("abc"))
+      end
+    end
+
+    it "opens a SSL TCP connection" do
+      memcached_ssl_persistent do |dc|
+        server = dc.send(:ring).servers.first
+        sock = Dalli::Socket::TCP.open(server.hostname, server.port, server, server.options)
+        assert_equal Dalli::Socket::SSLSocket, sock.class
+
+        dc.set("abc", 123)
+        assert_equal(123, dc.get("abc"))
+      end
+    end
   end
 
   describe "key validation" do
