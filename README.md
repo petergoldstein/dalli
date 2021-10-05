@@ -1,4 +1,4 @@
-Dalli [![Build Status](https://secure.travis-ci.org/petergoldstein/dalli.svg)](http://travis-ci.org/petergoldstein/dalli)
+Dalli [![Tests](https://github.com/petergoldstein/dalli/actions/workflows/tests.yml/badge.svg)](https://github.com/petergoldstein/dalli/actions/workflows/tests.yml)
 =====
 
 Dalli is a high performance pure Ruby client for accessing memcached servers.  It works with memcached 1.4+ only as it uses the newer binary protocol.  It should be considered a replacement for the memcache-client gem.
