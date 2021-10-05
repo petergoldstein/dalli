@@ -32,6 +32,7 @@ module Dalli
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method, useful for injecting a FIPS compliant hash object.
     #
     def initialize(servers = nil, options = {})
+      validate_servers_arg(servers)
       @servers = normalize_servers(servers || ENV["MEMCACHE_SERVERS"] || "127.0.0.1:11211")
       @options = normalize_options(options)
       @ring = nil
@@ -377,6 +378,16 @@ module Dalli
         end
       end
       servers
+    end
+
+    ##
+    # Ensures that the servers arg is either an array or a string.
+    def validate_servers_arg(servers)
+      return if servers.nil?
+      return if servers.is_a?(Array)
+      return if servers.is_a?(String)
+
+      raise ArgumentError, "An explicit servers argument must be a comma separated string or an array containing strings."
     end
 
     ##

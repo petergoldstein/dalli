@@ -144,6 +144,12 @@ describe "Dalli" do
     assert_equal "server2.example.com", s2
   end
 
+  it "raises error when servers is a Hash" do
+    assert_raises ArgumentError do
+      Dalli::Client.new({hosts: "server1.example.com"})
+    end
+  end
+
   describe "using a live server" do
     it "support get/set" do
       memcached_persistent do |dc|
