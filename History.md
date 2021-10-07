@@ -1,11 +1,33 @@
 Dalli Changelog
 =====================
 
+3.0.0
+==========
+- BREAKING CHANGES:
+
+- Removes :dalli_store.
+  Use Rails' official :mem_cache_store instead.
+  https://guides.rubyonrails.org/caching_with_rails.html
+- Attempting to store a larger value than allowed by memcached used to
+  print a warning and truncate the value. This now raises an error to
+  prevent silent data corruption.
+- Compression now defaults to `true` for large values (greater than 4KB).
+  This is intended to minimize errors due to the previous note.
+- Errors marshalling values now raise rather than just printing an error.
+- The Rack session adapter has been refactored to remove support for thread-unsafe
+  configurations. You will need to include the `connection_pool` gem in
+  your Gemfile to ensure session operations are thread-safe.
+
 - Raise NetworkError when multi response gets into corrupt state (mervync, #783)
 - Validate servers argument (semaperepelitsa, petergoldstein, #776)
 - Enable SSL support (bdunne, #775)
 - Add gat operation (tbeauvais, #769)
-- Switch repo to Github Actions (petergoldstein, bdunne, Fryguy)
+- Removes inline native code, use Ruby 2.3+ support for bsearch instead. (mperham)
+- Switch repo to Github Actions and upgrade Ruby versions (petergoldstein, bdunne, Fryguy)
+- Update benchmark test for Rubyprof changes (nateberkopec)
+- Remove support for the `kgio` gem, it is not relevant in Ruby 2.3+. (mperham)
+- Remove inline native code, use Ruby 2.3+ support for bsearch instead. (mperham)
+
 
 2.7.11
 ==========
