@@ -1,7 +1,11 @@
 Dalli Changelog
 =====================
 
+- Raise NetworkError when multi response gets into corrupt state (mervync, #783)
+- Validate servers argument (semaperepelitsa, petergoldstein, #776)
+- Enable SSL support (bdunne, #775)
 - Add gat operation (tbeauvais, #769)
+- Switch repo to Github Actions (petergoldstein, bdunne, Fryguy)
 
 2.7.11
 ==========
