@@ -324,6 +324,11 @@ module Dalli
     end
     alias_method :reset, :close
 
+    # Stub method so a bare Dalli client can pretend to be a connection pool.
+    def with
+      yield self
+    end
+
     private
 
     def cas_core(key, always_set, ttl = nil, options = nil)
