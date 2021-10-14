@@ -3,22 +3,26 @@
 require_relative "helper"
 
 describe "failover" do
-  describe "timeouts" do
-    it "not lead to corrupt sockets" do
-      memcached_persistent do |dc|
-        value = {test: "123"}
-        begin
-          Timeout.timeout 0.01 do
-            start_time = Time.now
-            10_000.times do
-              dc.set("test_123", value)
+  # Timeouts on JRuby work differently and aren't firing, meaning we're
+  # not testing the condition
+  unless defined? JRUBY_VERSION
+    describe "timeouts" do
+      it "not lead to corrupt sockets" do
+        memcached_persistent do |dc|
+          value = {test: "123"}
+          begin
+            Timeout.timeout 0.01 do
+              start_time = Time.now
+              10_000.times do
+                dc.set("test_123", value)
+              end
+              flunk("Did not timeout in #{Time.now - start_time}")
             end
-            flunk("Did not timeout in #{Time.now - start_time}")
+          rescue Timeout::Error
           end
-        rescue Timeout::Error
-        end
 
-        assert_equal(value, dc.get("test_123"))
+          assert_equal(value, dc.get("test_123"))
+        end
       end
     end
   end
