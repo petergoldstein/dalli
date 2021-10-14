@@ -107,7 +107,7 @@ module MemcachedMock
       ssl_context = OpenSSL::SSL::SSLContext.new
       ssl_context.ca_file = "/tmp/root.crt"
       ssl_context.ssl_version = :SSLv23
-      ssl_context.verify_hostname = true
+      ssl_context.verify_hostname = true if ssl_context.respond_to?(:verify_hostname)
       ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER
 
       dc = start_and_flush_with_retry(port, "-Z -o ssl_chain_cert=/tmp/memcached.crt -o ssl_key=/tmp/memcached.key", {:ssl_context => ssl_context})
@@ -121,6 +121,7 @@ module MemcachedMock
       root_key = OpenSSL::PKey::RSA.new 2048 # the CA's public/private key
       root_cert = OpenSSL::X509::Certificate.new
       root_cert.version = 2 # cf. RFC 5280 - to make it a "v3" certificate
+      root_cert.serial = 1
       root_cert.subject = OpenSSL::X509::Name.parse "/CN=Dalli CA"
       root_cert.issuer = root_cert.subject # root CA's are "self-signed"
       root_cert.public_key = root_key.public_key
@@ -139,6 +140,7 @@ module MemcachedMock
       key = OpenSSL::PKey::RSA.new 2048
       cert = OpenSSL::X509::Certificate.new
       cert.version = 2
+      cert.serial = 2
       cert.subject = OpenSSL::X509::Name.parse "/CN=localhost"
       cert.issuer = root_cert.subject # root CA is the issuer
       cert.public_key = key.public_key
