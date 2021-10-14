@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'openssl'
+require 'rbconfig'
 
 module Dalli
   module Socket
@@ -77,8 +78,16 @@ module Dalli
         end
       end
     end
+  end
 
-    class UNIX < UNIXSocket
+  if RbConfig::CONFIG['host_os'] =~ /mingw|mswin/
+    class Dalli::Socket::UNIX
+      def initialize(*args)
+        raise Dalli::DalliError, 'Unix sockets are not supported on Windows platform.'
+      end
+    end
+  else
+    class Dalli::Socket::UNIX < UNIXSocket
       include Dalli::Socket::InstanceMethods
       attr_accessor :options, :server
 
