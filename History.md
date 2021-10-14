@@ -1,6 +1,12 @@
 Dalli Changelog
 =====================
 
+3.0.1
+==========
+
+- Fix syntax error that prevented inclusion of Dalli::Server (ryanfb)
+- Restore with method required by ActiveSupport::Cache::MemCacheStore
+
 3.0.0
 ==========
 - BREAKING CHANGES:
