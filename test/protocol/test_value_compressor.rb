@@ -80,7 +80,7 @@ describe Dalli::Protocol::ValueCompressor do
         let(:options) { {} }
 
         it 'defaults to 4 KB' do
-          assert_equal subject.compression_min_size, 4096
+          assert_equal(4096, subject.compression_min_size)
         end
       end
 
@@ -443,7 +443,7 @@ describe Dalli::Protocol::ValueCompressor do
       it 'should return the value without decompressing' do
         bitflags = rand(32)
         bitflags &= 0xFFFD
-        assert_equal bitflags & 0x2, 0
+        assert_equal(0, bitflags & 0x2)
         assert_equal vc.retrieve(raw_value, bitflags), raw_value
         compressor.verify
       end
@@ -457,7 +457,7 @@ describe Dalli::Protocol::ValueCompressor do
         compressor.expect :decompress, decompressed_dummy, [raw_value]
         bitflags = rand(32)
         bitflags |= 0x2
-        assert_equal bitflags & 0x2, 0x2
+        assert_equal(0x2, bitflags & 0x2)
         assert_equal vc.retrieve(raw_value, bitflags), decompressed_dummy
         compressor.verify
       end
@@ -472,7 +472,7 @@ describe Dalli::Protocol::ValueCompressor do
         ::Dalli::Compressor.stub :decompress, error do
           bitflags = rand(32)
           bitflags |= 0x2
-          assert_equal bitflags & 0x2, 0x2
+          assert_equal(0x2, bitflags & 0x2)
           exception = assert_raises Dalli::UnmarshalError do
             vc.retrieve(raw_value, bitflags)
           end

@@ -46,15 +46,13 @@ module MemcachedManager
     Dalli::Client.new(servers_arg, client_options)
   end
 
-  # rubocop:disable Metrics/MethodLength
   def self.start(port_or_socket, args)
     cmd_with_args, key = cmd_with_args(port_or_socket, args)
 
     @running_pids[key] ||= begin
       pid = IO.popen(cmd_with_args).pid
       at_exit do
-        Process.kill('TERM', pid)
-        Process.wait(pid)
+        kill_and_wait(pid)
       rescue Errno::ECHILD, Errno::ESRCH
         # Ignore errors
       end
@@ -62,18 +60,21 @@ module MemcachedManager
       pid
     end
   end
-  # rubocop:enable Metrics/MethodLength
 
   def self.stop(port_or_socket)
     pid = @running_pids.delete(port_or_socket)
     return unless pid
 
     begin
-      Process.kill('TERM', pid)
-      Process.wait(pid)
+      kill_and_wait(pid)
     rescue Errno::ECHILD, Errno::ESRCH => e
       puts e.inspect
     end
+  end
+
+  def self.kill_and_wait(pid)
+    Process.kill('TERM', pid)
+    Process.wait(pid)
   end
 
   def self.failed_start(port_or_socket)

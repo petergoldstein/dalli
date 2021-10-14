@@ -4,7 +4,6 @@ require 'ruby-prof'
 require_relative "helper"
 require "benchmark"
 
-
 def profile(&block)
   return yield unless ENV["PROFILE"]
 
@@ -113,16 +112,18 @@ describe "performance" do
           end
 
           @m = Dalli::Client.new(@servers)
+          # rubocop:disable Lint/SuppressedException
           x.report("missing:ruby:dalli") do
             n.times do
-              begin @m.delete @key1; rescue; end
-              begin @m.get @key1; rescue; end
-              begin @m.delete @key2; rescue; end
-              begin @m.get @key2; rescue; end
-              begin @m.delete @key3; rescue; end
-              begin @m.get @key3; rescue; end
+              begin @m.delete @key1; rescue StandardError; end
+              begin @m.get @key1; rescue StandardError; end
+              begin @m.delete @key2; rescue StandardError; end
+              begin @m.get @key2; rescue StandardError; end
+              begin @m.delete @key3; rescue StandardError; end
+              begin @m.get @key3; rescue StandardError; end
             end
           end
+          # rubocop:enable Lint/SuppressedException
 
           @m = Dalli::Client.new(@servers)
           x.report("mixed:ruby:dalli") do

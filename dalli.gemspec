@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "./lib/dalli/version"
 
 Gem::Specification.new do |s|
@@ -15,6 +17,12 @@ Gem::Specification.new do |s|
     "Gemfile"
   ]
   s.homepage = "https://github.com/petergoldstein/dalli"
-  s.add_development_dependency "rack"
+  s.required_ruby_version = '>= 2.5'
+
   s.add_development_dependency "connection_pool"
+  s.add_development_dependency "rack"
+  s.add_development_dependency "rubocop"
+  s.add_development_dependency "rubocop-minitest"
+  s.add_development_dependency "rubocop-performance"
+  s.add_development_dependency "rubocop-rake"
 end

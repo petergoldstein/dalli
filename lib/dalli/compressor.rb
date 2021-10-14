@@ -4,6 +4,10 @@ require "zlib"
 require "stringio"
 
 module Dalli
+  ##
+  # Default compressor used by Dalli, that uses
+  # Zlib DEFLATE to compress data.
+  ##
   class Compressor
     def self.compress(data)
       Zlib::Deflate.deflate(data)
@@ -14,6 +18,11 @@ module Dalli
     end
   end
 
+  ##
+  # Alternate compressor for Dalli, that uses
+  # Gzip.  Gzip adds a checksum to each compressed
+  # entry.
+  ##
   class GzipCompressor
     def self.compress(data)
       io = StringIO.new(+"", "w")

@@ -10,7 +10,7 @@ describe Dalli::Protocol::TtlSanitizer do
       let(:arg_value) { arg_value_as_i }
 
       describe 'when the value is less than 30 days in seconds' do
-        let(:arg_value_as_i) { rand(30 * 24 * 60 * 60 + 1) }
+        let(:arg_value_as_i) { rand((30 * 24 * 60 * 60) + 1) }
 
         it 'just returns the value' do
           assert_equal subject, arg_value_as_i
@@ -44,7 +44,7 @@ describe Dalli::Protocol::TtlSanitizer do
       let(:arg_value) { arg_value_as_i.to_s }
 
       describe 'when the value is less than 30 days in seconds' do
-        let(:arg_value_as_i) { rand(30 * 24 * 60 * 60 + 1) }
+        let(:arg_value_as_i) { rand((30 * 24 * 60 * 60) + 1) }
 
         it 'just returns the value' do
           assert_equal subject, arg_value_as_i

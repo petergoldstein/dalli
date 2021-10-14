@@ -13,7 +13,7 @@ describe "Network" do
 
     describe "with a fake server" do
       it "handle connection reset" do
-        memcached_mock(lambda { |sock| sock.close }) do
+        memcached_mock(->(sock) { sock.close }) do
           assert_raises Dalli::RingError, message: "No server available" do
             dc = Dalli::Client.new("localhost:19123")
             dc.get("abc")
@@ -23,7 +23,7 @@ describe "Network" do
 
       it "handle connection reset with unix socket" do
         socket_path = MemcachedMock::UNIX_SOCKET_PATH
-        memcached_mock(lambda { |sock| sock.close }, :start_unix, socket_path) do
+        memcached_mock(->(sock) { sock.close }, :start_unix, socket_path) do
           assert_raises Dalli::RingError, message: "No server available" do
             dc = Dalli::Client.new(socket_path)
             dc.get("abc")
@@ -32,7 +32,7 @@ describe "Network" do
       end
 
       it "handle malformed response" do
-        memcached_mock(lambda { |sock| sock.write("123") }) do
+        memcached_mock(->(sock) { sock.write("123") }) do
           assert_raises Dalli::RingError, message: "No server available" do
             dc = Dalli::Client.new("localhost:19123")
             dc.get("abc")
@@ -41,7 +41,10 @@ describe "Network" do
       end
 
       it "handle connect timeouts" do
-        memcached_mock(lambda { |sock| sleep(0.6); sock.close }, :delayed_start) do
+        memcached_mock(lambda { |sock|
+                         sleep(0.6)
+                         sock.close
+                       }, :delayed_start) do
           assert_raises Dalli::RingError, message: "No server available" do
             dc = Dalli::Client.new("localhost:19123")
             dc.get("abc")
@@ -50,7 +53,10 @@ describe "Network" do
       end
 
       it "handle read timeouts" do
-        memcached_mock(lambda { |sock| sleep(0.6); sock.write("giraffe") }) do
+        memcached_mock(lambda { |sock|
+                         sleep(0.6)
+                         sock.write("giraffe")
+                       }) do
           assert_raises Dalli::RingError, message: "No server available" do
             dc = Dalli::Client.new("localhost:19123")
             dc.get("abc")

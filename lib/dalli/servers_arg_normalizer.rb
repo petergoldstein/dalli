@@ -45,7 +45,7 @@ module Dalli
 
     def self.validate_type(arg)
       return if arg.is_a?(String)
-      return if arg.is_a?(Array) && arg.all? { |s| s.is_a?(String) }
+      return if arg.is_a?(Array) && arg.all?(String)
 
       raise ArgumentError,
             'An explicit servers argument must be a comma separated string or an array containing strings.'

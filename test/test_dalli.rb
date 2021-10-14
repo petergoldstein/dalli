@@ -13,17 +13,17 @@ describe "Dalli" do
     end
 
     it "raises error with invalid expires_in" do
-      bad_data = [{bad: "expires in data"}, Hash, [1, 2, 3]]
+      bad_data = [{ bad: "expires in data" }, Hash, [1, 2, 3]]
       bad_data.each do |bad|
         assert_raises ArgumentError do
-          Dalli::Client.new("foo", {expires_in: bad})
+          Dalli::Client.new("foo", { expires_in: bad })
         end
       end
     end
 
     it "raises error with invalid digest_class" do
       assert_raises ArgumentError do
-        Dalli::Client.new("foo", {expires_in: 10, digest_class: Object})
+        Dalli::Client.new("foo", { expires_in: 10, digest_class: Object })
       end
     end
 
@@ -130,7 +130,7 @@ describe "Dalli" do
 
   it "raises error when servers is a Hash" do
     assert_raises ArgumentError do
-      Dalli::Client.new({hosts: "server1.example.com"})
+      Dalli::Client.new({ hosts: "server1.example.com" })
     end
   end
 
@@ -139,7 +139,7 @@ describe "Dalli" do
       memcached_persistent do |dc|
         dc.flush
 
-        val1 = "1234567890" * 999999
+        val1 = "1234567890" * 999_999
         dc.set("a", val1)
         val2 = dc.get("a")
         assert_equal val1, val2
@@ -175,30 +175,28 @@ describe "Dalli" do
     it "support stats" do
       memcached_persistent do |dc|
         # make sure that get_hits would not equal 0
-        dc.set(:a, "1234567890" * 100000)
+        dc.set(:a, "1234567890" * 100_000)
         dc.get(:a)
 
         stats = dc.stats
         servers = stats.keys
-        assert(servers.any? { |s|
+        assert(servers.any? do |s|
           stats[s]["get_hits"].to_i != 0
-        }, "general stats failed")
+        end, "general stats failed")
 
         stats_items = dc.stats(:items)
         servers = stats_items.keys
-        assert(servers.all? { |s|
+        assert(servers.all? do |s|
           stats_items[s].keys.any? do |key|
             key =~ /items:[0-9]+:number/
           end
-        }, "stats items failed")
+        end, "stats items failed")
 
         stats_slabs = dc.stats(:slabs)
         servers = stats_slabs.keys
-        assert(servers.all? { |s|
-          stats_slabs[s].keys.any? do |key|
-            key == "active_slabs"
-          end
-        }, "stats slabs failed")
+        assert(servers.all? do |s|
+          stats_slabs[s].keys.any?("active_slabs")
+        end, "stats slabs failed")
 
         # reset_stats test
         results = dc.reset_stats
@@ -217,22 +215,22 @@ describe "Dalli" do
       memcached_persistent do |dc|
         dc.flush
 
-        expected = {"blah" => "blerg!"}
+        expected = { "blah" => "blerg!" }
         executed = false
-        value = dc.fetch("fetch_key") {
+        value = dc.fetch("fetch_key") do
           executed = true
           expected
-        }
+        end
         assert_equal expected, value
-        assert_equal true, executed
+        assert executed
 
         executed = false
-        value = dc.fetch("fetch_key") {
+        value = dc.fetch("fetch_key") do
           executed = true
           expected
-        }
+        end
         assert_equal expected, value
-        assert_equal false, executed
+        refute executed
       end
     end
 
@@ -242,7 +240,7 @@ describe "Dalli" do
 
         dc.set("fetch_key", false)
         res = dc.fetch("fetch_key") { flunk "fetch block called" }
-        assert_equal false, res
+        refute res
       end
     end
 
@@ -259,12 +257,12 @@ describe "Dalli" do
         dc.flush
         dc.set("fetch_key", nil)
         executed = false
-        res = dc.fetch("fetch_key") {
+        res = dc.fetch("fetch_key") do
           executed = true
           "bar"
-        }
+        end
         assert_equal "bar", res
-        assert_equal true, executed
+        assert executed
       end
     end
 
@@ -272,19 +270,19 @@ describe "Dalli" do
       memcached_persistent do |dc|
         dc.flush
 
-        expected = {"blah" => "blerg!"}
+        expected = { "blah" => "blerg!" }
 
-        resp = dc.cas("cas_key") { |value|
-          fail("Value it not exist")
-        }
+        resp = dc.cas("cas_key") do |_value|
+          raise("Value it not exist")
+        end
         assert_nil resp
 
-        mutated = {"blah" => "foo!"}
+        mutated = { "blah" => "foo!" }
         dc.set("cas_key", expected)
-        resp = dc.cas("cas_key") { |value|
+        resp = dc.cas("cas_key") do |value|
           assert_equal expected, value
           mutated
-        }
+        end
         assert op_cas_succeeds(resp)
 
         resp = dc.get("cas_key")
@@ -296,11 +294,11 @@ describe "Dalli" do
       memcached_persistent do |dc|
         dc.flush
 
-        mutated = {"blah" => "foo!"}
-        resp = dc.cas!("cas_key") { |value|
+        mutated = { "blah" => "foo!" }
+        resp = dc.cas!("cas_key") do |value|
           assert_nil value
           mutated
-        }
+        end
         assert op_cas_succeeds(resp)
 
         resp = dc.get("cas_key")
@@ -313,22 +311,22 @@ describe "Dalli" do
         dc.close
         dc.flush
         resp = dc.get_multi(%w[a b c d e f])
-        assert_equal({}, resp)
+        assert_empty(resp)
 
         dc.set("a", "foo")
         dc.set("b", 123)
         dc.set("c", %w[a b c])
         # Invocation without block
         resp = dc.get_multi(%w[a b c d e f])
-        expected_resp = {"a" => "foo", "b" => 123, "c" => %w[a b c]}
+        expected_resp = { "a" => "foo", "b" => 123, "c" => %w[a b c] }
         assert_equal(expected_resp, resp)
 
         # Invocation with block
         dc.get_multi(%w[a b c d e f]) do |k, v|
-          assert(expected_resp.has_key?(k) && expected_resp[k] == v)
+          assert(expected_resp.key?(k) && expected_resp[k] == v)
           expected_resp.delete(k)
         end
-        assert expected_resp.empty?
+        assert_empty expected_resp
 
         # Perform a big multi-get with 1000 elements.
         arr = []
@@ -427,13 +425,13 @@ describe "Dalli" do
       memcached_persistent do |dc|
         dc.flush
         assert op_addset_succeeds(dc.set("456", "xyz", 0, raw: true))
-        assert_equal true, dc.prepend("456", "0")
-        assert_equal true, dc.append("456", "9")
+        assert dc.prepend("456", "0")
+        assert dc.append("456", "9")
         assert_equal "0xyz9", dc.get("456", raw: true)
         assert_equal "0xyz9", dc.get("456")
 
-        assert_equal false, dc.append("nonexist", "abc")
-        assert_equal false, dc.prepend("nonexist", "abc")
+        refute dc.append("nonexist", "abc")
+        refute dc.prepend("nonexist", "abc")
       end
     end
 
@@ -451,8 +449,8 @@ describe "Dalli" do
       memcached_persistent do |dc|
         dc.flush
         dc.set "key", "value"
-        assert_equal true, dc.touch("key", 10)
-        assert_equal true, dc.touch("key")
+        assert dc.touch("key", 10)
+        assert dc.touch("key")
         assert_equal "value", dc.get("key")
         assert_nil dc.touch("notexist")
       rescue Dalli::DalliError => e
@@ -478,9 +476,9 @@ describe "Dalli" do
       memcached_persistent do |dc|
         v = dc.version
         servers = v.keys
-        assert(servers.any? { |s|
+        assert(servers.any? do |s|
           !v[s].nil?
-        }, "version failed")
+        end, "version failed")
       end
     end
 
@@ -495,7 +493,7 @@ describe "Dalli" do
         optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE)
         optval = optval.unpack "i"
 
-        assert_equal true, (optval[0] != 0)
+        refute_equal(optval[0], 0)
       end
     end
 
@@ -533,10 +531,10 @@ describe "Dalli" do
         assert op_addset_succeeds(dc.set("456", "xyz", 0, raw: true))
 
         resp = dc.prepend "456", "0"
-        assert_equal true, resp
+        assert resp
 
         resp = dc.append "456", "9"
-        assert_equal true, resp
+        assert resp
 
         resp = dc.get("456", raw: true)
         assert_equal "0xyz9", resp
@@ -544,7 +542,7 @@ describe "Dalli" do
         assert op_addset_succeeds(dc.set("456", false))
 
         resp = dc.get("456")
-        assert_equal false, resp
+        refute resp
 
         resp = dc.stats
         assert_equal Hash, resp.class
@@ -587,10 +585,10 @@ describe "Dalli" do
         assert op_addset_succeeds(dc.set("456", "xyz", 0, raw: true))
 
         resp = dc.prepend "456", "0"
-        assert_equal true, resp
+        assert resp
 
         resp = dc.append "456", "9"
-        assert_equal true, resp
+        assert resp
 
         resp = dc.get("456", raw: true)
         assert_equal "0xyz9", resp
@@ -598,7 +596,7 @@ describe "Dalli" do
         assert op_addset_succeeds(dc.set("456", false))
 
         resp = dc.get("456")
-        assert_equal false, resp
+        refute resp
 
         resp = dc.stats
         assert_equal Hash, resp.class
@@ -613,27 +611,27 @@ describe "Dalli" do
         workers = []
 
         cache.set("f", "zzz")
-        assert op_cas_succeeds((cache.cas("f") { |value|
+        assert op_cas_succeeds((cache.cas("f") do |value|
           value << "z"
-        }))
+        end))
         assert_equal "zzzz", cache.get("f")
 
         # Have a bunch of threads perform a bunch of operations at the same time.
         # Verify the result of each operation to ensure the request and response
         # are not intermingled between threads.
         10.times do
-          workers << Thread.new {
+          workers << Thread.new do
             100.times do
               cache.set("a", 9)
               cache.set("b", 11)
               cache.incr("cat", 10, 0, 10)
               cache.set("f", "zzz")
-              res = cache.cas("f") { |value|
+              res = cache.cas("f") do |value|
                 value << "z"
-              }
+              end
               refute_nil res
-              assert_equal false, cache.add("a", 11)
-              assert_equal({"a" => 9, "b" => 11}, cache.get_multi(["a", "b"]))
+              refute cache.add("a", 11)
+              assert_equal({ "a" => 9, "b" => 11 }, cache.get_multi(%w[a b]))
               inc = cache.incr("cat", 10)
               assert_equal 0, inc % 5
               cache.decr("cat", 5)
@@ -641,10 +639,10 @@ describe "Dalli" do
 
               assert_equal %w[a b], cache.get_multi("a", "b", "c").keys.sort
             end
-          }
+          end
         end
 
-        workers.each { |w| w.join }
+        workers.each(&:join)
         cache.flush
       end
     end
@@ -683,7 +681,7 @@ describe "Dalli" do
         dc = Dalli::Client.new("localhost:#{port}", namespace: "a")
         dc.set("a", 1)
         dc.set("b", 2)
-        assert_equal({"a" => 1, "b" => 2}, dc.get_multi("a", "b"))
+        assert_equal({ "a" => 1, "b" => 2 }, dc.get_multi("a", "b"))
       end
     end
 
@@ -693,7 +691,7 @@ describe "Dalli" do
         dc = Dalli::Client.new("localhost:#{port}", namespace: "(?!)")
         dc.set("a", 1)
         dc.set("b", 2)
-        assert_equal({"a" => 1, "b" => 2}, dc.get_multi("a", "b"))
+        assert_equal({ "a" => 1, "b" => 2 }, dc.get_multi("a", "b"))
       end
     end
 
@@ -710,7 +708,7 @@ describe "Dalli" do
     describe "with compression" do
       it "does not allow large values" do
         memcached_persistent do |dc|
-          value = SecureRandom.random_bytes(1024 * 1024 + 30_000)
+          value = SecureRandom.random_bytes((1024 * 1024) + 30_000)
           with_nil_logger do
             assert_raises Dalli::ValueOverMaxSize do
               dc.set("verylarge", value)

@@ -142,7 +142,7 @@ describe Dalli::Protocol::ValueSerializer do
       it 'should return the value without deserializing' do
         bitflags = rand(32)
         bitflags &= 0xFFFE
-        assert_equal bitflags & 0x1, 0
+        assert_equal(0, bitflags & 0x1)
         assert_equal vs.retrieve(raw_value, bitflags), raw_value
         serializer.verify
       end
@@ -153,7 +153,7 @@ describe Dalli::Protocol::ValueSerializer do
         serializer.expect :load, deserialized_dummy, [raw_value]
         bitflags = rand(32)
         bitflags |= 0x1
-        assert_equal bitflags & 0x1, 0x1
+        assert_equal(0x1, bitflags & 0x1)
         assert_equal vs.retrieve(raw_value, bitflags), deserialized_dummy
         serializer.verify
       end

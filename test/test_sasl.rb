@@ -4,8 +4,7 @@ require_relative "helper"
 
 describe "Sasl" do
   # https://github.com/seattlerb/minitest/issues/298
-  def self.xit(msg, &block)
-  end
+  def self.xit(msg, &block); end
 
   describe "a server requiring authentication" do
     before do
@@ -64,7 +63,7 @@ describe "Sasl" do
         memcached_sasl_persistent do |dc|
           # I get "Dalli::DalliError: Error authenticating: 32" in OSX
           # but SASL works on Heroku servers. YMMV.
-          assert_equal true, dc.set("abc", 123)
+          assert dc.set("abc", 123)
           assert_equal 123, dc.get("abc")
           results = dc.stats
           assert_equal 1, results.size
@@ -78,13 +77,12 @@ describe "Sasl" do
         dc = Dalli::Client.new("localhost:#{port}", sasl_credentials)
         # I get "Dalli::DalliError: Error authenticating: 32" in OSX
         # but SASL works on Heroku servers. YMMV.
-        assert_equal true, dc.set("abc", 123)
+        assert dc.set("abc", 123)
         assert_equal 123, dc.get("abc")
         results = dc.stats
         assert_equal 1, results.size
         assert_equal 38, results.values.first.size
       end
     end
-
   end
 end

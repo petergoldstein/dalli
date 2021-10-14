@@ -92,10 +92,10 @@ describe Dalli::Protocol::Binary do
     end
 
     it "throws an exception if the hostname cannot be parsed" do
-      expect(lambda { Dalli::Protocol::Binary.new("[]") }).must_raise Dalli::DalliError
-      expect(lambda { Dalli::Protocol::Binary.new("my.fqdn.com:") }).must_raise Dalli::DalliError
-      expect(lambda { Dalli::Protocol::Binary.new("my.fqdn.com:11212,:2") }).must_raise Dalli::DalliError
-      expect(lambda { Dalli::Protocol::Binary.new("my.fqdn.com:11212:abc") }).must_raise Dalli::DalliError
+      expect(-> { Dalli::Protocol::Binary.new("[]") }).must_raise Dalli::DalliError
+      expect(-> { Dalli::Protocol::Binary.new("my.fqdn.com:") }).must_raise Dalli::DalliError
+      expect(-> { Dalli::Protocol::Binary.new("my.fqdn.com:11212,:2") }).must_raise Dalli::DalliError
+      expect(-> { Dalli::Protocol::Binary.new("my.fqdn.com:11212:abc") }).must_raise Dalli::DalliError
     end
   end
 
@@ -104,14 +104,14 @@ describe Dalli::Protocol::Binary do
 
     it "raises NetworkError when called before multi_response_start" do
       assert_raises Dalli::NetworkError do
-        subject.request(:send_multiget, ["a", "b"])
+        subject.request(:send_multiget, %w[a b])
         subject.multi_response_nonblock
       end
     end
 
     it "raises NetworkError when called after multi_response_abort" do
       assert_raises Dalli::NetworkError do
-        subject.request(:send_multiget, ["a", "b"])
+        subject.request(:send_multiget, %w[a b])
         subject.multi_response_start
         subject.multi_response_abort
         subject.multi_response_nonblock

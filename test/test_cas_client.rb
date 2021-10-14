@@ -8,7 +8,7 @@ describe "Dalli::Cas::Client" do
       memcached_persistent do |dc|
         dc.flush
 
-        expected = {"blah" => "blerg!"}
+        expected = { "blah" => "blerg!" }
         get_block_called = false
         stored_value = stored_cas = nil
         # Validate call-with-block
@@ -25,7 +25,7 @@ describe "Dalli::Cas::Client" do
         # Validate call-with-return-value
         stored_value, stored_cas = dc.get_cas("gets_key")
         assert_equal stored_value, expected
-        assert(stored_cas != 0)
+        refute_equal(stored_cas, 0)
       end
     end
 
@@ -34,7 +34,7 @@ describe "Dalli::Cas::Client" do
         dc.close
         dc.flush
 
-        expected_hash = {"a" => "foo", "b" => 123}
+        expected_hash = { "a" => "foo", "b" => 123 }
         expected_hash.each_pair do |k, v|
           dc.set(k, v)
         end
@@ -42,14 +42,16 @@ describe "Dalli::Cas::Client" do
         # Invocation without block
         resp = dc.get_multi_cas(%w[a b c d e f])
         resp.each_pair do |k, data|
-          value, cas = [data.first, data[1]]
+          value = data.first
+          cas = data[1]
           assert_equal expected_hash[k], value
           assert(cas && cas != 0)
         end
 
         # Invocation with block
         dc.get_multi_cas(%w[a b c d e f]) do |k, data|
-          value, cas = [data.first, data[1]]
+          value = data.first
+          cas = data[1]
           assert_equal expected_hash[k], value
           assert(cas && cas != 0)
         end
@@ -81,7 +83,7 @@ describe "Dalli::Cas::Client" do
       memcached_persistent do |dc|
         dc.flush
 
-        expected = {"blah" => "blerg!"}
+        expected = { "blah" => "blerg!" }
         dc.set("some_key", expected)
 
         value, cas = dc.get_cas("some_key")
@@ -89,17 +91,17 @@ describe "Dalli::Cas::Client" do
         assert(!cas.nil? && cas != 0)
 
         # Set operation, first with wrong then with correct CAS
-        expected = {"blah" => "set succeeded"}
-        assert(dc.set_cas("some_key", expected, cas + 1) == false)
+        expected = { "blah" => "set succeeded" }
+        refute(dc.set_cas("some_key", expected, cas + 1))
         assert op_addset_succeeds(cas = dc.set_cas("some_key", expected, cas))
 
         # Replace operation, first with wrong then with correct CAS
-        expected = {"blah" => "replace succeeded"}
-        assert(dc.replace_cas("some_key", expected, cas + 1) == false)
+        expected = { "blah" => "replace succeeded" }
+        refute(dc.replace_cas("some_key", expected, cas + 1))
         assert op_addset_succeeds(cas = dc.replace_cas("some_key", expected, cas))
 
         # Delete operation, first with wrong then with correct CAS
-        assert(dc.delete_cas("some_key", cas + 1) == false)
+        refute(dc.delete_cas("some_key", cas + 1))
         assert dc.delete_cas("some_key", cas)
       end
     end
