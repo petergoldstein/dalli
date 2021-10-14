@@ -117,8 +117,16 @@ module Dalli
         @options[:serializer]
       end
 
+      def compress_by_default?
+        @options[:compress]
+      end
+
       def compressor
         @options[:compressor]
+      end
+
+      def compression_min_size
+        @options[:compression_min_size]
       end
 
       # Start reading key/value pairs from this connection. This is usually called
@@ -432,12 +440,9 @@ module Dalli
             raise exc
           end
         end
-        compressed = false
-        set_compress_option = true if options && options[:compress]
-        if (@options[:compress] || set_compress_option) && value.bytesize >= @options[:compression_min_size]
-          value = compressor.compress(value)
-          compressed = true
-        end
+
+        compressed = compress_value?(value, options)
+        value = compressor.compress(value) if compressed
 
         flags = 0
         flags |= FLAG_COMPRESSED if compressed
@@ -486,6 +491,18 @@ module Dalli
 
         message = "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
         raise Dalli::ValueOverMaxSize, message
+      end
+
+      # Checks whether we should apply compression when serializing a value
+      # based on the specified options.  Returns false unless the value
+      # is greater than the minimum compression size.  Otherwise returns
+      # based on a method-level option if specified, falling back to the
+      # server default.
+      def compress_value?(value, options)
+        return false unless value.bytesize >= compression_min_size
+        return compress_by_default? unless options && !options[:compress].nil?
+
+        options[:compress]
       end
 
       # https://github.com/memcached/memcached/blob/master/doc/protocol.txt#L79

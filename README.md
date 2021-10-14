@@ -81,9 +81,9 @@ Dalli::Client accepts the following options. All times are in seconds.
 **serializer**: The serializer to use for objects being stored (ex. JSON).
 Default is Marshal.
 
-**compress**: Boolean, if true Dalli will gzip-compress values larger than compression_min_size. Default is true.
+**compress**: Boolean, if true Dalli will gzip-compress values larger than compression_min_size.  Can be overridden on a per-request basis. Default is true.
 
-**compression_min_size**: Minimum value byte size for which to attempt compression. Default is 1K.
+**compression_min_size**: Minimum value byte size for which to attempt compression. Default is 4K.
 
 **compressor**: The compressor to use for objects being stored.
 Default is zlib, implemented under `Dalli::Compressor`.
@@ -100,8 +100,6 @@ If serving compressed data using nginx's HttpMemcachedModule, set `memcached_gzi
 **down_retry_delay**: When a server has been marked down due to many failures, the server will be checked again for being alive only after this amount of time. Don't set this value too low, otherwise each request which tries the failed server might hang for the maximum **socket_timeout**. Default is 30 seconds.
 
 **value_max_bytes**: The maximum size of a value in memcached.  Defaults to 1MB, this can be increased with memcached's -I parameter.  You must also configure Dalli to allow the larger size here.
-
-**error_when_over_max_size**: Boolean. If true, Dalli will throw a Dalli::ValueOverMaxSize exception when trying to store data larger than **value_max_bytes**. Defaults to false, meaning only a warning is logged.
 
 **username**: The username to use for authenticating this client instance against a SASL-enabled memcached server.  Heroku users should not need to use this normally.
 
