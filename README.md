@@ -5,7 +5,7 @@ Dalli is a high performance pure Ruby client for accessing memcached servers.  I
 
 The name is a variant of Salvador Dali for his famous painting [The Persistence of Memory](http://en.wikipedia.org/wiki/The_Persistence_of_Memory).
 
-![Persistence of Memory](http://www.virtualdali.com/assets/paintings/31PersistenceOfMemory.jpg)
+![Persistence of Memory](https://upload.wikimedia.org/wikipedia/en/d/dd/The_Persistence_of_Memory.jpg)
 
 Dalli's initial development was sponsored by [CouchBase](http://www.couchbase.com/).  Many thanks to them!
 
@@ -135,7 +135,7 @@ Helping Out
 
 If you have a fix you wish to provide, please fork the code, fix in your local project and then send a pull request on github.  Please ensure that you include a test which verifies your fix and update `History.md` with a one sentence description of your fix so you get credit as a contributor.
 
-We're not accepting new compressors. They are trivial to add in an initializer. See #385 (LZ4), #406 (Snappy)
+We're not accepting new compressors. They are trivial to add in an initializer. See [#385](https://github.com/petergoldstein/dalli/pull/385) (LZ4), [#406](https://github.com/petergoldstein/dalli/pull/406) (Snappy)
 
 Thanks
 ------------
