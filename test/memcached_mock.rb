@@ -107,7 +107,7 @@ module MemcachedMock
       ssl_context = OpenSSL::SSL::SSLContext.new
       ssl_context.ca_file = "/tmp/root.crt"
       ssl_context.ssl_version = :SSLv23
-      ssl_context.verify_hostname = true if ssl_context.respond_to?(:verify_hostname)
+      ssl_context.verify_hostname = true if ssl_context.respond_to?(:verify_hostname=)
       ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER
 
       dc = start_and_flush_with_retry(port, "-Z -o ssl_chain_cert=/tmp/memcached.crt -o ssl_key=/tmp/memcached.key", {:ssl_context => ssl_context})

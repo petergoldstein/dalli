@@ -12,11 +12,10 @@ Dalli's initial development was sponsored by [CouchBase](http://www.couchbase.co
 Supported Ruby versions and implementations
 ------------------------------------------------
 
-Dalli should work identically on:
+As of Dalli version 3.0 the following Ruby versions are supported:
 
- * JRuby 1.6+
- * Ruby 1.9.3+
- * Rubinius 2.0
+ * Ruby 2.5.x, 2.6.x, 2.7.x, 3.0.x
+ * JRuby 9.2.x, 9.3.x
 
 If you have problems, please enter an issue.
 
@@ -24,7 +23,7 @@ If you have problems, please enter an issue.
 Installation and Usage
 ------------------------
 
-Remember, Dalli **requires** memcached 1.4+. You can check the version with `memcached -h`. Please note that the memcached version that *Mac OS X Snow Leopard* ships with is 1.2.8 and it won't work. Install memcached 1.4.x using Homebrew with
+Remember, Dalli **requires** memcached 1.4+. You can check the version with `memcached -h`. Please note that the memcached version that *Mac OS X Snow Leopard* ships with is 1.2.8 and it won't work. Install the most recent version of memcached using Homebrew with
 
     brew install memcached
 
@@ -40,7 +39,7 @@ gem install dalli
 
 ```ruby
 require 'dalli'
-options = { :namespace => "app_v1", :compress => true }
+options = { namespace: "app_v1", compress: true }
 dc = Dalli::Client.new('localhost:11211', options)
 dc.set('abc', 123)
 value = dc.get('abc')
@@ -52,10 +51,10 @@ require 'dalli'
 ssl_context = OpenSSL::SSL::SSLContext.new
 ssl_context.ca_file = "./myCA.pem"
 ssl_context.ssl_version = :SSLv23
-ssl_context.verify_hostname = true
+ssl_context.verify_hostname = true if ssl_context.respond_to?(:verify_hostname=)
 ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER
 
-dc = Dalli::Client.new("memcached:11212", :ssl_context => ssl_context)
+dc = Dalli::Client.new("memcached:11212", ssl_context: ssl_context)
 dc.set("abc", 123)
 value = dc.get("abc")
 ```
@@ -82,11 +81,9 @@ Dalli::Client accepts the following options. All times are in seconds.
 **serializer**: The serializer to use for objects being stored (ex. JSON).
 Default is Marshal.
 
-**compress**: Boolean, if true Dalli will gzip-compress values larger than 1K. Default is false.
+**compress**: Boolean, if true Dalli will gzip-compress values larger than compression_min_size. Default is true.
 
 **compression_min_size**: Minimum value byte size for which to attempt compression. Default is 1K.
-
-**compression_max_size**: Maximum value byte size for which to attempt compression. Default is unlimited.
 
 **compressor**: The compressor to use for objects being stored.
 Default is zlib, implemented under `Dalli::Compressor`.
