@@ -1,6 +1,13 @@
 Dalli Changelog
 =====================
 
+3.0.2
+==========
+
+- Restore Windows compatibility (petergoldstein)
+- Add JRuby to CI and make requisite changes (petergoldstein)
+- Clarify documentation for supported rubies (petergoldstein)
+
 3.0.1
 ==========
 
@@ -11,18 +18,18 @@ Dalli Changelog
 ==========
 - BREAKING CHANGES:
 
-- Removes :dalli_store.
-  Use Rails' official :mem_cache_store instead.
-  https://guides.rubyonrails.org/caching_with_rails.html
-- Attempting to store a larger value than allowed by memcached used to
-  print a warning and truncate the value. This now raises an error to
-  prevent silent data corruption.
-- Compression now defaults to `true` for large values (greater than 4KB).
-  This is intended to minimize errors due to the previous note.
-- Errors marshalling values now raise rather than just printing an error.
-- The Rack session adapter has been refactored to remove support for thread-unsafe
-  configurations. You will need to include the `connection_pool` gem in
-  your Gemfile to ensure session operations are thread-safe.
+  * Removes :dalli_store.
+    Use Rails' official :mem_cache_store instead.
+    https://guides.rubyonrails.org/caching_with_rails.html
+  * Attempting to store a larger value than allowed by memcached used to
+    print a warning and truncate the value. This now raises an error to
+    prevent silent data corruption.
+  * Compression now defaults to `true` for large values (greater than 4KB).
+    This is intended to minimize errors due to the previous note.
+  * Errors marshalling values now raise rather than just printing an error.
+  * The Rack session adapter has been refactored to remove support for thread-unsafe
+    configurations. You will need to include the `connection_pool` gem in
+    your Gemfile to ensure session operations are thread-safe.
 
 - Raise NetworkError when multi response gets into corrupt state (mervync, #783)
 - Validate servers argument (semaperepelitsa, petergoldstein, #776)
