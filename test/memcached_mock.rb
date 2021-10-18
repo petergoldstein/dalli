@@ -116,7 +116,6 @@ module MemcachedMock
 
     private def generate_ssl_certificates
       require 'openssl'
-      require 'openssl-extensions/all'
 
       root_key = OpenSSL::PKey::RSA.new 2048 # the CA's public/private key
       root_cert = OpenSSL::X509::Certificate.new
