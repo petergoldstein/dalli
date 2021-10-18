@@ -25,7 +25,7 @@ module Dalli
     # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
     # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
-    # - :compress - if true Dalli will compress values larger than compression_bin_size bytes before sending them to memcached.  Default: true.
+    # - :compress - if true Dalli will compress values larger than compression_min_size bytes before sending them to memcached.  Default: true.
     # - :compression_min_size - the minimum size (in bytes) for which Dalli will compress values sent to Memcached.  Defaults to 4K.
     # - :serializer - defaults to Marshal
     # - :compressor - defaults to zlib
