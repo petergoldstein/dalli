@@ -17,5 +17,4 @@ Gem::Specification.new do |s|
   s.homepage = "https://github.com/petergoldstein/dalli"
   s.add_development_dependency "rack"
   s.add_development_dependency "connection_pool"
-  s.add_development_dependency "openssl-extensions"
 end
