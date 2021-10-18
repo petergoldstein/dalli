@@ -13,10 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Install Memcached
-      working-directory: scripts
-      run: |
-        chmod +x ./install_memcached.sh
-        ./install_memcached.sh
+      uses: niden/actions-memcached@v7
     - name: Set up Ruby ${{ matrix.ruby-version }}
       uses: ruby/setup-ruby@v1
       with:
