@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         ruby-version: [2.5, 2.6, 2.7, '3.0', jruby-9.2, jruby-9.3]
-        memcached-version: ['1.5.22', '1.6.12', '1.4.39']
+        memcached-version: ['1.5.22', '1.6.12']
 
     steps:
     - uses: actions/checkout@v2
