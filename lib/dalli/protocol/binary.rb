@@ -26,10 +26,6 @@ module Dalli
         socket_failure_delay: 0.1,
         # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
         value_max_bytes: 1024 * 1024,
-        compress: true,
-        compressor: Compressor,
-        # min byte size to attempt compression
-        compression_min_size: 4 * 1024,
         serializer: Marshal,
         username: nil,
         password: nil,
@@ -46,6 +42,7 @@ module Dalli
         @down_at = nil
         @last_down_at = nil
         @options = DEFAULTS.merge(options)
+        @value_compressor = ValueCompressor.new(@options)
         @sock = nil
         @msg = nil
         @error = nil
@@ -115,18 +112,6 @@ module Dalli
 
       def serializer
         @options[:serializer]
-      end
-
-      def compress_by_default?
-        @options[:compress]
-      end
-
-      def compressor
-        @options[:compressor]
-      end
-
-      def compression_min_size
-        @options[:compression_min_size]
       end
 
       # Start reading key/value pairs from this connection. This is usually called
@@ -416,11 +401,9 @@ module Dalli
         generic_response(true, !!(options && options.is_a?(Hash) && options[:cache_nils]))
       end
 
-      # http://www.hjp.at/zettel/m/memcached_flags.rxml
+      # https://www.hjp.at/zettel/m/memcached_flags.rxml
       # Looks like most clients use bit 0 to indicate native language serialization
-      # and bit 1 to indicate gzip compression.
       FLAG_SERIALIZED = 0x1
-      FLAG_COMPRESSED = 0x2
 
       def serialize(key, value, options = nil)
         marshalled = false
@@ -441,17 +424,15 @@ module Dalli
           end
         end
 
-        compressed = compress_value?(value, options)
-        value = compressor.compress(value) if compressed
+        bitflags = 0
+        value, bitflags = @value_compressor.store(value, options, bitflags)
 
-        flags = 0
-        flags |= FLAG_COMPRESSED if compressed
-        flags |= FLAG_SERIALIZED if marshalled
-        [value, flags]
+        bitflags |= FLAG_SERIALIZED if marshalled
+        [value, bitflags]
       end
 
       def deserialize(value, flags)
-        value = compressor.decompress(value) if (flags & FLAG_COMPRESSED) != 0
+        value = @value_compressor.retrieve(value, flags)
         value = serializer.load(value) if (flags & FLAG_SERIALIZED) != 0
         value
       rescue TypeError
@@ -463,8 +444,6 @@ module Dalli
       rescue NameError
         raise unless /uninitialized constant/.match?($!.message)
         raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
-      rescue Zlib::Error
-        raise UnmarshalError, "Unable to uncompress value: #{$!.message}"
       end
 
       def data_cas_response
@@ -491,18 +470,6 @@ module Dalli
 
         message = "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
         raise Dalli::ValueOverMaxSize, message
-      end
-
-      # Checks whether we should apply compression when serializing a value
-      # based on the specified options.  Returns false unless the value
-      # is greater than the minimum compression size.  Otherwise returns
-      # based on a method-level option if specified, falling back to the
-      # server default.
-      def compress_value?(value, options)
-        return false unless value.bytesize >= compression_min_size
-        return compress_by_default? unless options && !options[:compress].nil?
-
-        options[:compress]
       end
 
       # https://github.com/memcached/memcached/blob/master/doc/protocol.txt#L79
