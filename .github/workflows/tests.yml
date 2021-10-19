@@ -15,7 +15,7 @@ jobs:
     - name: Install Memcached
       working-directory: scripts
       env:
-        MEMCACHED_VERSION: '1.5.2'
+        MEMCACHED_VERSION: '1.5.22'
       run: |
         chmod +x ./install_memcached.sh
         ./install_memcached.sh

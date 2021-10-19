@@ -2,6 +2,8 @@
 
 version=$MEMCACHED_VERSION
 
+echo Installing Memcached version ${version}
+
 sudo apt-get -y remove memcached
 sudo apt-get install libevent-dev
 sudo apt-get install libsasl2-dev
