@@ -9,13 +9,14 @@ jobs:
     strategy:
       matrix:
         ruby-version: [2.5, 2.6, 2.7, '3.0', jruby-9.2, jruby-9.3]
+        memcached-version: ['1.5.22']
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install Memcached
+    - name: Install Memcached ${{ matrix.memcached-version }}
       working-directory: scripts
       env:
-        MEMCACHED_VERSION: '1.5.22'
+        MEMCACHED_VERSION: ${{ matrix.memcached-version }}
       run: |
         chmod +x ./install_memcached.sh
         ./install_memcached.sh
