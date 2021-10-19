@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="1.5.22"
+version=$MEMCACHED_VERSION
 
 sudo apt-get -y remove memcached
 sudo apt-get install libevent-dev
