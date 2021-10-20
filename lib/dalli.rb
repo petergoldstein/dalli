@@ -5,6 +5,7 @@ require "dalli/client"
 require "dalli/ring"
 require "dalli/protocol"
 require "dalli/protocol/binary"
+require 'dalli/protocol/value_compressor'
 require "dalli/socket"
 require "dalli/version"
 require "dalli/options"
