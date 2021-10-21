@@ -1,6 +1,16 @@
 Dalli Changelog
 =====================
 
+3.0.3
+==========
+
+- Restore ability for `compress` to be disabled on a per request basis (petergoldstein)
+- Fix broken image in README (deining)
+- Use bundler-cache in CI (olleolleolle)
+- Remove the OpenSSL extensions dependency (petergoldstein)
+- Add Memcached 1.5.x to the CI matrix
+- Updated compression documentation (petergoldstein)
+
 3.0.2
 ==========
 
