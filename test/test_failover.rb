@@ -41,6 +41,26 @@ describe "failover" do
       end
     end
 
+    it "reconnects if server idles the connection" do
+      port_1 = 32112
+      port_2 = 37887
+
+      memcached(port_1, "-o idle_timeout=1") do |_, first_port|
+        memcached(port_2, "-o idle_timeout=1") do |_, second_port|
+          dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
+          dc.set "foo", "bar"
+          foo = dc.get "foo"
+          assert_equal foo, "bar"
+
+          # wait for socket to expire and get cleaned up
+          sleep 1.2
+
+          foo = dc.get "foo"
+          assert_equal foo, "bar"
+        end
+      end
+    end
+
     it "handle graceful failover" do
       port_1 = 31777
       port_2 = 32113
