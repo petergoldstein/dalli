@@ -6,7 +6,7 @@ require "bundler/setup"
 # SimpleCov.start
 require "minitest/pride"
 require "minitest/autorun"
-require_relative "memcached_mock"
+require_relative "helpers/memcached"
 
 ENV["MEMCACHED_SASL_PWDB"] = "#{File.dirname(__FILE__)}/sasl/sasldb"
 ENV["SASL_CONF_PATH"] = "#{File.dirname(__FILE__)}/sasl/memcached.conf"
@@ -19,7 +19,7 @@ Dalli.logger = Logger.new($stdout)
 Dalli.logger.level = Logger::ERROR
 
 class MiniTest::Spec
-  include MemcachedMock::Helper
+  include Memcached::Helper
 
   def assert_error(error, regexp = nil, &block)
     ex = assert_raises(error, &block)

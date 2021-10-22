@@ -20,6 +20,7 @@ build/
 /doc/
 /html/
 /rdoc/
+profile.html
 
 ## Environment normalisation:
 /.bundle/
