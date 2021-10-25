@@ -13,8 +13,6 @@ module Dalli
       attr_reader :sock
       attr_reader :socket_type # possible values: :unix, :tcp
 
-      DEFAULT_PORT = 11211
-      DEFAULT_WEIGHT = 1
       DEFAULTS = {
         # seconds between trying to contact a remote server
         down_retry_delay: 30,
@@ -37,7 +35,7 @@ module Dalli
       }
 
       def initialize(attribs, options = {})
-        @hostname, @port, @weight, @socket_type = parse_hostname(attribs)
+        @hostname, @port, @weight, @socket_type = ServerConfigParser.parse(attribs)
         @fail_count = 0
         @down_at = nil
         @last_down_at = nil
@@ -711,26 +709,6 @@ module Dalli
         raise NotImplementedError, "No two-step authentication mechanisms supported"
         # (step, msg) = sasl.receive('challenge', content)
         # raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
-      end
-
-      def parse_hostname(str)
-        res = str.match(/\A(\[([\h:]+)\]|[^:]+)(?::(\d+))?(?::(\d+))?\z/)
-        raise Dalli::DalliError, "Could not parse hostname #{str}" if res.nil? || res[1] == "[]"
-        hostnam = res[2] || res[1]
-        if hostnam.start_with?("/")
-          socket_type = :unix
-          # in case of unix socket, allow only setting of weight, not port
-          raise Dalli::DalliError, "Could not parse hostname #{str}" if res[4]
-          weigh = res[3]
-        else
-          socket_type = :tcp
-          por = res[3] || DEFAULT_PORT
-          por = Integer(por)
-          weigh = res[4]
-        end
-        weigh ||= DEFAULT_WEIGHT
-        weigh = Integer(weigh)
-        [hostnam, por, weigh, socket_type]
       end
     end
   end
