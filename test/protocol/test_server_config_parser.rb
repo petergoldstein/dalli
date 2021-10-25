@@ -41,6 +41,23 @@ describe Dalli::Protocol::ServerConfigParser do
                        [hostname, port, weight, :tcp]
         end
       end
+
+      describe 'when the hostname is an IPv6 address' do
+        let(:hostname) { ['2001:db8:ffff:ffff:ffff:ffff:ffff:ffff', '2001:db8::'].sample }
+
+        it 'parses a hostname by itself' do
+          assert_equal Dalli::Protocol::ServerConfigParser.parse("[#{hostname}]"), [hostname, 11_211, 1, :tcp]
+        end
+
+        it 'parses hostname with a port' do
+          assert_equal Dalli::Protocol::ServerConfigParser.parse("[#{hostname}]:#{port}"), [hostname, port, 1, :tcp]
+        end
+
+        it 'parses hostname with a port and weight' do
+          assert_equal Dalli::Protocol::ServerConfigParser.parse("[#{hostname}]:#{port}:#{weight}"),
+                       [hostname, port, weight, :tcp]
+        end
+      end
     end
 
     describe 'unix' do
