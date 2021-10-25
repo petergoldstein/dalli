@@ -276,7 +276,7 @@ module Dalli
 
       def set(key, value, ttl, cas, options)
         (value, flags) = serialize(key, value, options)
-        ttl = sanitize_ttl(ttl)
+        ttl = TtlSanitizer.sanitize(ttl)
 
         guard_max_value(key, value)
 
@@ -287,7 +287,7 @@ module Dalli
 
       def add(key, value, ttl, options)
         (value, flags) = serialize(key, value, options)
-        ttl = sanitize_ttl(ttl)
+        ttl = TtlSanitizer.sanitize(ttl)
 
         guard_max_value(key, value)
 
@@ -298,7 +298,7 @@ module Dalli
 
       def replace(key, value, ttl, cas, options)
         (value, flags) = serialize(key, value, options)
-        ttl = sanitize_ttl(ttl)
+        ttl = TtlSanitizer.sanitize(ttl)
 
         guard_max_value(key, value)
 
@@ -320,7 +320,7 @@ module Dalli
       end
 
       def decr_incr(opcode, key, count, ttl, default)
-        expiry = default ? sanitize_ttl(ttl) : 0xFFFFFFFF
+        expiry = default ? TtlSanitizer.sanitize(ttl) : 0xFFFFFFFF
         default ||= 0
         (h, l) = split(count)
         (dh, dl) = split(default)
@@ -388,12 +388,12 @@ module Dalli
       end
 
       def touch(key, ttl)
-        ttl = sanitize_ttl(ttl)
+        ttl = TtlSanitizer.sanitize(ttl)
         write_generic [REQUEST, OPCODES[:touch], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:touch])
       end
 
       def gat(key, ttl, options = nil)
-        ttl = sanitize_ttl(ttl)
+        ttl = TtlSanitizer.sanitize(ttl)
         req = [REQUEST, OPCODES[:gat], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:gat])
         write(req)
         generic_response(true, !!(options && options.is_a?(Hash) && options[:cache_nils]))
@@ -468,18 +468,6 @@ module Dalli
 
         message = "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
         raise Dalli::ValueOverMaxSize, message
-      end
-
-      # https://github.com/memcached/memcached/blob/master/doc/protocol.txt#L79
-      # > An expiration time, in seconds. Can be up to 30 days. After 30 days, is treated as a unix timestamp of an exact date.
-      MAX_ACCEPTABLE_EXPIRATION_INTERVAL = 30 * 24 * 60 * 60 # 30 days
-      def sanitize_ttl(ttl)
-        ttl_as_i = ttl.to_i
-        return ttl_as_i if ttl_as_i <= MAX_ACCEPTABLE_EXPIRATION_INTERVAL
-        now = Time.now.to_i
-        return ttl_as_i if ttl_as_i > now # already a timestamp
-        Dalli.logger.debug "Expiration interval (#{ttl_as_i}) too long for Memcached, converting to an expiration timestamp"
-        now + ttl_as_i
       end
 
       # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.

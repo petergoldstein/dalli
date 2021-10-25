@@ -98,24 +98,6 @@ describe Dalli::Protocol::Binary do
     end
   end
 
-  describe "ttl translation" do
-    it "does not translate ttls under 30 days" do
-      s = Dalli::Protocol::Binary.new("localhost")
-      assert_equal s.send(:sanitize_ttl, 30 * 24 * 60 * 60), 30 * 24 * 60 * 60
-    end
-
-    it "translates ttls over 30 days into timestamps" do
-      s = Dalli::Protocol::Binary.new("localhost")
-      assert_equal s.send(:sanitize_ttl, 30 * 24 * 60 * 60 + 1), Time.now.to_i + 30 * 24 * 60 * 60 + 1
-    end
-
-    it "does not translate ttls which are already timestamps" do
-      s = Dalli::Protocol::Binary.new("localhost")
-      timestamp_ttl = Time.now.to_i + 60
-      assert_equal s.send(:sanitize_ttl, timestamp_ttl), timestamp_ttl
-    end
-  end
-
   describe "guard_max_value" do
     it "throws when size is over max" do
       s = Dalli::Protocol::Binary.new("127.0.0.1")
