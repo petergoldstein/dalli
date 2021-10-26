@@ -49,14 +49,15 @@ describe "failover" do
         memcached(port_2, "-o idle_timeout=1") do |_, second_port|
           dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
           dc.set "foo", "bar"
-          foo = dc.get "foo"
-          assert_equal foo, "bar"
+          dc.set "foo2", "bar2"
+          foo = dc.get_multi "foo", "foo2"
+          assert_equal foo, { "foo"=>"bar", "foo2"=>"bar2" }
 
           # wait for socket to expire and get cleaned up
-          sleep 1.2
+          sleep 5
 
-          foo = dc.get "foo"
-          assert_equal foo, "bar"
+          foo = dc.get_multi "foo", "foo2"
+          assert_equal foo, { "foo"=>"bar", "foo2"=>"bar2" }
         end
       end
     end
