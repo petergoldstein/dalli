@@ -374,17 +374,24 @@ module Dalli
     end
 
     def perform_multi_response_start(servers)
+      deleted = []
+  
       servers.each do |server|
         next unless server.alive?
+  
         begin
           server.multi_response_start
-        rescue DalliError, NetworkError => e
+        rescue Dalli::NetworkError
+          servers.each { |s| s.multi_response_abort unless s.sock.nil?  }
+          raise
+        rescue Dalli::DalliError => e
           Dalli.logger.debug { e.inspect }
           Dalli.logger.debug { "results from this server will be missing" }
-          servers.delete(server)
+          deleted.append(server)
         end
       end
-      servers
+  
+      servers.delete_if { |server| deleted.include?(server) }
     end
 
     ##
@@ -428,12 +435,13 @@ module Dalli
 
     # Chokepoint method for instrumentation
     def perform(*all_args)
-      return yield if block_given?
-      op, key, *args = all_args
-
-      key = key.to_s
-      key = validate_key(key)
       begin
+        return yield if block_given?
+        op, key, *args = all_args
+
+        key = key.to_s
+        key = validate_key(key)
+      
         server = ring.server_for_key(key)
         server.request(op, key, *args)
       rescue NetworkError => e
@@ -534,7 +542,8 @@ module Dalli
                     servers.delete(server)
                   end
                 rescue NetworkError
-                  servers.delete(server)
+                  servers.each { |s| s.multi_response_abort unless s.sock.nil? }
+                  raise
                 end
               end
             end
