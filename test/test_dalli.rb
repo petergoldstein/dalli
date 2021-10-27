@@ -88,7 +88,7 @@ describe "Dalli" do
       memcached_persistent do |_, port|
         dc = Dalli::Client.new("localhost:#{port}", namespace: :wunderschoen)
         dc.set "x" * 251, 1
-        assert 1, dc.get("#{"x" * 200}:md5:#{Digest::MD5.hexdigest("x" * 251)}")
+        assert_equal(1, dc.get(("x" * 251).to_s))
       end
     end
   end
