@@ -100,7 +100,7 @@ describe Rack::Session::Dalli do
 
     with_connectionpool do
       rsd = Rack::Session::Dalli.new(incrementor, opts)
-      assert 10, rsd.pool.available
+      assert_equal 10, rsd.pool.available
       rsd.pool.with do |mc|
         assert_equal(opts[:namespace], mc.instance_eval { @options[:namespace] })
       end
