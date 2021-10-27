@@ -1,6 +1,12 @@
 Dalli Changelog
 =====================
 
+3.0.4
+==========
+
+- Clean connections and retry after NetworkError in get_multi (andrejbl)
+- Internal refactoring and cleanup (petergoldstein)
+
 3.0.3
 ==========
 
