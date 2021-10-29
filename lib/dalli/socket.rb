@@ -4,56 +4,85 @@ require 'openssl'
 require 'rbconfig'
 
 module Dalli
+  ##
+  # Various socket implementations used by Dalli.
+  ##
   module Socket
+    ##
+    # Common methods for all socket implementations.
+    ##
     module InstanceMethods
-
       def readfull(count)
-        value = +""
+        value = +''
         loop do
           result = read_nonblock(count - value.bytesize, exception: false)
-          if result == :wait_readable
-            raise Timeout::Error, "IO timeout: #{safe_options.inspect}" unless IO.select([self], nil, nil, options[:socket_timeout])
-          elsif result == :wait_writable
-            raise Timeout::Error, "IO timeout: #{safe_options.inspect}" unless IO.select(nil, [self], nil, options[:socket_timeout])
-          elsif result
-            value << result
-          else
-            raise Errno::ECONNRESET, "Connection reset: #{safe_options.inspect}"
-          end
+          value << result if append_to_buffer?(result)
           break if value.bytesize == count
         end
         value
       end
 
       def read_available
-        value = +""
+        value = +''
         loop do
           result = read_nonblock(8196, exception: false)
-          if result == :wait_readable
-            break
-          elsif result == :wait_writable
-            break
-          elsif result
-            value << result
-          else
-            raise Errno::ECONNRESET, "Connection reset: #{safe_options.inspect}"
-          end
+          break if WAIT_RCS.include?(result)
+          raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}" unless result
+
+          value << result
         end
         value
       end
 
-      def safe_options
-        options.reject { |k, v| [:username, :password].include? k }
+      WAIT_RCS = %i[wait_writable wait_readable].freeze
+
+      def append_to_buffer?(result)
+        raise Timeout::Error, "IO timeout: #{logged_options.inspect}" if nonblock_timed_out?(result)
+        raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}" unless result
+
+        !WAIT_RCS.include?(result)
+      end
+
+      def nonblock_timed_out?(result)
+        return true if result == :wait_readable && !wait_readable(options[:socket_timeout])
+
+        # TODO: Do we actually need this?  Looks to be only used in read_nonblock
+        result == :wait_writable && !wait_writable(options[:socket_timeout])
+      end
+
+      FILTERED_OUT_OPTIONS = %i[username password].freeze
+      def logged_options
+        options.reject { |k, _| FILTERED_OUT_OPTIONS.include? k }
       end
     end
 
+    ##
+    # Wraps the below TCP socket class in the case where the client
+    # has configured a TLS/SSL connection between Dalli and the
+    # Memcached server.
+    ##
     class SSLSocket < ::OpenSSL::SSL::SSLSocket
       include Dalli::Socket::InstanceMethods
       def options
         io.options
       end
+
+      unless method_defined?(:wait_readable)
+        def wait_readable(timeout = nil)
+          to_io.wait_readable(timeout)
+        end
+      end
+
+      unless method_defined?(:wait_writable)
+        def wait_writable(timeout = nil)
+          to_io.wait_writable(timeout)
+        end
+      end
     end
 
+    ##
+    # A standard TCP socket between the Dalli client and the Memcached server.
+    ##
     class TCP < TCPSocket
       include Dalli::Socket::InstanceMethods
       attr_accessor :options, :server
@@ -61,42 +90,57 @@ module Dalli
       def self.open(host, port, server, options = {})
         Timeout.timeout(options[:socket_timeout]) do
           sock = new(host, port)
-          sock.options = {host: host, port: port}.merge(options)
+          sock.options = { host: host, port: port }.merge(options)
           sock.server = server
-          sock.setsockopt(::Socket::IPPROTO_TCP, ::Socket::TCP_NODELAY, true)
-          sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_KEEPALIVE, true) if options[:keepalive]
-          sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVBUF, options[:rcvbuf]) if options[:rcvbuf]
-          sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDBUF, options[:sndbuf]) if options[:sndbuf]
+          init_socket_options(sock, options)
 
-          return sock unless options[:ssl_context]
-
-          ssl_socket = Dalli::Socket::SSLSocket.new(sock, options[:ssl_context])
-          ssl_socket.hostname = host
-          ssl_socket.sync_close = true
-          ssl_socket.connect
-          ssl_socket
+          options[:ssl_context] ? wrapping_ssl_socket(sock, host, options[:ssl_context]) : sock
         end
       end
-    end
-  end
 
-  if RbConfig::CONFIG['host_os'] =~ /mingw|mswin/
-    class Dalli::Socket::UNIX
-      def initialize(*args)
-        raise Dalli::DalliError, 'Unix sockets are not supported on Windows platform.'
+      def self.init_socket_options(sock, options)
+        sock.setsockopt(::Socket::IPPROTO_TCP, ::Socket::TCP_NODELAY, true)
+        sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_KEEPALIVE, true) if options[:keepalive]
+        sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVBUF, options[:rcvbuf]) if options[:rcvbuf]
+        sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDBUF, options[:sndbuf]) if options[:sndbuf]
+      end
+
+      def self.wrapping_ssl_socket(tcp_socket, host, ssl_context)
+        ssl_socket = Dalli::Socket::SSLSocket.new(tcp_socket, ssl_context)
+        ssl_socket.hostname = host
+        ssl_socket.sync_close = true
+        ssl_socket.connect
+        ssl_socket
       end
     end
-  else
-    class Dalli::Socket::UNIX < UNIXSocket
-      include Dalli::Socket::InstanceMethods
-      attr_accessor :options, :server
 
-      def self.open(path, server, options = {})
-        Timeout.timeout(options[:socket_timeout]) do
-          sock = new(path)
-          sock.options = {path: path}.merge(options)
-          sock.server = server
-          sock
+    if /mingw|mswin/.match?(RbConfig::CONFIG['host_os'])
+      ##
+      # UNIX domain sockets are not supported on Windows platforms.
+      ##
+      class UNIX
+        def initialize(*_args)
+          raise Dalli::DalliError, 'Unix sockets are not supported on Windows platform.'
+        end
+      end
+    else
+
+      ##
+      # UNIX represents a UNIX domain socket, which is an interprocess communication
+      # mechanism between processes on the same host.  Used when the Memcached server
+      # is running on the same machine as the Dalli client.
+      ##
+      class UNIX < UNIXSocket
+        include Dalli::Socket::InstanceMethods
+        attr_accessor :options, :server
+
+        def self.open(path, server, options = {})
+          Timeout.timeout(options[:socket_timeout]) do
+            sock = new(path)
+            sock.options = { path: path }.merge(options)
+            sock.server = server
+            sock
+          end
         end
       end
     end
