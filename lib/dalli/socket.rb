@@ -26,7 +26,7 @@ module Dalli
         value = +''
         loop do
           result = read_nonblock(8196, exception: false)
-          break if (result == :wait_readable) || (result == :wait_writable)
+          break if WAIT_RCS.include?(result)
           raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}" unless result
 
           value << result
@@ -34,11 +34,13 @@ module Dalli
         value
       end
 
+      WAIT_RCS = %i[wait_writable wait_readable].freeze
+
       def append_to_buffer?(result)
         raise Timeout::Error, "IO timeout: #{logged_options.inspect}" if nonblock_timed_out?(result)
         raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}" unless result
 
-        !%i[wait_writable wait_readable].include?(result)
+        !WAIT_RCS.include?(result)
       end
 
       def nonblock_timed_out?(result)
