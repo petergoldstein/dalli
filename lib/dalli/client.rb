@@ -452,23 +452,6 @@ module Dalli
       end
     end
 
-    def validate_key(key)
-      @key_manager.validate_key(key)
-    end
-
-    def key_with_namespace(key)
-      @key_manager.key_with_namespace(key)
-    end
-
-    def key_without_namespace(key)
-      @key_manager.key_without_namespace(key)
-    end
-
-    def namespace
-      return nil unless @options[:namespace]
-      @options[:namespace].is_a?(Proc) ? @options[:namespace].call.to_s : @options[:namespace].to_s
-    end
-
     def normalize_options(opts)
       begin
         opts[:expires_in] = opts[:expires_in].to_i if opts[:expires_in]
@@ -522,7 +505,7 @@ module Dalli
 
                 begin
                   server.multi_response_nonblock.each_pair do |key, value_list|
-                    yield key_without_namespace(key), value_list
+                    yield @key_manager.key_without_namespace(key), value_list
                   end
 
                   if server.multi_response_completed?
