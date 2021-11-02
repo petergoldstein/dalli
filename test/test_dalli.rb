@@ -6,12 +6,6 @@ require "securerandom"
 
 describe "Dalli" do
   describe "options parsing" do
-    it "handle deprecated options" do
-      dc = Dalli::Client.new("foo", compression: true)
-      assert dc.instance_variable_get(:@options)[:compress]
-      refute dc.instance_variable_get(:@options)[:compression]
-    end
-
     it "not warn about valid options" do
       dc = Dalli::Client.new("foo", compress: true)
       # Rails.logger.expects :warn
@@ -67,7 +61,7 @@ describe "Dalli" do
   end
 
   describe "key validation" do
-    it "not allow blanks" do
+    it "not allow blanks, but allows whitespace characters" do
       memcached_persistent do |dc|
         dc.set "   ", 1
         assert_equal 1, dc.get("   ")

@@ -37,6 +37,7 @@ module Dalli
       validate_servers_arg(servers)
       @servers = normalize_servers(servers || ENV["MEMCACHE_SERVERS"] || "127.0.0.1:11211")
       @options = normalize_options(options)
+      @key_manager = ::Dalli::KeyManager.new(options)
       @ring = nil
     end
 
@@ -348,7 +349,7 @@ module Dalli
 
     def groups_for_keys(*keys)
       keys.flatten!
-      keys.map! { |a| validate_key(a.to_s) }
+      keys.map! { |a| @key_manager.validate_key(a.to_s) }
 
       keys.group_by { |key|
         begin
@@ -440,7 +441,7 @@ module Dalli
         op, key, *args = all_args
 
         key = key.to_s
-        key = validate_key(key)
+        key = @key_manager.validate_key(key)
       
         server = ring.server_for_key(key)
         server.request(op, key, *args)
@@ -452,22 +453,15 @@ module Dalli
     end
 
     def validate_key(key)
-      raise ArgumentError, "key cannot be blank" if !key || key.length == 0
-      key = key_with_namespace(key)
-      if key.length > 250
-        digest_class = @options[:digest_class] || ::Digest::MD5
-        max_length_before_namespace = 212 - (namespace || "").size
-        key = "#{key[0, max_length_before_namespace]}:md5:#{digest_class.hexdigest(key)}"
-      end
-      key
+      @key_manager.validate_key(key)
     end
 
     def key_with_namespace(key)
-      (ns = namespace) ? "#{ns}:#{key}" : key
+      @key_manager.key_with_namespace(key)
     end
 
     def key_without_namespace(key)
-      (ns = namespace) ? key.sub(%r{\A#{Regexp.escape ns}:}, "") : key
+      @key_manager.key_without_namespace(key)
     end
 
     def namespace
@@ -476,17 +470,10 @@ module Dalli
     end
 
     def normalize_options(opts)
-      if opts[:compression]
-        Dalli.logger.warn "DEPRECATED: Dalli's :compression option is now just :compress => true.  Please update your configuration."
-        opts[:compress] = opts.delete(:compression)
-      end
       begin
         opts[:expires_in] = opts[:expires_in].to_i if opts[:expires_in]
       rescue NoMethodError
         raise ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
-      end
-      if opts[:digest_class] && !opts[:digest_class].respond_to?(:hexdigest)
-        raise ArgumentError, "The digest_class object must respond to the hexdigest method"
       end
       opts
     end
