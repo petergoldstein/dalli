@@ -21,16 +21,6 @@ describe "Dalli" do
       end
     end
 
-    it "return string type for namespace attribute" do
-      dc = Dalli::Client.new("foo", namespace: :wunderschoen)
-      assert_equal "wunderschoen", dc.send(:namespace)
-      dc.close
-
-      dc = Dalli::Client.new("foo", namespace: proc { :wunderschoen })
-      assert_equal "wunderschoen", dc.send(:namespace)
-      dc.close
-    end
-
     it "raises error with invalid digest_class" do
       assert_raises ArgumentError do
         Dalli::Client.new("foo", {expires_in: 10, digest_class: Object})
@@ -673,7 +663,8 @@ describe "Dalli" do
     it "handle nil namespace" do
       memcached_persistent do |_, port|
         dc = Dalli::Client.new("localhost:#{port}", namespace: nil)
-        assert_equal "key", dc.send(:validate_key, "key")
+        dc.set('key', 1)
+        assert_equal 1, dc.get('key')
       end
     end
 
