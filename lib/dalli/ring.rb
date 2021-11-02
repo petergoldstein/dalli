@@ -39,6 +39,8 @@ module Dalli
                  @servers.first
                end
 
+      # Note that the call to alive? has the side effect of initializing
+      # the socket
       return server if server&.alive?
 
       raise Dalli::RingError, 'No server available'
@@ -48,12 +50,24 @@ module Dalli
       hkey = hash_for(key)
       20.times do |try|
         server = server_for_hash_key(hkey)
+
+        # Note that the call to alive? has the side effect of initializing
+        # the socket
         return server if server.alive?
         break unless @failover
 
         hkey = hash_for("#{try}#{key}")
       end
       nil
+    end
+
+    def keys_grouped_by_server(key_arr)
+      key_arr.group_by do |key|
+        server_for_key(key)
+      rescue Dalli::RingError
+        Dalli.logger.debug { "unable to get key #{key}" }
+        nil
+      end
     end
 
     def lock
@@ -72,6 +86,10 @@ module Dalli
         # Ignore this error, as it indicates the socket is unavailable
         # and there's no need to flush
       end
+    end
+
+    def socket_timeout
+      @servers.first.socket_timeout
     end
 
     private

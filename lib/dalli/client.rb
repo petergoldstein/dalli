@@ -370,52 +370,6 @@ module Dalli
       raise ArgumentError, "Cannot convert ttl (#{ttl}) to an integer"
     end
 
-    def groups_for_keys(*keys)
-      keys.flatten!
-      keys.map! { |a| @key_manager.validate_key(a.to_s) }
-
-      keys.group_by do |key|
-        ring.server_for_key(key)
-      rescue Dalli::RingError
-        Dalli.logger.debug { "unable to get key #{key}" }
-        nil
-      end
-    end
-
-    def make_multi_get_requests(groups)
-      groups.each do |server, keys_for_server|
-        # TODO: do this with the perform chokepoint?
-        # But given the fact that fetching the response doesn't take place
-        # in that slot it's misleading anyway. Need to move all of this method
-        # into perform to be meaningful
-        server.request(:send_multiget, keys_for_server)
-      rescue DalliError, NetworkError => e
-        Dalli.logger.debug { e.inspect }
-        Dalli.logger.debug { "unable to get keys for server #{server.name}" }
-      end
-    end
-
-    def perform_multi_response_start(servers)
-      deleted = []
-
-      servers.each do |server|
-        next unless server.alive?
-
-        begin
-          server.multi_response_start
-        rescue Dalli::NetworkError
-          servers.each { |s| s.multi_response_abort unless s.sock.nil? }
-          raise
-        rescue Dalli::DalliError => e
-          Dalli.logger.debug { e.inspect }
-          Dalli.logger.debug { 'results from this server will be missing' }
-          deleted.append(server)
-        end
-      end
-
-      servers.delete_if { |server| deleted.include?(server) }
-    end
-
     def ring
       # TODO: This server initialization should probably be pushed down
       # to the Ring
@@ -456,71 +410,137 @@ module Dalli
       opts
     end
 
+    # TODO: Look at extracting below into separate MultiYielder class
+
     ##
     # Yields, one at a time, keys and their values+attributes.
-    # rubocop:disable Metrics/CyclomaticComplexity
-    # rubocop:disable Metrics/PerceivedComplexity
-    def get_multi_yielder(keys)
-      perform do
-        return {} if keys.empty?
+    #
+    def get_multi_yielder(keys, &block)
+      return {} if keys.empty?
 
-        ring.lock do
-          groups = groups_for_keys(keys)
-          if (unfound_keys = groups.delete(nil))
-            Dalli.logger.debug do
-              "unable to get keys for #{unfound_keys.length} keys because no matching server was found"
-            end
-          end
-          make_multi_get_requests(groups)
-
-          servers = groups.keys
-          return if servers.empty?
-
-          servers = perform_multi_response_start(servers)
-
-          start = Time.now
-          loop do
-            # remove any dead servers
-            servers.delete_if { |s| s.sock.nil? }
-            break if servers.empty?
-
-            # calculate remaining timeout
-            elapsed = Time.now - start
-            timeout = servers.first.options[:socket_timeout]
-            time_left = elapsed > timeout ? 0 : timeout - elapsed
-
-            sockets = servers.map(&:sock)
-            readable, = IO.select(sockets, nil, nil, time_left)
-
-            if readable.nil?
-              # no response within timeout; abort pending connections
-              servers.each do |server|
-                Dalli.logger.debug { "memcached at #{server.name} did not response within timeout" }
-                server.multi_response_abort
-              end
-              break
-
-            else
-              readable.each do |sock|
-                server = sock.server
-
-                begin
-                  server.multi_response_nonblock.each_pair do |key, value_list|
-                    yield @key_manager.key_without_namespace(key), value_list
-                  end
-
-                  servers.delete(server) if server.multi_response_completed?
-                rescue NetworkError
-                  servers.each { |s| s.multi_response_abort unless s.sock.nil? }
-                  raise
-                end
-              end
-            end
+      ring.lock do
+        groups = groups_for_keys(keys)
+        if (unfound_keys = groups.delete(nil))
+          Dalli.logger.debug do
+            "unable to get keys for #{unfound_keys.length} keys "\
+              'because no matching server was found'
           end
         end
+        make_multi_get_requests(groups)
+
+        servers = groups.keys
+        return if servers.empty?
+
+        # TODO: How does this exit on a NetworkError
+        servers = perform_multi_response_start(servers)
+
+        timeout = servers.first.options[:socket_timeout]
+        start_time = Time.now
+        loop do
+          # remove any dead servers
+          # TODO: Is this well behaved in a multi-threaded environment?
+          # Accessing the server socket like this seems problematic
+          servers.delete_if { |s| s.sock.nil? }
+          break if servers.empty?
+
+          servers = multi_yielder_loop(servers, start_time, timeout, &block)
+        end
+      end
+    rescue NetworkError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { 'retrying multi yielder because of timeout' }
+      retry
+    end
+
+    def make_multi_get_requests(groups)
+      groups.each do |server, keys_for_server|
+        server.request(:send_multiget, keys_for_server)
+      rescue DalliError, NetworkError => e
+        Dalli.logger.debug { e.inspect }
+        Dalli.logger.debug { "unable to get keys for server #{server.name}" }
       end
     end
-    # rubocop:enable Metrics/PerceivedComplexity
-    # rubocop:enable Metrics/CyclomaticComplexity
+
+    # raises Dalli::NetworkError
+    def perform_multi_response_start(servers)
+      deleted = []
+
+      servers.each do |server|
+        next unless server.alive?
+
+        begin
+          server.multi_response_start
+        rescue Dalli::NetworkError
+          abort_multi_response(servers)
+          raise
+        rescue Dalli::DalliError => e
+          Dalli.logger.debug { e.inspect }
+          Dalli.logger.debug { 'results from this server will be missing' }
+          deleted.append(server)
+        end
+      end
+
+      servers.delete_if { |server| deleted.include?(server) }
+    end
+
+    # Swallows Dalli::NetworkError
+    def abort_multi_response(servers)
+      servers.each(&:multi_response_abort)
+    end
+
+    def multi_yielder_loop(servers, start_time, timeout, &block)
+      time_left = remaining_time(start_time, timeout)
+      readable_servers = servers_with_data(servers, time_left)
+      if readable_servers.empty?
+        abort_multi_connections_w_timeout(servers)
+        return readable_servers
+      end
+
+      readable_servers.each do |server|
+        servers.delete(server) if respond_to_readable_server(server, &block)
+      end
+      servers
+    rescue NetworkError
+      abort_multi_response(servers)
+      raise
+    end
+
+    def remaining_time(start, timeout)
+      elapsed = Time.now - start
+      return 0 if elapsed > timeout
+
+      timeout - elapsed
+    end
+
+    # Swallows Dalli::NetworkError
+    def abort_multi_connections_w_timeout(servers)
+      abort_multi_response(servers)
+      servers.each do |server|
+        Dalli.logger.debug { "memcached at #{server.name} did not response within timeout" }
+      end
+
+      true # Required to simplify caller
+    end
+
+    def respond_to_readable_server(server)
+      server.multi_response_nonblock.each_pair do |key, value_list|
+        yield @key_manager.key_without_namespace(key), value_list
+      end
+
+      server.multi_response_completed?
+    end
+
+    def servers_with_data(servers, timeout)
+      readable, = IO.select(servers.map(&:sock), nil, nil, timeout)
+      return [] if readable.nil?
+
+      readable.map(&:server)
+    end
+
+    def groups_for_keys(*keys)
+      keys.flatten!
+      keys.map! { |a| @key_manager.validate_key(a.to_s) }
+      ring.keys_grouped_by_server(keys)
+    end
   end
 end
