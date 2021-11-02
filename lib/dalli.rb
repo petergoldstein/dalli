@@ -2,6 +2,7 @@
 
 require "dalli/compressor"
 require "dalli/client"
+require "dalli/key_manager"
 require "dalli/ring"
 require "dalli/protocol"
 require "dalli/protocol/binary"
