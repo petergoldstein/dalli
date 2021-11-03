@@ -8,19 +8,36 @@ module Dalli
     # socket_type.
     ##
     class ServerConfigParser
+      MEMCACHED_URI_PROTOCOL = 'memcached://'
+
       # TODO: Revisit this, especially the IP/domain part.  Likely
       # can limit character set to LDH + '.'.  Hex digit section
-      # appears to have been added to support IPv6, but as far as
-      # I can tell it doesn't work
+      # is there to support IPv6 addresses, which need to be specified with
+      # a bounding []
       SERVER_CONFIG_REGEXP = /\A(\[([\h:]+)\]|[^:]+)(?::(\d+))?(?::(\d+))?\z/.freeze
 
       DEFAULT_PORT = 11_211
       DEFAULT_WEIGHT = 1
 
-      def self.parse(str)
+      def self.parse(str, client_options)
+        return parse_non_uri(str, client_options) unless str.start_with?(MEMCACHED_URI_PROTOCOL)
+
+        parse_uri(str, client_options)
+      end
+
+      def self.parse_uri(str, client_options)
+        uri = URI.parse(str)
+        auth_details = {
+          username: uri.user,
+          password: uri.password
+        }
+        [uri.host, normalize_port(uri.port), DEFAULT_WEIGHT, :tcp, client_options.merge(auth_details)]
+      end
+
+      def self.parse_non_uri(str, client_options)
         res = deconstruct_string(str)
 
-        hostname = normalize_hostname(str, res)
+        hostname = normalize_host_from_match(str, res)
         if hostname.start_with?('/')
           socket_type = :unix
           port, weight = attributes_for_unix_socket(res)
@@ -28,7 +45,7 @@ module Dalli
           socket_type = :tcp
           port, weight = attributes_for_tcp_socket(res)
         end
-        [hostname, port, weight, socket_type]
+        [hostname, port, weight, socket_type, client_options]
       end
 
       def self.deconstruct_string(str)
@@ -49,7 +66,7 @@ module Dalli
         [normalize_port(res[3]), normalize_weight(res[4])]
       end
 
-      def self.normalize_hostname(str, res)
+      def self.normalize_host_from_match(str, res)
         raise Dalli::DalliError, "Could not parse hostname #{str}" if res.nil? || res[1] == '[]'
 
         res[2] || res[1]

@@ -35,7 +35,7 @@ module Dalli
       }
 
       def initialize(attribs, options = {})
-        @hostname, @port, @weight, @socket_type = ServerConfigParser.parse(attribs)
+        @hostname, @port, @weight, @socket_type, options = ServerConfigParser.parse(attribs, options)
         @fail_count = 0
         @down_at = nil
         @last_down_at = nil
