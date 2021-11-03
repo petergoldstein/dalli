@@ -420,18 +420,17 @@ module Dalli
     end
 
     def ring
+      # TODO: This server initialization should probably be pushed down
+      # to the Ring
       @ring ||= Dalli::Ring.new(
-        @servers.map { |s|
-          server_options = {}
-          if s.start_with?("memcached://")
-            uri = URI.parse(s)
-            server_options[:username] = uri.user
-            server_options[:password] = uri.password
-            s = "#{uri.host}:#{uri.port}"
-          end
-          @options.fetch(:protocol_implementation, Dalli::Protocol::Binary).new(s, @options.merge(server_options))
-        }, @options
+        @servers.map do |s|
+          protocol_implementation.new(s, @options)
+        end, @options
       )
+    end
+
+    def protocol_implementation
+      @protocol_implementation ||= @options.fetch(:protocol_implementation, Dalli::Protocol::Binary)
     end
 
     # Chokepoint method for instrumentation
