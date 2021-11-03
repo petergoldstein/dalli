@@ -34,8 +34,7 @@ module Dalli
     # - :protocol_implementation - defaults to Dalli::Protocol::Binary which uses the binary protocol. Allows you to pass an alternative implementation using another protocol.
     #
     def initialize(servers = nil, options = {})
-      validate_servers_arg(servers)
-      @servers = normalize_servers(servers || ENV["MEMCACHE_SERVERS"] || "127.0.0.1:11211")
+      @servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
       @options = normalize_options(options)
       @key_manager = ::Dalli::KeyManager.new(options)
       @ring = nil
@@ -393,30 +392,6 @@ module Dalli
       end
   
       servers.delete_if { |server| deleted.include?(server) }
-    end
-
-    ##
-    # Ensures that the servers arg is either an array or a string.
-    def validate_servers_arg(servers)
-      return if servers.nil?
-      return if servers.is_a?(Array)
-      return if servers.is_a?(String)
-
-      raise ArgumentError, "An explicit servers argument must be a comma separated string or an array containing strings."
-    end
-
-    ##
-    # Normalizes the argument into an array of servers.
-    # If the argument is a string, or an array containing strings, it's expected that the URIs are comma separated e.g.
-    # "memcache1.example.com:11211,memcache2.example.com:11211,memcache3.example.com:11211"
-    def normalize_servers(servers)
-      Array(servers).flat_map do |server|
-        if server.is_a? String
-          server.split(",")
-        else
-          server
-        end
-      end
     end
 
     def ring

@@ -9,6 +9,7 @@ require "dalli/protocol/binary"
 require "dalli/protocol/server_config_parser"
 require "dalli/protocol/ttl_sanitizer"
 require 'dalli/protocol/value_compressor'
+require 'dalli/servers_arg_normalizer'
 require "dalli/socket"
 require "dalli/version"
 require "dalli/options"
