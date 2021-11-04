@@ -1,17 +1,22 @@
 # frozen_string_literal: true
 
+require 'forwardable'
 require "socket"
 require "timeout"
 
 module Dalli
   module Protocol
     class Binary
+      extend Forwardable
+
       attr_accessor :hostname
       attr_accessor :port
       attr_accessor :weight
       attr_accessor :options
       attr_reader :sock
       attr_reader :socket_type # possible values: :unix, :tcp
+
+      def_delegators :@value_marshaller, :serializer, :compressor, :compression_min_size, :compress_by_default?
 
       DEFAULTS = {
         # seconds between trying to contact a remote server
@@ -24,7 +29,6 @@ module Dalli
         socket_failure_delay: 0.1,
         # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
         value_max_bytes: 1024 * 1024,
-        serializer: Marshal,
         username: nil,
         password: nil,
         keepalive: true,
@@ -36,14 +40,12 @@ module Dalli
 
       def initialize(attribs, options = {})
         @hostname, @port, @weight, @socket_type, options = ServerConfigParser.parse(attribs, options)
-        @fail_count = 0
-        @down_at = nil
-        @last_down_at = nil
         @options = DEFAULTS.merge(options)
-        @value_compressor = ValueCompressor.new(@options)
+        @value_marshaller = ValueMarshaller.new(@options)
+
+        reset_down_info
+
         @sock = nil
-        @msg = nil
-        @error = nil
         @pid = nil
         @inprogress = nil
       end
@@ -77,16 +79,21 @@ module Dalli
 
       def alive?
         return true if @sock
-
-        if @last_down_at && @last_down_at + options[:down_retry_delay] >= Time.now
-          time = @last_down_at + options[:down_retry_delay] - Time.now
-          Dalli.logger.debug { "down_retry_delay not reached for #{name} (%.3f seconds left)" % time }
-          return false
-        end
+        return false unless reconnect_down_server?
 
         connect
         !!@sock
       rescue Dalli::NetworkError
+        false
+      end
+
+      def reconnect_down_server?
+        return true unless @last_down_at
+
+        time_to_next_reconnect = @last_down_at + options[:down_retry_delay] - Time.now
+        return true unless time_to_next_reconnect.positive?
+
+        Dalli.logger.debug { "down_retry_delay not reached for #{name} (%.3f seconds left)" % time_to_next_reconnect }
         false
       end
 
@@ -106,10 +113,6 @@ module Dalli
       end
 
       def unlock!
-      end
-
-      def serializer
-        @options[:serializer]
       end
 
       # Start reading key/value pairs from this connection. This is usually called
@@ -163,7 +166,7 @@ module Dalli
             pos = pos + 24 + body_length
 
             begin
-              values[key] = [deserialize(value, flags), cas]
+              values[key] = [@value_marshaller.retrieve(value, flags), cas]
             rescue DalliError
             end
 
@@ -199,11 +202,17 @@ module Dalli
 
       def verify_state
         failure!(RuntimeError.new("Already writing to socket")) if @inprogress
-        if @pid && @pid != Process.pid
-          message = "Fork detected, re-connecting child process..."
-          Dalli.logger.info { message }
-          reconnect! message
-        end
+        reconnect_on_fork if fork_detected?
+      end
+
+      def fork_detected?
+        @pid && @pid != Process.pid
+      end
+
+      def reconnect_on_fork
+        message = "Fork detected, re-connecting child process..."
+        Dalli.logger.info { message }
+        reconnect! message
       end
 
       def reconnect!(message)
@@ -226,7 +235,14 @@ module Dalli
 
       def down!
         close
+        log_down_detected
 
+        @error = $!&.class&.name
+        @msg ||= $!&.message
+        raise Dalli::NetworkError, "#{name} is down: #{@error} #{@msg}"
+      end
+
+      def log_down_detected
         @last_down_at = Time.now
 
         if @down_at
@@ -236,18 +252,21 @@ module Dalli
           @down_at = @last_down_at
           Dalli.logger.warn { "#{name} is down" }
         end
+      end
 
-        @error = $!&.class&.name
-        @msg ||= $!&.message
-        raise Dalli::NetworkError, "#{name} is down: #{@error} #{@msg}"
+      def log_up_detected
+        return unless @down_at
+
+        time = Time.now - @down_at
+        Dalli.logger.warn { "#{name} is back (downtime was %.3f seconds)" % time }
       end
 
       def up!
-        if @down_at
-          time = Time.now - @down_at
-          Dalli.logger.warn { "#{name} is back (downtime was %.3f seconds)" % time }
-        end
+        log_up_detected
+        reset_down_info
+      end
 
+      def reset_down_info
         @fail_count = 0
         @down_at = nil
         @last_down_at = nil
@@ -275,10 +294,8 @@ module Dalli
       end
 
       def set(key, value, ttl, cas, options)
-        (value, flags) = serialize(key, value, options)
+        (value, flags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
-
-        guard_max_value(key, value)
 
         req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:set])
         write(req)
@@ -286,10 +303,8 @@ module Dalli
       end
 
       def add(key, value, ttl, options)
-        (value, flags) = serialize(key, value, options)
+        (value, flags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
-
-        guard_max_value(key, value)
 
         req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:add])
         write(req)
@@ -297,10 +312,8 @@ module Dalli
       end
 
       def replace(key, value, ttl, cas, options)
-        (value, flags) = serialize(key, value, options)
+        (value, flags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
-
-        guard_max_value(key, value)
 
         req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:replace])
         write(req)
@@ -399,51 +412,6 @@ module Dalli
         generic_response(true, !!(options && options.is_a?(Hash) && options[:cache_nils]))
       end
 
-      # https://www.hjp.at/zettel/m/memcached_flags.rxml
-      # Looks like most clients use bit 0 to indicate native language serialization
-      FLAG_SERIALIZED = 0x1
-
-      def serialize(key, value, options = nil)
-        marshalled = false
-        value = if options && options[:raw]
-          value.to_s
-        else
-          marshalled = true
-          begin
-            serializer.dump(value)
-          rescue Timeout::Error => e
-            raise e
-          rescue => ex
-            # Marshalling can throw several different types of generic Ruby exceptions.
-            # Convert to a specific exception so we can special case it higher up the stack.
-            exc = Dalli::MarshalError.new(ex.message)
-            exc.set_backtrace ex.backtrace
-            raise exc
-          end
-        end
-
-        bitflags = 0
-        value, bitflags = @value_compressor.store(value, options, bitflags)
-
-        bitflags |= FLAG_SERIALIZED if marshalled
-        [value, bitflags]
-      end
-
-      def deserialize(value, flags)
-        value = @value_compressor.retrieve(value, flags)
-        value = serializer.load(value) if (flags & FLAG_SERIALIZED) != 0
-        value
-      rescue TypeError
-        raise unless /needs to have method `_load'|exception class\/object expected|instance of IO needed|incompatible marshal file format/.match?($!.message)
-        raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
-      rescue ArgumentError
-        raise unless /undefined class|marshal data too short/.match?($!.message)
-        raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
-      rescue NameError
-        raise unless /uninitialized constant/.match?($!.message)
-        raise UnmarshalError, "Unable to unmarshal value: #{$!.message}"
-      end
-
       def data_cas_response
         (extras, _, status, count, _, cas) = read_header.unpack(CAS_HEADER)
         data = read(count) if count > 0
@@ -452,9 +420,9 @@ module Dalli
         elsif status != 0
           raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
         elsif data
-          flags = data[0...extras].unpack1("N")
+          bitflags = data[0...extras].unpack1("N")
           value = data[extras..-1]
-          data = deserialize(value, flags)
+          data = @value_marshaller.retrieve(value, bitflags)
         end
         [data, cas]
       end
@@ -462,13 +430,6 @@ module Dalli
       CAS_HEADER = "@4CCnNNQ"
       NORMAL_HEADER = "@4CCnN"
       KV_HEADER = "@2n@6nN@16Q"
-
-      def guard_max_value(key, value)
-        return if value.bytesize <= @options[:value_max_bytes]
-
-        message = "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
-        raise Dalli::ValueOverMaxSize, message
-      end
 
       # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.
       class NilObject; end
@@ -484,9 +445,9 @@ module Dalli
         elsif status != 0
           raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
         elsif data
-          flags = data.byteslice(0, extras).unpack1("N")
+          bitflags = data.byteslice(0, extras).unpack1("N")
           value = data.byteslice(extras, data.bytesize - extras)
-          unpack ? deserialize(value, flags) : value
+          unpack ? @value_marshaller.retrieve(value, bitflags) : value
         else
           true
         end
@@ -525,7 +486,7 @@ module Dalli
           flags = read(4).unpack1("N")
           key = read(key_length)
           value = read(body_length - key_length - 4) if body_length - key_length - 4 > 0
-          hash[key] = deserialize(value, flags)
+          hash[key] = @value_marshaller.retrieve(value, flags)
         end
       end
 
@@ -657,7 +618,7 @@ module Dalli
       #######
 
       def need_auth?
-        @options[:username] || ENV["MEMCACHE_USERNAME"]
+        !username.nil?
       end
 
       def username
