@@ -431,13 +431,6 @@ module Dalli
       NORMAL_HEADER = "@4CCnN"
       KV_HEADER = "@2n@6nN@16Q"
 
-      def guard_max_value(key, value)
-        return if value.bytesize <= @options[:value_max_bytes]
-
-        message = "Value for #{key} over max size: #{@options[:value_max_bytes]} <= #{value.bytesize}"
-        raise Dalli::ValueOverMaxSize, message
-      end
-
       # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.
       class NilObject; end
       NOT_FOUND = NilObject.new

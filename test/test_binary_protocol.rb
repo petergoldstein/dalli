@@ -99,17 +99,6 @@ describe Dalli::Protocol::Binary do
     end
   end
 
-  describe "guard_max_value" do
-    it "throws when size is over max" do
-      s = Dalli::Protocol::Binary.new("127.0.0.1")
-      value = OpenStruct.new(bytesize: 1_048_577)
-
-      assert_raises Dalli::ValueOverMaxSize do
-        s.send(:guard_max_value, :foo, value)
-      end
-    end
-  end
-
   describe "multi_response_nonblock" do
     subject { Dalli::Protocol::Binary.new("127.0.0.1") }
 
