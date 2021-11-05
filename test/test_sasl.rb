@@ -4,7 +4,9 @@ require_relative 'helper'
 
 describe 'Sasl' do
   # https://github.com/seattlerb/minitest/issues/298
-  def self.xit(msg, &block); end
+  def self.sasl_it(msg, &block)
+    it(msg, &block) if ENV['CI']
+  end
 
   describe 'a server requiring authentication' do
     before do
@@ -25,7 +27,7 @@ describe 'Sasl' do
         ENV['MEMCACHE_PASSWORD'] = nil
       end
 
-      xit 'gracefully handle authentication failures' do
+      sasl_it 'gracefully handle authentication failures' do
         memcached_sasl_persistent do |dc|
           assert_error Dalli::DalliError, /32/ do
             dc.set('abc', 123)
@@ -34,7 +36,7 @@ describe 'Sasl' do
       end
     end
 
-    xit 'fail SASL authentication with wrong options' do
+    sasl_it 'fail SASL authentication with wrong options' do
       memcached_sasl_persistent do |_, port|
         dc = Dalli::Client.new("localhost:#{port}", username: 'testuser', password: 'testtest')
         assert_error Dalli::DalliError, /32/ do
@@ -59,7 +61,7 @@ describe 'Sasl' do
         ENV['MEMCACHE_PASSWORD'] = nil
       end
 
-      xit 'pass SASL authentication' do
+      sasl_it 'pass SASL authentication' do
         memcached_sasl_persistent do |dc|
           # I get "Dalli::DalliError: Error authenticating: 32" in OSX
           # but SASL works on Heroku servers. YMMV.
@@ -72,7 +74,7 @@ describe 'Sasl' do
       end
     end
 
-    xit 'pass SASL authentication with options' do
+    sasl_it 'pass SASL authentication with options' do
       memcached_sasl_persistent do |_, port|
         dc = Dalli::Client.new("localhost:#{port}", sasl_credentials)
         # I get "Dalli::DalliError: Error authenticating: 32" in OSX
