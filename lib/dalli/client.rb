@@ -106,12 +106,12 @@ module Dalli
     # If a value is not found (or if the found value is nil and :cache_nils is false)
     # and a block is given, the block will be invoked and its return value
     # written to the cache and returned.
-    def fetch(key, ttl = nil, options = nil)
-      options = options.nil? ? CACHE_NILS : options.merge(CACHE_NILS) if @options[:cache_nils]
-      val = get(key, options)
+    def fetch(key, ttl = nil, req_options = nil)
+      req_options = req_options.nil? ? CACHE_NILS : req_options.merge(CACHE_NILS) if cache_nils
+      val = get(key, req_options)
       if not_found?(val) && block_given?
         val = yield
-        add(key, val, ttl_or_default(ttl), options)
+        add(key, val, ttl_or_default(ttl), req_options)
       end
       val
     end

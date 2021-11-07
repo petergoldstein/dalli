@@ -25,7 +25,7 @@ module MemcachedManager
   def self.start_and_flush_with_retry(port_or_socket, args = '', client_options = {})
     retry_count = 0
     loop do
-      return start_and_flush(port_or_socket, args, client_options, retry_count.zero?)
+      return start_and_flush(port_or_socket, args, client_options, flush: retry_count.zero?)
     rescue StandardError => e
       MemcachedManager.failed_start(port_or_socket)
       retry_count += 1
@@ -33,7 +33,7 @@ module MemcachedManager
     end
   end
 
-  def self.start_and_flush(port_or_socket, args = '', client_options = {}, flush = true)
+  def self.start_and_flush(port_or_socket, args = '', client_options = {}, flush: true)
     MemcachedManager.start(port_or_socket, args)
     dc = client_for_port_or_socket(port_or_socket, client_options)
     dc.flush_all if flush

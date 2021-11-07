@@ -20,5 +20,3 @@ Style/Documentation:
     - 'test/**/*'
 Style/NumericLiterals:
   MinDigits: 6
-Style/OptionalBooleanParameter:
-  Enabled: false

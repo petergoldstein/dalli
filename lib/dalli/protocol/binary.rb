@@ -298,7 +298,7 @@ module Dalli
       def get(key, options = nil)
         req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
         write(req)
-        generic_response(true, !!(options && options.is_a?(Hash) && options[:cache_nils]))
+        generic_response(unpack: true, cache_nils: !!(options && options.is_a?(Hash) && options[:cache_nils]))
       end
 
       def send_multiget(keys)
@@ -392,7 +392,7 @@ module Dalli
       # We need to read all the responses at once.
       def noop
         write_noop
-        multi_response
+        keyvalue_response(with_flags: false)
       end
 
       def append(key, value)
@@ -406,7 +406,7 @@ module Dalli
       def stats(info = "")
         req = [REQUEST, OPCODES[:stat], info.bytesize, 0, 0, 0, info.bytesize, 0, 0, info].pack(FORMAT[:stat])
         write(req)
-        keyvalue_response
+        keyvalue_response(with_flags: false)
       end
 
       def reset_stats
@@ -434,7 +434,7 @@ module Dalli
         ttl = TtlSanitizer.sanitize(ttl)
         req = [REQUEST, OPCODES[:gat], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:gat])
         write(req)
-        generic_response(true, !!(options && options.is_a?(Hash) && options[:cache_nils]))
+        generic_response(unpack: true, cache_nils: !!(options && options.is_a?(Hash) && options[:cache_nils]))
       end
 
       def data_cas_response
@@ -461,7 +461,7 @@ module Dalli
       class NilObject; end # rubocop:disable Lint/EmptyClass
       NOT_FOUND = NilObject.new
 
-      def generic_response(unpack = false, cache_nils = false)
+      def generic_response(unpack: false, cache_nils: false)
         status, extras, data = unpack_generic_response_header
 
         return cache_nils ? NOT_FOUND : nil if status == 1
@@ -494,27 +494,17 @@ module Dalli
         end
       end
 
-      def keyvalue_response
+      def keyvalue_response(with_flags: true)
         hash = {}
+        flags_len = with_flags ? 4 : 0
         loop do
           (key_length, _, body_length,) = read_header.unpack(KV_HEADER)
           return hash if key_length.zero?
 
+          flags = with_flags ? read(flags_len).unpack1('N') : 0x0
           key = read(key_length)
-          value = read(body_length - key_length) if (body_length - key_length).positive?
-          hash[key] = value
-        end
-      end
-
-      def multi_response
-        hash = {}
-        loop do
-          (key_length, _, body_length,) = read_header.unpack(KV_HEADER)
-          return hash if key_length.zero?
-
-          flags = read(4).unpack1("N")
-          key = read(key_length)
-          value = read(body_length - key_length - 4) if (body_length - key_length - 4).positive?
+          value_length = body_length - key_length - flags_len
+          value = read(value_length) if value_length.positive?
           hash[key] = @value_marshaller.retrieve(value, flags)
         end
       end
