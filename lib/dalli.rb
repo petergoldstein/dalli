@@ -1,26 +1,26 @@
 # frozen_string_literal: true
 
-require "dalli/compressor"
-require "dalli/client"
-require "dalli/key_manager"
-require "dalli/ring"
-require "dalli/protocol"
-require "dalli/protocol/binary"
+require 'dalli/compressor'
+require 'dalli/client'
+require 'dalli/key_manager'
+require 'dalli/ring'
+require 'dalli/protocol'
+require 'dalli/protocol/binary'
 require 'dalli/protocol/server_config_parser'
 require 'dalli/protocol/ttl_sanitizer'
 require 'dalli/protocol/value_compressor'
 require 'dalli/protocol/value_marshaller'
 require 'dalli/protocol/value_serializer'
 require 'dalli/servers_arg_normalizer'
-require "dalli/socket"
-require "dalli/version"
-require "dalli/options"
+require 'dalli/socket'
+require 'dalli/version'
+require 'dalli/options'
 
 ##
 # Namespace for all Dalli code.
 ##
 module Dalli
-  autoload :Server, "dalli/server"
+  autoload :Server, 'dalli/server'
 
   # generic error
   class DalliError < RuntimeError; end
@@ -50,7 +50,7 @@ module Dalli
   end
 
   def self.default_logger
-    require "logger"
+    require 'logger'
     l = Logger.new($stdout)
     l.level = Logger::INFO
     l

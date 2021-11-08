@@ -1,17 +1,17 @@
 # frozen_string_literal: true
 
-require "bundler/setup"
+require 'bundler/setup'
 # require 'simplecov'
 # SimpleCov.start
-require "minitest/pride"
-require "minitest/autorun"
-require_relative "helpers/memcached"
+require 'minitest/pride'
+require 'minitest/autorun'
+require_relative 'helpers/memcached'
 
-ENV["MEMCACHED_SASL_PWDB"] = "#{File.dirname(__FILE__)}/sasl/sasldb"
-ENV["SASL_CONF_PATH"] = "#{File.dirname(__FILE__)}/sasl/memcached.conf"
+ENV['MEMCACHED_SASL_PWDB'] = "#{File.dirname(__FILE__)}/sasl/sasldb"
+ENV['SASL_CONF_PATH'] = "#{File.dirname(__FILE__)}/sasl/memcached.conf"
 
-require "dalli"
-require "logger"
+require 'dalli'
+require 'logger'
 require 'ostruct'
 require 'securerandom'
 
@@ -41,7 +41,7 @@ module MiniTest
     end
 
     def with_connectionpool
-      require "connection_pool"
+      require 'connection_pool'
       yield
     end
 

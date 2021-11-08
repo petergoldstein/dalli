@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require "digest/sha1"
-require "zlib"
+require 'digest/sha1'
+require 'zlib'
 
 module Dalli
   ##
@@ -41,7 +41,7 @@ module Dalli
 
       return server if server&.alive?
 
-      raise Dalli::RingError, "No server available"
+      raise Dalli::RingError, 'No server available'
     end
 
     def server_from_continuum(key)

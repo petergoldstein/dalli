@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require "digest/md5"
-require "set"
+require 'digest/md5'
+require 'set'
 
 # encoding: ascii
 module Dalli
@@ -271,7 +271,7 @@ module Dalli
     ##
     ## Make sure memcache servers are alive, or raise an Dalli::RingError
     def alive!
-      ring.server_for_key("")
+      ring.server_for_key('')
     end
 
     ##
@@ -289,7 +289,7 @@ module Dalli
     # value and CAS will be passed to the block.
     def get_cas(key)
       (value, cas) = perform(:cas, key)
-      value = nil if !value || value == "Not found"
+      value = nil if !value || value == 'Not found'
       if block_given?
         yield value, cas
       else
@@ -356,7 +356,7 @@ module Dalli
 
     def cas_core(key, always_set, ttl = nil, options = nil)
       (value, cas) = perform(:cas, key)
-      value = nil if !value || value == "Not found"
+      value = nil if !value || value == 'Not found'
       return if value.nil? && !always_set
 
       newvalue = yield(value)
@@ -407,7 +407,7 @@ module Dalli
           raise
         rescue Dalli::DalliError => e
           Dalli.logger.debug { e.inspect }
-          Dalli.logger.debug { "results from this server will be missing" }
+          Dalli.logger.debug { 'results from this server will be missing' }
           deleted.append(server)
         end
       end
@@ -442,7 +442,7 @@ module Dalli
       server.request(op, key, *args)
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }
-      Dalli.logger.debug { "retrying request with new server" }
+      Dalli.logger.debug { 'retrying request with new server' }
       retry
     end
 

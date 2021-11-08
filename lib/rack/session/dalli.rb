@@ -132,7 +132,7 @@ module Rack
       private
 
       def extract_dalli_options(options)
-        raise "Rack::Session::Dalli no longer supports the :cache option." if options[:cache]
+        raise 'Rack::Session::Dalli no longer supports the :cache option.' if options[:cache]
 
         # Filter out Rack::Session-specific options and apply our defaults
         # Filter out Rack::Session-specific options and apply our defaults
