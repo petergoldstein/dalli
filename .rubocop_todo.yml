@@ -16,11 +16,6 @@ Metrics/AbcSize:
 Metrics/ClassLength:
   Max: 537
 
-# Offense count: 2
-# Configuration parameters: IgnoredMethods.
-Metrics/CyclomaticComplexity:
-  Max: 16
-
 # Offense count: 10
 # Configuration parameters: CountComments, CountAsOne, ExcludedMethods, IgnoredMethods.
 Metrics/MethodLength:
@@ -28,11 +23,6 @@ Metrics/MethodLength:
     - 'lib/dalli/client.rb'
     - 'lib/dalli/protocol/binary.rb'
     - 'lib/rack/session/dalli.rb'
-
-# Offense count: 2
-# Configuration parameters: IgnoredMethods.
-Metrics/PerceivedComplexity:
-  Max: 17
 
 # Offense count: 784
 # Cop supports --auto-correct.

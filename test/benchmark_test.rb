@@ -23,7 +23,7 @@ describe "performance" do
     @value = []
     @marshalled = Marshal.dump(@value)
 
-    @port = 23417
+    @port = 23_417
     @servers = ["127.0.0.1:#{@port}", "localhost:#{@port}"]
     @key1 = "Short"
     @key2 = "Sym1-2-3::45" * 8

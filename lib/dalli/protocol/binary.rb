@@ -648,6 +648,8 @@ module Dalli
         @options[:password] || ENV["MEMCACHE_PASSWORD"]
       end
 
+      # rubocop:disable Metrics/CyclomaticComplexity
+      # rubocop:disable Metrics/PerceivedComplexity
       def sasl_authentication
         Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
 
@@ -692,6 +694,8 @@ module Dalli
         # (step, msg) = sasl.receive('challenge', content)
         # raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
       end
+      # rubocop:enable Metrics/PerceivedComplexity
+      # rubocop:enable Metrics/CyclomaticComplexity
     end
   end
 end

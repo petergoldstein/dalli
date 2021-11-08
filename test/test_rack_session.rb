@@ -7,7 +7,7 @@ require 'rack/lint'
 require 'rack/mock'
 describe Rack::Session::Dalli do
   before do
-    @port = 19129
+    @port = 19_129
     memcached_persistent(@port)
     Rack::Session::Dalli::DEFAULT_DALLI_OPTIONS[:memcache_server] = "localhost:#{@port}"
 

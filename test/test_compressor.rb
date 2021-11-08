@@ -15,21 +15,21 @@ end
 
 describe "Compressor" do
   it "default to Dalli::Compressor" do
-    memcached(29199) do |dc|
+    memcached(29_199) do |dc|
       dc.set 1, 2
       assert_equal Dalli::Compressor, dc.instance_variable_get("@ring").servers.first.compressor
     end
   end
 
   it "support a custom compressor" do
-    memcached(29199) do |_dc|
+    memcached(29_199) do |_dc|
       memcache = Dalli::Client.new("127.0.0.1:29199", { compressor: NoopCompressor })
       memcache.set 1, 2
       begin
         assert_equal NoopCompressor,
                      memcache.instance_variable_get("@ring").servers.first.compressor
 
-        memcached(19127) do |newdc|
+        memcached(19_127) do |newdc|
           assert newdc.set("string-test", "a test string")
           assert_equal("a test string", newdc.get("string-test"))
         end
@@ -40,7 +40,7 @@ end
 
 describe "GzipCompressor" do
   it "compress and uncompress data using Zlib::GzipWriter/Reader" do
-    memcached(19127) do |_dc|
+    memcached(19_127) do |_dc|
       memcache = Dalli::Client.new("127.0.0.1:19127", { compress: true, compressor: Dalli::GzipCompressor })
       data = (0...1025).map { rand(65..90).chr }.join
       assert memcache.set("test", data)

@@ -12,11 +12,8 @@ AllCops:
 Metrics/BlockLength:
   Max: 50
   Exclude:
-    - 'bench.rb'
     - 'test/**/*'
 
 Style/Documentation:
   Exclude:
     - 'test/**/*'
-Style/NumericLiterals:
-  MinDigits: 6

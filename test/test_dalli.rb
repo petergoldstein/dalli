@@ -245,7 +245,7 @@ describe "Dalli" do
     end
 
     it "support the fetch operation with nil values when cache_nils: true" do
-      memcached_persistent(21345, '', cache_nils: true) do |dc|
+      memcached_persistent(21_345, '', cache_nils: true) do |dc|
         dc.flush
 
         dc.set("fetch_key", nil)
@@ -253,7 +253,7 @@ describe "Dalli" do
         assert_nil res
       end
 
-      memcached_persistent(21345, '', cache_nils: false) do |dc|
+      memcached_persistent(21_345, '', cache_nils: false) do |dc|
         dc.flush
         dc.set("fetch_key", nil)
         executed = false

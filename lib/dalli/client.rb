@@ -457,6 +457,8 @@ module Dalli
 
     ##
     # Yields, one at a time, keys and their values+attributes.
+    # rubocop:disable Metrics/CyclomaticComplexity
+    # rubocop:disable Metrics/PerceivedComplexity
     def get_multi_yielder(keys)
       perform do
         return {} if keys.empty?
@@ -517,5 +519,7 @@ module Dalli
         end
       end
     end
+    # rubocop:enable Metrics/PerceivedComplexity
+    # rubocop:enable Metrics/CyclomaticComplexity
   end
 end
