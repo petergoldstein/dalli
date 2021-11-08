@@ -1,20 +1,22 @@
 # frozen_string_literal: true
 
+require 'English'
 require 'forwardable'
-require "socket"
-require "timeout"
+require 'socket'
+require 'timeout'
 
 module Dalli
   module Protocol
+    ##
+    # Access point for a single Memcached server, accessed via Memcached's binary
+    # protocol.  Contains logic for managing connection state to the server (retries, etc),
+    # formatting requests to the server, and unpacking responses.
+    ##
     class Binary
       extend Forwardable
 
-      attr_accessor :hostname
-      attr_accessor :port
-      attr_accessor :weight
-      attr_accessor :options
-      attr_reader :sock
-      attr_reader :socket_type # possible values: :unix, :tcp
+      attr_accessor :hostname, :port, :weight, :options
+      attr_reader :sock, :socket_type
 
       def_delegators :@value_marshaller, :serializer, :compressor, :compression_min_size, :compress_by_default?
 
@@ -36,7 +38,7 @@ module Dalli
         sndbuf: nil,
         # max byte size for SO_RCVBUF
         rcvbuf: nil
-      }
+      }.freeze
 
       def initialize(attribs, options = {})
         @hostname, @port, @weight, @socket_type, options = ServerConfigParser.parse(attribs, options)
@@ -59,20 +61,24 @@ module Dalli
       end
 
       # Chokepoint method for instrumentation
-      def request(op, *args)
+      def request(opcode, *args)
         verify_state
-        raise Dalli::NetworkError, "#{name} is down: #{@error} #{@msg}. If you are sure it is running, ensure memcached version is > 1.4." unless alive?
+        unless alive?
+          raise Dalli::NetworkError,
+                "#{name} is down: #{@error} #{@msg}. If you are sure it is running, ensure memcached version is > 1.4."
+        end
+
         begin
-          send(op, *args)
-        rescue Dalli::MarshalError => ex
-          Dalli.logger.error "Marshalling error for key '#{args.first}': #{ex.message}"
-          Dalli.logger.error "You are trying to cache a Ruby object which cannot be serialized to memcached."
+          send(opcode, *args)
+        rescue Dalli::MarshalError => e
+          Dalli.logger.error "Marshalling error for key '#{args.first}': #{e.message}"
+          Dalli.logger.error 'You are trying to cache a Ruby object which cannot be serialized to memcached.'
           raise
         rescue Dalli::DalliError, Dalli::NetworkError, Dalli::ValueOverMaxSize, Timeout::Error
           raise
-        rescue => ex
-          Dalli.logger.error "Unexpected exception during Dalli request: #{ex.class.name}: #{ex.message}"
-          Dalli.logger.error ex.backtrace.join("\n\t")
+        rescue StandardError => e
+          Dalli.logger.error "Unexpected exception during Dalli request: #{e.class.name}: #{e.message}"
+          Dalli.logger.error e.backtrace.join("\n\t")
           down!
         end
       end
@@ -93,15 +99,19 @@ module Dalli
         time_to_next_reconnect = @last_down_at + options[:down_retry_delay] - Time.now
         return true unless time_to_next_reconnect.positive?
 
-        Dalli.logger.debug { "down_retry_delay not reached for #{name} (%.3f seconds left)" % time_to_next_reconnect }
+        Dalli.logger.debug do
+          format('down_retry_delay not reached for %<name>s (%<time>.3f seconds left)', name: name,
+                                                                                        time: time_to_next_reconnect)
+        end
         false
       end
 
       def close
         return unless @sock
+
         begin
           @sock.close
-        rescue
+        rescue StandardError
           nil
         end
         @sock = nil
@@ -109,11 +119,9 @@ module Dalli
         @inprogress = false
       end
 
-      def lock!
-      end
+      def lock!; end
 
-      def unlock!
-      end
+      def unlock!; end
 
       # Start reading key/value pairs from this connection. This is usually called
       # after a series of GETKQ commands. A NOOP is sent, and the server begins
@@ -123,7 +131,7 @@ module Dalli
       def multi_response_start
         verify_state
         write_noop
-        @multi_buffer = +""
+        @multi_buffer = +''
         @position = 0
         @inprogress = true
       end
@@ -140,36 +148,25 @@ module Dalli
       #
       # Returns a Hash of kv pairs received.
       def multi_response_nonblock
-        reconnect! "multi_response has completed" if @multi_buffer.nil?
+        reconnect! 'multi_response has completed' if @multi_buffer.nil?
 
         @multi_buffer << @sock.read_available
         buf = @multi_buffer
         pos = @position
         values = {}
 
-        while buf.bytesize - pos >= 24
-          header = buf.slice(pos, 24)
+        while buf.bytesize - pos >= KV_HEADER_SIZE
+          header = buf.slice(pos, KV_HEADER_SIZE)
           (key_length, _, body_length, cas) = header.unpack(KV_HEADER)
 
-          if key_length == 0
-            # all done!
-            @multi_buffer = nil
-            @position = nil
-            @inprogress = false
+          # Signals end of multiresponse - all done
+          if key_length.zero?
+            finish_multi_response
             break
-
-          elsif buf.bytesize - pos >= 24 + body_length
-            flags = buf.slice(pos + 24, 4).unpack1("N")
-            key = buf.slice(pos + 24 + 4, key_length)
-            value = buf.slice(pos + 24 + 4 + key_length, body_length - key_length - 4) if body_length - key_length - 4 > 0
-
-            pos = pos + 24 + body_length
-
-            begin
-              values[key] = [@value_marshaller.retrieve(value, flags), cas]
-            rescue DalliError
-            end
-
+          elsif buf.bytesize - pos >= KV_HEADER_SIZE + body_length
+            buffer_for_kv = buf.slice(pos + KV_HEADER_SIZE, body_length)
+            parse_key_value(values, buffer_for_kv, cas, key_length, body_length)
+            pos = pos + KV_HEADER_SIZE + body_length
           else
             # not enough data yet, wait for more
             break
@@ -182,6 +179,26 @@ module Dalli
         failure!(e)
       end
 
+      def finish_multi_response
+        @multi_buffer = nil
+        @position = nil
+        @inprogress = false
+      end
+
+      def parse_key_value(values, buffer, cas, key_length, body_length)
+        flags = buffer.slice(0, 4).unpack1('N')
+        key = buffer.slice(4, key_length)
+        value_length = body_length - key_length - 4
+        value = value_length.positive? ? buffer.slice(key_length + 4, value_length) : nil
+
+        begin
+          values[key] = [@value_marshaller.retrieve(value, flags), cas]
+        rescue DalliError
+          # TODO: Determine if we should be swallowing
+          # this error
+        end
+      end
+
       # Abort an earlier #multi_response_start. Used to signal an external
       # timeout. The underlying socket is disconnected, and the exception is
       # swallowed.
@@ -191,7 +208,7 @@ module Dalli
         @multi_buffer = nil
         @position = nil
         @inprogress = false
-        failure!(RuntimeError.new("External timeout"))
+        failure!(RuntimeError.new('External timeout'))
       rescue NetworkError
         true
       end
@@ -201,7 +218,7 @@ module Dalli
       private
 
       def verify_state
-        failure!(RuntimeError.new("Already writing to socket")) if @inprogress
+        failure!(RuntimeError.new('Already writing to socket')) if @inprogress
         reconnect_on_fork if fork_detected?
       end
 
@@ -210,7 +227,7 @@ module Dalli
       end
 
       def reconnect_on_fork
-        message = "Fork detected, re-connecting child process..."
+        message = 'Fork detected, re-connecting child process...'
         Dalli.logger.info { message }
         reconnect! message
       end
@@ -229,7 +246,7 @@ module Dalli
         if @fail_count >= options[:socket_max_failures]
           down!
         else
-          reconnect! "Socket operation failed, retrying..."
+          reconnect! 'Socket operation failed, retrying...'
         end
       end
 
@@ -237,8 +254,8 @@ module Dalli
         close
         log_down_detected
 
-        @error = $!&.class&.name
-        @msg ||= $!&.message
+        @error = $ERROR_INFO&.class&.name
+        @msg ||= $ERROR_INFO&.message
         raise Dalli::NetworkError, "#{name} is down: #{@error} #{@msg}"
       end
 
@@ -247,10 +264,10 @@ module Dalli
 
         if @down_at
           time = Time.now - @down_at
-          Dalli.logger.debug { "#{name} is still down (for %.3f seconds now)" % time }
+          Dalli.logger.debug { format('%<name>s is still down (for %<time>.3f seconds now)', name: name, time: time) }
         else
           @down_at = @last_down_at
-          Dalli.logger.warn { "#{name} is down" }
+          Dalli.logger.warn("#{name} is down")
         end
       end
 
@@ -258,7 +275,7 @@ module Dalli
         return unless @down_at
 
         time = Time.now - @down_at
-        Dalli.logger.warn { "#{name} is back (downtime was %.3f seconds)" % time }
+        Dalli.logger.warn { format('%<name>s is back (downtime was %<time>.3f seconds)', name: name, time: time) }
       end
 
       def up!
@@ -281,11 +298,11 @@ module Dalli
       def get(key, options = nil)
         req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
         write(req)
-        generic_response(true, !!(options && options.is_a?(Hash) && options[:cache_nils]))
+        generic_response(unpack: true, cache_nils: !!(options && options.is_a?(Hash) && options[:cache_nils]))
       end
 
       def send_multiget(keys)
-        req = +""
+        req = +''
         keys.each do |key|
           req << [REQUEST, OPCODES[:getkq], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:getkq])
         end
@@ -297,7 +314,8 @@ module Dalli
         (value, flags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
 
-        req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:set])
+        req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0,
+               cas, flags, ttl, key, value].pack(FORMAT[:set])
         write(req)
         cas_response unless multi?
       end
@@ -306,7 +324,8 @@ module Dalli
         (value, flags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
 
-        req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0, flags, ttl, key, value].pack(FORMAT[:add])
+        req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0,
+               flags, ttl, key, value].pack(FORMAT[:add])
         write(req)
         cas_response unless multi?
       end
@@ -315,18 +334,20 @@ module Dalli
         (value, flags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
 
-        req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:replace])
+        req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0,
+               value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:replace])
         write(req)
         cas_response unless multi?
       end
 
       def delete(key, cas)
-        req = [REQUEST, OPCODES[multi? ? :deleteq : :delete], key.bytesize, 0, 0, 0, key.bytesize, 0, cas, key].pack(FORMAT[:delete])
+        req = [REQUEST, OPCODES[multi? ? :deleteq : :delete], key.bytesize, 0, 0, 0, key.bytesize, 0, cas,
+               key].pack(FORMAT[:delete])
         write(req)
         generic_response unless multi?
       end
 
-      def flush(ttl)
+      def flush(_ttl)
         req = [REQUEST, OPCODES[:flush], 0, 4, 0, 0, 4, 0, 0, 0].pack(FORMAT[:flush])
         write(req)
         generic_response
@@ -337,10 +358,11 @@ module Dalli
         default ||= 0
         (h, l) = split(count)
         (dh, dl) = split(default)
-        req = [REQUEST, OPCODES[opcode], key.bytesize, 20, 0, 0, key.bytesize + 20, 0, 0, h, l, dh, dl, expiry, key].pack(FORMAT[opcode])
+        req = [REQUEST, OPCODES[opcode], key.bytesize, 20, 0, 0, key.bytesize + 20, 0, 0, h, l, dh, dl, expiry,
+               key].pack(FORMAT[opcode])
         write(req)
         body = generic_response
-        body ? body.unpack1("Q>") : body
+        body ? body.unpack1('Q>') : body
       end
 
       def decr(key, count, ttl, default)
@@ -352,7 +374,8 @@ module Dalli
       end
 
       def write_append_prepend(opcode, key, value)
-        write_generic [REQUEST, OPCODES[opcode], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key, value].pack(FORMAT[opcode])
+        write_generic [REQUEST, OPCODES[opcode], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key,
+                       value].pack(FORMAT[opcode])
       end
 
       def write_generic(bytes)
@@ -369,7 +392,7 @@ module Dalli
       # We need to read all the responses at once.
       def noop
         write_noop
-        multi_response
+        keyvalue_response(with_flags: false)
       end
 
       def append(key, value)
@@ -380,14 +403,15 @@ module Dalli
         write_append_prepend :prepend, key, value
       end
 
-      def stats(info = "")
+      def stats(info = '')
         req = [REQUEST, OPCODES[:stat], info.bytesize, 0, 0, 0, info.bytesize, 0, 0, info].pack(FORMAT[:stat])
         write(req)
-        keyvalue_response
+        keyvalue_response(with_flags: false)
       end
 
       def reset_stats
-        write_generic [REQUEST, OPCODES[:stat], "reset".bytesize, 0, 0, 0, "reset".bytesize, 0, 0, "reset"].pack(FORMAT[:stat])
+        write_generic [REQUEST, OPCODES[:stat], 'reset'.bytesize, 0, 0, 0, 'reset'.bytesize, 0, 0,
+                       'reset'].pack(FORMAT[:stat])
       end
 
       def cas(key)
@@ -402,63 +426,66 @@ module Dalli
 
       def touch(key, ttl)
         ttl = TtlSanitizer.sanitize(ttl)
-        write_generic [REQUEST, OPCODES[:touch], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:touch])
+        write_generic [REQUEST, OPCODES[:touch], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl,
+                       key].pack(FORMAT[:touch])
       end
 
       def gat(key, ttl, options = nil)
         ttl = TtlSanitizer.sanitize(ttl)
         req = [REQUEST, OPCODES[:gat], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:gat])
         write(req)
-        generic_response(true, !!(options && options.is_a?(Hash) && options[:cache_nils]))
+        generic_response(unpack: true, cache_nils: !!(options && options.is_a?(Hash) && options[:cache_nils]))
       end
 
       def data_cas_response
         (extras, _, status, count, _, cas) = read_header.unpack(CAS_HEADER)
-        data = read(count) if count > 0
+        data = read(count) if count.positive?
         if status == 1
           nil
         elsif status != 0
           raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
         elsif data
-          bitflags = data[0...extras].unpack1("N")
+          bitflags = data[0...extras].unpack1('N')
           value = data[extras..-1]
           data = @value_marshaller.retrieve(value, bitflags)
         end
         [data, cas]
       end
 
-      CAS_HEADER = "@4CCnNNQ"
-      NORMAL_HEADER = "@4CCnN"
-      KV_HEADER = "@2n@6nN@16Q"
+      CAS_HEADER = '@4CCnNNQ'
+      NORMAL_HEADER = '@4CCnN'
+      KV_HEADER = '@2n@6nN@16Q'
+      KV_HEADER_SIZE = 24
 
       # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.
-      class NilObject; end
+      class NilObject; end # rubocop:disable Lint/EmptyClass
       NOT_FOUND = NilObject.new
 
-      def generic_response(unpack = false, cache_nils = false)
+      def generic_response(unpack: false, cache_nils: false)
+        status, extras, data = unpack_generic_response_header
+
+        return cache_nils ? NOT_FOUND : nil if status == 1
+        return false if [2, 5].include?(status) # Not stored, normal status for add operation
+        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
+        return true unless data
+
+        bitflags = data.byteslice(0, extras).unpack1('N')
+        value = data.byteslice(extras, data.bytesize - extras)
+        unpack ? @value_marshaller.retrieve(value, bitflags) : value
+      end
+
+      def unpack_generic_response_header
         (extras, _, status, count) = read_header.unpack(NORMAL_HEADER)
-        data = read(count) if count > 0
-        if status == 1
-          cache_nils ? NOT_FOUND : nil
-        elsif status == 2 || status == 5
-          false # Not stored, normal status for add operation
-        elsif status != 0
-          raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
-        elsif data
-          bitflags = data.byteslice(0, extras).unpack1("N")
-          value = data.byteslice(extras, data.bytesize - extras)
-          unpack ? @value_marshaller.retrieve(value, bitflags) : value
-        else
-          true
-        end
+        data = read(count) if count.positive?
+        [status, extras, data]
       end
 
       def cas_response
         (_, _, status, count, _, cas) = read_header.unpack(CAS_HEADER)
-        read(count) if count > 0 # this is potential data that we don't care about
+        read(count) if count.positive? # this is potential data that we don't care about
         if status == 1
           nil
-        elsif status == 2 || status == 5
+        elsif [2, 5].include?(status)
           false # Not stored, normal status for add operation
         elsif status != 0
           raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
@@ -467,25 +494,17 @@ module Dalli
         end
       end
 
-      def keyvalue_response
+      def keyvalue_response(with_flags: true)
         hash = {}
+        flags_len = with_flags ? 4 : 0
         loop do
-          (key_length, _, body_length, _) = read_header.unpack(KV_HEADER)
-          return hash if key_length == 0
-          key = read(key_length)
-          value = read(body_length - key_length) if body_length - key_length > 0
-          hash[key] = value
-        end
-      end
+          (key_length, _, body_length,) = read_header.unpack(KV_HEADER)
+          return hash if key_length.zero?
 
-      def multi_response
-        hash = {}
-        loop do
-          (key_length, _, body_length, _) = read_header.unpack(KV_HEADER)
-          return hash if key_length == 0
-          flags = read(4).unpack1("N")
+          flags = with_flags ? read(flags_len).unpack1('N') : 0x0
           key = read(key_length)
-          value = read(body_length - key_length - 4) if body_length - key_length - 4 > 0
+          value_length = body_length - key_length - flags_len
+          value = read(value_length) if value_length.positive?
           hash[key] = @value_marshaller.retrieve(value, flags)
         end
       end
@@ -509,7 +528,7 @@ module Dalli
       end
 
       def read_header
-        read(24) || raise(Dalli::NetworkError, "No response")
+        read(24) || raise(Dalli::NetworkError, 'No response')
       end
 
       def connect
@@ -518,10 +537,10 @@ module Dalli
         begin
           @pid = Process.pid
           @sock = if socket_type == :unix
-            Dalli::Socket::UNIX.open(hostname, self, options)
-          else
-            Dalli::Socket::TCP.open(hostname, port, self, options)
-          end
+                    Dalli::Socket::UNIX.open(hostname, self, options)
+                  else
+                    Dalli::Socket::TCP.open(hostname, port, self, options)
+                  end
           sasl_authentication if need_auth?
           @version = version # trigger actual connect
           up!
@@ -533,8 +552,8 @@ module Dalli
         end
       end
 
-      def split(n)
-        [n >> 32, 0xFFFFFFFF & n]
+      def split(quadword)
+        [quadword >> 32, 0xFFFFFFFF & quadword]
       end
 
       REQUEST = 0x80
@@ -543,24 +562,24 @@ module Dalli
       # Response codes taken from:
       # https://github.com/memcached/memcached/wiki/BinaryProtocolRevamped#response-status
       RESPONSE_CODES = {
-        0 => "No error",
-        1 => "Key not found",
-        2 => "Key exists",
-        3 => "Value too large",
-        4 => "Invalid arguments",
-        5 => "Item not stored",
-        6 => "Incr/decr on a non-numeric value",
-        7 => "The vbucket belongs to another server",
-        8 => "Authentication error",
-        9 => "Authentication continue",
-        0x20 => "Authentication required",
-        0x81 => "Unknown command",
-        0x82 => "Out of memory",
-        0x83 => "Not supported",
-        0x84 => "Internal error",
-        0x85 => "Busy",
-        0x86 => "Temporary failure"
-      }
+        0 => 'No error',
+        1 => 'Key not found',
+        2 => 'Key exists',
+        3 => 'Value too large',
+        4 => 'Invalid arguments',
+        5 => 'Item not stored',
+        6 => 'Incr/decr on a non-numeric value',
+        7 => 'The vbucket belongs to another server',
+        8 => 'Authentication error',
+        9 => 'Authentication continue',
+        0x20 => 'Authentication required',
+        0x81 => 'Unknown command',
+        0x82 => 'Out of memory',
+        0x83 => 'Not supported',
+        0x84 => 'Internal error',
+        0x85 => 'Busy',
+        0x86 => 'Temporary failure'
+      }.freeze
 
       OPCODES = {
         get: 0x00,
@@ -588,30 +607,30 @@ module Dalli
         auth_continue: 0x22,
         touch: 0x1C,
         gat: 0x1D
-      }
+      }.freeze
 
-      HEADER = "CCnCCnNNQ"
+      HEADER = 'CCnCCnNNQ'
       OP_FORMAT = {
-        get: "a*",
-        set: "NNa*a*",
-        add: "NNa*a*",
-        replace: "NNa*a*",
-        delete: "a*",
-        incr: "NNNNNa*",
-        decr: "NNNNNa*",
-        flush: "N",
-        noop: "",
-        getkq: "a*",
-        version: "",
-        stat: "a*",
-        append: "a*a*",
-        prepend: "a*a*",
-        auth_request: "a*a*",
-        auth_continue: "a*a*",
-        touch: "Na*",
-        gat: "Na*"
-      }
-      FORMAT = OP_FORMAT.each_with_object({}) { |(k, v), memo| memo[k] = HEADER + v; }
+        get: 'a*',
+        set: 'NNa*a*',
+        add: 'NNa*a*',
+        replace: 'NNa*a*',
+        delete: 'a*',
+        incr: 'NNNNNa*',
+        decr: 'NNNNNa*',
+        flush: 'N',
+        noop: '',
+        getkq: 'a*',
+        version: '',
+        stat: 'a*',
+        append: 'a*a*',
+        prepend: 'a*a*',
+        auth_request: 'a*a*',
+        auth_continue: 'a*a*',
+        touch: 'Na*',
+        gat: 'Na*'
+      }.freeze
+      FORMAT = OP_FORMAT.transform_values { |v| HEADER + v; }
 
       #######
       # SASL authentication support for NorthScale
@@ -622,13 +641,15 @@ module Dalli
       end
 
       def username
-        @options[:username] || ENV["MEMCACHE_USERNAME"]
+        @options[:username] || ENV['MEMCACHE_USERNAME']
       end
 
       def password
-        @options[:password] || ENV["MEMCACHE_PASSWORD"]
+        @options[:password] || ENV['MEMCACHE_PASSWORD']
       end
 
+      # rubocop:disable Metrics/CyclomaticComplexity
+      # rubocop:disable Metrics/PerceivedComplexity
       def sasl_authentication
         Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
 
@@ -637,28 +658,44 @@ module Dalli
         write(req)
 
         (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
-        raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
-        content = read(count).tr("\u0000", " ")
-        return Dalli.logger.debug("Authentication not required/supported by server") if status == 0x81
-        mechanisms = content.split(" ")
-        raise NotImplementedError, "Dalli only supports the PLAIN authentication mechanism" unless mechanisms.include?("PLAIN")
+        unless extras.zero? && count.positive?
+          raise Dalli::NetworkError,
+                "Unexpected message format: #{extras} #{count}"
+        end
+
+        content = read(count).tr("\u0000", ' ')
+        return Dalli.logger.debug('Authentication not required/supported by server') if status == 0x81
+
+        mechanisms = content.split
+        unless mechanisms.include?('PLAIN')
+          raise NotImplementedError,
+                'Dalli only supports the PLAIN authentication mechanism'
+        end
 
         # request
-        mechanism = "PLAIN"
+        mechanism = 'PLAIN'
         msg = "\x0#{username}\x0#{password}"
-        req = [REQUEST, OPCODES[:auth_request], mechanism.bytesize, 0, 0, 0, mechanism.bytesize + msg.bytesize, 0, 0, mechanism, msg].pack(FORMAT[:auth_request])
+        req = [REQUEST, OPCODES[:auth_request], mechanism.bytesize, 0, 0, 0, mechanism.bytesize + msg.bytesize, 0, 0,
+               mechanism, msg].pack(FORMAT[:auth_request])
         write(req)
 
         (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
-        raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}" unless extras == 0 && count > 0
+        unless extras.zero? && count.positive?
+          raise Dalli::NetworkError,
+                "Unexpected message format: #{extras} #{count}"
+        end
+
         content = read(count)
-        return Dalli.logger.info("Dalli/SASL: #{content}") if status == 0
+        return Dalli.logger.info("Dalli/SASL: #{content}") if status.zero?
 
         raise Dalli::DalliError, "Error authenticating: #{status}" unless status == 0x21
-        raise NotImplementedError, "No two-step authentication mechanisms supported"
+
+        raise NotImplementedError, 'No two-step authentication mechanisms supported'
         # (step, msg) = sasl.receive('challenge', content)
         # raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
       end
+      # rubocop:enable Metrics/PerceivedComplexity
+      # rubocop:enable Metrics/CyclomaticComplexity
     end
   end
 end

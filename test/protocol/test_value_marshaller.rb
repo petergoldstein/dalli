@@ -11,7 +11,7 @@ describe Dalli::Protocol::ValueMarshaller do
         let(:options) { {} }
 
         it 'sets value_max_bytes to 1MB by default' do
-          assert_equal subject.value_max_bytes, 1024 * 1024
+          assert_equal(1024 * 1024, subject.value_max_bytes)
         end
       end
 
@@ -90,8 +90,8 @@ describe Dalli::Protocol::ValueMarshaller do
             exception = assert_raises Dalli::ValueOverMaxSize do
               marshaller.store(key, val, req_options)
             end
-            assert "Value for #{key} over max size: #{1024 * 1024} <= #{compressed_serialized_value.size}",
-                   exception.message
+            assert_equal "Value for #{key} over max size: #{1024 * 1024} <= #{compressed_serialized_value.size}",
+                         exception.message
           end
         end
 
@@ -122,7 +122,8 @@ describe Dalli::Protocol::ValueMarshaller do
             exception = assert_raises Dalli::ValueOverMaxSize do
               marshaller.store(key, val, req_options)
             end
-            assert "Value for #{key} over max size: #{1024 * 1024} <= #{compressed_raw_value.size}", exception.message
+            assert_equal "Value for #{key} over max size: #{1024 * 1024} <= #{compressed_raw_value.size}",
+                         exception.message
           end
         end
 
@@ -158,8 +159,8 @@ describe Dalli::Protocol::ValueMarshaller do
             exception = assert_raises Dalli::ValueOverMaxSize do
               marshaller.store(key, val, req_options)
             end
-            assert "Value for #{key} over max size: #{value_max_bytes} <= #{compressed_serialized_value.size}",
-                   exception.message
+            assert_equal "Value for #{key} over max size: #{value_max_bytes} <= #{compressed_serialized_value.size}",
+                         exception.message
           end
         end
 
@@ -182,8 +183,8 @@ describe Dalli::Protocol::ValueMarshaller do
             exception = assert_raises Dalli::ValueOverMaxSize do
               marshaller.store(key, val, req_options)
             end
-            assert "Value for #{key} over max size: #{value_max_bytes} <= #{compressed_raw_value.size}",
-                   exception.message
+            assert_equal "Value for #{key} over max size: #{value_max_bytes} <= #{compressed_raw_value.size}",
+                         exception.message
           end
         end
 

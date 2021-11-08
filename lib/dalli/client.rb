@@ -1,17 +1,24 @@
 # frozen_string_literal: true
 
-require "digest/md5"
-require "set"
+require 'digest/md5'
+require 'set'
 
 # encoding: ascii
 module Dalli
+  ##
+  # Dalli::Client is the main class which developers will use to interact with
+  # Memcached.
+  ##
   class Client
     ##
     # Dalli::Client is the main class which developers will use to interact with
     # the memcached server.  Usage:
     #
-    #   Dalli::Client.new(['localhost:11211:10', 'cache-2.example.com:11211:5', '192.168.0.1:22122:5', '/var/run/memcached/socket'],
-    #                   :threadsafe => true, :failover => true, :expires_in => 300)
+    #   Dalli::Client.new(['localhost:11211:10',
+    #                      'cache-2.example.com:11211:5',
+    #                      '192.168.0.1:22122:5',
+    #                      '/var/run/memcached/socket'],
+    #                     failover: true, expires_in: 300)
     #
     # servers is an Array of "host:port:weight" where weight allows you to distribute cache unevenly.
     # Both weight and port are optional.  If you pass in nil, Dalli will use the <tt>MEMCACHE_SERVERS</tt>
@@ -24,14 +31,20 @@ module Dalli
     # - :namespace - prepend each key with this value to provide simple namespacing.
     # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.
-    # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults to 0 or forever
-    # - :compress - if true Dalli will compress values larger than compression_min_size bytes before sending them to memcached.  Default: true.
-    # - :compression_min_size - the minimum size (in bytes) for which Dalli will compress values sent to Memcached.  Defaults to 4K.
+    # - :expires_in - default TTL in seconds if you do not pass TTL as a parameter to an individual operation, defaults
+    #                 to 0 or forever.
+    # - :compress - if true Dalli will compress values larger than compression_min_size bytes before sending them
+    #               to memcached.  Default: true.
+    # - :compression_min_size - the minimum size (in bytes) for which Dalli will compress values sent to Memcached.
+    #                           Defaults to 4K.
     # - :serializer - defaults to Marshal
-    # - :compressor - defaults to zlib
-    # - :cache_nils - defaults to false, if true Dalli will not treat cached nil values as 'not found' for #fetch operations.
-    # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method, useful for injecting a FIPS compliant hash object.
-    # - :protocol_implementation - defaults to Dalli::Protocol::Binary which uses the binary protocol. Allows you to pass an alternative implementation using another protocol.
+    # - :compressor - defaults to Dalli::Compressor, a Zlib-based implementation
+    # - :cache_nils - defaults to false, if true Dalli will not treat cached nil values as 'not found' for
+    #                 #fetch operations.
+    # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method,
+    #                   useful for injecting a FIPS compliant hash object.
+    # - :protocol_implementation - defaults to Dalli::Protocol::Binary which uses the binary protocol. Allows you to
+    #                              pass an alternative implementation using another protocol.
     #
     def initialize(servers = nil, options = {})
       @servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
@@ -50,7 +63,8 @@ module Dalli
     # pipelined as Dalli will use 'quiet' operations where possible.
     # Currently supports the set, add, replace and delete operations.
     def multi
-      old, Thread.current[:dalli_multi] = Thread.current[:dalli_multi], true
+      old = Thread.current[:dalli_multi]
+      Thread.current[:dalli_multi] = true
       yield
     ensure
       Thread.current[:dalli_multi] = old
@@ -72,6 +86,7 @@ module Dalli
       keys.compact!
 
       return {} if keys.empty?
+
       if block_given?
         get_multi_yielder(keys) { |k, data| yield k, data.first }
       else
@@ -81,7 +96,7 @@ module Dalli
       end
     end
 
-    CACHE_NILS = {cache_nils: true}.freeze
+    CACHE_NILS = { cache_nils: true }.freeze
 
     # Fetch the value associated with the key.
     # If a value is found, then it is returned.
@@ -91,17 +106,22 @@ module Dalli
     # If a value is not found (or if the found value is nil and :cache_nils is false)
     # and a block is given, the block will be invoked and its return value
     # written to the cache and returned.
-    def fetch(key, ttl = nil, options = nil)
-      options = options.nil? ? CACHE_NILS : options.merge(CACHE_NILS) if @options[:cache_nils]
-      val = get(key, options)
-      not_found = @options[:cache_nils] ?
-        val == Dalli::Protocol::NOT_FOUND :
-        val.nil?
-      if not_found && block_given?
+    def fetch(key, ttl = nil, req_options = nil)
+      req_options = req_options.nil? ? CACHE_NILS : req_options.merge(CACHE_NILS) if cache_nils
+      val = get(key, req_options)
+      if not_found?(val) && block_given?
         val = yield
-        add(key, val, ttl_or_default(ttl), options)
+        add(key, val, ttl_or_default(ttl), req_options)
       end
       val
+    end
+
+    def not_found?(val)
+      cache_nils ? val == Dalli::Protocol::NOT_FOUND : val.nil?
+    end
+
+    def cache_nils
+      @options[:cache_nils]
     end
 
     ##
@@ -171,7 +191,7 @@ module Dalli
       ring.servers.map { |s| s.request(:flush, time += delay) }
     end
 
-    alias_method :flush_all, :flush
+    alias flush_all flush
 
     ##
     # Incr adds the given amount to the counter on the memcached server.
@@ -185,7 +205,8 @@ module Dalli
     # exist.  To increase an existing counter and update its TTL, use
     # #cas.
     def incr(key, amt = 1, ttl = nil, default = nil)
-      raise ArgumentError, "Positive values only: #{amt}" if amt < 0
+      raise ArgumentError, "Positive values only: #{amt}" if amt.negative?
+
       perform(:incr, key, amt.to_i, ttl_or_default(ttl), default)
     end
 
@@ -204,7 +225,8 @@ module Dalli
     # exist.  To decrease an existing counter and update its TTL, use
     # #cas.
     def decr(key, amt = 1, ttl = nil, default = nil)
-      raise ArgumentError, "Positive values only: #{amt}" if amt < 0
+      raise ArgumentError, "Positive values only: #{amt}" if amt.negative?
+
       perform(:decr, key, amt.to_i, ttl_or_default(ttl), default)
     end
 
@@ -249,7 +271,7 @@ module Dalli
     ##
     ## Make sure memcache servers are alive, or raise an Dalli::RingError
     def alive!
-      ring.server_for_key("")
+      ring.server_for_key('')
     end
 
     ##
@@ -267,7 +289,7 @@ module Dalli
     # value and CAS will be passed to the block.
     def get_cas(key)
       (value, cas) = perform(:cas, key)
-      value = !value || value == "Not found" ? nil : value
+      value = nil if !value || value == 'Not found'
       if block_given?
         yield value, cas
       else
@@ -318,12 +340,12 @@ module Dalli
     # Close our connection to each server.
     # If you perform another operation after this, the connections will be re-established.
     def close
-      if @ring
-        @ring.servers.each { |s| s.close }
-        @ring = nil
-      end
+      return unless @ring
+
+      @ring.servers.each(&:close)
+      @ring = nil
     end
-    alias_method :reset, :close
+    alias reset close
 
     # Stub method so a bare Dalli client can pretend to be a connection pool.
     def with
@@ -334,8 +356,9 @@ module Dalli
 
     def cas_core(key, always_set, ttl = nil, options = nil)
       (value, cas) = perform(:cas, key)
-      value = !value || value == "Not found" ? nil : value
+      value = nil if !value || value == 'Not found'
       return if value.nil? && !always_set
+
       newvalue = yield(value)
       perform(:set, key, newvalue, ttl_or_default(ttl), cas, options)
     end
@@ -350,14 +373,12 @@ module Dalli
       keys.flatten!
       keys.map! { |a| @key_manager.validate_key(a.to_s) }
 
-      keys.group_by { |key|
-        begin
-          ring.server_for_key(key)
-        rescue Dalli::RingError
-          Dalli.logger.debug { "unable to get key #{key}" }
-          nil
-        end
-      }
+      keys.group_by do |key|
+        ring.server_for_key(key)
+      rescue Dalli::RingError
+        Dalli.logger.debug { "unable to get key #{key}" }
+        nil
+      end
     end
 
     def make_multi_get_requests(groups)
@@ -375,22 +396,22 @@ module Dalli
 
     def perform_multi_response_start(servers)
       deleted = []
-  
+
       servers.each do |server|
         next unless server.alive?
-  
+
         begin
           server.multi_response_start
         rescue Dalli::NetworkError
-          servers.each { |s| s.multi_response_abort unless s.sock.nil?  }
+          servers.each { |s| s.multi_response_abort unless s.sock.nil? }
           raise
         rescue Dalli::DalliError => e
           Dalli.logger.debug { e.inspect }
-          Dalli.logger.debug { "results from this server will be missing" }
+          Dalli.logger.debug { 'results from this server will be missing' }
           deleted.append(server)
         end
       end
-  
+
       servers.delete_if { |server| deleted.include?(server) }
     end
 
@@ -410,20 +431,19 @@ module Dalli
 
     # Chokepoint method for instrumentation
     def perform(*all_args)
-      begin
-        return yield if block_given?
-        op, key, *args = all_args
+      return yield if block_given?
 
-        key = key.to_s
-        key = @key_manager.validate_key(key)
-      
-        server = ring.server_for_key(key)
-        server.request(op, key, *args)
-      rescue NetworkError => e
-        Dalli.logger.debug { e.inspect }
-        Dalli.logger.debug { "retrying request with new server" }
-        retry
-      end
+      op, key, *args = all_args
+
+      key = key.to_s
+      key = @key_manager.validate_key(key)
+
+      server = ring.server_for_key(key)
+      server.request(op, key, *args)
+    rescue NetworkError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { 'retrying request with new server' }
+      retry
     end
 
     def normalize_options(opts)
@@ -437,18 +457,24 @@ module Dalli
 
     ##
     # Yields, one at a time, keys and their values+attributes.
+    # rubocop:disable Metrics/CyclomaticComplexity
+    # rubocop:disable Metrics/PerceivedComplexity
     def get_multi_yielder(keys)
       perform do
         return {} if keys.empty?
+
         ring.lock do
           groups = groups_for_keys(keys)
           if (unfound_keys = groups.delete(nil))
-            Dalli.logger.debug { "unable to get keys for #{unfound_keys.length} keys because no matching server was found" }
+            Dalli.logger.debug do
+              "unable to get keys for #{unfound_keys.length} keys because no matching server was found"
+            end
           end
           make_multi_get_requests(groups)
 
           servers = groups.keys
           return if servers.empty?
+
           servers = perform_multi_response_start(servers)
 
           start = Time.now
@@ -463,7 +489,7 @@ module Dalli
             time_left = elapsed > timeout ? 0 : timeout - elapsed
 
             sockets = servers.map(&:sock)
-            readable, _ = IO.select(sockets, nil, nil, time_left)
+            readable, = IO.select(sockets, nil, nil, time_left)
 
             if readable.nil?
               # no response within timeout; abort pending connections
@@ -482,9 +508,7 @@ module Dalli
                     yield @key_manager.key_without_namespace(key), value_list
                   end
 
-                  if server.multi_response_completed?
-                    servers.delete(server)
-                  end
+                  servers.delete(server) if server.multi_response_completed?
                 rescue NetworkError
                   servers.each { |s| s.multi_response_abort unless s.sock.nil? }
                   raise
@@ -495,6 +519,7 @@ module Dalli
         end
       end
     end
-
+    # rubocop:enable Metrics/PerceivedComplexity
+    # rubocop:enable Metrics/CyclomaticComplexity
   end
 end

@@ -130,7 +130,6 @@ describe Dalli::Protocol::ServerConfigParser do
           end
         end
       end
-
     end
 
     describe 'errors' do
@@ -139,7 +138,7 @@ describe Dalli::Protocol::ServerConfigParser do
           err = assert_raises Dalli::DalliError do
             Dalli::Protocol::ServerConfigParser.parse('', {})
           end
-          assert_equal err.message, 'Could not parse hostname '
+          assert_equal('Could not parse hostname ', err.message)
         end
       end
 
@@ -148,7 +147,7 @@ describe Dalli::Protocol::ServerConfigParser do
           err = assert_raises Dalli::DalliError do
             Dalli::Protocol::ServerConfigParser.parse(':1:2', {})
           end
-          assert_equal err.message, 'Could not parse hostname :1:2'
+          assert_equal('Could not parse hostname :1:2', err.message)
         end
       end
 
@@ -157,7 +156,7 @@ describe Dalli::Protocol::ServerConfigParser do
           err = assert_raises Dalli::DalliError do
             Dalli::Protocol::ServerConfigParser.parse('abc.com:', {})
           end
-          assert_equal err.message, 'Could not parse hostname abc.com:'
+          assert_equal('Could not parse hostname abc.com:', err.message)
         end
       end
     end

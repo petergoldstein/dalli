@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "monitor"
+require 'monitor'
 
 module Dalli
   # Make Dalli threadsafe by using a lock around all
@@ -13,7 +13,7 @@ module Dalli
       obj.init_threadsafe
     end
 
-    def request(op, *args)
+    def request(opcode, *args)
       @lock.synchronize do
         super
       end

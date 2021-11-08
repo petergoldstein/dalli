@@ -1,10 +1,24 @@
 # frozen_string_literal: true
 
-require "digest/sha1"
-require "zlib"
+require 'digest/sha1'
+require 'zlib'
 
 module Dalli
+  ##
+  # An implementation of a consistent hash ring, designed to minimize
+  # the cache miss impact of adding or removing servers from the ring.
+  # That is, adding or removing a server from the ring should impact
+  # the key -> server mapping of ~ 1/N of the stored keys where N is the
+  # number of servers in the ring.  This is done by creating a large
+  # number of "points" per server, distributed over the space
+  # 0x00000000 - 0xFFFFFFFF. For a given key, we calculate the CRC32
+  # hash, and find the nearest "point" that is less than or equal to the
+  # the key's hash.  In this implemetation, each "point" is represented
+  # by a Dalli::Ring::Entry.
+  ##
   class Ring
+    # The number of entries on the continuum created per server
+    # in an equally weighted scenario.
     POINTS_PER_SERVER = 160 # this is the default in libmemcached
 
     attr_accessor :servers, :continuum
@@ -12,45 +26,34 @@ module Dalli
     def initialize(servers, options)
       @servers = servers
       @continuum = nil
-      if servers.size > 1
-        total_weight = servers.inject(0) { |memo, srv| memo + srv.weight }
-        continuum = []
-        servers.each do |server|
-          entry_count_for(server, servers.size, total_weight).times do |idx|
-            hash = Digest::SHA1.hexdigest("#{server.name}:#{idx}")
-            value = Integer("0x#{hash[0..7]}")
-            continuum << Dalli::Ring::Entry.new(value, server)
-          end
-        end
-        @continuum = continuum.sort_by(&:value)
-      end
+      @continuum = build_continuum(servers) if servers.size > 1
 
       threadsafe! unless options[:threadsafe] == false
       @failover = options[:failover] != false
     end
 
     def server_for_key(key)
-      if @continuum
-        hkey = hash_for(key)
-        20.times do |try|
-          # Find the closest index in the Ring with value <= the given value
-          entryidx = @continuum.bsearch_index { |entry| entry.value > hkey }
-          if entryidx.nil?
-            entryidx = @continuum.size - 1
-          else
-            entryidx -= 1
-          end
-          server = @continuum[entryidx].server
-          return server if server.alive?
-          break unless @failover
-          hkey = hash_for("#{try}#{key}")
-        end
-      else
-        server = @servers.first
-        return server if server&.alive?
-      end
+      server = if @continuum
+                 server_from_continuum(key)
+               else
+                 @servers.first
+               end
 
-      raise Dalli::RingError, "No server available"
+      return server if server&.alive?
+
+      raise Dalli::RingError, 'No server available'
+    end
+
+    def server_from_continuum(key)
+      hkey = hash_for(key)
+      20.times do |try|
+        server = server_for_hash_key(hkey)
+        return server if server.alive?
+        break unless @failover
+
+        hkey = hash_for("#{try}#{key}")
+      end
+      nil
     end
 
     def lock
@@ -78,9 +81,35 @@ module Dalli
       ((total_servers * POINTS_PER_SERVER * server.weight) / Float(total_weight)).floor
     end
 
+    def server_for_hash_key(hash_key)
+      # Find the closest index in the Ring with value <= the given value
+      entryidx = @continuum.bsearch_index { |entry| entry.value > hash_key }
+      if entryidx.nil?
+        entryidx = @continuum.size - 1
+      else
+        entryidx -= 1
+      end
+      @continuum[entryidx].server
+    end
+
+    def build_continuum(servers)
+      continuum = []
+      total_weight = servers.inject(0) { |memo, srv| memo + srv.weight }
+      servers.each do |server|
+        entry_count_for(server, servers.size, total_weight).times do |idx|
+          hash = Digest::SHA1.hexdigest("#{server.name}:#{idx}")
+          value = Integer("0x#{hash[0..7]}")
+          continuum << Dalli::Ring::Entry.new(value, server)
+        end
+      end
+      continuum.sort_by(&:value)
+    end
+
+    ##
+    # Represents a point in the consistent hash ring implementation.
+    ##
     class Entry
-      attr_reader :value
-      attr_reader :server
+      attr_reader :value, :server
 
       def initialize(val, srv)
         @value = val

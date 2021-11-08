@@ -36,7 +36,7 @@ module Memcached
     # client_options - Options passed to the Dalli::Client on initialization
     # terminate_process - whether to terminate the memcached process on
     #                     exiting the block
-    def memcached(port_or_socket, args = '', client_options = {}, terminate_process = true)
+    def memcached(port_or_socket, args = '', client_options = {}, terminate_process: true)
       dc = MemcachedManager.start_and_flush_with_retry(port_or_socket, args, client_options)
       yield dc, port_or_socket if block_given?
       memcached_kill(port_or_socket) if terminate_process
@@ -46,7 +46,7 @@ module Memcached
     # but sets terminate_process to false ensuring that the process persists
     # past execution of the block argument.
     def memcached_persistent(port_or_socket = 21_345, args = '', client_options = {}, &block)
-      memcached(port_or_socket, args, client_options, false, &block)
+      memcached(port_or_socket, args, client_options, terminate_process: false, &block)
     end
 
     # Launches a persistent memcached process, configured to use SSL
