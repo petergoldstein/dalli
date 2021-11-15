@@ -31,7 +31,7 @@ module CertificateGenerator
   def self.ssl_context
     ssl_context = OpenSSL::SSL::SSLContext.new
     ssl_context.ca_file = CertificateGenerator::ROOT_CA_CERT_PATH
-    ssl_context.ssl_version = :SSLv23
+    ssl_context.ssl_version = :TLSv1_2 # rubocop:disable Naming/VariableNumber
     ssl_context.verify_hostname = true if ssl_context.respond_to?(:verify_hostname=)
     ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER
     ssl_context
