@@ -157,8 +157,8 @@ describe 'performance' do
               @m.multi do
                 @m.set @key1, @value
               end
-                @m.get @key1
-                @m.set @key2, @value
+              @m.get @key1
+              @m.set @key2, @value
               @m.multi do
                 @m.replace @key2, @value
                 @m.delete @key3
