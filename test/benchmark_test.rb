@@ -145,24 +145,30 @@ describe 'performance' do
 
           @m = Dalli::Client.new(@servers)
           x.report('mixedq:ruby:dalli') do
-            @m.multi do
-              n.times do
+            n.times do
+              @m.multi do
                 @m.set @key1, @value
                 @m.set @key2, @value
                 @m.set @key3, @value
-                @m.get @key1
-                @m.get @key2
-                @m.get @key3
+              end
+              @m.get @key1
+              @m.get @key2
+              @m.get @key3
+              @m.multi do
                 @m.set @key1, @value
-                @m.get @key1
-                @m.set @key2, @value
+              end
+              @m.get @key1
+              @m.set @key2, @value
+              @m.multi do
                 @m.replace @key2, @value
                 @m.delete @key3
                 @m.add @key3, @value
-                @m.get @key2
-                @m.set @key3, @value
-                @m.get @key3
               end
+              @m.get @key2
+              @m.multi do
+                @m.set @key3, @value
+              end
+              @m.get @key3
             end
           end
 
