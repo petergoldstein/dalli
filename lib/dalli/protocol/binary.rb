@@ -49,7 +49,7 @@ module Dalli
 
         @sock = nil
         @pid = nil
-        @inprogress = nil
+        @request_in_progress = false
       end
 
       def name
@@ -116,7 +116,7 @@ module Dalli
         end
         @sock = nil
         @pid = nil
-        @inprogress = false
+        abort_request!
       end
 
       def lock!; end
@@ -133,7 +133,7 @@ module Dalli
         write_noop
         @multi_buffer = +''
         @position = 0
-        @inprogress = true
+        start_request!
       end
 
       # Did the last call to #multi_response_start complete successfully?
@@ -182,7 +182,7 @@ module Dalli
       def finish_multi_response
         @multi_buffer = nil
         @position = nil
-        @inprogress = false
+        finish_request!
       end
 
       def parse_key_value(values, buffer, cas, key_length, body_length)
@@ -207,7 +207,7 @@ module Dalli
       def multi_response_abort
         @multi_buffer = nil
         @position = nil
-        @inprogress = false
+        abort_request!
         failure!(RuntimeError.new('External timeout'))
       rescue NetworkError
         true
@@ -217,8 +217,24 @@ module Dalli
 
       private
 
+      def request_in_progress?
+        @request_in_progress
+      end
+
+      def start_request!
+        @request_in_progress = true
+      end
+
+      def finish_request!
+        @request_in_progress = false
+      end
+
+      def abort_request!
+        @request_in_progress = false
+      end
+
       def verify_state
-        failure!(RuntimeError.new('Already writing to socket')) if @inprogress
+        failure!(RuntimeError.new('Already writing to socket')) if request_in_progress?
         reconnect_on_fork if fork_detected?
       end
 
@@ -361,8 +377,11 @@ module Dalli
         req = [REQUEST, OPCODES[opcode], key.bytesize, 20, 0, 0, key.bytesize + 20, 0, 0, h, l, dh, dl, expiry,
                key].pack(FORMAT[opcode])
         write(req)
-        body = generic_response
-        body ? body.unpack1('Q>') : body
+        decr_incr_response
+      end
+
+      def split(quadword)
+        [quadword >> 32, 0xFFFFFFFF & quadword]
       end
 
       def decr(key, count, ttl, default)
@@ -437,6 +456,90 @@ module Dalli
         generic_response(unpack: true, cache_nils: !!(options && options.is_a?(Hash) && options[:cache_nils]))
       end
 
+      def connect
+        Dalli.logger.debug { "Dalli::Server#connect #{name}" }
+
+        begin
+          @pid = Process.pid
+          @sock = if socket_type == :unix
+                    Dalli::Socket::UNIX.open(hostname, self, options)
+                  else
+                    Dalli::Socket::TCP.open(hostname, port, self, options)
+                  end
+          sasl_authentication if need_auth?
+          @version = version # trigger actual connect
+          up!
+        rescue Dalli::DalliError # SASL auth failure
+          raise
+        rescue SystemCallError, Timeout::Error, EOFError, SocketError => e
+          # SocketError = DNS resolution failure
+          failure!(e)
+        end
+      end
+
+      CAS_HEADER = '@4CCnNNQ'
+      NORMAL_HEADER = '@4CCnN'
+      KV_HEADER = '@2n@6nN@16Q'
+      KV_HEADER_SIZE = 24
+
+      # Response codes taken from:
+      # https://github.com/memcached/memcached/wiki/BinaryProtocolRevamped#response-status
+      RESPONSE_CODES = {
+        0 => 'No error',
+        1 => 'Key not found',
+        2 => 'Key exists',
+        3 => 'Value too large',
+        4 => 'Invalid arguments',
+        5 => 'Item not stored',
+        6 => 'Incr/decr on a non-numeric value',
+        7 => 'The vbucket belongs to another server',
+        8 => 'Authentication error',
+        9 => 'Authentication continue',
+        0x20 => 'Authentication required',
+        0x81 => 'Unknown command',
+        0x82 => 'Out of memory',
+        0x83 => 'Not supported',
+        0x84 => 'Internal error',
+        0x85 => 'Busy',
+        0x86 => 'Temporary failure'
+      }.freeze
+
+      def read(count)
+        start_request!
+        data = @sock.readfull(count)
+        finish_request!
+        data
+      rescue SystemCallError, Timeout::Error, EOFError => e
+        failure!(e)
+      end
+
+      def read_header
+        read(24) || raise(Dalli::NetworkError, 'No response')
+      end
+
+      def generic_response(unpack: false, cache_nils: false)
+        status, extras, data = unpack_generic_response_header
+
+        return cache_nils ? ::Dalli::NOT_FOUND : nil if status == 1
+        return false if [2, 5].include?(status) # Not stored, normal status for add operation
+        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
+        return true unless data
+
+        unpack_generic_response_data(extras, data, unpack)
+      end
+
+      def unpack_generic_response_header
+        (extras, _, status, count) = read_header.unpack(NORMAL_HEADER)
+        data = read(count) if count.positive?
+        [status, extras, data]
+      end
+
+      def unpack_generic_response_data(extras, data, unpack)
+        bitflags = data.byteslice(0, extras).unpack1('N')
+        value = data.byteslice(extras, data.bytesize - extras)
+        unpack ? @value_marshaller.retrieve(value, bitflags) : value
+      end
+
       def data_cas_response
         (extras, _, status, count, _, cas) = read_header.unpack(CAS_HEADER)
         data = read(count) if count.positive?
@@ -450,34 +553,6 @@ module Dalli
           data = @value_marshaller.retrieve(value, bitflags)
         end
         [data, cas]
-      end
-
-      CAS_HEADER = '@4CCnNNQ'
-      NORMAL_HEADER = '@4CCnN'
-      KV_HEADER = '@2n@6nN@16Q'
-      KV_HEADER_SIZE = 24
-
-      # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.
-      class NilObject; end # rubocop:disable Lint/EmptyClass
-      NOT_FOUND = NilObject.new
-
-      def generic_response(unpack: false, cache_nils: false)
-        status, extras, data = unpack_generic_response_header
-
-        return cache_nils ? NOT_FOUND : nil if status == 1
-        return false if [2, 5].include?(status) # Not stored, normal status for add operation
-        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
-        return true unless data
-
-        bitflags = data.byteslice(0, extras).unpack1('N')
-        value = data.byteslice(extras, data.bytesize - extras)
-        unpack ? @value_marshaller.retrieve(value, bitflags) : value
-      end
-
-      def unpack_generic_response_header
-        (extras, _, status, count) = read_header.unpack(NORMAL_HEADER)
-        data = read(count) if count.positive?
-        [status, extras, data]
       end
 
       def cas_response
@@ -509,77 +584,35 @@ module Dalli
         end
       end
 
+      def decr_incr_response
+        body = generic_response
+        body ? body.unpack1('Q>') : body
+      end
+
+      def validate_auth_format(extras, count)
+        return if extras.zero? && count.positive?
+
+        raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}"
+      end
+
+      def auth_response
+        (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
+        validate_auth_format(extras, count)
+        content = read(count)
+        [status, content]
+      end
+
       def write(bytes)
-        @inprogress = true
+        start_request!
         result = @sock.write(bytes)
-        @inprogress = false
+        finish_request!
         result
       rescue SystemCallError, Timeout::Error => e
         failure!(e)
       end
 
-      def read(count)
-        @inprogress = true
-        data = @sock.readfull(count)
-        @inprogress = false
-        data
-      rescue SystemCallError, Timeout::Error, EOFError => e
-        failure!(e)
-      end
-
-      def read_header
-        read(24) || raise(Dalli::NetworkError, 'No response')
-      end
-
-      def connect
-        Dalli.logger.debug { "Dalli::Server#connect #{name}" }
-
-        begin
-          @pid = Process.pid
-          @sock = if socket_type == :unix
-                    Dalli::Socket::UNIX.open(hostname, self, options)
-                  else
-                    Dalli::Socket::TCP.open(hostname, port, self, options)
-                  end
-          sasl_authentication if need_auth?
-          @version = version # trigger actual connect
-          up!
-        rescue Dalli::DalliError # SASL auth failure
-          raise
-        rescue SystemCallError, Timeout::Error, EOFError, SocketError => e
-          # SocketError = DNS resolution failure
-          failure!(e)
-        end
-      end
-
-      def split(quadword)
-        [quadword >> 32, 0xFFFFFFFF & quadword]
-      end
-
       REQUEST = 0x80
       RESPONSE = 0x81
-
-      # Response codes taken from:
-      # https://github.com/memcached/memcached/wiki/BinaryProtocolRevamped#response-status
-      RESPONSE_CODES = {
-        0 => 'No error',
-        1 => 'Key not found',
-        2 => 'Key exists',
-        3 => 'Value too large',
-        4 => 'Invalid arguments',
-        5 => 'Item not stored',
-        6 => 'Incr/decr on a non-numeric value',
-        7 => 'The vbucket belongs to another server',
-        8 => 'Authentication error',
-        9 => 'Authentication continue',
-        0x20 => 'Authentication required',
-        0x81 => 'Unknown command',
-        0x82 => 'Out of memory',
-        0x83 => 'Not supported',
-        0x84 => 'Internal error',
-        0x85 => 'Busy',
-        0x86 => 'Temporary failure'
-      }.freeze
 
       OPCODES = {
         get: 0x00,
@@ -648,8 +681,6 @@ module Dalli
         @options[:password] || ENV['MEMCACHE_PASSWORD']
       end
 
-      # rubocop:disable Metrics/CyclomaticComplexity
-      # rubocop:disable Metrics/PerceivedComplexity
       def sasl_authentication
         Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
 
@@ -657,13 +688,9 @@ module Dalli
         req = [REQUEST, OPCODES[:auth_negotiation], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
         write(req)
 
-        (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
-        unless extras.zero? && count.positive?
-          raise Dalli::NetworkError,
-                "Unexpected message format: #{extras} #{count}"
-        end
-
-        content = read(count).tr("\u0000", ' ')
+        status, content = auth_response
+        # TODO: Determine if this substitution is needed
+        content.tr("\u0000", ' ')
         return Dalli.logger.debug('Authentication not required/supported by server') if status == 0x81
 
         mechanisms = content.split
@@ -679,13 +706,7 @@ module Dalli
                mechanism, msg].pack(FORMAT[:auth_request])
         write(req)
 
-        (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
-        unless extras.zero? && count.positive?
-          raise Dalli::NetworkError,
-                "Unexpected message format: #{extras} #{count}"
-        end
-
-        content = read(count)
+        status, content = auth_response
         return Dalli.logger.info("Dalli/SASL: #{content}") if status.zero?
 
         raise Dalli::DalliError, "Error authenticating: #{status}" unless status == 0x21
@@ -694,8 +715,6 @@ module Dalli
         # (step, msg) = sasl.receive('challenge', content)
         # raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
       end
-      # rubocop:enable Metrics/PerceivedComplexity
-      # rubocop:enable Metrics/CyclomaticComplexity
     end
   end
 end

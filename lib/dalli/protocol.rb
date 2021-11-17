@@ -2,9 +2,7 @@
 
 module Dalli
   module Protocol
-    # Implements the NullObject pattern to store an application-defined value for
-    # 'Key not found' responses.
-    class NilObject; end # rubocop:disable Lint/EmptyClass
-    NOT_FOUND = NilObject.new
+    # Preserved for backwards compatibility.  Should be removed in 4.0
+    NOT_FOUND = ::Dalli::NOT_FOUND
   end
 end

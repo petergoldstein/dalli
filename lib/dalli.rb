@@ -1,21 +1,5 @@
 # frozen_string_literal: true
 
-require 'dalli/compressor'
-require 'dalli/client'
-require 'dalli/key_manager'
-require 'dalli/ring'
-require 'dalli/protocol'
-require 'dalli/protocol/binary'
-require 'dalli/protocol/server_config_parser'
-require 'dalli/protocol/ttl_sanitizer'
-require 'dalli/protocol/value_compressor'
-require 'dalli/protocol/value_marshaller'
-require 'dalli/protocol/value_serializer'
-require 'dalli/servers_arg_normalizer'
-require 'dalli/socket'
-require 'dalli/version'
-require 'dalli/options'
-
 ##
 # Namespace for all Dalli code.
 ##
@@ -40,6 +24,10 @@ module Dalli
   # payload too big for memcached
   class ValueOverMaxSize < DalliError; end
 
+  # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.
+  class NilObject; end # rubocop:disable Lint/EmptyClass
+  NOT_FOUND = NilObject.new
+
   def self.logger
     @logger ||= (rails_logger || default_logger)
   end
@@ -60,3 +48,19 @@ module Dalli
     @logger = logger
   end
 end
+
+require 'dalli/compressor'
+require 'dalli/client'
+require 'dalli/key_manager'
+require 'dalli/ring'
+require 'dalli/protocol'
+require 'dalli/protocol/binary'
+require 'dalli/protocol/server_config_parser'
+require 'dalli/protocol/ttl_sanitizer'
+require 'dalli/protocol/value_compressor'
+require 'dalli/protocol/value_marshaller'
+require 'dalli/protocol/value_serializer'
+require 'dalli/servers_arg_normalizer'
+require 'dalli/socket'
+require 'dalli/version'
+require 'dalli/options'
