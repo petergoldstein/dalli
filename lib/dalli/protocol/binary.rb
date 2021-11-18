@@ -320,31 +320,31 @@ module Dalli
       end
 
       def set(key, value, ttl, cas, options)
-        (value, flags) = @value_marshaller.store(key, value, options)
+        (value, bitflags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
 
         req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0,
-               cas, flags, ttl, key, value].pack(FORMAT[:set])
+               cas, bitflags, ttl, key, value].pack(FORMAT[:set])
         write(req)
         cas_response unless multi?
       end
 
       def add(key, value, ttl, options)
-        (value, flags) = @value_marshaller.store(key, value, options)
+        (value, bitflags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
 
-        req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0,
-               flags, ttl, key, value].pack(FORMAT[:add])
+        req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0,
+               0, bitflags, ttl, key, value].pack(FORMAT[:add])
         write(req)
         cas_response unless multi?
       end
 
       def replace(key, value, ttl, cas, options)
-        (value, flags) = @value_marshaller.store(key, value, options)
+        (value, bitflags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
 
         req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0,
-               value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:replace])
+               value.bytesize + key.bytesize + 8, 0, cas, bitflags, ttl, key, value].pack(FORMAT[:replace])
         write(req)
         cas_response unless multi?
       end
@@ -531,9 +531,9 @@ module Dalli
       end
 
       def unpack_response_body(extra_len, key_len, body, unpack)
-        bitflags = body.byteslice(0, extra_len).unpack1('N') if extra_len.positive?
+        bitflags = extra_len.positive? ? body.byteslice(0, extra_len).unpack1('N') : 0x0
         key = body.byteslice(extra_len, key_len) if key_len.positive?
-        value = body.byteslice(extra_len + key_len, body.bytesize - extra_len)
+        value = body.byteslice(extra_len + key_len, body.bytesize - (extra_len + key_len))
         value = unpack ? @value_marshaller.retrieve(value, bitflags) : value
         [key, value]
       end
@@ -562,12 +562,8 @@ module Dalli
           _, extra_len, body, _, key_len = read_response
           return hash if key_len.zero?
 
-          body_len = body.bytesize
-          bitflags = extra_len.positive? ? body.byteslice(0, extra_len) : 0x0
-          key = body.byteslice(extra_len, key_len)
-          value_len = body_len - key_len - extra_len
-          value = body.byteslice(extra_len + key_len, value_len)
-          hash[key] = @value_marshaller.retrieve(value, bitflags)
+          key, value = unpack_response_body(extra_len, key_len, body, true)
+          hash[key] = value
         end
       end
 
