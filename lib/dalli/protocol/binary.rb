@@ -477,8 +477,8 @@ module Dalli
         end
       end
 
-      CAS_HEADER = '@4CCnNNQ'
-      NORMAL_HEADER = '@4CCnN'
+      NORMAL_HEADER = '@2nCCnNNQ'
+      NORMAL_HEADER_SIZE = 24
       KV_HEADER = '@2n@6nN@16Q'
       KV_HEADER_SIZE = 24
 
@@ -518,55 +518,44 @@ module Dalli
       end
 
       def generic_response(unpack: false, cache_nils: false)
-        status, extras, data = unpack_generic_response_header
+        status, extra_len, body, = unpack_generic_response_header
 
         return cache_nils ? ::Dalli::NOT_FOUND : nil if status == 1
         return false if [2, 5].include?(status) # Not stored, normal status for add operation
         raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
-        return true unless data
+        return true unless body
 
-        unpack_generic_response_data(extras, data, unpack)
+        unpack_generic_response_data(extra_len, body, unpack)
       end
 
       def unpack_generic_response_header
-        (extras, _, status, count) = read_header.unpack(NORMAL_HEADER)
-        data = read(count) if count.positive?
-        [status, extras, data]
+        (_, extra_len, _, status, body_len, _, cas) = read_header.unpack(NORMAL_HEADER)
+        body = read(body_len) if body_len.positive?
+        [status, extra_len, body, cas]
       end
 
-      def unpack_generic_response_data(extras, data, unpack)
-        bitflags = data.byteslice(0, extras).unpack1('N')
-        value = data.byteslice(extras, data.bytesize - extras)
+      def unpack_generic_response_data(extra_len, body, unpack)
+        bitflags = body.byteslice(0, extra_len).unpack1('N') if extra_len.positive?
+        value = body.byteslice(extra_len, body.bytesize - extra_len)
         unpack ? @value_marshaller.retrieve(value, bitflags) : value
       end
 
       def data_cas_response
-        (extras, _, status, count, _, cas) = read_header.unpack(CAS_HEADER)
-        data = read(count) if count.positive?
-        if status == 1
-          nil
-        elsif status != 0
-          raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
-        elsif data
-          bitflags = data[0...extras].unpack1('N')
-          value = data[extras..-1]
-          data = @value_marshaller.retrieve(value, bitflags)
-        end
-        [data, cas]
+        status, extra_len, body, cas = unpack_generic_response_header
+        return [nil, cas] if status == 1
+        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
+        return [nil, cas] unless body # This should never happen, becuase a valid get should always return a body
+
+        [unpack_generic_response_data(extra_len, body, true), cas]
       end
 
       def cas_response
-        (_, _, status, count, _, cas) = read_header.unpack(CAS_HEADER)
-        read(count) if count.positive? # this is potential data that we don't care about
-        if status == 1
-          nil
-        elsif [2, 5].include?(status)
-          false # Not stored, normal status for add operation
-        elsif status != 0
-          raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
-        else
-          cas
-        end
+        status, extra_len, body, cas = unpack_generic_response_header
+        return nil if status == 1
+        return false if [2, 5].include?(status)
+        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
+
+        cas
       end
 
       def keyvalue_response(with_flags: true)
@@ -589,15 +578,15 @@ module Dalli
         body ? body.unpack1('Q>') : body
       end
 
-      def validate_auth_format(extras, count)
-        return if extras.zero? && count.positive?
+      def validate_auth_format(extra_len, count)
+        return if extra_len.zero? && count.positive?
 
-        raise Dalli::NetworkError, "Unexpected message format: #{extras} #{count}"
+        raise Dalli::NetworkError, "Unexpected message format: #{extra_len} #{count}"
       end
 
       def auth_response
-        (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
-        validate_auth_format(extras, count)
+        (extra_len, _type, status, count) = read_header.unpack(NORMAL_HEADER)
+        validate_auth_format(extra_len, count)
         content = read(count)
         [status, content]
       end
