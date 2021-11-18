@@ -155,23 +155,30 @@ module Dalli
         pos = @position
         values = {}
 
-        while buf.bytesize - pos >= KV_HEADER_SIZE
-          header = buf.slice(pos, KV_HEADER_SIZE)
-          (key_length, _, body_length, cas) = header.unpack(KV_HEADER)
+        while buf.bytesize - pos >= HEADER_SIZE
+          _, extra_len, key_len, body_len, cas = unpack_header(buf.slice(pos, HEADER_SIZE))
 
-          # Signals end of multiresponse - all done
-          if key_length.zero?
+          # We've reached the noop at the end of the pipeline
+          if key_len.zero?
             finish_multi_response
             break
-          elsif buf.bytesize - pos >= KV_HEADER_SIZE + body_length
-            buffer_for_kv = buf.slice(pos + KV_HEADER_SIZE, body_length)
-            parse_key_value(values, buffer_for_kv, cas, key_length, body_length)
-            pos = pos + KV_HEADER_SIZE + body_length
-          else
-            # not enough data yet, wait for more
-            break
           end
+
+          # Break and read more unless we already have the entire response for this header
+          break unless buf.bytesize - pos >= HEADER_SIZE + body_len
+
+          body = buf.slice(pos + HEADER_SIZE, body_len)
+          begin
+            key, value = unpack_response_body(extra_len, key_len, body, true)
+            values[key] = [value, cas]
+          rescue DalliError
+            # TODO: Determine if we should be swallowing
+            # this error
+          end
+
+          pos = pos + HEADER_SIZE + body_len
         end
+        # TODO: We should be discarding the already processed buffer at this point
         @position = pos
 
         values
@@ -183,20 +190,6 @@ module Dalli
         @multi_buffer = nil
         @position = nil
         finish_request!
-      end
-
-      def parse_key_value(values, buffer, cas, key_length, body_length)
-        flags = buffer.slice(0, 4).unpack1('N')
-        key = buffer.slice(4, key_length)
-        value_length = body_length - key_length - 4
-        value = value_length.positive? ? buffer.slice(key_length + 4, value_length) : nil
-
-        begin
-          values[key] = [@value_marshaller.retrieve(value, flags), cas]
-        rescue DalliError
-          # TODO: Determine if we should be swallowing
-          # this error
-        end
       end
 
       # Abort an earlier #multi_response_start. Used to signal an external
@@ -411,7 +404,7 @@ module Dalli
       # We need to read all the responses at once.
       def noop
         write_noop
-        keyvalue_response(with_flags: false)
+        multi_with_keys_response
       end
 
       def append(key, value)
@@ -425,7 +418,7 @@ module Dalli
       def stats(info = '')
         req = [REQUEST, OPCODES[:stat], info.bytesize, 0, 0, 0, info.bytesize, 0, 0, info].pack(FORMAT[:stat])
         write(req)
-        keyvalue_response(with_flags: false)
+        multi_with_keys_response
       end
 
       def reset_stats
@@ -478,9 +471,7 @@ module Dalli
       end
 
       NORMAL_HEADER = '@2nCCnNNQ'
-      NORMAL_HEADER_SIZE = 24
-      KV_HEADER = '@2n@6nN@16Q'
-      KV_HEADER_SIZE = 24
+      HEADER_SIZE = 24
 
       # Response codes taken from:
       # https://github.com/memcached/memcached/wiki/BinaryProtocolRevamped#response-status
@@ -514,43 +505,50 @@ module Dalli
       end
 
       def read_header
-        read(24) || raise(Dalli::NetworkError, 'No response')
+        read(HEADER_SIZE) || raise(Dalli::NetworkError, 'No response')
       end
 
       def generic_response(unpack: false, cache_nils: false)
-        status, extra_len, body, = unpack_generic_response_header
+        status, extra_len, body, _, key_len = read_response
 
         return cache_nils ? ::Dalli::NOT_FOUND : nil if status == 1
         return false if [2, 5].include?(status) # Not stored, normal status for add operation
         raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
         return true unless body
 
-        unpack_generic_response_data(extra_len, body, unpack)
+        unpack_response_body(extra_len, key_len, body, unpack).last
       end
 
-      def unpack_generic_response_header
-        (_, extra_len, _, status, body_len, _, cas) = read_header.unpack(NORMAL_HEADER)
+      def read_response
+        status, extra_len, key_len, body_len, cas = unpack_header(read_header)
         body = read(body_len) if body_len.positive?
-        [status, extra_len, body, cas]
+        [status, extra_len, body, cas, key_len]
       end
 
-      def unpack_generic_response_data(extra_len, body, unpack)
+      def unpack_header(header)
+        (key_len, extra_len, _, status, body_len, _, cas) = header.unpack(NORMAL_HEADER)
+        [status, extra_len, key_len, body_len, cas]
+      end
+
+      def unpack_response_body(extra_len, key_len, body, unpack)
         bitflags = body.byteslice(0, extra_len).unpack1('N') if extra_len.positive?
-        value = body.byteslice(extra_len, body.bytesize - extra_len)
-        unpack ? @value_marshaller.retrieve(value, bitflags) : value
+        key = body.byteslice(extra_len, key_len) if key_len.positive?
+        value = body.byteslice(extra_len + key_len, body.bytesize - extra_len)
+        value = unpack ? @value_marshaller.retrieve(value, bitflags) : value
+        [key, value]
       end
 
       def data_cas_response
-        status, extra_len, body, cas = unpack_generic_response_header
+        status, extra_len, body, cas, key_len = read_response
         return [nil, cas] if status == 1
         raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
         return [nil, cas] unless body # This should never happen, becuase a valid get should always return a body
 
-        [unpack_generic_response_data(extra_len, body, true), cas]
+        [unpack_response_body(extra_len, key_len, body, true).last, cas]
       end
 
       def cas_response
-        status, extra_len, body, cas = unpack_generic_response_header
+        status, _, _, cas, = read_response
         return nil if status == 1
         return false if [2, 5].include?(status)
         raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
@@ -558,18 +556,18 @@ module Dalli
         cas
       end
 
-      def keyvalue_response(with_flags: true)
+      def multi_with_keys_response
         hash = {}
-        flags_len = with_flags ? 4 : 0
         loop do
-          (key_length, _, body_length,) = read_header.unpack(KV_HEADER)
-          return hash if key_length.zero?
+          _, extra_len, body, _, key_len = read_response
+          return hash if key_len.zero?
 
-          flags = with_flags ? read(flags_len).unpack1('N') : 0x0
-          key = read(key_length)
-          value_length = body_length - key_length - flags_len
-          value = read(value_length) if value_length.positive?
-          hash[key] = @value_marshaller.retrieve(value, flags)
+          body_len = body.bytesize
+          bitflags = extra_len.positive? ? body.byteslice(0, extra_len) : 0x0
+          key = body.byteslice(extra_len, key_len)
+          value_len = body_len - key_len - extra_len
+          value = body.byteslice(extra_len + key_len, value_len)
+          hash[key] = @value_marshaller.retrieve(value, bitflags)
         end
       end
 
