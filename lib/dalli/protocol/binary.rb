@@ -155,8 +155,8 @@ module Dalli
         pos = @position
         values = {}
 
-        while buf.bytesize - pos >= HEADER_SIZE
-          _, extra_len, key_len, body_len, cas = unpack_header(buf.slice(pos, HEADER_SIZE))
+        while buf.bytesize - pos >= RESP_HEADER_SIZE
+          _, extra_len, key_len, body_len, cas = unpack_header(buf.slice(pos, RESP_HEADER_SIZE))
 
           # We've reached the noop at the end of the pipeline
           if key_len.zero?
@@ -165,9 +165,9 @@ module Dalli
           end
 
           # Break and read more unless we already have the entire response for this header
-          break unless buf.bytesize - pos >= HEADER_SIZE + body_len
+          break unless buf.bytesize - pos >= RESP_HEADER_SIZE + body_len
 
-          body = buf.slice(pos + HEADER_SIZE, body_len)
+          body = buf.slice(pos + RESP_HEADER_SIZE, body_len)
           begin
             key, value = unpack_response_body(extra_len, key_len, body, true)
             values[key] = [value, cas]
@@ -176,7 +176,7 @@ module Dalli
             # this error
           end
 
-          pos = pos + HEADER_SIZE + body_len
+          pos = pos + RESP_HEADER_SIZE + body_len
         end
         # TODO: We should be discarding the already processed buffer at this point
         @position = pos
@@ -470,8 +470,8 @@ module Dalli
         end
       end
 
-      NORMAL_HEADER = '@2nCCnNNQ'
-      HEADER_SIZE = 24
+      RESP_HEADER = '@2nCCnNNQ'
+      RESP_HEADER_SIZE = 24
 
       # Response codes taken from:
       # https://github.com/memcached/memcached/wiki/BinaryProtocolRevamped#response-status
@@ -504,21 +504,6 @@ module Dalli
         failure!(e)
       end
 
-      def read_header
-        read(HEADER_SIZE) || raise(Dalli::NetworkError, 'No response')
-      end
-
-      def generic_response(unpack: false, cache_nils: false)
-        status, extra_len, body, _, key_len = read_response
-
-        return cache_nils ? ::Dalli::NOT_FOUND : nil if status == 1
-        return false if [2, 5].include?(status) # Not stored, normal status for add operation
-        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
-        return true unless body
-
-        unpack_response_body(extra_len, key_len, body, unpack).last
-      end
-
       def read_response
         status, extra_len, key_len, body_len, cas = unpack_header(read_header)
         body = read(body_len) if body_len.positive?
@@ -526,7 +511,7 @@ module Dalli
       end
 
       def unpack_header(header)
-        (key_len, extra_len, _, status, body_len, _, cas) = header.unpack(NORMAL_HEADER)
+        (key_len, extra_len, _, status, body_len, _, cas) = header.unpack(RESP_HEADER)
         [status, extra_len, key_len, body_len, cas]
       end
 
@@ -538,22 +523,50 @@ module Dalli
         [key, value]
       end
 
+      def read_header
+        read(RESP_HEADER_SIZE) || raise(Dalli::NetworkError, 'No response')
+      end
+
+      def not_found?(status)
+        status == 1
+      end
+
+      NOT_STORED_STATUSES = [2, 5].freeze
+      def not_stored?(status)
+        NOT_STORED_STATUSES.include?(status)
+      end
+
+      def raise_on_not_ok_status!(status)
+        return if status.zero?
+
+        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
+      end
+
+      def generic_response(unpack: false, cache_nils: false)
+        status, extra_len, body, _, key_len = read_response
+
+        return cache_nils ? ::Dalli::NOT_FOUND : nil if not_found?(status)
+        return false if not_stored?(status) # Not stored, normal status for add operation
+
+        raise_on_not_ok_status!(status)
+        return true unless body
+
+        unpack_response_body(extra_len, key_len, body, unpack).last
+      end
+
       def data_cas_response
         status, extra_len, body, cas, key_len = read_response
-        return [nil, cas] if status == 1
-        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
-        return [nil, cas] unless body # This should never happen, becuase a valid get should always return a body
+        return [nil, cas] if not_found?(status)
+        return [nil, false] if not_stored?(status)
+
+        raise_on_not_ok_status!(status)
+        return [nil, cas] unless body
 
         [unpack_response_body(extra_len, key_len, body, true).last, cas]
       end
 
       def cas_response
-        status, _, _, cas, = read_response
-        return nil if status == 1
-        return false if [2, 5].include?(status)
-        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
-
-        cas
+        data_cas_response.last
       end
 
       def multi_with_keys_response
@@ -579,7 +592,7 @@ module Dalli
       end
 
       def auth_response
-        (extra_len, _type, status, count) = read_header.unpack(NORMAL_HEADER)
+        (extra_len, _type, status, count) = read_header.unpack(RESP_HEADER)
         validate_auth_format(extra_len, count)
         content = read(count)
         [status, content]
@@ -625,7 +638,7 @@ module Dalli
         gat: 0x1D
       }.freeze
 
-      HEADER = 'CCnCCnNNQ'
+      REQ_HEADER = 'CCnCCnNNQ'
       OP_FORMAT = {
         get: 'a*',
         set: 'NNa*a*',
@@ -646,7 +659,7 @@ module Dalli
         touch: 'Na*',
         gat: 'Na*'
       }.freeze
-      FORMAT = OP_FORMAT.transform_values { |v| HEADER + v; }
+      FORMAT = OP_FORMAT.transform_values { |v| REQ_HEADER + v; }
 
       #######
       # SASL authentication support for NorthScale
