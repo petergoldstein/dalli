@@ -117,7 +117,7 @@ module Dalli
     end
 
     def not_found?(val)
-      cache_nils ? val == Dalli::Protocol::NOT_FOUND : val.nil?
+      cache_nils ? val == ::Dalli::NOT_FOUND : val.nil?
     end
 
     def cache_nils

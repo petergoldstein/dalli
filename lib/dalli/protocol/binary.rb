@@ -5,6 +5,8 @@ require 'forwardable'
 require 'socket'
 require 'timeout'
 
+require_relative 'binary_response_processor'
+
 module Dalli
   module Protocol
     ##
@@ -44,12 +46,13 @@ module Dalli
         @hostname, @port, @weight, @socket_type, options = ServerConfigParser.parse(attribs, options)
         @options = DEFAULTS.merge(options)
         @value_marshaller = ValueMarshaller.new(@options)
+        @response_processor = BinaryResponseProcessor.new(self, @value_marshaller)
 
         reset_down_info
 
         @sock = nil
         @pid = nil
-        @inprogress = nil
+        @request_in_progress = false
       end
 
       def name
@@ -116,7 +119,7 @@ module Dalli
         end
         @sock = nil
         @pid = nil
-        @inprogress = false
+        abort_request!
       end
 
       def lock!; end
@@ -133,7 +136,7 @@ module Dalli
         write_noop
         @multi_buffer = +''
         @position = 0
-        @inprogress = true
+        start_request!
       end
 
       # Did the last call to #multi_response_start complete successfully?
@@ -155,23 +158,32 @@ module Dalli
         pos = @position
         values = {}
 
-        while buf.bytesize - pos >= KV_HEADER_SIZE
-          header = buf.slice(pos, KV_HEADER_SIZE)
-          (key_length, _, body_length, cas) = header.unpack(KV_HEADER)
+        while buf.bytesize - pos >= BinaryResponseProcessor::RESP_HEADER_SIZE
+          header = buf.slice(pos, BinaryResponseProcessor::RESP_HEADER_SIZE)
+          _, extra_len, key_len, body_len, cas = @response_processor.unpack_header(header)
 
-          # Signals end of multiresponse - all done
-          if key_length.zero?
+          # We've reached the noop at the end of the pipeline
+          if key_len.zero?
             finish_multi_response
             break
-          elsif buf.bytesize - pos >= KV_HEADER_SIZE + body_length
-            buffer_for_kv = buf.slice(pos + KV_HEADER_SIZE, body_length)
-            parse_key_value(values, buffer_for_kv, cas, key_length, body_length)
-            pos = pos + KV_HEADER_SIZE + body_length
-          else
-            # not enough data yet, wait for more
-            break
           end
+
+          # Break and read more unless we already have the entire response for this header
+          resp_size = BinaryResponseProcessor::RESP_HEADER_SIZE + body_len
+          break unless buf.bytesize - pos >= resp_size
+
+          body = buf.slice(pos + BinaryResponseProcessor::RESP_HEADER_SIZE, body_len)
+          begin
+            key, value = @response_processor.unpack_response_body(extra_len, key_len, body, true)
+            values[key] = [value, cas]
+          rescue DalliError
+            # TODO: Determine if we should be swallowing
+            # this error
+          end
+
+          pos = pos + BinaryResponseProcessor::RESP_HEADER_SIZE + body_len
         end
+        # TODO: We should be discarding the already processed buffer at this point
         @position = pos
 
         values
@@ -182,21 +194,7 @@ module Dalli
       def finish_multi_response
         @multi_buffer = nil
         @position = nil
-        @inprogress = false
-      end
-
-      def parse_key_value(values, buffer, cas, key_length, body_length)
-        flags = buffer.slice(0, 4).unpack1('N')
-        key = buffer.slice(4, key_length)
-        value_length = body_length - key_length - 4
-        value = value_length.positive? ? buffer.slice(key_length + 4, value_length) : nil
-
-        begin
-          values[key] = [@value_marshaller.retrieve(value, flags), cas]
-        rescue DalliError
-          # TODO: Determine if we should be swallowing
-          # this error
-        end
+        finish_request!
       end
 
       # Abort an earlier #multi_response_start. Used to signal an external
@@ -207,18 +205,52 @@ module Dalli
       def multi_response_abort
         @multi_buffer = nil
         @position = nil
-        @inprogress = false
+        abort_request!
         failure!(RuntimeError.new('External timeout'))
       rescue NetworkError
         true
+      end
+
+      def read(count)
+        start_request!
+        data = @sock.readfull(count)
+        finish_request!
+        data
+      rescue SystemCallError, Timeout::Error, EOFError => e
+        failure!(e)
+      end
+
+      def write(bytes)
+        start_request!
+        result = @sock.write(bytes)
+        finish_request!
+        result
+      rescue SystemCallError, Timeout::Error => e
+        failure!(e)
       end
 
       # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
 
       private
 
+      def request_in_progress?
+        @request_in_progress
+      end
+
+      def start_request!
+        @request_in_progress = true
+      end
+
+      def finish_request!
+        @request_in_progress = false
+      end
+
+      def abort_request!
+        @request_in_progress = false
+      end
+
       def verify_state
-        failure!(RuntimeError.new('Already writing to socket')) if @inprogress
+        failure!(RuntimeError.new('Already writing to socket')) if request_in_progress?
         reconnect_on_fork if fork_detected?
       end
 
@@ -295,10 +327,16 @@ module Dalli
         Thread.current[:dalli_multi]
       end
 
+      def cache_nils?(opts)
+        return false unless opts.is_a?(Hash)
+
+        opts[:cache_nils] ? true : false
+      end
+
       def get(key, options = nil)
         req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
         write(req)
-        generic_response(unpack: true, cache_nils: !!(options && options.is_a?(Hash) && options[:cache_nils]))
+        @response_processor.generic_response(unpack: true, cache_nils: cache_nils?(options))
       end
 
       def send_multiget(keys)
@@ -311,46 +349,46 @@ module Dalli
       end
 
       def set(key, value, ttl, cas, options)
-        (value, flags) = @value_marshaller.store(key, value, options)
+        (value, bitflags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
 
         req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0,
-               cas, flags, ttl, key, value].pack(FORMAT[:set])
+               cas, bitflags, ttl, key, value].pack(FORMAT[:set])
         write(req)
-        cas_response unless multi?
+        @response_processor.cas_response unless multi?
       end
 
       def add(key, value, ttl, options)
-        (value, flags) = @value_marshaller.store(key, value, options)
+        (value, bitflags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
 
-        req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0, 0,
-               flags, ttl, key, value].pack(FORMAT[:add])
+        req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0,
+               0, bitflags, ttl, key, value].pack(FORMAT[:add])
         write(req)
-        cas_response unless multi?
+        @response_processor.cas_response unless multi?
       end
 
       def replace(key, value, ttl, cas, options)
-        (value, flags) = @value_marshaller.store(key, value, options)
+        (value, bitflags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
 
         req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0,
-               value.bytesize + key.bytesize + 8, 0, cas, flags, ttl, key, value].pack(FORMAT[:replace])
+               value.bytesize + key.bytesize + 8, 0, cas, bitflags, ttl, key, value].pack(FORMAT[:replace])
         write(req)
-        cas_response unless multi?
+        @response_processor.cas_response unless multi?
       end
 
       def delete(key, cas)
         req = [REQUEST, OPCODES[multi? ? :deleteq : :delete], key.bytesize, 0, 0, 0, key.bytesize, 0, cas,
                key].pack(FORMAT[:delete])
         write(req)
-        generic_response unless multi?
+        @response_processor.generic_response unless multi?
       end
 
       def flush(_ttl)
         req = [REQUEST, OPCODES[:flush], 0, 4, 0, 0, 4, 0, 0, 0].pack(FORMAT[:flush])
         write(req)
-        generic_response
+        @response_processor.generic_response
       end
 
       def decr_incr(opcode, key, count, ttl, default)
@@ -361,8 +399,11 @@ module Dalli
         req = [REQUEST, OPCODES[opcode], key.bytesize, 20, 0, 0, key.bytesize + 20, 0, 0, h, l, dh, dl, expiry,
                key].pack(FORMAT[opcode])
         write(req)
-        body = generic_response
-        body ? body.unpack1('Q>') : body
+        @response_processor.decr_incr_response
+      end
+
+      def split(quadword)
+        [quadword >> 32, 0xFFFFFFFF & quadword]
       end
 
       def decr(key, count, ttl, default)
@@ -380,7 +421,7 @@ module Dalli
 
       def write_generic(bytes)
         write(bytes)
-        generic_response
+        @response_processor.generic_response
       end
 
       def write_noop
@@ -392,7 +433,7 @@ module Dalli
       # We need to read all the responses at once.
       def noop
         write_noop
-        keyvalue_response(with_flags: false)
+        @response_processor.multi_with_keys_response
       end
 
       def append(key, value)
@@ -406,7 +447,7 @@ module Dalli
       def stats(info = '')
         req = [REQUEST, OPCODES[:stat], info.bytesize, 0, 0, 0, info.bytesize, 0, 0, info].pack(FORMAT[:stat])
         write(req)
-        keyvalue_response(with_flags: false)
+        @response_processor.multi_with_keys_response
       end
 
       def reset_stats
@@ -417,7 +458,7 @@ module Dalli
       def cas(key)
         req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
         write(req)
-        data_cas_response
+        @response_processor.data_cas_response
       end
 
       def version
@@ -434,101 +475,7 @@ module Dalli
         ttl = TtlSanitizer.sanitize(ttl)
         req = [REQUEST, OPCODES[:gat], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:gat])
         write(req)
-        generic_response(unpack: true, cache_nils: !!(options && options.is_a?(Hash) && options[:cache_nils]))
-      end
-
-      def data_cas_response
-        (extras, _, status, count, _, cas) = read_header.unpack(CAS_HEADER)
-        data = read(count) if count.positive?
-        if status == 1
-          nil
-        elsif status != 0
-          raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
-        elsif data
-          bitflags = data[0...extras].unpack1('N')
-          value = data[extras..-1]
-          data = @value_marshaller.retrieve(value, bitflags)
-        end
-        [data, cas]
-      end
-
-      CAS_HEADER = '@4CCnNNQ'
-      NORMAL_HEADER = '@4CCnN'
-      KV_HEADER = '@2n@6nN@16Q'
-      KV_HEADER_SIZE = 24
-
-      # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.
-      class NilObject; end # rubocop:disable Lint/EmptyClass
-      NOT_FOUND = NilObject.new
-
-      def generic_response(unpack: false, cache_nils: false)
-        status, extras, data = unpack_generic_response_header
-
-        return cache_nils ? NOT_FOUND : nil if status == 1
-        return false if [2, 5].include?(status) # Not stored, normal status for add operation
-        raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}" if status != 0
-        return true unless data
-
-        bitflags = data.byteslice(0, extras).unpack1('N')
-        value = data.byteslice(extras, data.bytesize - extras)
-        unpack ? @value_marshaller.retrieve(value, bitflags) : value
-      end
-
-      def unpack_generic_response_header
-        (extras, _, status, count) = read_header.unpack(NORMAL_HEADER)
-        data = read(count) if count.positive?
-        [status, extras, data]
-      end
-
-      def cas_response
-        (_, _, status, count, _, cas) = read_header.unpack(CAS_HEADER)
-        read(count) if count.positive? # this is potential data that we don't care about
-        if status == 1
-          nil
-        elsif [2, 5].include?(status)
-          false # Not stored, normal status for add operation
-        elsif status != 0
-          raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
-        else
-          cas
-        end
-      end
-
-      def keyvalue_response(with_flags: true)
-        hash = {}
-        flags_len = with_flags ? 4 : 0
-        loop do
-          (key_length, _, body_length,) = read_header.unpack(KV_HEADER)
-          return hash if key_length.zero?
-
-          flags = with_flags ? read(flags_len).unpack1('N') : 0x0
-          key = read(key_length)
-          value_length = body_length - key_length - flags_len
-          value = read(value_length) if value_length.positive?
-          hash[key] = @value_marshaller.retrieve(value, flags)
-        end
-      end
-
-      def write(bytes)
-        @inprogress = true
-        result = @sock.write(bytes)
-        @inprogress = false
-        result
-      rescue SystemCallError, Timeout::Error => e
-        failure!(e)
-      end
-
-      def read(count)
-        @inprogress = true
-        data = @sock.readfull(count)
-        @inprogress = false
-        data
-      rescue SystemCallError, Timeout::Error, EOFError => e
-        failure!(e)
-      end
-
-      def read_header
-        read(24) || raise(Dalli::NetworkError, 'No response')
+        @response_processor.generic_response(unpack: true, cache_nils: cache_nils?(options))
       end
 
       def connect
@@ -552,34 +499,8 @@ module Dalli
         end
       end
 
-      def split(quadword)
-        [quadword >> 32, 0xFFFFFFFF & quadword]
-      end
-
       REQUEST = 0x80
       RESPONSE = 0x81
-
-      # Response codes taken from:
-      # https://github.com/memcached/memcached/wiki/BinaryProtocolRevamped#response-status
-      RESPONSE_CODES = {
-        0 => 'No error',
-        1 => 'Key not found',
-        2 => 'Key exists',
-        3 => 'Value too large',
-        4 => 'Invalid arguments',
-        5 => 'Item not stored',
-        6 => 'Incr/decr on a non-numeric value',
-        7 => 'The vbucket belongs to another server',
-        8 => 'Authentication error',
-        9 => 'Authentication continue',
-        0x20 => 'Authentication required',
-        0x81 => 'Unknown command',
-        0x82 => 'Out of memory',
-        0x83 => 'Not supported',
-        0x84 => 'Internal error',
-        0x85 => 'Busy',
-        0x86 => 'Temporary failure'
-      }.freeze
 
       OPCODES = {
         get: 0x00,
@@ -609,7 +530,7 @@ module Dalli
         gat: 0x1D
       }.freeze
 
-      HEADER = 'CCnCCnNNQ'
+      REQ_HEADER = 'CCnCCnNNQ'
       OP_FORMAT = {
         get: 'a*',
         set: 'NNa*a*',
@@ -630,7 +551,7 @@ module Dalli
         touch: 'Na*',
         gat: 'Na*'
       }.freeze
-      FORMAT = OP_FORMAT.transform_values { |v| HEADER + v; }
+      FORMAT = OP_FORMAT.transform_values { |v| REQ_HEADER + v; }
 
       #######
       # SASL authentication support for NorthScale
@@ -648,8 +569,6 @@ module Dalli
         @options[:password] || ENV['MEMCACHE_PASSWORD']
       end
 
-      # rubocop:disable Metrics/CyclomaticComplexity
-      # rubocop:disable Metrics/PerceivedComplexity
       def sasl_authentication
         Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
 
@@ -657,13 +576,9 @@ module Dalli
         req = [REQUEST, OPCODES[:auth_negotiation], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
         write(req)
 
-        (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
-        unless extras.zero? && count.positive?
-          raise Dalli::NetworkError,
-                "Unexpected message format: #{extras} #{count}"
-        end
-
-        content = read(count).tr("\u0000", ' ')
+        status, content = auth_response
+        # TODO: Determine if this substitution is needed
+        content.tr("\u0000", ' ')
         return Dalli.logger.debug('Authentication not required/supported by server') if status == 0x81
 
         mechanisms = content.split
@@ -679,13 +594,7 @@ module Dalli
                mechanism, msg].pack(FORMAT[:auth_request])
         write(req)
 
-        (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
-        unless extras.zero? && count.positive?
-          raise Dalli::NetworkError,
-                "Unexpected message format: #{extras} #{count}"
-        end
-
-        content = read(count)
+        status, content = auth_response
         return Dalli.logger.info("Dalli/SASL: #{content}") if status.zero?
 
         raise Dalli::DalliError, "Error authenticating: #{status}" unless status == 0x21
@@ -694,8 +603,6 @@ module Dalli
         # (step, msg) = sasl.receive('challenge', content)
         # raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
       end
-      # rubocop:enable Metrics/PerceivedComplexity
-      # rubocop:enable Metrics/CyclomaticComplexity
     end
   end
 end
