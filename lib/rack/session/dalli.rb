@@ -88,7 +88,7 @@ module Rack
 
       def get_session(_env, sid)
         with_block([nil, {}]) do |dc|
-          unless sid && !sid.empty? && (session = dc.get(sid))
+          unless sid && !sid.empty? && (session = entry_value(dc.get(sid)))
             old_sid = sid
             sid = generate_sid_with(dc)
             session = {}
@@ -99,6 +99,10 @@ module Rack
           end
           [sid, session]
         end
+      end
+
+      def entry_value(s)
+        s.is_a?(ActiveSupport::Cache::Entry) ? s.value : s
       end
 
       def set_session(_env, session_id, new_session, options)
