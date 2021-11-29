@@ -306,7 +306,7 @@ describe 'Dalli' do
       end
     end
 
-    it 'support multi-get' do
+    it 'supports multi-get' do
       memcached_persistent do |dc|
         dc.close
         dc.flush
@@ -340,6 +340,23 @@ describe 'Dalli' do
         result = dc.get_multi(arr)
         assert_equal(1000, result.size)
         assert_equal(50, result['50'])
+      end
+    end
+
+    it 'does not corrupt multiget with errors' do
+      memcached_persistent do |dc|
+        dc.close
+        dc.flush
+        dc.set('a', 'av')
+        dc.set('b', 'bv')
+        assert_equal 'av', dc.get('a')
+        assert_equal 'bv', dc.get('b')
+
+        dc.multi do
+          dc.delete('non_existent_key')
+        end
+        assert_equal 'av', dc.get('a')
+        assert_equal 'bv', dc.get('b')
       end
     end
 
