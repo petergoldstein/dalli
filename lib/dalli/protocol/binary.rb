@@ -44,7 +44,6 @@ module Dalli
         @response_processor = ResponseProcessor.new(self, @value_marshaller)
 
         reset_down_info
-
         @sock = nil
         @pid = nil
         @request_in_progress = false
@@ -96,6 +95,9 @@ module Dalli
         Dalli.logger.error err.backtrace.join("\n\t")
       end
 
+      # The socket connection to the underlying server is initialized as a side
+      # effect of this call.  In fact, this is the ONLY place where that
+      # socket connection is initialized.
       def alive?
         return true if @sock
         return false unless reconnect_down_server?
@@ -119,6 +121,8 @@ module Dalli
         false
       end
 
+      # Closes the underlying socket and cleans up
+      # socket state.
       def close
         return unless @sock
 
@@ -216,6 +220,8 @@ module Dalli
         @multi_buffer = nil
         @position = nil
         abort_request!
+        return true unless @sock
+
         failure!(RuntimeError.new('External timeout'))
       rescue NetworkError
         true
@@ -237,6 +243,10 @@ module Dalli
         result
       rescue SystemCallError, Timeout::Error => e
         failure!(e)
+      end
+
+      def socket_timeout
+        @socket_timeout ||= @options[:socket_timeout]
       end
 
       # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
@@ -274,12 +284,16 @@ module Dalli
         reconnect! message
       end
 
+      # Marks the server instance as needing reconnect.  Raises a
+      # Dalli::NetworkError with the specified message.  Calls close
+      # to clean up socket state
       def reconnect!(message)
         close
         sleep(options[:socket_failure_delay]) if options[:socket_failure_delay]
         raise Dalli::NetworkError, message
       end
 
+      # Raises Dalli::NetworkError
       def failure!(exception)
         message = "#{name} failed (count: #{@fail_count}) #{exception.class}: #{exception.message}"
         Dalli.logger.warn { message }
@@ -292,6 +306,9 @@ module Dalli
         end
       end
 
+      # Marks the server instance as down.  Updates the down_at state
+      # and raises an Dalli::NetworkError that includes the underlying
+      # error in the message.  Calls close to clean up socket state
       def down!
         close
         log_down_detected

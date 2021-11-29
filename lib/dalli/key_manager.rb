@@ -4,7 +4,7 @@ require 'digest/md5'
 
 module Dalli
   ##
-  # This class manages and validates keys send to Memcached, ensuring
+  # This class manages and validates keys sent to Memcached, ensuring
   # that they meet Memcached key length requirements, and supporting
   # the implementation of optional namespaces on a per-Dalli client
   # basis.
