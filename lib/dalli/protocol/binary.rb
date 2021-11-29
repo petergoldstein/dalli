@@ -5,7 +5,8 @@ require 'forwardable'
 require 'socket'
 require 'timeout'
 
-require_relative 'binary_response_processor'
+require_relative 'binary/request_formatter'
+require_relative 'binary/response_processor'
 
 module Dalli
   module Protocol
@@ -46,7 +47,7 @@ module Dalli
         @hostname, @port, @weight, @socket_type, options = ServerConfigParser.parse(attribs, options)
         @options = DEFAULTS.merge(options)
         @value_marshaller = ValueMarshaller.new(@options)
-        @response_processor = BinaryResponseProcessor.new(self, @value_marshaller)
+        @response_processor = ResponseProcessor.new(self, @value_marshaller)
 
         reset_down_info
 
@@ -158,8 +159,8 @@ module Dalli
         pos = @position
         values = {}
 
-        while buf.bytesize - pos >= BinaryResponseProcessor::RESP_HEADER_SIZE
-          header = buf.slice(pos, BinaryResponseProcessor::RESP_HEADER_SIZE)
+        while buf.bytesize - pos >= ResponseProcessor::RESP_HEADER_SIZE
+          header = buf.slice(pos, ResponseProcessor::RESP_HEADER_SIZE)
           _, extra_len, key_len, body_len, cas = @response_processor.unpack_header(header)
 
           # We've reached the noop at the end of the pipeline
@@ -169,10 +170,10 @@ module Dalli
           end
 
           # Break and read more unless we already have the entire response for this header
-          resp_size = BinaryResponseProcessor::RESP_HEADER_SIZE + body_len
+          resp_size = ResponseProcessor::RESP_HEADER_SIZE + body_len
           break unless buf.bytesize - pos >= resp_size
 
-          body = buf.slice(pos + BinaryResponseProcessor::RESP_HEADER_SIZE, body_len)
+          body = buf.slice(pos + ResponseProcessor::RESP_HEADER_SIZE, body_len)
           begin
             key, value = @response_processor.unpack_response_body(extra_len, key_len, body, true)
             values[key] = [value, cas]
@@ -181,7 +182,7 @@ module Dalli
             # this error
           end
 
-          pos = pos + BinaryResponseProcessor::RESP_HEADER_SIZE + body_len
+          pos = pos + ResponseProcessor::RESP_HEADER_SIZE + body_len
         end
         # TODO: We should be discarding the already processed buffer at this point
         @position = pos
@@ -334,7 +335,7 @@ module Dalli
       end
 
       def get(key, options = nil)
-        req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
+        req = RequestFormatter.standard_request(opkey: :get, key: key)
         write(req)
         @response_processor.generic_response(unpack: true, cache_nils: cache_nils?(options))
       end
@@ -342,81 +343,83 @@ module Dalli
       def send_multiget(keys)
         req = +''
         keys.each do |key|
-          req << [REQUEST, OPCODES[:getkq], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:getkq])
+          req << RequestFormatter.standard_request(opkey: :getkq, key: key)
         end
         # Could send noop here instead of in multi_response_start
         write(req)
       end
 
       def set(key, value, ttl, cas, options)
-        (value, bitflags) = @value_marshaller.store(key, value, options)
-        ttl = TtlSanitizer.sanitize(ttl)
-
-        req = [REQUEST, OPCODES[multi? ? :setq : :set], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0,
-               cas, bitflags, ttl, key, value].pack(FORMAT[:set])
-        write(req)
-        @response_processor.cas_response unless multi?
+        opkey = multi? ? :setq : :set
+        process_value_req(opkey, key, value, ttl, cas, options)
       end
 
       def add(key, value, ttl, options)
-        (value, bitflags) = @value_marshaller.store(key, value, options)
-        ttl = TtlSanitizer.sanitize(ttl)
-
-        req = [REQUEST, OPCODES[multi? ? :addq : :add], key.bytesize, 8, 0, 0, value.bytesize + key.bytesize + 8, 0,
-               0, bitflags, ttl, key, value].pack(FORMAT[:add])
-        write(req)
-        @response_processor.cas_response unless multi?
+        opkey = multi? ? :addq : :add
+        cas = 0
+        process_value_req(opkey, key, value, ttl, cas, options)
       end
 
       def replace(key, value, ttl, cas, options)
+        opkey = multi? ? :replaceq : :replace
+        process_value_req(opkey, key, value, ttl, cas, options)
+      end
+
+      # rubocop:disable Metrics/ParameterLists
+      def process_value_req(opkey, key, value, ttl, cas, options)
         (value, bitflags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
 
-        req = [REQUEST, OPCODES[multi? ? :replaceq : :replace], key.bytesize, 8, 0, 0,
-               value.bytesize + key.bytesize + 8, 0, cas, bitflags, ttl, key, value].pack(FORMAT[:replace])
+        req = RequestFormatter.standard_request(opkey: opkey, key: key,
+                                                value: value, bitflags: bitflags,
+                                                ttl: ttl, cas: cas)
         write(req)
         @response_processor.cas_response unless multi?
       end
+      # rubocop:enable Metrics/ParameterLists
 
       def delete(key, cas)
-        req = [REQUEST, OPCODES[multi? ? :deleteq : :delete], key.bytesize, 0, 0, 0, key.bytesize, 0, cas,
-               key].pack(FORMAT[:delete])
+        opkey = multi? ? :deleteq : :delete
+        req = RequestFormatter.standard_request(opkey: opkey, key: key, cas: cas)
         write(req)
         @response_processor.generic_response unless multi?
       end
 
-      def flush(_ttl)
-        req = [REQUEST, OPCODES[:flush], 0, 4, 0, 0, 4, 0, 0, 0].pack(FORMAT[:flush])
+      def flush(ttl = 0)
+        req = RequestFormatter.standard_request(opkey: :flush, ttl: ttl)
         write(req)
         @response_processor.generic_response
       end
 
-      def decr_incr(opcode, key, count, ttl, default)
-        expiry = default ? TtlSanitizer.sanitize(ttl) : 0xFFFFFFFF
-        default ||= 0
-        (h, l) = split(count)
-        (dh, dl) = split(default)
-        req = [REQUEST, OPCODES[opcode], key.bytesize, 20, 0, 0, key.bytesize + 20, 0, 0, h, l, dh, dl, expiry,
-               key].pack(FORMAT[opcode])
-        write(req)
+      # This allows us to special case a nil initial value, and
+      # handle it differently than a zero.  This special value
+      # for expiry causes memcached to return a not found
+      # if the key doesn't already exist, rather than
+      # setting the initial value
+      NOT_FOUND_EXPIRY = 0xFFFFFFFF
+
+      def decr_incr(opkey, key, count, ttl, initial)
+        expiry = initial ? TtlSanitizer.sanitize(ttl) : NOT_FOUND_EXPIRY
+        initial ||= 0
+        write(RequestFormatter.decr_incr_request(opkey: opkey, key: key,
+                                                 count: count, initial: initial, expiry: expiry))
         @response_processor.decr_incr_response
       end
 
-      def split(quadword)
-        [quadword >> 32, 0xFFFFFFFF & quadword]
+      def as_8byte_uint(val)
+        [val >> 32, 0xFFFFFFFF & val]
       end
 
-      def decr(key, count, ttl, default)
-        decr_incr :decr, key, count, ttl, default
+      def decr(key, count, ttl, initial)
+        decr_incr :decr, key, count, ttl, initial
       end
 
-      def incr(key, count, ttl, default)
-        decr_incr :incr, key, count, ttl, default
+      def incr(key, count, ttl, initial)
+        decr_incr :incr, key, count, ttl, initial
       end
 
-      def write_append_prepend(opcode, key, value)
-        write_generic [REQUEST, OPCODES[opcode], key.bytesize, 0, 0, 0, value.bytesize + key.bytesize, 0, 0, key,
-                       value].pack(FORMAT[opcode])
+      def write_append_prepend(opkey, key, value)
+        write_generic RequestFormatter.standard_request(opkey: opkey, key: key, value: value)
       end
 
       def write_generic(bytes)
@@ -425,7 +428,7 @@ module Dalli
       end
 
       def write_noop
-        req = [REQUEST, OPCODES[:noop], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
+        req = RequestFormatter.standard_request(opkey: :noop)
         write(req)
       end
 
@@ -445,35 +448,33 @@ module Dalli
       end
 
       def stats(info = '')
-        req = [REQUEST, OPCODES[:stat], info.bytesize, 0, 0, 0, info.bytesize, 0, 0, info].pack(FORMAT[:stat])
+        req = RequestFormatter.standard_request(opkey: :stat, key: info)
         write(req)
         @response_processor.multi_with_keys_response
       end
 
       def reset_stats
-        write_generic [REQUEST, OPCODES[:stat], 'reset'.bytesize, 0, 0, 0, 'reset'.bytesize, 0, 0,
-                       'reset'].pack(FORMAT[:stat])
+        write_generic RequestFormatter.standard_request(opkey: :stat, key: 'reset')
       end
 
       def cas(key)
-        req = [REQUEST, OPCODES[:get], key.bytesize, 0, 0, 0, key.bytesize, 0, 0, key].pack(FORMAT[:get])
+        req = RequestFormatter.standard_request(opkey: :get, key: key)
         write(req)
         @response_processor.data_cas_response
       end
 
       def version
-        write_generic [REQUEST, OPCODES[:version], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
+        write_generic RequestFormatter.standard_request(opkey: :version)
       end
 
       def touch(key, ttl)
         ttl = TtlSanitizer.sanitize(ttl)
-        write_generic [REQUEST, OPCODES[:touch], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl,
-                       key].pack(FORMAT[:touch])
+        write_generic RequestFormatter.standard_request(opkey: :touch, key: key, ttl: ttl)
       end
 
       def gat(key, ttl, options = nil)
         ttl = TtlSanitizer.sanitize(ttl)
-        req = [REQUEST, OPCODES[:gat], key.bytesize, 4, 0, 0, key.bytesize + 4, 0, 0, ttl, key].pack(FORMAT[:gat])
+        req = RequestFormatter.standard_request(opkey: :gat, key: key, ttl: ttl)
         write(req)
         @response_processor.generic_response(unpack: true, cache_nils: cache_nils?(options))
       end
@@ -499,60 +500,6 @@ module Dalli
         end
       end
 
-      REQUEST = 0x80
-      RESPONSE = 0x81
-
-      OPCODES = {
-        get: 0x00,
-        set: 0x01,
-        add: 0x02,
-        replace: 0x03,
-        delete: 0x04,
-        incr: 0x05,
-        decr: 0x06,
-        flush: 0x08,
-        noop: 0x0A,
-        version: 0x0B,
-        getkq: 0x0D,
-        append: 0x0E,
-        prepend: 0x0F,
-        stat: 0x10,
-        setq: 0x11,
-        addq: 0x12,
-        replaceq: 0x13,
-        deleteq: 0x14,
-        incrq: 0x15,
-        decrq: 0x16,
-        auth_negotiation: 0x20,
-        auth_request: 0x21,
-        auth_continue: 0x22,
-        touch: 0x1C,
-        gat: 0x1D
-      }.freeze
-
-      REQ_HEADER = 'CCnCCnNNQ'
-      OP_FORMAT = {
-        get: 'a*',
-        set: 'NNa*a*',
-        add: 'NNa*a*',
-        replace: 'NNa*a*',
-        delete: 'a*',
-        incr: 'NNNNNa*',
-        decr: 'NNNNNa*',
-        flush: 'N',
-        noop: '',
-        getkq: 'a*',
-        version: '',
-        stat: 'a*',
-        append: 'a*a*',
-        prepend: 'a*a*',
-        auth_request: 'a*a*',
-        auth_continue: 'a*a*',
-        touch: 'Na*',
-        gat: 'Na*'
-      }.freeze
-      FORMAT = OP_FORMAT.transform_values { |v| REQ_HEADER + v; }
-
       #######
       # SASL authentication support for NorthScale
       #######
@@ -573,8 +520,7 @@ module Dalli
         Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
 
         # negotiate
-        req = [REQUEST, OPCODES[:auth_negotiation], 0, 0, 0, 0, 0, 0, 0].pack(FORMAT[:noop])
-        write(req)
+        write(RequestFormatter.standard_request(opkey: :auth_negotiation))
 
         status, content = auth_response
         # TODO: Determine if this substitution is needed
@@ -588,12 +534,9 @@ module Dalli
         end
 
         # request
-        mechanism = 'PLAIN'
-        msg = "\x0#{username}\x0#{password}"
-        req = [REQUEST, OPCODES[:auth_request], mechanism.bytesize, 0, 0, 0, mechanism.bytesize + msg.bytesize, 0, 0,
-               mechanism, msg].pack(FORMAT[:auth_request])
-        write(req)
-
+        write(RequestFormatter.standard_request(opkey: :auth_request,
+                                                key: 'PLAIN',
+                                                value: "\x0#{username}\x0#{password}"))
         status, content = auth_response
         return Dalli.logger.info("Dalli/SASL: #{content}") if status.zero?
 
