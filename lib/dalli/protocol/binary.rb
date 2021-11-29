@@ -522,7 +522,7 @@ module Dalli
         # negotiate
         write(RequestFormatter.standard_request(opkey: :auth_negotiation))
 
-        status, content = auth_response
+        status, content = @response_processor.auth_response
         # TODO: Determine if this substitution is needed
         content.tr("\u0000", ' ')
         return Dalli.logger.debug('Authentication not required/supported by server') if status == 0x81
@@ -537,7 +537,7 @@ module Dalli
         write(RequestFormatter.standard_request(opkey: :auth_request,
                                                 key: 'PLAIN',
                                                 value: "\x0#{username}\x0#{password}"))
-        status, content = auth_response
+        status, content = @response_processor.auth_response
         return Dalli.logger.info("Dalli/SASL: #{content}") if status.zero?
 
         raise Dalli::DalliError, "Error authenticating: #{status}" unless status == 0x21
