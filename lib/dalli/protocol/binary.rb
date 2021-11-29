@@ -64,27 +64,42 @@ module Dalli
         end
       end
 
-      # Chokepoint method for instrumentation
+      # Chokepoint method for error handling and ensuring liveness
       def request(opcode, *args)
         verify_state
-        unless alive?
-          raise Dalli::NetworkError,
-                "#{name} is down: #{@error} #{@msg}. If you are sure it is running, ensure memcached version is > 1.4."
-        end
+        # The alive? call has the side effect of connecting the underlying
+        # socket if it is not connected, or there's been a disconnect
+        # because of timeout or other error.  Method raises an error
+        # if it can't connect
+        raise_memcached_down_err unless alive?
 
         begin
           send(opcode, *args)
         rescue Dalli::MarshalError => e
-          Dalli.logger.error "Marshalling error for key '#{args.first}': #{e.message}"
-          Dalli.logger.error 'You are trying to cache a Ruby object which cannot be serialized to memcached.'
+          log_marshall_err(args.first, e)
           raise
         rescue Dalli::DalliError, Dalli::NetworkError, Dalli::ValueOverMaxSize, Timeout::Error
           raise
         rescue StandardError => e
-          Dalli.logger.error "Unexpected exception during Dalli request: #{e.class.name}: #{e.message}"
-          Dalli.logger.error e.backtrace.join("\n\t")
+          log_unexpected_err(e)
           down!
         end
+      end
+
+      def raise_memcached_down_err
+        raise Dalli::NetworkError,
+              "#{name} is down: #{@error} #{@msg}. If you are sure it is running, "\
+              "ensure memcached version is > #{::Dalli::MIN_SUPPORTED_MEMCACHED_VERSION}."
+      end
+
+      def log_marshall_err(key, err)
+        Dalli.logger.error "Marshalling error for key '#{key}': #{err.message}"
+        Dalli.logger.error 'You are trying to cache a Ruby object which cannot be serialized to memcached.'
+      end
+
+      def log_unexpected_err(err)
+        Dalli.logger.error "Unexpected exception during Dalli request: #{err.class.name}: #{err.message}"
+        Dalli.logger.error err.backtrace.join("\n\t")
       end
 
       def alive?
@@ -406,10 +421,6 @@ module Dalli
         @response_processor.decr_incr_response
       end
 
-      def as_8byte_uint(val)
-        [val >> 32, 0xFFFFFFFF & val]
-      end
-
       def decr(key, count, ttl, initial)
         decr_incr :decr, key, count, ttl, initial
       end
@@ -484,13 +495,9 @@ module Dalli
 
         begin
           @pid = Process.pid
-          @sock = if socket_type == :unix
-                    Dalli::Socket::UNIX.open(hostname, self, options)
-                  else
-                    Dalli::Socket::TCP.open(hostname, port, self, options)
-                  end
-          sasl_authentication if need_auth?
-          @version = version # trigger actual connect
+          @sock = memcached_socket
+          sasl_authentication if require_auth?
+          @version = version # Connect socket if not authed
           up!
         rescue Dalli::DalliError # SASL auth failure
           raise
@@ -500,11 +507,19 @@ module Dalli
         end
       end
 
+      def memcached_socket
+        if socket_type == :unix
+          Dalli::Socket::UNIX.open(hostname, self, options)
+        else
+          Dalli::Socket::TCP.open(hostname, port, self, options)
+        end
+      end
+
       #######
       # SASL authentication support for NorthScale
       #######
 
-      def need_auth?
+      def require_auth?
         !username.nil?
       end
 
@@ -516,28 +531,42 @@ module Dalli
         @options[:password] || ENV['MEMCACHE_PASSWORD']
       end
 
-      def sasl_authentication
-        Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
-
-        # negotiate
+      def perform_auth_negotiation
         write(RequestFormatter.standard_request(opkey: :auth_negotiation))
 
         status, content = @response_processor.auth_response
         # TODO: Determine if this substitution is needed
         content.tr("\u0000", ' ')
-        return Dalli.logger.debug('Authentication not required/supported by server') if status == 0x81
-
         mechanisms = content.split
-        unless mechanisms.include?('PLAIN')
+        [status, mechanisms]
+      end
+
+      PLAIN_AUTH = 'PLAIN'
+
+      def supported_mechanisms!(mechanisms)
+        unless mechanisms.include?(PLAIN_AUTH)
           raise NotImplementedError,
                 'Dalli only supports the PLAIN authentication mechanism'
         end
+        [PLAIN_AUTH]
+      end
 
-        # request
+      def authenticate_with_plain
         write(RequestFormatter.standard_request(opkey: :auth_request,
                                                 key: 'PLAIN',
                                                 value: "\x0#{username}\x0#{password}"))
-        status, content = @response_processor.auth_response
+        @response_processor.auth_response
+      end
+
+      def sasl_authentication
+        Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
+
+        status, mechanisms = perform_auth_negotiation
+        return Dalli.logger.debug('Authentication not required/supported by server') if status == 0x81
+
+        supported_mechanisms!(mechanisms)
+        status, content = authenticate_with_plain
+
         return Dalli.logger.info("Dalli/SASL: #{content}") if status.zero?
 
         raise Dalli::DalliError, "Error authenticating: #{status}" unless status == 0x21

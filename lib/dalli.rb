@@ -49,6 +49,8 @@ module Dalli
   end
 end
 
+require 'dalli/version'
+
 require 'dalli/compressor'
 require 'dalli/client'
 require 'dalli/key_manager'
@@ -62,5 +64,4 @@ require 'dalli/protocol/value_marshaller'
 require 'dalli/protocol/value_serializer'
 require 'dalli/servers_arg_normalizer'
 require 'dalli/socket'
-require 'dalli/version'
 require 'dalli/options'
