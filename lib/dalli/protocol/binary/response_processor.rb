@@ -111,8 +111,15 @@ module Dalli
         def multi_with_keys_response
           hash = {}
           loop do
-            _, extra_len, body, _, key_len = read_response
-            return hash if key_len.zero?
+            status, extra_len, body, _, key_len = read_response
+            # This is the response to the terminating noop / end of stat
+            return hash if status.zero? && key_len.zero?
+
+            # Ignore any responses with non-zero status codes,
+            # such as errors from set operations.  That allows
+            # this code to be used at the end of a multi
+            # block to clear any error responses from inside the multi.
+            next unless status.zero?
 
             key, value = unpack_response_body(extra_len, key_len, body, true)
             hash[key] = value

@@ -7,6 +7,7 @@ require 'timeout'
 
 require_relative 'binary/request_formatter'
 require_relative 'binary/response_processor'
+require_relative 'binary/sasl_authentication'
 
 module Dalli
   module Protocol
@@ -32,15 +33,8 @@ module Dalli
         socket_max_failures: 2,
         # amount of time to sleep between retries when a failure occurs
         socket_failure_delay: 0.1,
-        # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
-        value_max_bytes: 1024 * 1024,
         username: nil,
-        password: nil,
-        keepalive: true,
-        # max byte size for SO_SNDBUF
-        sndbuf: nil,
-        # max byte size for SO_RCVBUF
-        rcvbuf: nil
+        password: nil
       }.freeze
 
       def initialize(attribs, options = {})
@@ -496,7 +490,7 @@ module Dalli
         begin
           @pid = Process.pid
           @sock = memcached_socket
-          sasl_authentication if require_auth?
+          authenticate_connection if require_auth?
           @version = version # Connect socket if not authed
           up!
         rescue Dalli::DalliError # SASL auth failure
@@ -515,10 +509,6 @@ module Dalli
         end
       end
 
-      #######
-      # SASL authentication support for NorthScale
-      #######
-
       def require_auth?
         !username.nil?
       end
@@ -531,50 +521,7 @@ module Dalli
         @options[:password] || ENV['MEMCACHE_PASSWORD']
       end
 
-      def perform_auth_negotiation
-        write(RequestFormatter.standard_request(opkey: :auth_negotiation))
-
-        status, content = @response_processor.auth_response
-        # TODO: Determine if this substitution is needed
-        content.tr("\u0000", ' ')
-        mechanisms = content.split
-        [status, mechanisms]
-      end
-
-      PLAIN_AUTH = 'PLAIN'
-
-      def supported_mechanisms!(mechanisms)
-        unless mechanisms.include?(PLAIN_AUTH)
-          raise NotImplementedError,
-                'Dalli only supports the PLAIN authentication mechanism'
-        end
-        [PLAIN_AUTH]
-      end
-
-      def authenticate_with_plain
-        write(RequestFormatter.standard_request(opkey: :auth_request,
-                                                key: 'PLAIN',
-                                                value: "\x0#{username}\x0#{password}"))
-        @response_processor.auth_response
-      end
-
-      def sasl_authentication
-        Dalli.logger.info { "Dalli/SASL authenticating as #{username}" }
-
-        status, mechanisms = perform_auth_negotiation
-        return Dalli.logger.debug('Authentication not required/supported by server') if status == 0x81
-
-        supported_mechanisms!(mechanisms)
-        status, content = authenticate_with_plain
-
-        return Dalli.logger.info("Dalli/SASL: #{content}") if status.zero?
-
-        raise Dalli::DalliError, "Error authenticating: #{status}" unless status == 0x21
-
-        raise NotImplementedError, 'No two-step authentication mechanisms supported'
-        # (step, msg) = sasl.receive('challenge', content)
-        # raise Dalli::NetworkError, "Authentication failed" if sasl.failed? || step != 'response'
-      end
+      include SaslAuthentication
     end
   end
 end
