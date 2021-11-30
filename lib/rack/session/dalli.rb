@@ -8,14 +8,13 @@ require 'English'
 module Rack
   module Session
     # Rack::Session::Dalli provides memcached based session management.
-    class Dalli < Abstract::Persisted
-      attr_reader :pool
+    class Dalli < Abstract::PersistedSecure
+      attr_reader :data
 
       # Don't freeze this until we fix the specs/implementation
       # rubocop:disable Style/MutableConstant
       DEFAULT_DALLI_OPTIONS = {
-        namespace: 'rack:session',
-        memcache_server: 'localhost:11211'
+        namespace: 'rack:session'
       }
       # rubocop:enable Style/MutableConstant
 
@@ -33,25 +32,14 @@ module Rack
       # ENV['MEMCACHE_SERVERS'] and use that value if it is available, or fall
       # back to the same default behavior described above.
       #
-      # Rack::Session::Dalli is intended to be a drop-in replacement for
-      # Rack::Session::Memcache. It accepts additional options that control the
-      # behavior of Rack::Session, Dalli::Client, and an optional
-      # ConnectionPool. First and foremost, if you wish to instantiate your own
-      # Dalli::Client (or ConnectionPool) and use that instead of letting
-      # Rack::Session::Dalli instantiate it on your behalf, simply pass it in
-      # as the `:cache` option. Please note that you will be responsible for
-      # setting the namespace and any other options on Dalli::Client.
+      # Rack::Session::Dalli accepts the same options as Dalli::Client, so
+      # it's worth reviewing its documentation. Perhaps most importantly,
+      # if you don't specify a `:namespace` option, Rack::Session::Dalli
+      # will default to using 'rack:session'.
       #
-      # Secondly, if you're not using the `:cache` option, Rack::Session::Dalli
-      # accepts the same options as Dalli::Client, so it's worth reviewing its
-      # documentation. Perhaps most importantly, if you don't specify a
-      # `:namespace` option, Rack::Session::Dalli will default to using
-      # "rack:session".
-      #
-      # Whether you are using the `:cache` option or not, it is not recommend
-      # to set `:expires_in`. Instead, use `:expire_after`, which will control
-      # both the expiration of the client cookie as well as the expiration of
-      # the corresponding entry in memcached.
+      # It is not recommended to set `:expires_in`. Instead, use `:expire_after`,
+      # which will control both the expiration of the client cookie as well
+      # as the expiration of the corresponding entry in memcached.
       #
       # Rack::Session::Dalli also accepts a host of options that control how
       # the sessions and session cookies are managed, including the
@@ -78,87 +66,108 @@ module Rack
         super
 
         # Determine the default TTL for newly-created sessions
-        @default_ttl = ttl @default_options[:expire_after]
-
-        # Normalize and validate passed options
-        mserv, mopts, popts = extract_dalli_options(options)
-
-        @pool = ConnectionPool.new(popts || {}) { ::Dalli::Client.new(mserv, mopts) }
+        @default_ttl = ttl(@default_options[:expire_after])
+        @data = build_data_source(options)
       end
 
-      def get_session(_env, sid)
-        with_block([nil, {}]) do |dc|
-          unless sid && !sid.empty? && (session = dc.get(sid))
-            old_sid = sid
-            sid = generate_sid_with(dc)
-            session = {}
-            unless dc.add(sid, session, @default_ttl)
-              sid = old_sid
-              redo # generate a new sid and try again
-            end
-          end
-          [sid, session]
+      def find_session(_req, sid)
+        with_dalli_client([nil, {}]) do |dc|
+          existing_session = existing_session_for_sid(dc, sid)
+          return [sid, existing_session] unless existing_session.nil?
+
+          [create_sid_with_empty_session(dc), {}]
         end
       end
 
-      def set_session(_env, session_id, new_session, options)
-        return false unless session_id
+      def write_session(_req, sid, session, options)
+        return false unless sid
 
-        with_block(false) do |dc|
-          dc.set(session_id, new_session, ttl(options[:expire_after]))
-          session_id
+        with_dalli_client(false) do |dc|
+          dc.set(memcached_key_from_sid(sid), session, ttl(options[:expire_after]))
+          sid
         end
       end
 
-      def destroy_session(_env, session_id, options)
-        with_block do |dc|
-          dc.delete(session_id)
+      def delete_session(_req, sid, options)
+        with_dalli_client do |dc|
+          dc.delete(memcached_key_from_sid(sid))
           generate_sid_with(dc) unless options[:drop]
         end
       end
 
-      def find_session(req, sid)
-        get_session req.env, sid
-      end
-
-      def write_session(req, sid, session, options)
-        set_session req.env, sid, session, options
-      end
-
-      def delete_session(req, sid, options)
-        destroy_session req.env, sid, options
-      end
-
       private
 
-      def extract_dalli_options(options)
-        raise 'Rack::Session::Dalli no longer supports the :cache option.' if options[:cache]
+      def memcached_key_from_sid(sid)
+        sid.private_id
+      end
 
-        # Filter out Rack::Session-specific options and apply our defaults
-        # Filter out Rack::Session-specific options and apply our defaults
-        filtered_opts = options.reject { |k, _| DEFAULT_OPTIONS.key? k }
-        mopts = DEFAULT_DALLI_OPTIONS.merge(filtered_opts)
-        mserv = mopts.delete :memcache_server
+      def existing_session_for_sid(client, sid)
+        return nil unless sid && !sid.empty?
 
-        popts = {}
-        if mopts[:pool_size] || mopts[:pool_timeout]
-          popts[:size] = mopts.delete :pool_size if mopts[:pool_size]
-          popts[:timeout] = mopts.delete :pool_timeout if mopts[:pool_timeout]
-          mopts[:threadsafe] = true
+        client.get(memcached_key_from_sid(sid))
+      end
+
+      def create_sid_with_empty_session(client)
+        loop do
+          sid = generate_sid_with(client)
+
+          break sid if client.add(memcached_key_from_sid(sid), {}, @default_ttl)
         end
-
-        [mserv, mopts, popts]
       end
 
       def generate_sid_with(client)
         loop do
-          sid = generate_sid
-          break sid unless client.get(sid)
+          raw_sid = generate_sid
+          sid = raw_sid.is_a?(String) ? Rack::Session::SessionId.new(raw_sid) : raw_sid
+          break sid unless client.get(memcached_key_from_sid(sid))
         end
       end
 
-      def with_block(default = nil, &block)
-        @pool.with(&block)
+      def build_data_source(options)
+        server_configurations, client_options, pool_options = extract_dalli_options(options)
+
+        if pool_options.empty?
+          ::Dalli::Client.new(server_configurations, client_options)
+        else
+          ensure_connection_pool_added!
+          ConnectionPool.new(pool_options) do
+            ::Dalli::Client.new(server_configurations, client_options.merge(threadsafe: false))
+          end
+        end
+      end
+
+      def extract_dalli_options(options)
+        raise 'Rack::Session::Dalli no longer supports the :cache option.' if options[:cache]
+
+        client_options = retrieve_client_options(options)
+        server_configurations = client_options.delete(:memcache_server)
+
+        [server_configurations, client_options, retrieve_pool_options(options)]
+      end
+
+      def retrieve_client_options(options)
+        # Filter out Rack::Session-specific options and apply our defaults
+        filtered_opts = options.reject { |k, _| DEFAULT_OPTIONS.key? k }
+        DEFAULT_DALLI_OPTIONS.merge(filtered_opts)
+      end
+
+      def retrieve_pool_options(options)
+        {}.tap do |pool_options|
+          pool_options[:size] = options.delete(:pool_size) if options[:pool_size]
+          pool_options[:timeout] = options.delete(:pool_timeout) if options[:pool_timeout]
+        end
+      end
+
+      def ensure_connection_pool_added!
+        require 'connection_pool'
+      rescue LoadError => e
+        warn "You don't have connection_pool installed in your application. "\
+             'Please add it to your Gemfile and run bundle install'
+        raise e
+      end
+
+      def with_dalli_client(result_on_error = nil, &block)
+        @data.with(&block)
       rescue ::Dalli::DalliError, Errno::ECONNREFUSED
         raise if /undefined class/.match?($ERROR_INFO.message)
 
@@ -166,7 +175,7 @@ module Rack
           warn "#{self} is unable to find memcached server."
           warn $ERROR_INFO.inspect
         end
-        default
+        result_on_error
       end
 
       def ttl(expire_after)

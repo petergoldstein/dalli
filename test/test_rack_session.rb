@@ -2,6 +2,7 @@
 
 require_relative 'helper'
 
+require 'json'
 require 'rack/session/dalli'
 require 'rack/lint'
 require 'rack/mock'
@@ -55,14 +56,14 @@ describe Rack::Session::Dalli do
   it 'faults on no connection' do
     assert_raises Dalli::RingError do
       rsd = Rack::Session::Dalli.new(incrementor, memcache_server: 'nosuchserver')
-      rsd.pool.with { |c| c.set('ping', '') }
+      rsd.data.with { |c| c.set('ping', '') }
     end
   end
 
   it 'connects to existing server' do
     assert_silent do
       rsd = Rack::Session::Dalli.new(incrementor, namespace: 'test:rack:session')
-      rsd.pool.with { |c| c.set('ping', '') }
+      rsd.data.with { |c| c.set('ping', '') }
     end
   end
 
@@ -73,8 +74,8 @@ describe Rack::Session::Dalli do
     }
 
     rsd = Rack::Session::Dalli.new(incrementor, opts)
-    assert_equal(opts[:namespace], rsd.pool.with { |c| c.instance_eval { @options[:namespace] } })
-    assert_equal(opts[:compression_min_size], rsd.pool.with { |c| c.instance_eval { @options[:compression_min_size] } })
+    assert_equal(opts[:namespace], rsd.data.with { |c| c.instance_eval { @options[:namespace] } })
+    assert_equal(opts[:compression_min_size], rsd.data.with { |c| c.instance_eval { @options[:compression_min_size] } })
   end
 
   it 'rejects a :cache option' do
@@ -98,8 +99,8 @@ describe Rack::Session::Dalli do
 
     with_connectionpool do
       rsd = Rack::Session::Dalli.new(incrementor, opts)
-      assert_equal 10, rsd.pool.available
-      rsd.pool.with do |mc|
+      assert_equal 10, rsd.data.available
+      rsd.data.with do |mc|
         assert_equal(opts[:namespace], mc.instance_eval { @options[:namespace] })
       end
     end
@@ -290,17 +291,21 @@ describe Rack::Session::Dalli do
         session.update :a => :b, :c => { d: :e },
                        :f => { g: { h: :i } }, 'test' => true
       end
-      [200, {}, [session.inspect]]
+      [200, {}, [session.to_h.to_json]]
     end
     rsd = Rack::Session::Dalli.new(hash_check)
     req = Rack::MockRequest.new(rsd)
 
     res0 = req.get('/')
-    session_id = (cookie = res0['Set-Cookie'])[session_match, 1]
-    ses0 = rsd.pool.with { |c| c.get(session_id, true) }
+    cookie = res0['Set-Cookie']
+    ses0 = JSON.parse(res0.body)
+    refute_nil ses0
+    assert_equal '{"a"=>"b", "c"=>{"d"=>"e"}, "f"=>{"g"=>{"h"=>"i"}}, "test"=>true}', ses0.to_s
 
-    req.get('/', 'HTTP_COOKIE' => cookie)
-    ses1 = rsd.pool.with { |c| c.get(session_id, true) }
+    res1 = req.get('/', 'HTTP_COOKIE' => cookie)
+    ses1 = JSON.parse(res1.body)
+    refute_nil ses1
+    assert_equal '{"a"=>"b", "c"=>{"d"=>"e"}, "f"=>{"g"=>{"h"=>"j"}}, "test"=>true}', ses1.to_s
 
     refute_equal ses0, ses1
   end

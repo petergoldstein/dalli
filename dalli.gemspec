@@ -20,7 +20,7 @@ Gem::Specification.new do |s|
   s.required_ruby_version = '>= 2.5'
 
   s.add_development_dependency 'connection_pool'
-  s.add_development_dependency 'rack'
+  s.add_development_dependency 'rack', '~> 2.0', '>= 2.2.0'
   s.add_development_dependency 'rubocop'
   s.add_development_dependency 'rubocop-minitest'
   s.add_development_dependency 'rubocop-performance'
