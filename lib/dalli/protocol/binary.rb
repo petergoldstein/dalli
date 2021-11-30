@@ -58,8 +58,8 @@ module Dalli
       end
 
       # Chokepoint method for error handling and ensuring liveness
-      def request(opcode, *args)
-        verify_state
+      def request(opkey, *args)
+        verify_state(opkey)
         # The alive? call has the side effect of connecting the underlying
         # socket if it is not connected, or there's been a disconnect
         # because of timeout or other error.  Method raises an error
@@ -67,7 +67,7 @@ module Dalli
         raise_memcached_down_err unless alive?
 
         begin
-          send(opcode, *args)
+          send(opkey, *args)
         rescue Dalli::MarshalError => e
           log_marshall_err(args.first, e)
           raise
@@ -146,10 +146,9 @@ module Dalli
       #
       # Returns nothing.
       def multi_response_start
-        verify_state
+        verify_state(:getkq)
         write_noop
         @multi_buffer = +''
-        @position = 0
         start_request!
       end
 
@@ -169,12 +168,11 @@ module Dalli
 
         @multi_buffer << @sock.read_available
         buf = @multi_buffer
-        pos = @position
         values = {}
 
-        while buf.bytesize - pos >= ResponseProcessor::RESP_HEADER_SIZE
-          header = buf.slice(pos, ResponseProcessor::RESP_HEADER_SIZE)
-          _, extra_len, key_len, body_len, cas = @response_processor.unpack_header(header)
+        # Loop while we have at least a complete header in the buffer
+        while buf.bytesize >= ResponseProcessor::RESP_HEADER_SIZE
+          extra_len, key_len, body_len, cas = response_header_from_buffer(buf)
 
           # We've reached the noop at the end of the pipeline
           if key_len.zero?
@@ -184,30 +182,40 @@ module Dalli
 
           # Break and read more unless we already have the entire response for this header
           resp_size = ResponseProcessor::RESP_HEADER_SIZE + body_len
-          break unless buf.bytesize - pos >= resp_size
+          break unless buf.bytesize >= resp_size
 
-          body = buf.slice(pos + ResponseProcessor::RESP_HEADER_SIZE, body_len)
+          # Parse out the body, and unpack the key/value/cas
+          body = buf.slice(ResponseProcessor::RESP_HEADER_SIZE, body_len)
           begin
             key, value = @response_processor.unpack_response_body(extra_len, key_len, body, true)
             values[key] = [value, cas]
           rescue DalliError
             # TODO: Determine if we should be swallowing
-            # this error
+            # this error.  I'm not even sure how we get an error
+            # like this here, as we've already got the buffer.
           end
 
-          pos = pos + ResponseProcessor::RESP_HEADER_SIZE + body_len
+          buf = buf[(ResponseProcessor::RESP_HEADER_SIZE + body_len)..-1]
+          @multi_buffer = buf
         end
-        # TODO: We should be discarding the already processed buffer at this point
-        @position = pos
 
         values
       rescue SystemCallError, Timeout::Error, EOFError => e
         failure!(e)
       end
 
-      def finish_multi_response
+      def response_header_from_buffer(buf)
+        header = buf.slice(0, ResponseProcessor::RESP_HEADER_SIZE)
+        _, extra_len, key_len, body_len, cas = @response_processor.unpack_header(header)
+        [extra_len, key_len, body_len, cas]
+      end
+
+      def clear_multi_buffer
         @multi_buffer = nil
-        @position = nil
+      end
+
+      def finish_multi_response
+        clear_multi_buffer
         finish_request!
       end
 
@@ -217,8 +225,7 @@ module Dalli
       #
       # Returns nothing.
       def multi_response_abort
-        @multi_buffer = nil
-        @position = nil
+        clear_multi_buffer
         abort_request!
         return true unless @sock
 
@@ -269,13 +276,21 @@ module Dalli
         @request_in_progress = false
       end
 
-      def verify_state
+      def verify_state(opkey)
         failure!(RuntimeError.new('Already writing to socket')) if request_in_progress?
         reconnect_on_fork if fork_detected?
+        verify_allowed_multi!(opkey) if multi?
       end
 
       def fork_detected?
         @pid && @pid != Process.pid
+      end
+
+      ALLOWED_MULTI_OPS = %i[add addq delete deleteq replace replaceq set setq noop].freeze
+      def verify_allowed_multi!(opkey)
+        return if ALLOWED_MULTI_OPS.include?(opkey)
+
+        raise Dalli::NotPermittedMultiOpError, "The operation #{opkey} is not allowed in a multi block."
       end
 
       def reconnect_on_fork
@@ -351,7 +366,7 @@ module Dalli
       end
 
       def multi?
-        Thread.current[:dalli_multi]
+        Thread.current[::Dalli::MULTI_KEY]
       end
 
       def cache_nils?(opts)

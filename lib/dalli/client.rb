@@ -63,12 +63,12 @@ module Dalli
     # pipelined as Dalli will use 'quiet' operations where possible.
     # Currently supports the set, add, replace and delete operations.
     def multi
-      old = Thread.current[:dalli_multi]
-      Thread.current[:dalli_multi] = true
+      old = Thread.current[::Dalli::MULTI_KEY]
+      Thread.current[::Dalli::MULTI_KEY] = true
       yield
     ensure
       @ring&.flush_multi_responses
-      Thread.current[:dalli_multi] = old
+      Thread.current[::Dalli::MULTI_KEY] = old
     end
 
     ##
