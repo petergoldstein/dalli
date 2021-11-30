@@ -132,15 +132,15 @@ module Dalli
         end
 
         def validate_auth_format(extra_len, count)
-          return if extra_len.zero? && count.positive?
+          return if extra_len.zero?
 
           raise Dalli::NetworkError, "Unexpected message format: #{extra_len} #{count}"
         end
 
         def auth_response
-          (extra_len, _type, status, count) = read_header.unpack(RESP_HEADER)
-          validate_auth_format(extra_len, count)
-          content = read(count)
+          (_, extra_len, _, status, body_len,) = read_header.unpack(RESP_HEADER)
+          validate_auth_format(extra_len, body_len)
+          content = read(body_len) if body_len.positive?
           [status, content]
         end
       end
