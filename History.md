@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+Unreleased
+==========
+
+- Update Rack::Session::Dalli to inherit from Abstract::PersistedSecure (petergoldstein)
+
 3.0.6
 ==========
 
