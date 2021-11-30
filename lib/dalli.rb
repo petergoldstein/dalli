@@ -24,9 +24,14 @@ module Dalli
   # payload too big for memcached
   class ValueOverMaxSize < DalliError; end
 
+  # operation is not permitted in a multi block
+  class NotPermittedMultiOpError < DalliError; end
+
   # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.
   class NilObject; end # rubocop:disable Lint/EmptyClass
   NOT_FOUND = NilObject.new
+
+  MULTI_KEY = :dalli_multi
 
   def self.logger
     @logger ||= (rails_logger || default_logger)
