@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+3.0.6
+==========
+
+- Fix regression in SASL authentication response parsing (petergoldstein)
+
 3.0.5
 ==========
 
