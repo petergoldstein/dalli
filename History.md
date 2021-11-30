@@ -1,6 +1,13 @@
 Dalli Changelog
 =====================
 
+3.0.5
+==========
+
+- Add Rubocop and fix most outstanding issues (petergoldstein)
+- Extract a number of classes, to simplify the largest classes (petergoldstein)
+- Ensure against socket corruption if an error occurs in a multi block (petergoldstein)
+
 3.0.4
 ==========
 
