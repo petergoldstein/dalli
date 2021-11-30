@@ -680,12 +680,13 @@ module Dalli
         write(req)
 
         (extras, _type, status, count) = read_header.unpack(NORMAL_HEADER)
-        unless extras.zero? && count.positive?
+        unless extras.zero?
           raise Dalli::NetworkError,
                 "Unexpected message format: #{extras} #{count}"
         end
 
-        content = read(count)
+        content = read(count) if count.positive?
+        content = 'No content' unless count.positive?
         return Dalli.logger.info("Dalli/SASL: #{content}") if status.zero?
 
         raise Dalli::DalliError, "Error authenticating: #{status}" unless status == 0x21
