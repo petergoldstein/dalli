@@ -27,3 +27,5 @@ jobs:
         bundler-cache: true # 'bundle install' and cache
     - name: Run tests
       run: bundle exec rake
+      env:
+        RUN_SASL_TESTS: 1
