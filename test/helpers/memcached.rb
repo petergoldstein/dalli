@@ -65,7 +65,7 @@ module Memcached
     end
 
     # Launches a persistent memcached process, configured to use SASL authentication
-    def memcached_sasl_persistent(port_or_socket = 21_397, &block)
+    def memcached_sasl_persistent(port_or_socket = 21_398, &block)
       memcached_persistent(port_or_socket, '-S', sasl_credentials, &block)
     end
 
