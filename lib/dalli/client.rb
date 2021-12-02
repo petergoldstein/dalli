@@ -400,12 +400,10 @@ module Dalli
     end
 
     def normalize_options(opts)
-      begin
-        opts[:expires_in] = opts[:expires_in].to_i if opts[:expires_in]
-      rescue NoMethodError
-        raise ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
-      end
+      opts[:expires_in] = opts[:expires_in].to_i if opts[:expires_in]
       opts
+    rescue NoMethodError
+      raise ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
     end
 
     def pipelined_getter
