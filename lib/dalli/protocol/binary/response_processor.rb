@@ -9,9 +9,6 @@ module Dalli
       # and parsing into local values.  Handles errors on unexpected values.
       ##
       class ResponseProcessor
-        RESP_HEADER = '@2nCCnNNQ'
-        RESP_HEADER_SIZE = 24
-
         # Response codes taken from:
         # https://github.com/memcached/memcached/wiki/BinaryProtocolRevamped#response-status
         RESPONSE_CODES = {
@@ -44,14 +41,9 @@ module Dalli
         end
 
         def read_response
-          status, extra_len, key_len, body_len, cas = unpack_header(read_header)
-          body = read(body_len) if body_len.positive?
-          [status, extra_len, body, cas, key_len]
-        end
-
-        def unpack_header(header)
-          (key_len, extra_len, _, status, body_len, _, cas) = header.unpack(RESP_HEADER)
-          [status, extra_len, key_len, body_len, cas]
+          resp_header = ResponseHeader.new(read_header)
+          body = read(resp_header.body_len) if resp_header.body_len.positive?
+          [resp_header, body]
         end
 
         def unpack_response_body(extra_len, key_len, body, unpack)
@@ -63,45 +55,36 @@ module Dalli
         end
 
         def read_header
-          read(RESP_HEADER_SIZE) || raise(Dalli::NetworkError, 'No response')
+          read(ResponseHeader::SIZE) || raise(Dalli::NetworkError, 'No response')
         end
 
-        def not_found?(status)
-          status == 1
-        end
+        def raise_on_not_ok_status!(resp_header)
+          return if resp_header.ok?
 
-        NOT_STORED_STATUSES = [2, 5].freeze
-        def not_stored?(status)
-          NOT_STORED_STATUSES.include?(status)
-        end
-
-        def raise_on_not_ok_status!(status)
-          return if status.zero?
-
-          raise Dalli::DalliError, "Response error #{status}: #{RESPONSE_CODES[status]}"
+          raise Dalli::DalliError, "Response error #{resp_header.status}: #{RESPONSE_CODES[resp_header.status]}"
         end
 
         def generic_response(unpack: false, cache_nils: false)
-          status, extra_len, body, _, key_len = read_response
+          resp_header, body = read_response
 
-          return cache_nils ? ::Dalli::NOT_FOUND : nil if not_found?(status)
-          return false if not_stored?(status) # Not stored, normal status for add operation
+          return cache_nils ? ::Dalli::NOT_FOUND : nil if resp_header.not_found?
+          return false if resp_header.not_stored? # Not stored, normal status for add operation
 
-          raise_on_not_ok_status!(status)
+          raise_on_not_ok_status!(resp_header)
           return true unless body
 
-          unpack_response_body(extra_len, key_len, body, unpack).last
+          unpack_response_body(resp_header.extra_len, resp_header.key_len, body, unpack).last
         end
 
         def data_cas_response
-          status, extra_len, body, cas, key_len = read_response
-          return [nil, cas] if not_found?(status)
-          return [nil, false] if not_stored?(status)
+          resp_header, body = read_response
+          return [nil, resp_header.cas] if resp_header.not_found?
+          return [nil, false] if resp_header.not_stored?
 
-          raise_on_not_ok_status!(status)
-          return [nil, cas] unless body
+          raise_on_not_ok_status!(resp_header)
+          return [nil, resp_header.cas] unless body
 
-          [unpack_response_body(extra_len, key_len, body, true).last, cas]
+          [unpack_response_body(resp_header.extra_len, resp_header.key_len, body, true).last, resp_header.cas]
         end
 
         def cas_response
@@ -111,17 +94,17 @@ module Dalli
         def multi_with_keys_response
           hash = {}
           loop do
-            status, extra_len, body, _, key_len = read_response
+            resp_header, body = read_response
             # This is the response to the terminating noop / end of stat
-            return hash if status.zero? && key_len.zero?
+            return hash if resp_header.ok? && resp_header.key_len.zero?
 
             # Ignore any responses with non-zero status codes,
             # such as errors from set operations.  That allows
             # this code to be used at the end of a multi
             # block to clear any error responses from inside the multi.
-            next unless status.zero?
+            next unless resp_header.ok?
 
-            key, value = unpack_response_body(extra_len, key_len, body, true)
+            key, value = unpack_response_body(resp_header.extra_len, resp_header.key_len, body, true)
             hash[key] = value
           end
         end
@@ -138,22 +121,22 @@ module Dalli
         end
 
         def auth_response(buf = read_header)
-          (_, extra_len, _, status, body_len,) = buf.unpack(RESP_HEADER)
-          validate_auth_format(extra_len, body_len)
+          resp_header = ResponseHeader.new(buf)
+          body_len = resp_header.body_len
+          validate_auth_format(resp_header.extra_len, body_len)
           content = read(body_len) if body_len.positive?
-          [status, content]
+          [resp_header.status, content]
         end
 
         def contains_header?(buf)
           return false unless buf
 
-          buf.bytesize >= RESP_HEADER_SIZE
+          buf.bytesize >= ResponseHeader::SIZE
         end
 
         def response_header_from_buffer(buf)
-          header = buf.slice(0, RESP_HEADER_SIZE)
-          status, extra_len, key_len, body_len, cas = unpack_header(header)
-          [status, extra_len, key_len, body_len, cas]
+          header = buf.slice(0, ResponseHeader::SIZE)
+          ResponseHeader.new(header)
         end
 
         ##
@@ -170,23 +153,24 @@ module Dalli
           # There's no header in the buffer, so don't advance
           return [0, 0, nil, nil, nil] unless contains_header?(buf)
 
-          status, extra_len, key_len, body_len, cas = response_header_from_buffer(buf)
+          resp_header = response_header_from_buffer(buf)
+          body_len = resp_header.body_len
 
           # The response has no body - so we need to advance the
           # buffer.  This is either the response to the terminating
           # noop or, if the status is not zero, an intermediate
           # error response that needs to be discarded.
-          return [RESP_HEADER_SIZE, status, nil, nil, cas] if body_len.zero?
+          return [ResponseHeader::SIZE, resp_header.status, nil, nil, resp_header.cas] if body_len.zero?
 
           # The header is in the buffer, but the body is not
-          resp_size = RESP_HEADER_SIZE + body_len
-          return [0, status, nil, nil, nil] unless buf.bytesize >= resp_size
+          resp_size = ResponseHeader::SIZE + body_len
+          return [0, resp_header.status, nil, nil, nil] unless buf.bytesize >= resp_size
 
           # The full response is in our buffer, so parse it and return
           # the values
-          body = buf.slice(RESP_HEADER_SIZE, body_len)
-          key, value = unpack_response_body(extra_len, key_len, body, true)
-          [resp_size, status, key, value, cas]
+          body = buf.slice(ResponseHeader::SIZE, body_len)
+          key, value = unpack_response_body(resp_header.extra_len, resp_header.key_len, body, true)
+          [resp_size, resp_header.status, key, value, resp_header.cas]
         end
       end
     end
