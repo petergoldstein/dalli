@@ -67,10 +67,6 @@ module Dalli
         io.options
       end
 
-      def server
-        io.server
-      end
-
       unless method_defined?(:wait_readable)
         def wait_readable(timeout = nil)
           to_io.wait_readable(timeout)
@@ -90,14 +86,12 @@ module Dalli
     class TCP < TCPSocket
       include Dalli::Socket::InstanceMethods
       # options - supports enhanced logging in the case of a timeout
-      # server  - used to support IO.select in the pipelined getter
-      attr_accessor :options, :server
+      attr_accessor :options
 
-      def self.open(host, port, server, options = {})
+      def self.open(host, port, options = {})
         Timeout.timeout(options[:socket_timeout]) do
           sock = new(host, port)
           sock.options = { host: host, port: port }.merge(options)
-          sock.server = server
           init_socket_options(sock, options)
 
           options[:ssl_context] ? wrapping_ssl_socket(sock, host, options[:ssl_context]) : sock
@@ -141,13 +135,12 @@ module Dalli
 
         # options - supports enhanced logging in the case of a timeout
         # server  - used to support IO.select in the pipelined getter
-        attr_accessor :options, :server
+        attr_accessor :options
 
-        def self.open(path, server, options = {})
+        def self.open(path, options = {})
           Timeout.timeout(options[:socket_timeout]) do
             sock = new(path)
             sock.options = { path: path }.merge(options)
-            sock.server = server
             sock
           end
         end

@@ -30,7 +30,7 @@ describe 'Dalli' do
     it 'opens a standard TCP connection' do
       memcached_persistent do |dc|
         server = dc.send(:ring).servers.first
-        sock = Dalli::Socket::TCP.open(server.hostname, server.port, server, server.options)
+        sock = Dalli::Socket::TCP.open(server.hostname, server.port, server.options)
         assert_equal Dalli::Socket::TCP, sock.class
 
         dc.set('abc', 123)
@@ -41,7 +41,7 @@ describe 'Dalli' do
     it 'opens a SSL TCP connection' do
       memcached_ssl_persistent do |dc|
         server = dc.send(:ring).servers.first
-        sock = Dalli::Socket::TCP.open(server.hostname, server.port, server, server.options)
+        sock = Dalli::Socket::TCP.open(server.hostname, server.port, server.options)
         assert_equal Dalli::Socket::SSLSocket, sock.class
 
         dc.set('abc', 123)

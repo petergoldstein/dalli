@@ -37,11 +37,14 @@ module Dalli
       groups = groups_for_keys(keys)
       make_getkq_requests(groups)
 
-      servers = groups.keys
       # TODO: How does this exit on a NetworkError
-      finish_queries(servers)
+      finish_queries(groups.keys)
     end
 
+    ##
+    # Loop through the server-grouped sets of keys, writing
+    # the corresponding getkq requests to the appropriate servers
+    ##
     def make_getkq_requests(groups)
       groups.each do |server, keys_for_server|
         server.request(:pipelined_get, keys_for_server)
@@ -51,7 +54,10 @@ module Dalli
       end
     end
 
-    # raises Dalli::NetworkError
+    ##
+    # This loops through the servers that have keys in
+    # our set, sending the noop to terminate the set of queries.
+    ##
     def finish_queries(servers)
       deleted = []
 
@@ -69,7 +75,7 @@ module Dalli
 
       servers.delete_if { |server| deleted.include?(server) }
     rescue Dalli::NetworkError
-      about_without_timeout(servers)
+      abort_without_timeout(servers)
       raise
     end
 
@@ -84,7 +90,7 @@ module Dalli
     end
 
     # Swallows Dalli::NetworkError
-    def about_without_timeout(servers)
+    def abort_without_timeout(servers)
       servers.each(&:pipeline_response_abort)
     end
 
@@ -96,12 +102,16 @@ module Dalli
         return []
       end
 
+      # Loop through the servers with responses, and
+      # delete any from our list that are finished
       readable_servers.each do |server|
         servers.delete(server) if process_server(server, &block)
       end
       servers
     rescue NetworkError
-      about_without_timeout(servers)
+      # Abort and raise if we encountered a network error.  This triggers
+      # a retry at the top level.
+      abort_without_timeout(servers)
       raise
     end
 
@@ -114,7 +124,7 @@ module Dalli
 
     # Swallows Dalli::NetworkError
     def abort_with_timeout(servers)
-      about_without_timeout(servers)
+      abort_without_timeout(servers)
       servers.each do |server|
         Dalli.logger.debug { "memcached at #{server.name} did not response within timeout" }
       end
@@ -135,16 +145,18 @@ module Dalli
     def servers_with_response(servers, timeout)
       return [] if servers.empty?
 
-      # TODO: - This is a challenging issue.  This wait on
-      # multiple sockets is not a standard way to handle
-      # this sort of async behavior these days.  Typically
-      # we'd use green threads or async functions to handle
-      # this sort of blocking.  But that would require a lot
-      # of rewriting
-      readable, = IO.select(servers.map(&:sock), nil, nil, timeout)
+      # TODO: - This is a bit challenging.  Essentially the PipelinedGetter
+      # is a reactor, but without the benefit of a Fiber or separate thread.
+      # My suspicion is that we may want to try and push this down into the
+      # individual servers, but I'm not sure.  For now, we keep the
+      # mapping between the alerted object (the socket) and the
+      # corrresponding server here.
+      server_map = servers.each_with_object({}) { |s, h| h[s.sock] = s }
+
+      readable, = IO.select(server_map.keys, nil, nil, timeout)
       return [] if readable.nil?
 
-      readable.map(&:server)
+      readable.map { |sock| server_map[sock] }
     end
 
     def groups_for_keys(*keys)
