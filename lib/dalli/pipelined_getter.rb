@@ -60,6 +60,8 @@ module Dalli
 
         begin
           finish_query_for_server(server)
+        rescue Dalli::NetworkError
+          raise
         rescue Dalli::DalliError
           deleted.append(server)
         end
