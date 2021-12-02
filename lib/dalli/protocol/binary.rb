@@ -6,6 +6,7 @@ require 'socket'
 require 'timeout'
 
 require_relative 'binary/request_formatter'
+require_relative 'binary/response_header'
 require_relative 'binary/response_processor'
 require_relative 'binary/sasl_authentication'
 
