@@ -6,6 +6,8 @@ Unreleased
 
 - BREAKING CHANGE: Update Rack::Session::Dalli to inherit from Abstract::PersistedSecure.  This will invalidate existing sessions (petergoldstein)
 - BREAKING CHANGE: Use of unsupported operations in a multi block now raise an error. (petergoldstein)
+- Extract PipelinedGetter from Dalli::Client (petergoldstein)
+- Fix SSL socket so that it works with pipelined gets (petergoldstein)
 
 3.0.6
 ==========

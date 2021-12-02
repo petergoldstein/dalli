@@ -85,7 +85,7 @@ module Dalli
 
     # Swallows Dalli::NetworkError
     def about_without_timeout(servers)
-      servers.each(&:multi_response_abort)
+      servers.each(&:pipeline_response_abort)
     end
 
     def fetch_responses(servers, start_time, timeout, &block)
