@@ -99,22 +99,22 @@ describe Dalli::Protocol::Binary do
     end
   end
 
-  describe 'multi_response_nonblock' do
+  describe 'process_outstanding_pipeline_requests' do
     subject { Dalli::Protocol::Binary.new('127.0.0.1') }
 
-    it 'raises NetworkError when called before multi_response_start' do
+    it 'raises NetworkError when called before pipeline_response_start' do
       assert_raises Dalli::NetworkError do
-        subject.request(:send_multiget, %w[a b])
-        subject.multi_response_nonblock
+        subject.request(:pipelined_get, %w[a b])
+        subject.process_outstanding_pipeline_requests
       end
     end
 
     it 'raises NetworkError when called after multi_response_abort' do
       assert_raises Dalli::NetworkError do
-        subject.request(:send_multiget, %w[a b])
-        subject.multi_response_start
+        subject.request(:pipelined_get, %w[a b])
+        subject.pipeline_response_start
         subject.multi_response_abort
-        subject.multi_response_nonblock
+        subject.process_outstanding_pipeline_requests
       end
     end
   end

@@ -79,7 +79,7 @@ module Dalli
       end
     end
 
-    def flush_multi_responses
+    def pipeline_consume_and_ignore_responses
       @servers.each do |s|
         s.request(:noop)
       rescue Dalli::NetworkError
@@ -90,6 +90,10 @@ module Dalli
 
     def socket_timeout
       @servers.first.socket_timeout
+    end
+
+    def close
+      @servers.each(&:close)
     end
 
     private

@@ -145,58 +145,46 @@ module Dalli
       # flushing responses for kv pairs that were found.
       #
       # Returns nothing.
-      def multi_response_start
+      def pipeline_response_start
         verify_state(:getkq)
         write_noop
-        @multi_buffer = +''
+        @pipeline_buffer = +''
         start_request!
       end
 
-      # Did the last call to #multi_response_start complete successfully?
-      def multi_response_completed?
-        @multi_buffer.nil?
+      # Did the last call to #pipeline_response_start complete successfully?
+      def pipeline_response_completed?
+        @pipeline_buffer.nil?
       end
 
       # Attempt to receive and parse as many key/value pairs as possible
-      # from this server. After #multi_response_start, this should be invoked
+      # from this server. After #pipeline_response_start, this should be invoked
       # repeatedly whenever this server's socket is readable until
-      # #multi_response_completed?.
+      # #pipeline_response_completed?.
       #
       # Returns a Hash of kv pairs received.
-      def multi_response_nonblock
-        reconnect! 'multi_response has completed' if @multi_buffer.nil?
-
-        @multi_buffer << @sock.read_available
-        buf = @multi_buffer
+      def process_outstanding_pipeline_requests
+        reconnect! 'multi_response has completed' if pipeline_response_completed?
         values = {}
 
-        # Loop while we have at least a complete header in the buffer
-        while buf.bytesize >= ResponseProcessor::RESP_HEADER_SIZE
-          extra_len, key_len, body_len, cas = response_header_from_buffer(buf)
+        read_to_pipeline_buffer
 
-          # We've reached the noop at the end of the pipeline
-          if key_len.zero?
-            finish_multi_response
+        bytes_to_advance, status, key, value, cas = process_single_pipeline_response
+        # Loop while we have at least a complete header in the buffer
+        while bytes_to_advance.positive?
+          # If the status and key length are both zero, then this is the response
+          # to the noop at the end of the pipeline
+          if status.zero? && key.nil?
+            finish_pipeline
             break
           end
 
-          # Break and read more unless we already have the entire response for this header
-          resp_size = ResponseProcessor::RESP_HEADER_SIZE + body_len
-          break unless buf.bytesize >= resp_size
+          # If the status is zero and the key len is positive, then this is a
+          # getkq response with a value that we want to set in the response hash
+          values[key] = [value, cas] unless key.nil?
 
-          # Parse out the body, and unpack the key/value/cas
-          body = buf.slice(ResponseProcessor::RESP_HEADER_SIZE, body_len)
-          begin
-            key, value = @response_processor.unpack_response_body(extra_len, key_len, body, true)
-            values[key] = [value, cas]
-          rescue DalliError
-            # TODO: Determine if we should be swallowing
-            # this error.  I'm not even sure how we get an error
-            # like this here, as we've already got the buffer.
-          end
-
-          buf = buf[(ResponseProcessor::RESP_HEADER_SIZE + body_len)..-1]
-          @multi_buffer = buf
+          # Get the next set of bytes from the buffer
+          bytes_to_advance, status, key, value, cas = process_single_pipeline_response(bytes_to_advance)
         end
 
         values
@@ -204,28 +192,35 @@ module Dalli
         failure!(e)
       end
 
-      def response_header_from_buffer(buf)
-        header = buf.slice(0, ResponseProcessor::RESP_HEADER_SIZE)
-        _, extra_len, key_len, body_len, cas = @response_processor.unpack_header(header)
-        [extra_len, key_len, body_len, cas]
+      def read_to_pipeline_buffer
+        @pipeline_buffer << @sock.read_available
       end
 
-      def clear_multi_buffer
-        @multi_buffer = nil
+      def process_single_pipeline_response(start_position = 0)
+        advance_pipeline_buffer(start_position)
+        @response_processor.getk_response_from_buffer(@pipeline_buffer)
       end
 
-      def finish_multi_response
-        clear_multi_buffer
+      def advance_pipeline_buffer(bytes_to_advance)
+        @pipeline_buffer = @pipeline_buffer[bytes_to_advance..-1]
+      end
+
+      def clear_pipeline_buffer
+        @pipeline_buffer = nil
+      end
+
+      def finish_pipeline
+        clear_pipeline_buffer
         finish_request!
       end
 
-      # Abort an earlier #multi_response_start. Used to signal an external
+      # Abort an earlier #pipeline_response_start. Used to signal an external
       # timeout. The underlying socket is disconnected, and the exception is
       # swallowed.
       #
       # Returns nothing.
       def multi_response_abort
-        clear_multi_buffer
+        clear_pipeline_buffer
         abort_request!
         return true unless @sock
 
@@ -250,6 +245,10 @@ module Dalli
         result
       rescue SystemCallError, Timeout::Error => e
         failure!(e)
+      end
+
+      def connected?
+        !@sock.nil?
       end
 
       def socket_timeout
@@ -381,12 +380,12 @@ module Dalli
         @response_processor.generic_response(unpack: true, cache_nils: cache_nils?(options))
       end
 
-      def send_multiget(keys)
+      def pipelined_get(keys)
         req = +''
         keys.each do |key|
           req << RequestFormatter.standard_request(opkey: :getkq, key: key)
         end
-        # Could send noop here instead of in multi_response_start
+        # Could send noop here instead of in pipeline_response_start
         write(req)
       end
 

@@ -137,11 +137,56 @@ module Dalli
           raise Dalli::NetworkError, "Unexpected message format: #{extra_len} #{count}"
         end
 
-        def auth_response
-          (_, extra_len, _, status, body_len,) = read_header.unpack(RESP_HEADER)
+        def auth_response(buf = read_header)
+          (_, extra_len, _, status, body_len,) = buf.unpack(RESP_HEADER)
           validate_auth_format(extra_len, body_len)
           content = read(body_len) if body_len.positive?
           [status, content]
+        end
+
+        def contains_header?(buf)
+          return false unless buf
+
+          buf.bytesize >= RESP_HEADER_SIZE
+        end
+
+        def response_header_from_buffer(buf)
+          header = buf.slice(0, RESP_HEADER_SIZE)
+          status, extra_len, key_len, body_len, cas = unpack_header(header)
+          [status, extra_len, key_len, body_len, cas]
+        end
+
+        ##
+        # This method returns an array of values used in a pipelined
+        # getk process.  The first value is the number of bytes by
+        # which to advance the pointer in the buffer.  If the
+        # complete response is found in the buffer, this will
+        # be the response size.  Otherwise it is zero.
+        #
+        # The remaining four values in the array are the status, key,
+        # value, and cas returned from the response.
+        ##
+        def getk_response_from_buffer(buf)
+          # There's no header in the buffer, so don't advance
+          return [0, 0, nil, nil, nil] unless contains_header?(buf)
+
+          status, extra_len, key_len, body_len, cas = response_header_from_buffer(buf)
+
+          # The response has no body - so we need to advance the
+          # buffer.  This is either the response to the terminating
+          # noop or, if the status is not zero, an intermediate
+          # error response that needs to be discarded.
+          return [RESP_HEADER_SIZE, status, nil, nil, cas] if body_len.zero?
+
+          # The header is in the buffer, but the body is not
+          resp_size = RESP_HEADER_SIZE + body_len
+          return [0, status, nil, nil, nil] unless buf.bytesize >= resp_size
+
+          # The full response is in our buffer, so parse it and return
+          # the values
+          body = buf.slice(RESP_HEADER_SIZE, body_len)
+          key, value = unpack_response_body(extra_len, key_len, body, true)
+          [resp_size, status, key, value, cas]
         end
       end
     end

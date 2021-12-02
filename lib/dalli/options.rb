@@ -31,13 +31,13 @@ module Dalli
       end
     end
 
-    def multi_response_start
+    def pipeline_response_start
       @lock.synchronize do
         super
       end
     end
 
-    def multi_response_nonblock
+    def process_outstanding_pipeline_requests
       @lock.synchronize do
         super
       end
