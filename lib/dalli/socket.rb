@@ -67,6 +67,10 @@ module Dalli
         io.options
       end
 
+      def server
+        io.server
+      end
+
       unless method_defined?(:wait_readable)
         def wait_readable(timeout = nil)
           to_io.wait_readable(timeout)
@@ -85,6 +89,8 @@ module Dalli
     ##
     class TCP < TCPSocket
       include Dalli::Socket::InstanceMethods
+      # options - supports enhanced logging in the case of a timeout
+      # server  - used to support IO.select in the pipelined getter
       attr_accessor :options, :server
 
       def self.open(host, port, server, options = {})
@@ -132,6 +138,9 @@ module Dalli
       ##
       class UNIX < UNIXSocket
         include Dalli::Socket::InstanceMethods
+
+        # options - supports enhanced logging in the case of a timeout
+        # server  - used to support IO.select in the pipelined getter
         attr_accessor :options, :server
 
         def self.open(path, server, options = {})
