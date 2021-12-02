@@ -46,6 +46,10 @@ describe 'Dalli' do
 
         dc.set('abc', 123)
         assert_equal(123, dc.get('abc'))
+
+        # Confirm that pipelined get works, since this depends on attributes on
+        # the socket
+        assert_equal({ 'abc' => 123 }, dc.get_multi(['abc']))
       end
     end
   end
