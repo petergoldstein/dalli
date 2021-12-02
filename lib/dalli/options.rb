@@ -43,7 +43,7 @@ module Dalli
       end
     end
 
-    def multi_response_abort
+    def pipeline_response_abort
       @lock.synchronize do
         super
       end

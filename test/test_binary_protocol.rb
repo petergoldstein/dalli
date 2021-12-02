@@ -109,11 +109,11 @@ describe Dalli::Protocol::Binary do
       end
     end
 
-    it 'raises NetworkError when called after multi_response_abort' do
+    it 'raises NetworkError when called after pipeline_response_abort' do
       assert_raises Dalli::NetworkError do
         subject.request(:pipelined_get, %w[a b])
         subject.pipeline_response_start
-        subject.multi_response_abort
+        subject.pipeline_response_abort
         subject.process_outstanding_pipeline_requests
       end
     end

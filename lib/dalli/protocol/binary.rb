@@ -148,7 +148,7 @@ module Dalli
       def pipeline_response_start
         verify_state(:getkq)
         write_noop
-        @pipeline_buffer = +''
+        initialize_pipeline_buffer
         start_request!
       end
 
@@ -196,19 +196,32 @@ module Dalli
         @pipeline_buffer << @sock.read_available
       end
 
+      # Attempt to process a single response from the buffer.  Starts
+      # by advancing the buffer to the specified start position
       def process_single_pipeline_response(start_position = 0)
         advance_pipeline_buffer(start_position)
         @response_processor.getk_response_from_buffer(@pipeline_buffer)
       end
 
+      # Advances the internal pipeline buffer by bytes_to_advance
+      # bytes.
       def advance_pipeline_buffer(bytes_to_advance)
         @pipeline_buffer = @pipeline_buffer[bytes_to_advance..-1]
       end
 
+      # Initializes the internal pipelined get buffer to an empty state,
+      # so that we're ready to read responses
+      def initialize_pipeline_buffer
+        @pipeline_buffer = +''
+      end
+
+      # Clear the internal pipelined get buffer
       def clear_pipeline_buffer
         @pipeline_buffer = nil
       end
 
+      # Called after the noop response is received at the end of a set
+      # of pipelined gets
       def finish_pipeline
         clear_pipeline_buffer
         finish_request!
@@ -219,7 +232,7 @@ module Dalli
       # swallowed.
       #
       # Returns nothing.
-      def multi_response_abort
+      def pipeline_response_abort
         clear_pipeline_buffer
         abort_request!
         return true unless @sock
