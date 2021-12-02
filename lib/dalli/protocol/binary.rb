@@ -547,9 +547,9 @@ module Dalli
 
       def memcached_socket
         if socket_type == :unix
-          Dalli::Socket::UNIX.open(hostname, self, options)
+          Dalli::Socket::UNIX.open(hostname, options)
         else
-          Dalli::Socket::TCP.open(hostname, port, self, options)
+          Dalli::Socket::TCP.open(hostname, port, options)
         end
       end
 
