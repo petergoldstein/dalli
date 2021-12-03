@@ -187,9 +187,12 @@ module Dalli
       perform(:prepend, key, value.to_s)
     end
 
+    ##
+    # Flush the memcached server, at 'delay' seconds in the future.
+    # Delay defaults to zero seconds, which means an immediate flush.
+    ##
     def flush(delay = 0)
-      time = -delay
-      ring.servers.map { |s| s.request(:flush, time += delay) }
+      ring.servers.map { |s| s.request(:flush, delay) }
     end
 
     alias flush_all flush
