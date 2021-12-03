@@ -33,9 +33,7 @@ module Dalli
         # times a socket operation may fail before considering the server dead
         socket_max_failures: 2,
         # amount of time to sleep between retries when a failure occurs
-        socket_failure_delay: 0.1,
-        username: nil,
-        password: nil
+        socket_failure_delay: 0.1
       }.freeze
 
       def initialize(attribs, options = {})
@@ -43,11 +41,16 @@ module Dalli
         @options = DEFAULTS.merge(options)
         @value_marshaller = ValueMarshaller.new(@options)
         @response_processor = ResponseProcessor.new(self, @value_marshaller)
+        @response_buffer = ResponseBuffer.new(self, @response_processor)
 
         reset_down_info
         @sock = nil
         @pid = nil
         @request_in_progress = false
+      end
+
+      def response_buffer
+        @response_buffer ||= ResponseBuffer.new(self, @response_processor)
       end
 
       def name
@@ -149,13 +152,21 @@ module Dalli
       def pipeline_response_start
         verify_state(:getkq)
         write_noop
-        initialize_pipeline_buffer
+        response_buffer.reset
         start_request!
       end
 
       # Did the last call to #pipeline_response_start complete successfully?
       def pipeline_response_completed?
-        @pipeline_buffer.nil?
+        response_buffer.completed?
+      end
+
+      def pipeline_response(bytes_to_advance = 0)
+        response_buffer.process_single_response(bytes_to_advance)
+      end
+
+      def reconnect_on_pipeline_complete!
+        reconnect! 'multi_response has completed' if pipeline_response_completed?
       end
 
       # Attempt to receive and parse as many key/value pairs as possible
@@ -165,12 +176,12 @@ module Dalli
       #
       # Returns a Hash of kv pairs received.
       def process_outstanding_pipeline_requests
-        reconnect! 'multi_response has completed' if pipeline_response_completed?
+        reconnect_on_pipeline_complete!
         values = {}
 
-        read_to_pipeline_buffer
+        response_buffer.read
 
-        bytes_to_advance, status, key, value, cas = process_single_pipeline_response
+        bytes_to_advance, status, key, value, cas = pipeline_response
         # Loop while we have at least a complete header in the buffer
         while bytes_to_advance.positive?
           # If the status and key length are both zero, then this is the response
@@ -185,7 +196,7 @@ module Dalli
           values[key] = [value, cas] unless key.nil?
 
           # Get the next set of bytes from the buffer
-          bytes_to_advance, status, key, value, cas = process_single_pipeline_response(bytes_to_advance)
+          bytes_to_advance, status, key, value, cas = pipeline_response(bytes_to_advance)
         end
 
         values
@@ -193,38 +204,14 @@ module Dalli
         failure!(e)
       end
 
-      def read_to_pipeline_buffer
-        @pipeline_buffer << @sock.read_available
-      end
-
-      # Attempt to process a single response from the buffer.  Starts
-      # by advancing the buffer to the specified start position
-      def process_single_pipeline_response(start_position = 0)
-        advance_pipeline_buffer(start_position)
-        @response_processor.getk_response_from_buffer(@pipeline_buffer)
-      end
-
-      # Advances the internal pipeline buffer by bytes_to_advance
-      # bytes.
-      def advance_pipeline_buffer(bytes_to_advance)
-        @pipeline_buffer = @pipeline_buffer[bytes_to_advance..-1]
-      end
-
-      # Initializes the internal pipelined get buffer to an empty state,
-      # so that we're ready to read responses
-      def initialize_pipeline_buffer
-        @pipeline_buffer = +''
-      end
-
-      # Clear the internal pipelined get buffer
-      def clear_pipeline_buffer
-        @pipeline_buffer = nil
+      def read_nonblock
+        @sock.read_available
       end
 
       # Called after the noop response is received at the end of a set
       # of pipelined gets
       def finish_pipeline
-        clear_pipeline_buffer
+        response_buffer.clear
         finish_request!
       end
 
@@ -234,7 +221,7 @@ module Dalli
       #
       # Returns nothing.
       def pipeline_response_abort
-        clear_pipeline_buffer
+        response_buffer.clear
         abort_request!
         return true unless @sock
 
