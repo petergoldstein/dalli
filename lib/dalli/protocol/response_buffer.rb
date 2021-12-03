@@ -20,18 +20,21 @@ module Dalli
 
       # Attempts to process a single response from the buffer.  Starts
       # by advancing the buffer to the specified start position
-      def process_single_response(start_position = 0)
-        advance(start_position)
-        @response_processor.getk_response_from_buffer(@buffer)
+      def process_single_getk_response
+        bytes, resp_header, key, value = @response_processor.getk_response_from_buffer(@buffer)
+        advance(bytes)
+        [resp_header, key, value]
       end
 
       # Advances the internal response buffer by bytes_to_advance
       # bytes.  The
       def advance(bytes_to_advance)
+        return unless bytes_to_advance.positive?
+
         @buffer = @buffer[bytes_to_advance..-1]
       end
 
-      # Resets the internal  buffer to an empty state,
+      # Resets the internal buffer to an empty state,
       # so that we're ready to read pipelined responses
       def reset
         @buffer = +''
@@ -42,8 +45,8 @@ module Dalli
         @buffer = nil
       end
 
-      def completed?
-        @buffer.nil?
+      def in_progress?
+        !@buffer.nil?
       end
     end
   end

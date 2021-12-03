@@ -19,13 +19,7 @@ module Dalli
       @ring.lock do
         servers = setup_requests(keys)
         start_time = Time.now
-        loop do
-          # Remove any servers which are not connected
-          servers.delete_if { |s| !s.connected? }
-          break if servers.empty?
-
-          servers = fetch_responses(servers, start_time, @ring.socket_timeout, &block)
-        end
+        servers = fetch_responses(servers, start_time, @ring.socket_timeout, &block) until servers.empty?
       end
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }
@@ -44,6 +38,10 @@ module Dalli
     ##
     # Loop through the server-grouped sets of keys, writing
     # the corresponding getkq requests to the appropriate servers
+    #
+    # It's worth noting that we could potentially reduce bytes
+    # on the wire by switching from getkq to getq, and using
+    # the opaque value to match requests to responses.
     ##
     def make_getkq_requests(groups)
       groups.each do |server, keys_for_server|
@@ -80,7 +78,7 @@ module Dalli
     end
 
     def finish_query_for_server(server)
-      server.pipeline_response_start
+      server.pipeline_response_setup
     rescue Dalli::NetworkError
       raise
     rescue Dalli::DalliError => e
@@ -91,10 +89,14 @@ module Dalli
 
     # Swallows Dalli::NetworkError
     def abort_without_timeout(servers)
-      servers.each(&:pipeline_response_abort)
+      servers.each(&:pipeline_abort)
     end
 
     def fetch_responses(servers, start_time, timeout, &block)
+      # Remove any servers which are not connected
+      servers.delete_if { |s| !s.connected? }
+      return [] if servers.empty?
+
       time_left = remaining_time(start_time, timeout)
       readable_servers = servers_with_response(servers, time_left)
       if readable_servers.empty?
@@ -135,11 +137,11 @@ module Dalli
     # Processes responses from a server.  Returns true if there are no
     # additional responses from this server.
     def process_server(server)
-      server.process_outstanding_pipeline_requests.each_pair do |key, value_list|
+      server.pipeline_next_responses.each_pair do |key, value_list|
         yield @key_manager.key_without_namespace(key), value_list
       end
 
-      server.pipeline_response_completed?
+      server.pipeline_complete?
     end
 
     def servers_with_response(servers, timeout)

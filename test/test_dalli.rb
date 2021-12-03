@@ -356,12 +356,12 @@ describe 'Dalli' do
         assert_equal 'av', dc.get('a')
         assert_equal 'bv', dc.get('b')
 
-        refute Thread.current[::Dalli::MULTI_KEY]
+        refute Thread.current[::Dalli::QUIET]
         dc.multi do
-          assert Thread.current[::Dalli::MULTI_KEY]
+          assert Thread.current[::Dalli::QUIET]
           dc.delete('non_existent_key')
         end
-        refute Thread.current[::Dalli::MULTI_KEY]
+        refute Thread.current[::Dalli::QUIET]
         assert_equal 'av', dc.get('a')
         assert_equal 'bv', dc.get('b')
       end
@@ -376,14 +376,14 @@ describe 'Dalli' do
         assert_equal 'av', dc.get('a')
         assert_equal 'bv', dc.get('b')
 
-        refute Thread.current[::Dalli::MULTI_KEY]
+        refute Thread.current[::Dalli::QUIET]
         dc.multi do
-          assert Thread.current[::Dalli::MULTI_KEY]
+          assert Thread.current[::Dalli::QUIET]
           assert_raises Dalli::NotPermittedMultiOpError do
             dc.get('a')
           end
         end
-        refute Thread.current[::Dalli::MULTI_KEY]
+        refute Thread.current[::Dalli::QUIET]
       end
     end
 
@@ -532,7 +532,7 @@ describe 'Dalli' do
         dc.set(:a, 1)
         ring = dc.send(:ring)
         server = ring.servers.first
-        socket = server.instance_variable_get('@sock')
+        socket = server.sock
 
         optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE)
         optval = optval.unpack 'i'

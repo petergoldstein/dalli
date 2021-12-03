@@ -99,22 +99,22 @@ describe Dalli::Protocol::Binary do
     end
   end
 
-  describe 'process_outstanding_pipeline_requests' do
+  describe 'pipeline_next_responses' do
     subject { Dalli::Protocol::Binary.new('127.0.0.1') }
 
-    it 'raises NetworkError when called before pipeline_response_start' do
+    it 'raises NetworkError when called before pipeline_response_setup' do
       assert_raises Dalli::NetworkError do
         subject.request(:pipelined_get, %w[a b])
-        subject.process_outstanding_pipeline_requests
+        subject.pipeline_next_responses
       end
     end
 
-    it 'raises NetworkError when called after pipeline_response_abort' do
+    it 'raises NetworkError when called after pipeline_abort' do
       assert_raises Dalli::NetworkError do
         subject.request(:pipelined_get, %w[a b])
-        subject.pipeline_response_start
-        subject.pipeline_response_abort
-        subject.process_outstanding_pipeline_requests
+        subject.pipeline_response_setup
+        subject.pipeline_abort
+        subject.pipeline_next_responses
       end
     end
   end

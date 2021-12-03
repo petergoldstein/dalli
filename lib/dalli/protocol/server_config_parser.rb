@@ -19,22 +19,22 @@ module Dalli
       DEFAULT_PORT = 11_211
       DEFAULT_WEIGHT = 1
 
-      def self.parse(str, client_options)
-        return parse_non_uri(str, client_options) unless str.start_with?(MEMCACHED_URI_PROTOCOL)
+      def self.parse(str)
+        return parse_non_uri(str) unless str.start_with?(MEMCACHED_URI_PROTOCOL)
 
-        parse_uri(str, client_options)
+        parse_uri(str)
       end
 
-      def self.parse_uri(str, client_options)
+      def self.parse_uri(str)
         uri = URI.parse(str)
         auth_details = {
           username: uri.user,
           password: uri.password
         }
-        [uri.host, normalize_port(uri.port), DEFAULT_WEIGHT, :tcp, client_options.merge(auth_details)]
+        [uri.host, normalize_port(uri.port), :tcp, DEFAULT_WEIGHT, auth_details]
       end
 
-      def self.parse_non_uri(str, client_options)
+      def self.parse_non_uri(str)
         res = deconstruct_string(str)
 
         hostname = normalize_host_from_match(str, res)
@@ -45,7 +45,7 @@ module Dalli
           socket_type = :tcp
           port, weight = attributes_for_tcp_socket(res)
         end
-        [hostname, port, weight, socket_type, client_options]
+        [hostname, port, socket_type, weight, {}]
       end
 
       def self.deconstruct_string(str)
