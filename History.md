@@ -1,6 +1,11 @@
 Dalli Changelog
 =====================
 
+Unreleased
+==========
+
+- Fix issue in flush such that it wasn't passing the delay argument to memcached (petergoldstein)
+
 3.1.0
 ==========
 
