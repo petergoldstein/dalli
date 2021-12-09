@@ -59,6 +59,9 @@ module Dalli
       # The socket connection to the underlying server is initialized as a side
       # effect of this call.  In fact, this is the ONLY place where that
       # socket connection is initialized.
+      #
+      # Both this method and connect need to be in this class so we can do auth
+      # as required
       def alive?
         return true if connected?
         return false unless reconnect_down_server?
@@ -165,7 +168,7 @@ module Dalli
         verify_allowed_quiet!(opkey) if quiet?
       end
 
-      ALLOWED_QUIET_OPS = %i[add delete replace set incr decr append prepend noop flush].freeze
+      ALLOWED_QUIET_OPS = %i[add replace set delete incr decr append prepend flush noop].freeze
       def verify_allowed_quiet!(opkey)
         return if ALLOWED_QUIET_OPS.include?(opkey)
 

@@ -31,6 +31,7 @@ module Dalli
           deleteq: 0x14,
           incrq: 0x15,
           decrq: 0x16,
+          flushq: 0x18,
           appendq: 0x19,
           prependq: 0x1A,
           touch: 0x1C,
