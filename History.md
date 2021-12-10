@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.1.1
+==========
+
 - Add quiet support for incr, decr, append, depend, and flush (petergoldstein)
 - Additional refactoring to allow reuse of connection behavior (petergoldstein)
 - Fix issue in flush such that it wasn't passing the delay argument to memcached (petergoldstein)
