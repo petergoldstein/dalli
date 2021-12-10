@@ -310,7 +310,7 @@ describe 'Dalli' do
       end
     end
 
-    it 'supports get multi' do
+    it 'supports pipelined get' do
       memcached_persistent do |dc|
         dc.close
         dc.flush
@@ -332,7 +332,7 @@ describe 'Dalli' do
         end
         assert_empty expected_resp
 
-        # Perform a big multi-get with 1000 elements.
+        # Perform a big quiet set with 1000 elements.
         arr = []
         dc.multi do
           1000.times do |idx|
@@ -341,49 +341,10 @@ describe 'Dalli' do
           end
         end
 
+        # Retrieve the elements with a pipelined get
         result = dc.get_multi(arr)
         assert_equal(1000, result.size)
         assert_equal(50, result['50'])
-      end
-    end
-
-    it 'does not corrupt multi blocks with errors' do
-      memcached_persistent do |dc|
-        dc.close
-        dc.flush
-        dc.set('a', 'av')
-        dc.set('b', 'bv')
-        assert_equal 'av', dc.get('a')
-        assert_equal 'bv', dc.get('b')
-
-        refute Thread.current[::Dalli::MULTI_KEY]
-        dc.multi do
-          assert Thread.current[::Dalli::MULTI_KEY]
-          dc.delete('non_existent_key')
-        end
-        refute Thread.current[::Dalli::MULTI_KEY]
-        assert_equal 'av', dc.get('a')
-        assert_equal 'bv', dc.get('b')
-      end
-    end
-
-    it 'raises an error if an invalid operation is used in a multi block' do
-      memcached_persistent do |dc|
-        dc.close
-        dc.flush
-        dc.set('a', 'av')
-        dc.set('b', 'bv')
-        assert_equal 'av', dc.get('a')
-        assert_equal 'bv', dc.get('b')
-
-        refute Thread.current[::Dalli::MULTI_KEY]
-        dc.multi do
-          assert Thread.current[::Dalli::MULTI_KEY]
-          assert_raises Dalli::NotPermittedMultiOpError do
-            dc.get('a')
-          end
-        end
-        refute Thread.current[::Dalli::MULTI_KEY]
       end
     end
 
@@ -532,7 +493,7 @@ describe 'Dalli' do
         dc.set(:a, 1)
         ring = dc.send(:ring)
         server = ring.servers.first
-        socket = server.instance_variable_get('@sock')
+        socket = server.sock
 
         optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE)
         optval = optval.unpack 'i'

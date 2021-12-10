@@ -31,11 +31,14 @@ module Dalli
           deleteq: 0x14,
           incrq: 0x15,
           decrq: 0x16,
+          flushq: 0x18,
+          appendq: 0x19,
+          prependq: 0x1A,
+          touch: 0x1C,
+          gat: 0x1D,
           auth_negotiation: 0x20,
           auth_request: 0x21,
-          auth_continue: 0x22,
-          touch: 0x1C,
-          gat: 0x1D
+          auth_continue: 0x22
         }.freeze
 
         REQ_HEADER_FORMAT = 'CCnCCnNNQ'
@@ -56,6 +59,8 @@ module Dalli
 
           append: KEY_AND_VALUE,
           prepend: KEY_AND_VALUE,
+          appendq: KEY_AND_VALUE,
+          prependq: KEY_AND_VALUE,
           auth_request: KEY_AND_VALUE,
           auth_continue: KEY_AND_VALUE,
 
@@ -68,8 +73,11 @@ module Dalli
 
           incr: INCR_DECR,
           decr: INCR_DECR,
+          incrq: INCR_DECR,
+          decrq: INCR_DECR,
 
           flush: TTL_ONLY,
+          flushq: TTL_ONLY,
 
           noop: NO_BODY,
           auth_negotiation: NO_BODY,

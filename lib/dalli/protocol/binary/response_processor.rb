@@ -58,7 +58,7 @@ module Dalli
           read(ResponseHeader::SIZE) || raise(Dalli::NetworkError, 'No response')
         end
 
-        def raise_on_not_ok_status!(resp_header)
+        def raise_on_not_ok!(resp_header)
           return if resp_header.ok?
 
           raise Dalli::DalliError, "Response error #{resp_header.status}: #{RESPONSE_CODES[resp_header.status]}"
@@ -67,24 +67,45 @@ module Dalli
         def generic_response(unpack: false, cache_nils: false)
           resp_header, body = read_response
 
-          return cache_nils ? ::Dalli::NOT_FOUND : nil if resp_header.not_found?
           return false if resp_header.not_stored? # Not stored, normal status for add operation
+          return cache_nils ? ::Dalli::NOT_FOUND : nil if resp_header.not_found?
 
-          raise_on_not_ok_status!(resp_header)
+          raise_on_not_ok!(resp_header)
           return true unless body
 
           unpack_response_body(resp_header.extra_len, resp_header.key_len, body, unpack).last
         end
 
-        def data_cas_response
+        ##
+        # Response for a storage operation.  Returns the cas on success.  False
+        # if the value wasn't stored.  And raises an error on all other error
+        # codes from memcached.
+        ##
+        def storage_response
+          resp_header, = read_response
+          return false if resp_header.not_stored? # Not stored, normal status for add operation
+
+          raise_on_not_ok!(resp_header)
+          resp_header.cas
+        end
+
+        def no_body_response
+          resp_header, = read_response
+          return false if resp_header.not_stored? # Not stored, possible status for append/prepend
+
+          raise_on_not_ok!(resp_header)
+          true
+        end
+
+        def data_cas_response(unpack: true)
           resp_header, body = read_response
           return [nil, resp_header.cas] if resp_header.not_found?
           return [nil, false] if resp_header.not_stored?
 
-          raise_on_not_ok_status!(resp_header)
+          raise_on_not_ok!(resp_header)
           return [nil, resp_header.cas] unless body
 
-          [unpack_response_body(resp_header.extra_len, resp_header.key_len, body, true).last, resp_header.cas]
+          [unpack_response_body(resp_header.extra_len, resp_header.key_len, body, unpack).last, resp_header.cas]
         end
 
         def cas_response
@@ -146,31 +167,32 @@ module Dalli
         # complete response is found in the buffer, this will
         # be the response size.  Otherwise it is zero.
         #
-        # The remaining four values in the array are the status, key,
-        # value, and cas returned from the response.
+        # The remaining three values in the array are the ResponseHeader,
+        # key, and value.
         ##
         def getk_response_from_buffer(buf)
           # There's no header in the buffer, so don't advance
-          return [0, 0, nil, nil, nil] unless contains_header?(buf)
+          return [0, nil, nil, nil] unless contains_header?(buf)
 
           resp_header = response_header_from_buffer(buf)
           body_len = resp_header.body_len
 
-          # The response has no body - so we need to advance the
-          # buffer.  This is either the response to the terminating
+          # We have a complete response that has no body.
+          # This is either the response to the terminating
           # noop or, if the status is not zero, an intermediate
           # error response that needs to be discarded.
-          return [ResponseHeader::SIZE, resp_header.status, nil, nil, resp_header.cas] if body_len.zero?
+          return [ResponseHeader::SIZE, resp_header, nil, nil] if body_len.zero?
 
-          # The header is in the buffer, but the body is not
           resp_size = ResponseHeader::SIZE + body_len
-          return [0, resp_header.status, nil, nil, nil] unless buf.bytesize >= resp_size
+          # The header is in the buffer, but the body is not.  As we don't have
+          # a complete response, don't advance the buffer
+          return [0, nil, nil, nil] unless buf.bytesize >= resp_size
 
           # The full response is in our buffer, so parse it and return
           # the values
           body = buf.slice(ResponseHeader::SIZE, body_len)
           key, value = unpack_response_body(resp_header.extra_len, resp_header.key_len, body, true)
-          [resp_size, resp_header.status, key, value, resp_header.cas]
+          [resp_size, resp_header, key, value]
         end
       end
     end

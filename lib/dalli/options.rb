@@ -31,19 +31,19 @@ module Dalli
       end
     end
 
-    def pipeline_response_start
+    def pipeline_response_setup
       @lock.synchronize do
         super
       end
     end
 
-    def process_outstanding_pipeline_requests
+    def pipeline_next_responses
       @lock.synchronize do
         super
       end
     end
 
-    def pipeline_response_abort
+    def pipeline_abort
       @lock.synchronize do
         super
       end

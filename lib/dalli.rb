@@ -31,7 +31,7 @@ module Dalli
   class NilObject; end # rubocop:disable Lint/EmptyClass
   NOT_FOUND = NilObject.new
 
-  MULTI_KEY = :dalli_multi
+  QUIET = :dalli_multi
 
   def self.logger
     @logger ||= (rails_logger || default_logger)
@@ -63,6 +63,7 @@ require_relative 'dalli/pipelined_getter'
 require_relative 'dalli/ring'
 require_relative 'dalli/protocol'
 require_relative 'dalli/protocol/binary'
+require_relative 'dalli/protocol/connection_manager'
 require_relative 'dalli/protocol/response_buffer'
 require_relative 'dalli/protocol/server_config_parser'
 require_relative 'dalli/protocol/ttl_sanitizer'
