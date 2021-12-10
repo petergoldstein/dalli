@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'English'
 require 'socket'
 require 'timeout'
 
@@ -83,6 +84,10 @@ module Dalli
 
         @error = $ERROR_INFO&.class&.name
         @msg ||= $ERROR_INFO&.message
+        raise_down_error
+      end
+
+      def raise_down_error
         raise Dalli::NetworkError, "#{name} is down: #{@error} #{@msg}"
       end
 

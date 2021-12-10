@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'English'
 require 'forwardable'
 require 'socket'
 require 'timeout'
@@ -24,7 +23,7 @@ module Dalli
 
       def_delegators :@value_marshaller, :serializer, :compressor, :compression_min_size, :compress_by_default?
       def_delegators :@connection_manager, :name, :sock, :hostname, :port, :close, :connected?, :socket_timeout,
-                     :socket_type, :up!, :down!, :write, :reconnect_down_server?
+                     :socket_type, :up!, :down!, :write, :reconnect_down_server?, :raise_down_error
 
       def initialize(attribs, client_options = {})
         hostname, port, socket_type, @weight, user_creds = ServerConfigParser.parse(attribs)
@@ -37,18 +36,13 @@ module Dalli
       # Chokepoint method for error handling and ensuring liveness
       def request(opkey, *args)
         verify_state(opkey)
-        # The alive? call has the side effect of connecting the underlying
-        # socket if it is not connected, or there's been a disconnect
-        # because of timeout or other error.  Method raises an error
-        # if it can't connect
-        raise_memcached_down_err unless alive?
 
         begin
           send(opkey, *args)
         rescue Dalli::MarshalError => e
           log_marshal_err(args.first, e)
           raise
-        rescue Dalli::DalliError, Dalli::NetworkError, Dalli::ValueOverMaxSize, Timeout::Error
+        rescue Dalli::DalliError
           raise
         rescue StandardError => e
           log_unexpected_err(e)
@@ -56,19 +50,14 @@ module Dalli
         end
       end
 
-      # The socket connection to the underlying server is initialized as a side
-      # effect of this call.  In fact, this is the ONLY place where that
-      # socket connection is initialized.
-      #
-      # Both this method and connect need to be in this class so we can do auth
-      # as required
+      ##
+      # Boolean method used by clients of this class to determine if this
+      # particular memcached instance is available for use.
       def alive?
-        return true if connected?
-        return false unless reconnect_down_server?
-
-        connect # This call needs to be in this class so we can do auth
-        connected?
+        ensure_connected!
       rescue Dalli::NetworkError
+        # ensure_connected! raises a NetworkError if connection fails.  We
+        # want to capture that error and convert it to a boolean value here.
         false
       end
 
@@ -166,6 +155,29 @@ module Dalli
       def verify_state(opkey)
         @connection_manager.confirm_ready!
         verify_allowed_quiet!(opkey) if quiet?
+
+        # The ensure_connected call has the side effect of connecting the
+        # underlying socket if it is not connected, or there's been a disconnect
+        # because of timeout or other error.  Method raises an error
+        # if it can't connect
+        raise_down_error unless ensure_connected!
+      end
+
+      # The socket connection to the underlying server is initialized as a side
+      # effect of this call.  In fact, this is the ONLY place where that
+      # socket connection is initialized.
+      #
+      # Both this method and connect need to be in this class so we can do auth
+      # as required
+      #
+      # Since this is invoked exclusively in verify_state!, we don't need to worry about
+      # thread safety.  Using it elsewhere may require revisiting that assumption.
+      def ensure_connected!
+        return true if connected?
+        return false unless reconnect_down_server?
+
+        connect # This call needs to be in this class so we can do auth
+        connected?
       end
 
       ALLOWED_QUIET_OPS = %i[add replace set delete incr decr append prepend flush noop].freeze
@@ -363,12 +375,6 @@ module Dalli
 
       def reconnect_on_pipeline_complete!
         @connection_manager.reconnect! 'pipelined get has completed' if pipeline_complete?
-      end
-
-      def raise_memcached_down_err
-        raise Dalli::NetworkError,
-              "#{name} is down: #{@error} #{@msg}. If you are sure it is running, "\
-              "ensure memcached version is > #{::Dalli::MIN_SUPPORTED_MEMCACHED_VERSION}."
       end
 
       def log_marshal_err(key, err)
