@@ -144,6 +144,11 @@ module Dalli
         !username.nil?
       end
 
+      def quiet?
+        Thread.current[::Dalli::QUIET]
+      end
+      alias multi? quiet?
+
       # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
 
       private
@@ -185,10 +190,6 @@ module Dalli
         return if ALLOWED_QUIET_OPS.include?(opkey)
 
         raise Dalli::NotPermittedMultiOpError, "The operation #{opkey} is not allowed in a quiet block."
-      end
-
-      def quiet?
-        Thread.current[::Dalli::QUIET]
       end
 
       def cache_nils?(opts)

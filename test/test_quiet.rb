@@ -236,4 +236,20 @@ describe 'Dalli' do
       refute Thread.current[::Dalli::QUIET]
     end
   end
+
+  describe 'quiet? method' do
+    it 'has protocol instances that respond to quiet?' do
+      memcached_persistent do |dc|
+        s = dc.send(:ring).servers.first
+        assert_respond_to s, :quiet?
+      end
+    end
+
+    it 'has protocol instances that respond to multi?' do
+      memcached_persistent do |dc|
+        s = dc.send(:ring).servers.first
+        assert_respond_to s, :multi?
+      end
+    end
+  end
 end

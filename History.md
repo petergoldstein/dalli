@@ -4,6 +4,8 @@ Dalli Changelog
 Unreleased
 ==========
 
+- Make quiet? / multi? public on Dalli::Protocol::Binary (petergoldstein)
+
 3.1.1
 ==========
 
