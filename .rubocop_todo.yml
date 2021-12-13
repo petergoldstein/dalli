@@ -21,4 +21,4 @@ Metrics/ClassLength:
 Metrics/MethodLength:
   Exclude:
     - 'lib/dalli/pipelined_getter.rb'
-    - 'lib/dalli/protocol/binary.rb'
+    - 'lib/dalli/protocol/base.rb'
