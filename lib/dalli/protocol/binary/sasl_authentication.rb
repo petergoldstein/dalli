@@ -10,7 +10,7 @@ module Dalli
         def perform_auth_negotiation
           write(RequestFormatter.standard_request(opkey: :auth_negotiation))
 
-          status, content = @response_processor.auth_response
+          status, content = response_processor.auth_response
           return [status, []] if content.nil?
 
           # Substitute spaces for the \x00 returned by
