@@ -160,6 +160,8 @@ describe 'Dalli' do
 
         dc.delete('some_key')
         assert_nil dc.get('some_key')
+
+        refute dc.delete('nonexist')
       end
     end
 

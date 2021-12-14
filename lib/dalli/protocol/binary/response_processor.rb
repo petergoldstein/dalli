@@ -89,6 +89,14 @@ module Dalli
           resp_header.cas
         end
 
+        def delete_response
+          resp_header, = read_response
+          return false if resp_header.not_found? || resp_header.not_stored?
+
+          raise_on_not_ok!(resp_header)
+          true
+        end
+
         def no_body_response
           resp_header, = read_response
           return false if resp_header.not_stored? # Not stored, possible status for append/prepend
