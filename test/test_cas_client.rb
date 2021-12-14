@@ -74,8 +74,16 @@ describe 'Dalli::Cas::Client' do
     it 'supports delete with CAS' do
       memcached_persistent do |dc|
         cas = dc.set('some_key', 'some_value')
+
+        # It returns falsey and doesn't delete
+        # when the CAS is wrong
+        refute dc.delete_cas('some_key', 123)
+        assert_equal 'some_value', dc.get('some_key')
+
         dc.delete_cas('some_key', cas)
         assert_nil dc.get('some_key')
+
+        refute dc.delete_cas('nonexist', 123)
       end
     end
 

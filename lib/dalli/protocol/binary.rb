@@ -106,7 +106,7 @@ module Dalli
         opkey = quiet? ? :deleteq : :delete
         req = RequestFormatter.standard_request(opkey: opkey, key: key, cas: cas)
         write(req)
-        response_processor.no_body_response unless quiet?
+        response_processor.delete_response unless quiet?
       end
 
       # Arithmetic Commands

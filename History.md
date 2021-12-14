@@ -4,6 +4,8 @@ Dalli Changelog
 Unreleased
 ==========
 
+- Restore falsey behavior on delete/delete_cas for nonexistent key (petergoldstein)
+
 3.1.2
 ==========
 
