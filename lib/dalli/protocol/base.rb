@@ -83,20 +83,20 @@ module Dalli
 
         response_buffer.read
 
-        resp_header, key, value = pipeline_response
-        # resp_header is not nil only if we have a full response to parse
+        status, cas, key, value = response_buffer.process_single_getk_response
+        # status is not nil only if we have a full response to parse
         # in the buffer
-        while resp_header
+        until status.nil?
           # If the status is ok and key is nil, then this is the response
           # to the noop at the end of the pipeline
-          finish_pipeline && break if resp_header.ok? && key.nil?
+          finish_pipeline && break if status && key.nil?
 
           # If the status is ok and the key is not nil, then this is a
           # getkq response with a value that we want to set in the response hash
-          values[key] = [value, resp_header.cas] unless key.nil?
+          values[key] = [value, cas] unless key.nil?
 
           # Get the next response from the buffer
-          resp_header, key, value = pipeline_response
+          status, cas, key, value = response_buffer.process_single_getk_response
         end
 
         values
@@ -205,10 +205,6 @@ module Dalli
 
       def response_buffer
         @response_buffer ||= ResponseBuffer.new(@connection_manager, response_processor)
-      end
-
-      def pipeline_response
-        response_buffer.process_single_getk_response
       end
 
       # Called after the noop response is received at the end of a set

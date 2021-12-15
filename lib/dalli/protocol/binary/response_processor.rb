@@ -179,7 +179,7 @@ module Dalli
         ##
         def getk_response_from_buffer(buf)
           # There's no header in the buffer, so don't advance
-          return [0, nil, nil, nil] unless contains_header?(buf)
+          return [0, nil, nil, nil, nil] unless contains_header?(buf)
 
           resp_header = response_header_from_buffer(buf)
           body_len = resp_header.body_len
@@ -188,18 +188,18 @@ module Dalli
           # This is either the response to the terminating
           # noop or, if the status is not zero, an intermediate
           # error response that needs to be discarded.
-          return [ResponseHeader::SIZE, resp_header, nil, nil] if body_len.zero?
+          return [ResponseHeader::SIZE, resp_header.ok?, resp_header.cas, nil, nil] if body_len.zero?
 
           resp_size = ResponseHeader::SIZE + body_len
           # The header is in the buffer, but the body is not.  As we don't have
           # a complete response, don't advance the buffer
-          return [0, nil, nil, nil] unless buf.bytesize >= resp_size
+          return [0, nil, nil, nil, nil] unless buf.bytesize >= resp_size
 
           # The full response is in our buffer, so parse it and return
           # the values
           body = buf.byteslice(ResponseHeader::SIZE, body_len)
           key, value = unpack_response_body(resp_header.extra_len, resp_header.key_len, body, true)
-          [resp_size, resp_header, key, value]
+          [resp_size, resp_header.ok?, resp_header.cas, key, value]
         end
       end
     end
