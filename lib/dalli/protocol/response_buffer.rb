@@ -21,9 +21,9 @@ module Dalli
       # Attempts to process a single response from the buffer.  Starts
       # by advancing the buffer to the specified start position
       def process_single_getk_response
-        bytes, resp_header, key, value = @response_processor.getk_response_from_buffer(@buffer)
+        bytes, status, cas, key, value = @response_processor.getk_response_from_buffer(@buffer)
         advance(bytes)
-        [resp_header, key, value]
+        [status, cas, key, value]
       end
 
       # Advances the internal response buffer by bytes_to_advance
