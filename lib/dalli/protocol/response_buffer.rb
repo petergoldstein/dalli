@@ -31,13 +31,13 @@ module Dalli
       def advance(bytes_to_advance)
         return unless bytes_to_advance.positive?
 
-        @buffer = @buffer[bytes_to_advance..-1]
+        @buffer = @buffer.byteslice(bytes_to_advance..-1)
       end
 
       # Resets the internal buffer to an empty state,
       # so that we're ready to read pipelined responses
       def reset
-        @buffer = +''
+        @buffer = ''.b
       end
 
       # Clear the internal response buffer
