@@ -47,9 +47,9 @@ module Dalli
         end
 
         def unpack_response_body(extra_len, key_len, body, unpack)
-          bitflags = extra_len.positive? ? body.byteslice(0, extra_len).unpack1('N') : 0x0
+          bitflags = extra_len.positive? ? body.unpack1('N') : 0x0
           key = body.byteslice(extra_len, key_len) if key_len.positive?
-          value = body.byteslice(extra_len + key_len, body.bytesize - (extra_len + key_len))
+          value = body.byteslice((extra_len + key_len)..-1)
           value = unpack ? @value_marshaller.retrieve(value, bitflags) : value
           [key, value]
         end
@@ -164,8 +164,7 @@ module Dalli
         end
 
         def response_header_from_buffer(buf)
-          header = buf.slice(0, ResponseHeader::SIZE)
-          ResponseHeader.new(header)
+          ResponseHeader.new(buf)
         end
 
         ##
@@ -198,7 +197,7 @@ module Dalli
 
           # The full response is in our buffer, so parse it and return
           # the values
-          body = buf.slice(ResponseHeader::SIZE, body_len)
+          body = buf.byteslice(ResponseHeader::SIZE, body_len)
           key, value = unpack_response_body(resp_header.extra_len, resp_header.key_len, body, true)
           [resp_size, resp_header, key, value]
         end
