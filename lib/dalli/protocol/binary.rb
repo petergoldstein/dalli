@@ -29,7 +29,7 @@ module Dalli
       def get(key, options = nil)
         req = RequestFormatter.standard_request(opkey: :get, key: key)
         write(req)
-        response_processor.generic_response(unpack: true, cache_nils: cache_nils?(options))
+        response_processor.get(cache_nils: cache_nils?(options))
       end
 
       def quiet_get_request(key)
@@ -40,7 +40,7 @@ module Dalli
         ttl = TtlSanitizer.sanitize(ttl)
         req = RequestFormatter.standard_request(opkey: :gat, key: key, ttl: ttl)
         write(req)
-        response_processor.generic_response(unpack: true, cache_nils: cache_nils?(options))
+        response_processor.get(cache_nils: cache_nils?(options))
       end
 
       def touch(key, ttl)
@@ -106,7 +106,7 @@ module Dalli
         opkey = quiet? ? :deleteq : :delete
         req = RequestFormatter.standard_request(opkey: opkey, key: key, cas: cas)
         write(req)
-        response_processor.delete_response unless quiet?
+        response_processor.delete unless quiet?
       end
 
       # Arithmetic Commands
@@ -132,7 +132,7 @@ module Dalli
         initial ||= 0
         write(RequestFormatter.decr_incr_request(opkey: opkey, key: key,
                                                  count: count, initial: initial, expiry: expiry))
-        response_processor.decr_incr_response unless quiet?
+        response_processor.decr_incr unless quiet?
       end
 
       # Other Commands
@@ -146,23 +146,23 @@ module Dalli
       # We need to read all the responses at once.
       def noop
         write_noop
-        response_processor.multi_with_keys_response
+        response_processor.consume_all_responses_until_noop
       end
 
       def stats(info = '')
         req = RequestFormatter.standard_request(opkey: :stat, key: info)
         write(req)
-        response_processor.multi_with_keys_response
+        response_processor.stats
       end
 
       def reset_stats
         write(RequestFormatter.standard_request(opkey: :stat, key: 'reset'))
-        response_processor.generic_response
+        response_processor.reset
       end
 
       def version
         write(RequestFormatter.standard_request(opkey: :version))
-        response_processor.generic_response
+        response_processor.version
       end
 
       def write_noop
