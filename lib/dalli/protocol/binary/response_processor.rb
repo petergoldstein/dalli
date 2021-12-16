@@ -50,7 +50,7 @@ module Dalli
           extra_len = resp_header.extra_len
           key_len = resp_header.key_len
           bitflags = extra_len.positive? ? body.unpack1('N') : 0x0
-          key = body.byteslice(extra_len, key_len) if key_len.positive?
+          key = body.byteslice(extra_len, key_len).force_encoding('UTF-8') if key_len.positive?
           value = body.byteslice((extra_len + key_len)..-1)
           value = parse_as_stored_value ? @value_marshaller.retrieve(value, bitflags) : value
           [key, value]
