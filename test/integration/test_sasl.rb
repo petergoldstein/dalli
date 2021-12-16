@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
-require_relative 'helper'
+require_relative '../helper'
 
+# This is a binary protocol only set of tests
 describe 'Sasl' do
-  # https://github.com/seattlerb/minitest/issues/298
   def self.sasl_it(msg, &block)
     it(msg, &block) if ENV['RUN_SASL_TESTS']
   end
 
-  describe 'a server requiring authentication' do
+  describe 'when the server is configured to require authentication' do
     before do
       @server = Minitest::Mock.new
       @server.expect(:request, true)

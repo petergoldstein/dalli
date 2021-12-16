@@ -17,6 +17,10 @@ require 'securerandom'
 Dalli.logger = Logger.new($stdout)
 Dalli.logger.level = Logger::ERROR
 
+# Checks if memcached is installed and loads the version,
+# supported protocols
+raise StandardError, 'No supported version of memcached could be found.' unless MemcachedManager.version
+
 module MiniTest
   class Spec
     include Memcached::Helper

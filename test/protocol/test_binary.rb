@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'ostruct'
-require_relative 'helper'
+require_relative '../helper'
 
 describe Dalli::Protocol::Binary do
   describe 'hostname parsing' do
