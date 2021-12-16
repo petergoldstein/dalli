@@ -46,11 +46,13 @@ module Dalli
           [resp_header, body]
         end
 
-        def unpack_response_body(extra_len, key_len, body, unpack)
+        def unpack_response_body(resp_header, body, parse_as_stored_value)
+          extra_len = resp_header.extra_len
+          key_len = resp_header.key_len
           bitflags = extra_len.positive? ? body.unpack1('N') : 0x0
           key = body.byteslice(extra_len, key_len) if key_len.positive?
           value = body.byteslice((extra_len + key_len)..-1)
-          value = unpack ? @value_marshaller.retrieve(value, bitflags) : value
+          value = parse_as_stored_value ? @value_marshaller.retrieve(value, bitflags) : value
           [key, value]
         end
 
@@ -64,7 +66,7 @@ module Dalli
           raise Dalli::DalliError, "Response error #{resp_header.status}: #{RESPONSE_CODES[resp_header.status]}"
         end
 
-        def generic_response(unpack: false, cache_nils: false)
+        def get(cache_nils: false)
           resp_header, body = read_response
 
           return false if resp_header.not_stored? # Not stored, normal status for add operation
@@ -73,7 +75,7 @@ module Dalli
           raise_on_not_ok!(resp_header)
           return true unless body
 
-          unpack_response_body(resp_header.extra_len, resp_header.key_len, body, unpack).last
+          unpack_response_body(resp_header, body, true).last
         end
 
         ##
@@ -89,7 +91,7 @@ module Dalli
           resp_header.cas
         end
 
-        def delete_response
+        def delete
           resp_header, = read_response
           return false if resp_header.not_found? || resp_header.not_stored?
 
@@ -97,15 +99,7 @@ module Dalli
           true
         end
 
-        def no_body_response
-          resp_header, = read_response
-          return false if resp_header.not_stored? # Not stored, possible status for append/prepend
-
-          raise_on_not_ok!(resp_header)
-          true
-        end
-
-        def data_cas_response(unpack: true)
+        def data_cas_response
           resp_header, body = read_response
           return [nil, resp_header.cas] if resp_header.not_found?
           return [nil, false] if resp_header.not_stored?
@@ -113,14 +107,16 @@ module Dalli
           raise_on_not_ok!(resp_header)
           return [nil, resp_header.cas] unless body
 
-          [unpack_response_body(resp_header.extra_len, resp_header.key_len, body, unpack).last, resp_header.cas]
+          [unpack_response_body(resp_header, body, true).last, resp_header.cas]
         end
 
-        def cas_response
-          data_cas_response.last
+        # Returns the new value for the key, if found and updated
+        def decr_incr
+          body = generic_response
+          body ? body.unpack1('Q>') : body
         end
 
-        def multi_with_keys_response
+        def stats
           hash = {}
           loop do
             resp_header, body = read_response
@@ -133,14 +129,49 @@ module Dalli
             # block to clear any error responses from inside the multi.
             next unless resp_header.ok?
 
-            key, value = unpack_response_body(resp_header.extra_len, resp_header.key_len, body, true)
+            key, value = unpack_response_body(resp_header, body, true)
             hash[key] = value
           end
         end
 
-        def decr_incr_response
-          body = generic_response
-          body ? body.unpack1('Q>') : body
+        def flush
+          no_body_response
+        end
+
+        def reset
+          generic_response
+        end
+
+        def version
+          generic_response
+        end
+
+        def consume_all_responses_until_noop
+          loop do
+            resp_header, = read_response
+            # This is the response to the terminating noop / end of stat
+            return true if resp_header.ok? && resp_header.key_len.zero?
+          end
+        end
+
+        def generic_response
+          resp_header, body = read_response
+
+          return false if resp_header.not_stored? # Not stored, normal status for add operation
+          return nil if resp_header.not_found?
+
+          raise_on_not_ok!(resp_header)
+          return true unless body
+
+          unpack_response_body(resp_header, body, false).last
+        end
+
+        def no_body_response
+          resp_header, = read_response
+          return false if resp_header.not_stored? # Not stored, possible status for append/prepend/delete
+
+          raise_on_not_ok!(resp_header)
+          true
         end
 
         def validate_auth_format(extra_len, count)
@@ -198,7 +229,7 @@ module Dalli
           # The full response is in our buffer, so parse it and return
           # the values
           body = buf.byteslice(ResponseHeader::SIZE, body_len)
-          key, value = unpack_response_body(resp_header.extra_len, resp_header.key_len, body, true)
+          key, value = unpack_response_body(resp_header, body, true)
           [resp_size, resp_header.ok?, resp_header.cas, key, value]
         end
       end
