@@ -55,14 +55,19 @@ describe 'Dalli' do
   end
 
   describe 'key validation' do
-    it 'not allow blanks, but allows whitespace characters' do
+    it 'allows whitespace characters' do
       memcached_persistent do |dc|
-        dc.set '   ', 1
-        assert_equal 1, dc.get('   ')
         dc.set "\t", 1
         assert_equal 1, dc.get("\t")
         dc.set "\n", 1
         assert_equal 1, dc.get("\n")
+        dc.set '   ', 1
+        assert_equal 1, dc.get('   ')
+      end
+    end
+
+    it 'does not allow blanks' do
+      memcached_persistent do |dc|
         assert_raises ArgumentError do
           dc.set '', 1
         end
@@ -322,6 +327,7 @@ describe 'Dalli' do
         dc.set('a', 'foo')
         dc.set('b', 123)
         dc.set('c', %w[a b c])
+
         # Invocation without block
         resp = dc.get_multi(%w[a b c d e f])
         expected_resp = { 'a' => 'foo', 'b' => 123, 'c' => %w[a b c] }
@@ -347,6 +353,34 @@ describe 'Dalli' do
         result = dc.get_multi(arr)
         assert_equal(1000, result.size)
         assert_equal(50, result['50'])
+      end
+    end
+
+    it 'supports pipelined get with keys containing Unicode or spaces' do
+      memcached_persistent do |dc|
+        dc.close
+        dc.flush
+
+        keys_to_query = ['a', 'b', 'contains space', 'ƒ©åÍÎ']
+
+        resp = dc.get_multi(keys_to_query)
+        assert_empty(resp)
+
+        dc.set('a', 'foo')
+        dc.set('contains space', 123)
+        dc.set('ƒ©åÍÎ', %w[a b c])
+
+        # Invocation without block
+        resp = dc.get_multi(keys_to_query)
+        expected_resp = { 'a' => 'foo', 'contains space' => 123, 'ƒ©åÍÎ' => %w[a b c] }
+        assert_equal(expected_resp, resp)
+
+        # Invocation with block
+        dc.get_multi(keys_to_query) do |k, v|
+          assert(expected_resp.key?(k) && expected_resp[k] == v)
+          expected_resp.delete(k)
+        end
+        assert_empty expected_resp
       end
     end
 
@@ -676,7 +710,7 @@ describe 'Dalli' do
     it 'truncate cache keys that are too long' do
       memcached_persistent do |_, port|
         dc = Dalli::Client.new("localhost:#{port}", namespace: 'some:namspace')
-        key = 'this cache key is far too long so it must be hashed and truncated and stuff' * 10
+        key = 'this-cache-key-is-far-too-long-so-it-must-be-hashed-and-truncated-and-stuff' * 10
         value = 'some value'
         assert op_addset_succeeds(dc.set(key, value))
         assert_equal value, dc.get(key)
