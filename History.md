@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.1.4
+==========
+
 - Improve response parsing performance (casperisfine)
 - Reorganize binary protocol parsing a bit (petergoldstein)
 - Fix handling of non-ASCII keys in get_multi (petergoldstein)
