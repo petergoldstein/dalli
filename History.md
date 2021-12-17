@@ -4,6 +4,8 @@ Dalli Changelog
 Unreleased
 ==========
 
+- Fix bug with get_cas key with "Not found" value [petergoldstein]
+
 3.1.4
 ==========
 
