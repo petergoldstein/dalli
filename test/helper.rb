@@ -30,17 +30,21 @@ module MiniTest
       assert_match(regexp, ex.message, "#{ex.class.name}: #{ex.message}\n#{ex.backtrace.join("\n\t")}")
     end
 
+    def valid_cas?(cas)
+      cas.is_a?(Integer) && cas.positive?
+    end
+
     def op_cas_succeeds(rsp)
-      rsp.is_a?(Integer) && rsp.positive?
+      valid_cas?(rsp)
     end
 
     def op_replace_succeeds(rsp)
-      rsp.is_a?(Integer) && rsp.positive?
+      valid_cas?(rsp)
     end
 
     # add and set must have the same return value because of DalliStore#write_entry
     def op_addset_succeeds(rsp)
-      rsp.is_a?(Integer) && rsp.positive?
+      valid_cas?(rsp)
     end
 
     def with_connectionpool
