@@ -5,6 +5,7 @@ Unreleased
 ==========
 
 - Fix bug with get_cas key with "Not found" value [petergoldstein]
+- Replace should return nil, not raise error, on miss (petergoldstein)
 
 3.1.4
 ==========

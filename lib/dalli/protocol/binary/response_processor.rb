@@ -85,6 +85,7 @@ module Dalli
         ##
         def storage_response
           resp_header, = read_response
+          return nil if resp_header.not_found?
           return false if resp_header.not_stored? # Not stored, normal status for add operation
 
           raise_on_not_ok!(resp_header)
