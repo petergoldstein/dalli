@@ -1,51 +1,21 @@
 # frozen_string_literal: true
 
 require_relative 'helper'
-require 'json'
 
-class NoopCompressor
-  def self.compress(data)
-    data
+describe 'Dalli::Compressor' do
+  it 'compresses data using Zlib::Deflate' do
+    assert_equal (+"x\x9CKLJN\x01\x00\x03\xD8\x01\x8B").force_encoding('ASCII-8BIT'),
+                 ::Dalli::Compressor.compress('abcd')
+    assert_equal (+"x\x9C+\xC9HU(,\xCDL\xCEVH*\xCA/\xCFSH\xCB\xAFP\xC8*\xCD-(\x06\x00z\x06\t\x83")
+      .force_encoding('ASCII-8BIT'),
+                 ::Dalli::Compressor.compress('the quick brown fox jumps')
   end
 
-  def self.decompress(data)
-    data
-  end
-end
-
-describe 'Compressor' do
-  it 'default to Dalli::Compressor' do
-    memcached(29_199) do |dc|
-      dc.set 1, 2
-      assert_equal Dalli::Compressor, dc.instance_variable_get('@ring').servers.first.compressor
-    end
-  end
-
-  it 'support a custom compressor' do
-    memcached(29_199) do |_dc|
-      memcache = Dalli::Client.new('127.0.0.1:29199', { compressor: NoopCompressor })
-      memcache.set 1, 2
-      begin
-        assert_equal NoopCompressor,
-                     memcache.instance_variable_get('@ring').servers.first.compressor
-
-        memcached(19_127) do |newdc|
-          assert newdc.set('string-test', 'a test string')
-          assert_equal('a test string', newdc.get('string-test'))
-        end
-      end
-    end
-  end
-end
-
-describe 'GzipCompressor' do
-  it 'compress and uncompress data using Zlib::GzipWriter/Reader' do
-    memcached(19_127) do |_dc|
-      memcache = Dalli::Client.new('127.0.0.1:19127', { compress: true, compressor: Dalli::GzipCompressor })
-      data = (0...1025).map { rand(65..90).chr }.join
-      assert memcache.set('test', data)
-      assert_equal(data, memcache.get('test'))
-      assert_equal Dalli::GzipCompressor, memcache.instance_variable_get('@ring').servers.first.compressor
-    end
+  it 'deccompresses data using Zlib::Deflate' do
+    assert_equal('abcd', ::Dalli::Compressor.decompress("x\x9CKLJN\x01\x00\x03\xD8\x01\x8B"))
+    assert_equal('the quick brown fox jumps',
+                 ::Dalli::Compressor.decompress(
+                   "x\x9C+\xC9HU(,\xCDL\xCEVH*\xCA/\xCFSH\xCB\xAFP\xC8*\xCD-(\x06\x00z\x06\t\x83"
+                 ))
   end
 end

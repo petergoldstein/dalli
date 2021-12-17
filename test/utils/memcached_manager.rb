@@ -97,6 +97,20 @@ module MemcachedManager
     @cmd ||= determine_cmd
   end
 
+  def self.version
+    return @version unless @version.nil?
+
+    cmd
+    @version
+  end
+
+  MIN_META_VERSION = '1.6'
+  def self.supported_protocols
+    return [] unless version
+
+    %i[binary]
+  end
+
   def self.cmd_with_args(port_or_socket, args)
     socket_arg, key = parse_port_or_socket(port_or_socket)
     ["#{cmd} #{args} #{socket_arg}", key]
@@ -106,8 +120,11 @@ module MemcachedManager
     PATH_PREFIXES.each do |prefix|
       output = `#{prefix}#{MEMCACHED_VERSION_CMD}`.strip
       next unless output && output =~ MEMCACHED_VERSION_REGEXP
-      next unless Regexp.last_match(1) > MEMCACHED_MIN_MAJOR_VERSION
 
+      version = Regexp.last_match(1)
+      next unless version > MEMCACHED_MIN_MAJOR_VERSION
+
+      @version = version
       puts "Found #{output} in #{prefix.empty? ? 'PATH' : prefix}"
       return "#{prefix}#{MEMCACHED_CMD}"
     end

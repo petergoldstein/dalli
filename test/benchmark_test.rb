@@ -36,7 +36,7 @@ describe 'performance' do
   end
 
   it 'runs benchmarks' do
-    memcached(@port) do
+    memcached(:binary, @port) do
       profile do
         Benchmark.bm(37) do |x|
           n = 2500
