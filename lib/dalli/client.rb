@@ -86,8 +86,6 @@ module Dalli
     # value and CAS will be passed to the block.
     def get_cas(key)
       (value, cas) = perform(:cas, key)
-      #  TODO: This is odd.  Confirm this is working as expected.
-      value = nil if !value || value == 'Not found'
       return [value, cas] unless block_given?
 
       yield value, cas
