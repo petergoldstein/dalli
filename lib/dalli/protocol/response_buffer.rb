@@ -12,6 +12,7 @@ module Dalli
       def initialize(io_source, response_processor)
         @io_source = io_source
         @response_processor = response_processor
+        @buffer = nil
       end
 
       def read

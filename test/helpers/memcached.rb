@@ -36,8 +36,8 @@ module Memcached
     # client_options - Options passed to the Dalli::Client on initialization
     # terminate_process - whether to terminate the memcached process on
     #                     exiting the block
-    def memcached(_protocol, port_or_socket, args = '', client_options = {}, terminate_process: true)
-      dc = MemcachedManager.start_and_flush_with_retry(port_or_socket, args, client_options)
+    def memcached(protocol, port_or_socket, args = '', client_options = {}, terminate_process: true)
+      dc = MemcachedManager.start_and_flush_with_retry(port_or_socket, args, client_options.merge(protocol: protocol))
       yield dc, port_or_socket if block_given?
       memcached_kill(port_or_socket) if terminate_process
     end
@@ -52,7 +52,7 @@ module Memcached
     # rubocop:enable Metrics/ParameterLists
 
     # Launches a persistent memcached process, configured to use SSL
-    def memcached_ssl_persistent(protocol = :binary, port_or_socket = 21_397, &block)
+    def memcached_ssl_persistent(protocol = :binary, port_or_socket = rand(21_397..21_896), &block)
       CertificateGenerator.generate
       memcached_persistent(protocol,
                            port_or_socket,

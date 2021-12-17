@@ -43,8 +43,8 @@ module Dalli
     #                 #fetch operations.
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method,
     #                   useful for injecting a FIPS compliant hash object.
-    # - :protocol_implementation - defaults to Dalli::Protocol::Binary which uses the binary protocol. Allows you to
-    #                              pass an alternative implementation using another protocol.
+    # - :protocol - one of either :binary or :meta, defaulting to :binary.  This sets the protocol that Dalli uses
+    #               to communicate with memcached.
     #
     def initialize(servers = nil, options = {})
       @servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
@@ -402,7 +402,12 @@ module Dalli
     end
 
     def protocol_implementation
-      @protocol_implementation ||= @options.fetch(:protocol_implementation, Dalli::Protocol::Binary)
+      @protocol_implementation ||= case @options[:protocol]&.to_s
+                                   when 'meta'
+                                     Dalli::Protocol::Meta
+                                   else
+                                     Dalli::Protocol::Binary
+                                   end
     end
 
     ##

@@ -6,7 +6,7 @@ describe 'connection pool behavior' do
   MemcachedManager.supported_protocols.each do |p|
     describe "using the #{p} protocol" do
       it 'can masquerade as a connection pool using the with method' do
-        memcached_persistent do |dc|
+        memcached_persistent(p) do |dc|
           dc.with { |c| c.set('some_key', 'some_value') }
           assert_equal 'some_value', dc.get('some_key')
 

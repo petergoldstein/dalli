@@ -266,7 +266,7 @@ describe 'operations' do
           end
         end
 
-        it 'supports setting the initial value decr and subsequently incrementing/decrementing' do
+        it 'supports setting the initial value with decr and subsequently incrementing/decrementing' do
           memcached_persistent(p) do |dc|
             dc.flush
 
