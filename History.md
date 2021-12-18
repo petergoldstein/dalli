@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.1.5
+==========
+
 - Fix bug with get_cas key with "Not found" value [petergoldstein]
 - Replace should return nil, not raise error, on miss (petergoldstein)
 
