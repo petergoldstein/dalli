@@ -94,7 +94,7 @@ module Dalli
           key_len = key.nil? ? 0 : key.bytesize
           value_len = value.nil? ? 0 : value.bytesize
           header = [REQUEST, OPCODES[opkey], key_len, extra_len, 0, 0, extra_len + key_len + value_len, opaque, cas]
-          body = [bitflags, ttl, key, value].reject(&:nil?)
+          body = [bitflags, ttl, key, value].compact
           (header + body).pack(FORMAT[opkey])
         end
         # rubocop:enable Metrics/ParameterLists
