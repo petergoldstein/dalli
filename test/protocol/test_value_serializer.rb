@@ -228,7 +228,7 @@ describe Dalli::Protocol::ValueSerializer do
             vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
           end
         end
-        assert_equal exception.message, error_message
+        assert_equal error_message, exception.message
       end
     end
 
@@ -244,7 +244,7 @@ describe Dalli::Protocol::ValueSerializer do
             vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
           end
         end
-        assert_equal exception.message, "Unable to unmarshal value: #{error_message}"
+        assert exception.message.start_with?("Unable to unmarshal value: #{error_message}")
       end
     end
 
@@ -259,7 +259,7 @@ describe Dalli::Protocol::ValueSerializer do
             vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
           end
         end
-        assert_equal exception.message, error_message
+        assert exception.message.start_with?(error_message)
       end
     end
 

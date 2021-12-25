@@ -9,7 +9,7 @@ describe 'Serializer configuration' do
       it 'defaults to Marshal' do
         memcached(p, 29_198) do |dc|
           dc.set 1, 2
-          assert_equal Marshal, dc.instance_variable_get('@ring').servers.first.serializer
+          assert_equal Marshal, dc.instance_variable_get(:@ring).servers.first.serializer
         end
       end
 
@@ -18,7 +18,7 @@ describe 'Serializer configuration' do
           memcache = Dalli::Client.new("127.0.0.1:#{port}", serializer: JSON)
           memcache.set 1, 2
           begin
-            assert_equal JSON, memcache.instance_variable_get('@ring').servers.first.serializer
+            assert_equal JSON, memcache.instance_variable_get(:@ring).servers.first.serializer
 
             memcached(p, 21_956) do |newdc|
               assert newdc.set('json_test', { 'foo' => 'bar' })
