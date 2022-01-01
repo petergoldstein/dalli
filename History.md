@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.1.6
+==========
+
 - Fix bug with cas/cas! with "Not found" value (petergoldstein)
 - Add Ruby 3.1 to CI (petergoldstein)
 - Replace reject(&:nil?) with compact (petergoldstein)
