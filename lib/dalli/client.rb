@@ -375,7 +375,6 @@ module Dalli
 
     def cas_core(key, always_set, ttl = nil, req_options = nil)
       (value, cas) = perform(:cas, key)
-      value = nil if !value || value == 'Not found'
       return if value.nil? && !always_set
 
       newvalue = yield(value)
