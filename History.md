@@ -4,10 +4,14 @@ Dalli Changelog
 Unreleased
 ==========
 
+- Fix bug with cas/cas! with "Not found" value (petergoldstein)
+- Add Ruby 3.1 to CI (petergoldstein)
+- Replace reject(&:nil?) with compact (petergoldstein)
+
 3.1.5
 ==========
 
-- Fix bug with get_cas key with "Not found" value [petergoldstein]
+- Fix bug with get_cas key with "Not found" value (petergoldstein)
 - Replace should return nil, not raise error, on miss (petergoldstein)
 
 3.1.4

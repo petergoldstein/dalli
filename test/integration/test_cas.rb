@@ -210,43 +210,111 @@ describe 'CAS behavior' do
         end
       end
 
-      it 'supports the cas operation' do
-        memcached_persistent(p) do |dc|
-          dc.flush
+      describe 'cas' do
+        it 'does not call the block when the key has no existing value' do
+          memcached_persistent(p) do |dc|
+            dc.flush
 
-          expected = { 'blah' => 'blerg!' }
-
-          resp = dc.cas('cas_key') do |_value|
-            raise('Value it not exist')
+            resp = dc.cas('cas_key') do |_value|
+              raise('Value it not exist')
+            end
+            assert_nil resp
+            assert_nil dc.cas('cas_key')
           end
-          assert_nil resp
+        end
 
-          mutated = { 'blah' => 'foo!' }
-          dc.set('cas_key', expected)
-          resp = dc.cas('cas_key') do |value|
-            assert_equal expected, value
-            mutated
+        it 'calls the block and sets a new value when the key has an existing value' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            expected = { 'blah' => 'blerg!' }
+            dc.set('cas_key', expected)
+
+            mutated = { 'blah' => 'foo!' }
+            resp = dc.cas('cas_key') do |value|
+              assert_equal expected, value
+              mutated
+            end
+            assert op_cas_succeeds(resp)
+
+            resp = dc.get('cas_key')
+            assert_equal mutated, resp
           end
-          assert op_cas_succeeds(resp)
+        end
 
-          resp = dc.get('cas_key')
-          assert_equal mutated, resp
+        it "calls the block and sets a new value when the key has the value 'Not found'" do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            expected = 'Not found'
+            dc.set('cas_key', expected)
+
+            mutated = { 'blah' => 'foo!' }
+            resp = dc.cas('cas_key') do |value|
+              assert_equal expected, value
+              mutated
+            end
+            assert op_cas_succeeds(resp)
+
+            resp = dc.get('cas_key')
+            assert_equal mutated, resp
+          end
         end
       end
 
-      it 'supports the cas! operation' do
-        memcached_persistent(p) do |dc|
-          dc.flush
+      describe 'cas!' do
+        it 'calls the block and sets a new value  when the key has no existing value' do
+          memcached_persistent(p) do |dc|
+            dc.flush
 
-          mutated = { 'blah' => 'foo!' }
-          resp = dc.cas!('cas_key') do |value|
-            assert_nil value
-            mutated
+            mutated = { 'blah' => 'foo!' }
+            resp = dc.cas!('cas_key') do |value|
+              assert_nil value
+              mutated
+            end
+            assert op_cas_succeeds(resp)
+
+            resp = dc.get('cas_key')
+            assert_equal mutated, resp
           end
-          assert op_cas_succeeds(resp)
+        end
 
-          resp = dc.get('cas_key')
-          assert_equal mutated, resp
+        it 'calls the block and sets a new value when the key has an existing value' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            expected = { 'blah' => 'blerg!' }
+            dc.set('cas_key', expected)
+
+            mutated = { 'blah' => 'foo!' }
+            resp = dc.cas!('cas_key') do |value|
+              assert_equal expected, value
+              mutated
+            end
+            assert op_cas_succeeds(resp)
+
+            resp = dc.get('cas_key')
+            assert_equal mutated, resp
+          end
+        end
+
+        it "calls the block and sets a new value when the key has the value 'Not found'" do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            expected = 'Not found'
+            dc.set('cas_key', expected)
+
+            mutated = { 'blah' => 'foo!' }
+            resp = dc.cas!('cas_key') do |value|
+              assert_equal expected, value
+              mutated
+            end
+            assert op_cas_succeeds(resp)
+
+            resp = dc.get('cas_key')
+            assert_equal mutated, resp
+          end
         end
       end
     end
