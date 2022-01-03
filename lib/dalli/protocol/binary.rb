@@ -18,13 +18,6 @@ module Dalli
 
       private
 
-      ALLOWED_QUIET_OPS = %i[add replace set delete incr decr append prepend flush noop].freeze
-      def verify_allowed_quiet!(opkey)
-        return if ALLOWED_QUIET_OPS.include?(opkey)
-
-        raise Dalli::NotPermittedMultiOpError, "The operation #{opkey} is not allowed in a quiet block."
-      end
-
       # Retrieval Commands
       def get(key, options = nil)
         req = RequestFormatter.standard_request(opkey: :get, key: key)

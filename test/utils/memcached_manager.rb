@@ -108,7 +108,22 @@ module MemcachedManager
   def self.supported_protocols
     return [] unless version
 
-    %i[binary]
+    version > MIN_META_VERSION ? %i[binary meta] : %i[binary]
+  end
+
+  META_DELETE_CAS_FIX_PATCH_VERSION = '13'
+  def self.supports_delete_cas?(protocol)
+    return true unless protocol == :meta
+
+    return false unless version > MIN_META_VERSION
+
+    minor_patch_delimiter = version.index('.', 2)
+    minor_version = version[0...minor_patch_delimiter]
+    return true if minor_version > MIN_META_VERSION
+
+    patch_version = version[minor_patch_delimiter + 1..-1]
+
+    patch_version >= META_DELETE_CAS_FIX_PATCH_VERSION
   end
 
   def self.cmd_with_args(port_or_socket, args)

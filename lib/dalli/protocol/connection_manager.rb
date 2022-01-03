@@ -133,6 +133,16 @@ module Dalli
         @request_in_progress = false
       end
 
+      def read_line
+        start_request!
+        data = @sock.gets("\r\n")
+        error_on_request!('EOF in read_line') if data.nil?
+        finish_request!
+        data
+      rescue SystemCallError, Timeout::Error, EOFError => e
+        error_on_request!(e)
+      end
+
       def read(count)
         start_request!
         data = @sock.readfull(count)

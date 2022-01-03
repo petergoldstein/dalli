@@ -161,11 +161,11 @@ describe 'CAS behavior' do
         end
       end
 
-      # At the moment there's a bug in memcached where
+      # There's a bug in some versions of memcached where
       # the meta delete doesn't honor the CAS argument
-      # Once a fixed version of memcached is released
-      # this can be removed.
-      if p != :meta
+      # Ensure our tests run correctly when used with
+      # either set of versions
+      if MemcachedManager.supports_delete_cas?(p)
         it 'supports delete with CAS' do
           memcached_persistent(p) do |dc|
             cas = dc.set('some_key', 'some_value')

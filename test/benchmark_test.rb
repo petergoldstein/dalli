@@ -36,12 +36,13 @@ describe 'performance' do
   end
 
   it 'runs benchmarks' do
-    memcached(:binary, @port) do
+    protocol = :binary
+    memcached(protocol, @port) do
       profile do
         Benchmark.bm(37) do |x|
           n = 2500
 
-          @m = Dalli::Client.new(@servers)
+          @m = Dalli::Client.new(@servers, protocol: protocol)
           x.report('set:plain:dalli') do
             n.times do
               @m.set @key1, @marshalled, 0, raw: true
@@ -53,7 +54,7 @@ describe 'performance' do
             end
           end
 
-          @m = Dalli::Client.new(@servers)
+          @m = Dalli::Client.new(@servers, protocol: protocol)
           x.report('setq:plain:dalli') do
             @m.multi do
               n.times do
@@ -67,7 +68,7 @@ describe 'performance' do
             end
           end
 
-          @m = Dalli::Client.new(@servers)
+          @m = Dalli::Client.new(@servers, protocol: protocol)
           x.report('set:ruby:dalli') do
             n.times do
               @m.set @key1, @value
@@ -79,7 +80,7 @@ describe 'performance' do
             end
           end
 
-          @m = Dalli::Client.new(@servers)
+          @m = Dalli::Client.new(@servers, protocol: protocol)
           x.report('get:plain:dalli') do
             n.times do
               @m.get @key1, raw: true
@@ -91,7 +92,7 @@ describe 'performance' do
             end
           end
 
-          @m = Dalli::Client.new(@servers)
+          @m = Dalli::Client.new(@servers, protocol: protocol)
           x.report('get:ruby:dalli') do
             n.times do
               @m.get @key1
@@ -103,7 +104,7 @@ describe 'performance' do
             end
           end
 
-          @m = Dalli::Client.new(@servers)
+          @m = Dalli::Client.new(@servers, protocol: protocol)
           x.report('multiget:ruby:dalli') do
             n.times do
               # We don't use the keys array because splat is slow
@@ -111,7 +112,7 @@ describe 'performance' do
             end
           end
 
-          @m = Dalli::Client.new(@servers)
+          @m = Dalli::Client.new(@servers, protocol: protocol)
           # rubocop:disable Lint/SuppressedException
           x.report('missing:ruby:dalli') do
             n.times do
@@ -125,7 +126,7 @@ describe 'performance' do
           end
           # rubocop:enable Lint/SuppressedException
 
-          @m = Dalli::Client.new(@servers)
+          @m = Dalli::Client.new(@servers, protocol: protocol)
           x.report('mixed:ruby:dalli') do
             n.times do
               @m.set @key1, @value
@@ -143,7 +144,7 @@ describe 'performance' do
             end
           end
 
-          @m = Dalli::Client.new(@servers)
+          @m = Dalli::Client.new(@servers, protocol: protocol)
           x.report('mixedq:ruby:dalli') do
             n.times do
               @m.multi do
@@ -172,7 +173,7 @@ describe 'performance' do
             end
           end
 
-          @m = Dalli::Client.new(@servers)
+          @m = Dalli::Client.new(@servers, protocol: protocol)
           x.report('incr:ruby:dalli') do
             counter = 'foocount'
             n.times do

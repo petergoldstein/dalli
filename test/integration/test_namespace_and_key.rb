@@ -34,7 +34,7 @@ describe 'Namespace and key behavior' do
         end
       end
 
-      it 'handles namespaced keys in multi_get' do
+      it 'handles namespaced keys in get_multi' do
         memcached_persistent(p) do |_, port|
           dc = Dalli::Client.new("localhost:#{port}", namespace: 'a')
           dc.set('a', 1)

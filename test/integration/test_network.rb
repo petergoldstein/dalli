@@ -110,7 +110,7 @@ describe 'Network' do
       end
 
       it 'passes a simple smoke test on a TCP socket' do
-        memcached_persistent do |dc, port|
+        memcached_persistent(p) do |dc, port|
           resp = dc.flush
           refute_nil resp
           assert_equal [true, true], resp
