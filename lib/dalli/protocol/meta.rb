@@ -165,6 +165,10 @@ module Dalli
         write(RequestFormatter.meta_noop)
       end
 
+      def authenticate_connection
+        raise Dalli::DalliError, 'Authentication not supported for the meta protocol.'
+      end
+
       require_relative 'meta/key_regularizer'
       require_relative 'meta/request_formatter'
       require_relative 'meta/response_processor'
