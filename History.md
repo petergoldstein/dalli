@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.2.0
+==========
+
 - BREAKING CHANGE: Remove protocol_implementation client option (petergoldstein)
 - Add protocol option with meta implementation (petergoldstein)
 
