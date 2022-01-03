@@ -7,7 +7,7 @@ require 'timeout'
 module Dalli
   module Protocol
     ##
-    # Access point for a single Memcached server, accessed via Memcached's binary
+    # Access point for a single Memcached server, accessed via Memcached's meta
     # protocol.  Contains logic for managing connection state to the server (retries, etc),
     # formatting requests to the server, and unpacking responses.
     ##

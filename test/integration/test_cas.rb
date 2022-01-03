@@ -161,7 +161,7 @@ describe 'CAS behavior' do
         end
       end
 
-      # There's a bug some versions of memcached where
+      # There's a bug in some versions of memcached where
       # the meta delete doesn't honor the CAS argument
       # Ensure our tests run correctly when used with
       # either set of versions
