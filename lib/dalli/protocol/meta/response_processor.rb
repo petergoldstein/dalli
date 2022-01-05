@@ -194,7 +194,7 @@ module Dalli
           bitflags_token = tokens.find { |t| t.start_with?(flag) }
           return 0 unless bitflags_token
 
-          bitflags_token[1..-1]
+          bitflags_token[1..]
         end
 
         def read_line
