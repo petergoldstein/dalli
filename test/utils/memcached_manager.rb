@@ -121,7 +121,7 @@ module MemcachedManager
     minor_version = version[0...minor_patch_delimiter]
     return true if minor_version > MIN_META_VERSION
 
-    patch_version = version[minor_patch_delimiter + 1..-1]
+    patch_version = version[minor_patch_delimiter + 1..]
 
     patch_version >= META_DELETE_CAS_FIX_PATCH_VERSION
   end
