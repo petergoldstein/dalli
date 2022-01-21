@@ -23,8 +23,10 @@ module Dalli
 
     attr_accessor :servers, :continuum
 
-    def initialize(servers, options)
-      @servers = servers
+    def initialize(servers_arg, protocol_implementation, options)
+      @servers = servers_arg.map do |s|
+        protocol_implementation.new(s, options)
+      end
       @continuum = nil
       @continuum = build_continuum(servers) if servers.size > 1
 
