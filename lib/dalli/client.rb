@@ -47,7 +47,7 @@ module Dalli
     #               to communicate with memcached.
     #
     def initialize(servers = nil, options = {})
-      @servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
+      @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
       @options = normalize_options(options)
       @key_manager = ::Dalli::KeyManager.new(@options)
       @ring = nil
@@ -392,13 +392,7 @@ module Dalli
     end
 
     def ring
-      # TODO: This server initialization should probably be pushed down
-      # to the Ring
-      @ring ||= Dalli::Ring.new(
-        @servers.map do |s|
-          protocol_implementation.new(s, @options)
-        end, @options
-      )
+      @ring ||= Dalli::Ring.new(@normalized_servers, protocol_implementation, @options)
     end
 
     def protocol_implementation
