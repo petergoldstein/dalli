@@ -15,7 +15,7 @@ module Dalli
 
           # Substitute spaces for the \x00 returned by
           # memcached as a separator for easier
-          content&.tr("\u0000", ' ')
+          content&.tr!("\u0000", ' ')
           mechanisms = content&.split
           [status, mechanisms]
         end
