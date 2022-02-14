@@ -4,6 +4,11 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.2.1
+==========
+
+- Fix null replacement bug on some SASL-authenticated services (veritas1)
+
 3.2.0
 ==========
 
