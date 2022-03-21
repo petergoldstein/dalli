@@ -90,7 +90,7 @@ module Rack
 
       def delete_session(_req, sid, options)
         with_dalli_client do |dc|
-          dc.delete(memcached_key_from_sid(sid))
+          dc.delete(sid.respond_to?(:private_id) ? memcached_key_from_sid(sid) : sid)
           generate_sid_with(dc) unless options[:drop]
         end
       end
