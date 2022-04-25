@@ -40,7 +40,7 @@ module Dalli
     def self.apply_defaults(arg)
       return arg unless arg.nil?
 
-      ENV[ENV_VAR_NAME] || DEFAULT_SERVERS
+      ENV.fetch(ENV_VAR_NAME, nil) || DEFAULT_SERVERS
     end
 
     def self.validate_type(arg)

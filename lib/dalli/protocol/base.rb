@@ -127,11 +127,11 @@ module Dalli
       end
 
       def username
-        @options[:username] || ENV['MEMCACHE_USERNAME']
+        @options[:username] || ENV.fetch('MEMCACHE_USERNAME', nil)
       end
 
       def password
-        @options[:password] || ENV['MEMCACHE_PASSWORD']
+        @options[:password] || ENV.fetch('MEMCACHE_PASSWORD', nil)
       end
 
       def require_auth?
