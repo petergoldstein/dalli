@@ -118,6 +118,9 @@ Unreleased
   * The Rack session adapter has been refactored to remove support for thread-unsafe
     configurations. You will need to include the `connection_pool` gem in
     your Gemfile to ensure session operations are thread-safe.
+  * When using namespaces, the algorithm for calculating truncated keys was
+    changed.  Non-truncated keys and truncated keys for the non-namespace
+    case were left unchanged.
 
 - Raise NetworkError when multi response gets into corrupt state (mervync, #783)
 - Validate servers argument (semaperepelitsa, petergoldstein, #776)
