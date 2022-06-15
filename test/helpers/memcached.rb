@@ -53,7 +53,6 @@ module Memcached
 
     # Launches a persistent memcached process, configured to use SSL
     def memcached_ssl_persistent(protocol = :binary, port_or_socket = rand(21_397..21_896), &block)
-      CertificateGenerator.generate
       memcached_persistent(protocol,
                            port_or_socket,
                            CertificateGenerator.ssl_args,
