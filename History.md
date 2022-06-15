@@ -4,6 +4,11 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.2.2
+==========
+
+- Ensure apps are resilient against old session ids
+
 3.2.1
 ==========
 
