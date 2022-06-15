@@ -82,6 +82,9 @@ module Rack
       def write_session(_req, sid, session, options)
         return false unless sid
 
+        key = memcached_key_from_sid(sid)
+        return false unless key
+
         with_dalli_client(false) do |dc|
           dc.set(memcached_key_from_sid(sid), session, ttl(options[:expire_after]))
           sid
@@ -90,7 +93,8 @@ module Rack
 
       def delete_session(_req, sid, options)
         with_dalli_client do |dc|
-          dc.delete(memcached_key_from_sid(sid))
+          key = memcached_key_from_sid(sid)
+          dc.delete(key) if key
           generate_sid_with(dc) unless options[:drop]
         end
       end
@@ -98,20 +102,24 @@ module Rack
       private
 
       def memcached_key_from_sid(sid)
-        sid.private_id
+        sid.private_id if sid.respond_to?(:private_id)
       end
 
       def existing_session_for_sid(client, sid)
         return nil unless sid && !sid.empty?
 
-        client.get(memcached_key_from_sid(sid))
+        key = memcached_key_from_sid(sid)
+        return nil if key.nil?
+
+        client.get(key)
       end
 
       def create_sid_with_empty_session(client)
         loop do
           sid = generate_sid_with(client)
+          key = memcached_key_from_sid(sid)
 
-          break sid if client.add(memcached_key_from_sid(sid), {}, @default_ttl)
+          break sid if key && client.add(key, {}, @default_ttl)
         end
       end
 
@@ -119,7 +127,8 @@ module Rack
         loop do
           raw_sid = generate_sid
           sid = raw_sid.is_a?(String) ? Rack::Session::SessionId.new(raw_sid) : raw_sid
-          break sid unless client.get(memcached_key_from_sid(sid))
+          key = memcached_key_from_sid(sid)
+          break sid unless key && client.get(key)
         end
       end
 
