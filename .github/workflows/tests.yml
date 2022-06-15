@@ -7,6 +7,7 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         ruby-version:
           - head
@@ -15,7 +16,7 @@ jobs:
           - '2.7'
           - '2.6'
           - jruby-9.3
-        memcached-version: ['1.5.22', '1.6.14']
+        memcached-version: ['1.5.22', '1.6.15']
 
     steps:
     - uses: actions/checkout@v3

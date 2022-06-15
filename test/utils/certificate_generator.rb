@@ -15,7 +15,7 @@ module CertificateGenerator
 
   def self.generate
     issuer_cert, issuer_key = generate_root_certificate
-    generate_server_certifcate(issuer_cert, issuer_key)
+    generate_server_certificate(issuer_cert, issuer_key)
   end
 
   def self.ssl_args
@@ -37,7 +37,7 @@ module CertificateGenerator
     ssl_context
   end
 
-  def self.generate_server_certifcate(issuer_cert, issuer_key)
+  def self.generate_server_certificate(issuer_cert, issuer_key)
     cert, key = generate_certificate_common('/CN=localhost', issuer_cert)
     cert.serial = 2
 

@@ -21,6 +21,9 @@ Dalli.logger.level = Logger::ERROR
 # supported protocols
 raise StandardError, 'No supported version of memcached could be found.' unless MemcachedManager.version
 
+# Generate self-signed certs for SSL once per suite run.
+CertificateGenerator.generate
+
 module MiniTest
   class Spec
     include Memcached::Helper
