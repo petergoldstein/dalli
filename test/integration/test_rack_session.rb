@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative 'helper'
+require_relative '../helper'
 
 require 'json'
 require 'rack/session/dalli'
