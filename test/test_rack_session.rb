@@ -7,16 +7,17 @@ require 'rack/session/dalli'
 require 'rack/lint'
 require 'rack/mock'
 describe Rack::Session::Dalli do
+  let(:port) { 19_129 }
+  let(:memcache_server) { "localhost:#{port}" }
+
   before do
-    @port = 19_129
-    memcached_persistent(:binary, @port)
-    Rack::Session::Dalli::DEFAULT_DALLI_OPTIONS[:memcache_server] = "localhost:#{@port}"
+    memcached_persistent(:binary, port)
 
     # test memcache connection
-    Rack::Session::Dalli.new(incrementor)
+    Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server)
   end
 
-  let(:session_key) { Rack::Session::Dalli::DEFAULT_OPTIONS[:key] }
+  let(:session_key) { Rack::RACK_SESSION }
   let(:session_match) do
     /#{session_key}=([0-9a-fA-F]+);/
   end
@@ -62,13 +63,14 @@ describe Rack::Session::Dalli do
 
   it 'connects to existing server' do
     assert_silent do
-      rsd = Rack::Session::Dalli.new(incrementor, namespace: 'test:rack:session')
+      rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server, namespace: 'test:rack:session')
       rsd.data.with { |c| c.set('ping', '') }
     end
   end
 
   it 'passes options to MemCache' do
     opts = {
+      memcache_server: memcache_server,
       namespace: 'test:rack:session',
       compression_min_size: 1234
     }
@@ -79,20 +81,20 @@ describe Rack::Session::Dalli do
   end
 
   it 'rejects a :cache option' do
-    server = Rack::Session::Dalli::DEFAULT_DALLI_OPTIONS[:memcache_server]
-    cache = Dalli::Client.new(server, namespace: 'test:rack:session')
+    cache = Dalli::Client.new(memcache_server, namespace: 'test:rack:session')
     assert_raises RuntimeError do
       Rack::Session::Dalli.new(incrementor, cache: cache, namespace: 'foobar')
     end
   end
 
   it 'generates sids without an existing Dalli::Client' do
-    rsd = Rack::Session::Dalli.new(incrementor)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server)
     assert rsd.send :generate_sid
   end
 
   it 'upgrades to a connection pool' do
     opts = {
+      memcache_server: memcache_server,
       namespace: 'test:rack:session',
       pool_size: 10
     }
@@ -107,14 +109,14 @@ describe Rack::Session::Dalli do
   end
 
   it 'creates a new cookie' do
-    rsd = Rack::Session::Dalli.new(incrementor)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server)
     res = Rack::MockRequest.new(rsd).get('/')
     assert_includes res['Set-Cookie'], "#{session_key}="
     assert_equal '{"counter"=>1}', res.body
   end
 
   it 'determines session from a cookie' do
-    rsd = Rack::Session::Dalli.new(incrementor)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server)
     req = Rack::MockRequest.new(rsd)
     res = req.get('/')
     cookie = res['Set-Cookie']
@@ -123,7 +125,7 @@ describe Rack::Session::Dalli do
   end
 
   it 'determines session only from a cookie by default' do
-    rsd = Rack::Session::Dalli.new(incrementor)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server)
     req = Rack::MockRequest.new(rsd)
     res = req.get('/')
     sid = res['Set-Cookie'][session_match, 1]
@@ -132,7 +134,7 @@ describe Rack::Session::Dalli do
   end
 
   it 'determines session from params' do
-    rsd = Rack::Session::Dalli.new(incrementor, cookie_only: false)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server, cookie_only: false)
     req = Rack::MockRequest.new(rsd)
     res = req.get('/')
     sid = res['Set-Cookie'][session_match, 1]
@@ -142,7 +144,7 @@ describe Rack::Session::Dalli do
 
   it 'survives nonexistant cookies' do
     bad_cookie = 'rack.session=blarghfasel'
-    rsd = Rack::Session::Dalli.new(incrementor)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server)
     res = Rack::MockRequest.new(rsd)
                            .get('/', 'HTTP_COOKIE' => bad_cookie)
     assert_equal '{"counter"=>1}', res.body
@@ -152,7 +154,7 @@ describe Rack::Session::Dalli do
 
   it 'survives nonexistant blank cookies' do
     bad_cookie = 'rack.session='
-    rsd = Rack::Session::Dalli.new(incrementor)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server)
     res = Rack::MockRequest.new(rsd)
                            .get('/', 'HTTP_COOKIE' => bad_cookie)
     cookie = res['Set-Cookie'][session_match]
@@ -160,7 +162,7 @@ describe Rack::Session::Dalli do
   end
 
   it 'sets an expiration on new sessions' do
-    rsd = Rack::Session::Dalli.new(incrementor, expire_after: 3)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server, expire_after: 3)
     res = Rack::MockRequest.new(rsd).get('/')
     assert_includes res.body, '"counter"=>1'
     cookie = res['Set-Cookie']
@@ -172,7 +174,7 @@ describe Rack::Session::Dalli do
   end
 
   it 'maintains freshness of existing sessions' do
-    rsd = Rack::Session::Dalli.new(incrementor, expire_after: 3)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server, expire_after: 3)
     res = Rack::MockRequest.new(rsd).get('/')
     assert_includes res.body, '"counter"=>1'
     cookie = res['Set-Cookie']
@@ -187,7 +189,7 @@ describe Rack::Session::Dalli do
   end
 
   it 'does not send the same session id if it did not change' do
-    rsd = Rack::Session::Dalli.new(incrementor)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server)
     req = Rack::MockRequest.new(rsd)
 
     res0 = req.get('/')
@@ -204,7 +206,7 @@ describe Rack::Session::Dalli do
   end
 
   it 'deletes cookies with :drop option' do
-    rsd = Rack::Session::Dalli.new(incrementor)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server)
     req = Rack::MockRequest.new(rsd)
     drop = Rack::Utils::Context.new(rsd, drop_session)
     dreq = Rack::MockRequest.new(drop)
@@ -223,7 +225,7 @@ describe Rack::Session::Dalli do
   end
 
   it 'provides new session id with :renew option' do
-    rsd = Rack::Session::Dalli.new(incrementor)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server)
     req = Rack::MockRequest.new(rsd)
     renew = Rack::Utils::Context.new(rsd, renew_session)
     rreq = Rack::MockRequest.new(renew)
@@ -247,7 +249,7 @@ describe Rack::Session::Dalli do
   end
 
   it 'omits cookie with :defer option but still updates the state' do
-    rsd = Rack::Session::Dalli.new(incrementor)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server)
     count = Rack::Utils::Context.new(rsd, incrementor)
     defer = Rack::Utils::Context.new(rsd, defer_session)
     dreq = Rack::MockRequest.new(defer)
@@ -265,7 +267,7 @@ describe Rack::Session::Dalli do
   end
 
   it 'omits cookie and state update with :skip option' do
-    rsd = Rack::Session::Dalli.new(incrementor)
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: memcache_server)
     count = Rack::Utils::Context.new(rsd, incrementor)
     skip = Rack::Utils::Context.new(rsd, skip_session)
     sreq = Rack::MockRequest.new(skip)
@@ -293,7 +295,7 @@ describe Rack::Session::Dalli do
       end
       [200, {}, [session.to_h.to_json]]
     end
-    rsd = Rack::Session::Dalli.new(hash_check)
+    rsd = Rack::Session::Dalli.new(hash_check, memcache_server: memcache_server)
     req = Rack::MockRequest.new(rsd)
 
     res0 = req.get('/')
