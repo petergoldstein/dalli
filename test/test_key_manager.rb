@@ -66,13 +66,34 @@ describe 'KeyManager' do
       end
 
       describe 'when there is a Proc provided as a namespace parameter' do
-        let(:options) { { namespace: namespace_as_symbol } }
+        let(:options) { { namespace: namespace_as_proc } }
         let(:namespace_as_proc) { proc { namespace_as_symbol } }
         let(:namespace_as_symbol) { namespace_as_s.to_sym }
         let(:namespace_as_s) { SecureRandom.hex(5) }
 
-        it 'the namespace is the stringified symbol' do
-          assert_equal namespace_as_s, key_manager.namespace
+        it 'the namespace is the proc' do
+          assert_equal namespace_as_proc, key_manager.namespace
+        end
+
+        it 'the evaluated namespace is the stringified symbol' do
+          assert_equal namespace_as_s, key_manager.evaluate_namespace
+        end
+      end
+
+      describe 'when the namespace Proc returns dynamic results' do
+        count = 0
+
+        let(:options) { { namespace: namespace_as_proc } }
+        let(:namespace_as_proc) do
+          proc { count += 1 }
+        end
+
+        it 'evaluates the namespace proc every time we need it' do
+          assert_equal 0, count
+          assert_equal '1', key_manager.evaluate_namespace
+          assert_equal(/\A2:/, key_manager.namespace_regexp)
+          assert_equal '3', key_manager.evaluate_namespace
+          assert_equal '4:test', key_manager.key_with_namespace('test')
         end
       end
     end
