@@ -61,7 +61,7 @@ module Dalli
     def key_with_namespace(key)
       return key if namespace.nil?
 
-      "#{namespace}#{NAMESPACE_SEPARATOR}#{key}"
+      "#{evaluate_namespace}#{NAMESPACE_SEPARATOR}#{key}"
     end
 
     def key_without_namespace(key)
@@ -75,6 +75,8 @@ module Dalli
     end
 
     def namespace_regexp
+      return /\A#{Regexp.escape(evaluate_namespace)}:/ if namespace.is_a?(Proc)
+
       @namespace_regexp ||= /\A#{Regexp.escape(namespace)}:/.freeze unless namespace.nil?
     end
 
@@ -87,9 +89,15 @@ module Dalli
     def namespace_from_options
       raw_namespace = @key_options[:namespace]
       return nil unless raw_namespace
-      return raw_namespace.call.to_s if raw_namespace.is_a?(Proc)
+      return raw_namespace.to_s unless raw_namespace.is_a?(Proc)
 
-      raw_namespace.to_s
+      raw_namespace
+    end
+
+    def evaluate_namespace
+      return namespace.call.to_s if namespace.is_a?(Proc)
+
+      namespace
     end
 
     ##
