@@ -24,7 +24,7 @@ module CertificateGenerator
 
   def self.clean
     [ROOT_CA_CERT_PATH, ROOT_CA_PK_PATH, MEMCACHED_CERT_PATH, MEMCACHED_PK_PATH].each do |path|
-      File.delete(path) if File.exist?(path)
+      FileUtils.rm_rf(path)
     end
   end
 
