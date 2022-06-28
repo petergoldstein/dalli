@@ -4,6 +4,8 @@ Dalli Changelog
 Unreleased
 ==========
 
+- Namespaces passed as procs are now evaluated every time, as opposed to just on initialization (nrw505)
+
 3.2.2
 ==========
 
