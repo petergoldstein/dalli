@@ -167,7 +167,7 @@ module Dalli
       groups = @ring.keys_grouped_by_server(keys)
       if (unfound_keys = groups.delete(nil))
         Dalli.logger.debug do
-          "unable to get keys for #{unfound_keys.length} keys "\
+          "unable to get keys for #{unfound_keys.length} keys " \
             'because no matching server was found'
         end
       end
