@@ -5,11 +5,12 @@ Unreleased
 ==========
 
 - Namespaces passed as procs are now evaluated every time, as opposed to just on initialization (nrw505)
+- Fix missing require of uri in ServerConfigParser (adam12)
 
 3.2.2
 ==========
 
-- Ensure apps are resilient against old session ids
+- Ensure apps are resilient against old session ids (kbrock)
 
 3.2.1
 ==========
