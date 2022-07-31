@@ -54,15 +54,15 @@ describe Rack::Session::Dalli do
   let(:incrementor) { Rack::Lint.new(incrementor_proc) }
 
   it 'faults on no connection' do
+    rsd = Rack::Session::Dalli.new(incrementor, memcache_server: 'nosuchserver')
     assert_raises Dalli::RingError do
-      rsd = Rack::Session::Dalli.new(incrementor, memcache_server: 'nosuchserver')
       rsd.data.with { |c| c.set('ping', '') }
     end
   end
 
   it 'connects to existing server' do
+    rsd = Rack::Session::Dalli.new(incrementor, namespace: 'test:rack:session')
     assert_silent do
-      rsd = Rack::Session::Dalli.new(incrementor, namespace: 'test:rack:session')
       rsd.data.with { |c| c.set('ping', '') }
     end
   end
