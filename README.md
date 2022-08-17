@@ -27,7 +27,7 @@ The name is a variant of Salvador Dali for his famous painting [The Persistence 
 
 ## Contributing
 
-If you have a fix you wish to provide, please fork the code, fix in your local project and then send a pull request on github.  Please ensure that you include a test which verifies your fix and update `History.md` with a one sentence description of your fix so you get credit as a contributor.
+If you have a fix you wish to provide, please fork the code, fix in your local project and then send a pull request on github.  Please ensure that you include a test which verifies your fix and update the [changelog](CHANGELOG.md) with a one sentence description of your fix so you get credit as a contributor.
 
 ## Appreciation
 
