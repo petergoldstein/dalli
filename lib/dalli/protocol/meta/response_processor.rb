@@ -111,8 +111,8 @@ module Dalli
           true
         end
 
-        def tokens_from_header_buffer(buf)
-          header = header_from_buffer(buf)
+        def tokens_from_header_buffer(buf, offset, tidx)
+          header = header_from_buffer(buf, offset, tidx)
           tokens = header.split
           header_len = header.bytesize + TERMINATOR.length
           body_len = body_len_from_tokens(tokens)
@@ -134,11 +134,12 @@ module Dalli
         # The remaining three values in the array are the ResponseHeader,
         # key, and value.
         ##
-        def getk_response_from_buffer(buf)
+        def getk_response_from_buffer(buf, offset)
           # There's no header in the buffer, so don't advance
-          return [0, nil, nil, nil, nil] unless contains_header?(buf)
+          tidx = terminator_index(buf, offset)
+          return [0, nil, nil, nil, nil] if tidx.nil?
 
-          tokens, header_len, body_len = tokens_from_header_buffer(buf)
+          tokens, header_len, body_len = tokens_from_header_buffer(buf, offset, tidx)
 
           # We have a complete response that has no body.
           # This is either the response to the terminating
@@ -149,20 +150,20 @@ module Dalli
           resp_size = header_len + body_len + TERMINATOR.length
           # The header is in the buffer, but the body is not.  As we don't have
           # a complete response, don't advance the buffer
-          return [0, nil, nil, nil, nil] unless buf.bytesize >= resp_size
+          return [0, nil, nil, nil, nil] unless buf.bytesize >= (resp_size + offset)
 
           # The full response is in our buffer, so parse it and return
           # the values
-          body = buf.slice(header_len, body_len)
+          body = buf.byteslice(offset + header_len, body_len)
           full_response_from_buffer(tokens, body, resp_size)
         end
 
-        def contains_header?(buf)
-          buf.include?(TERMINATOR)
+        def terminator_index(buf, offset)
+          buf.index(TERMINATOR, offset)
         end
 
-        def header_from_buffer(buf)
-          buf.split(TERMINATOR, 2).first
+        def header_from_buffer(buf, offset, tidx)
+          buf.byteslice(offset...tidx)
         end
 
         def error_on_unexpected!(expected_codes)

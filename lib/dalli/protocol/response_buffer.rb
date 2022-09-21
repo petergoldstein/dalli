@@ -13,41 +13,52 @@ module Dalli
         @io_source = io_source
         @response_processor = response_processor
         @buffer = nil
+        @offset = 0
       end
 
       def read
         @buffer << @io_source.read_nonblock
       end
 
-      # Attempts to process a single response from the buffer.  Starts
-      # by advancing the buffer to the specified start position
+      # Attempts to process a single response from the buffer.
       def process_single_getk_response
-        bytes, status, cas, key, value = @response_processor.getk_response_from_buffer(@buffer)
-        advance(bytes)
+        bytes, status, cas, key, value = @response_processor.getk_response_from_buffer(@buffer, @offset)
+        if bytes.positive?
+          @offset += bytes
+        else
+          # Clear out read values if the buffer doesn't contain a full response
+          clear_read_values
+        end
         [status, cas, key, value]
       end
 
-      # Advances the internal response buffer by bytes_to_advance
-      # bytes.  The
-      def advance(bytes_to_advance)
-        return unless bytes_to_advance.positive?
+      # Clears already read values out of the buffer.
+      def clear_read_values
+        return unless @offset.positive?
 
-        @buffer = @buffer.byteslice(bytes_to_advance..-1)
+        @buffer = @buffer.byteslice(@offset..-1)
+        clear_offset
       end
 
       # Resets the internal buffer to an empty state,
       # so that we're ready to read pipelined responses
       def reset
         @buffer = ''.b
+        clear_offset
       end
 
       # Clear the internal response buffer
       def clear
         @buffer = nil
+        clear_offset
       end
 
       def in_progress?
         !@buffer.nil?
+      end
+
+      def clear_offset
+        @offset = 0
       end
     end
   end

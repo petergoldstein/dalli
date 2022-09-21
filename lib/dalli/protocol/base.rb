@@ -98,6 +98,7 @@ module Dalli
           # Get the next response from the buffer
           status, cas, key, value = response_buffer.process_single_getk_response
         end
+        response_buffer.clear_read_values
 
         values
       rescue SystemCallError, Timeout::Error, EOFError => e
