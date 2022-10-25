@@ -75,6 +75,12 @@ module Dalli
 
         def self.flush(delay: nil, quiet: false)
           cmd = +'flush_all'
+          begin
+            delay = Integer(delay) unless delay.nil?
+          rescue ArgumentError
+            # Sanitize delay to 0 if it isn't parsable as an integer
+            delay = 0
+          end
           cmd << " #{delay}" if delay
           cmd << ' noreply' if quiet
           cmd + TERMINATOR
