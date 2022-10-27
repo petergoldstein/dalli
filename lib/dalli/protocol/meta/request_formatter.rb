@@ -31,7 +31,7 @@ module Dalli
           cmd << ' c' unless %i[append prepend].include?(mode)
           cmd << ' b' if base64
           cmd << " F#{bitflags}" if bitflags
-          cmd << " C#{cas}" if cas && !cas.zero?
+          cmd << cas_string(cas)
           cmd << " T#{ttl}" if ttl
           cmd << " M#{mode_to_token(mode)}"
           cmd << ' q' if quiet
@@ -43,7 +43,7 @@ module Dalli
         def self.meta_delete(key:, cas: nil, ttl: nil, base64: false, quiet: false)
           cmd = "md #{key}"
           cmd << ' b' if base64
-          cmd << " C#{cas}" if cas && !cas.zero?
+          cmd << cas_string(cas)
           cmd << " T#{ttl}" if ttl
           cmd << ' q' if quiet
           cmd + TERMINATOR
@@ -54,8 +54,9 @@ module Dalli
           cmd << ' b' if base64
           cmd << " D#{delta}" if delta
           cmd << " J#{initial}" if initial
-          cmd << " C#{cas}" if cas && !cas.zero?
-          cmd << " N#{ttl}" if ttl
+          # Always set a TTL if an initial value is specified
+          cmd << " N#{ttl || 0}" if ttl || initial
+          cmd << cas_string(cas)
           cmd << ' q' if quiet
           cmd << " M#{incr ? 'I' : 'D'}"
           cmd + TERMINATOR
@@ -75,7 +76,7 @@ module Dalli
 
         def self.flush(delay: nil, quiet: false)
           cmd = +'flush_all'
-          cmd << " #{delay}" if delay
+          cmd << " #{parse_to_64_bit_int(delay, 0)}" if delay
           cmd << ' noreply' if quiet
           cmd + TERMINATOR
         end
@@ -102,6 +103,18 @@ module Dalli
           end
         end
         # rubocop:enable Metrics/MethodLength
+
+        def self.cas_string(cas)
+          cas = parse_to_64_bit_int(cas, nil)
+          cas.nil? || cas.zero? ? '' : " C#{cas}"
+        end
+
+        def self.parse_to_64_bit_int(val, default)
+          val.nil? ? nil : Integer(val)
+        rescue ArgumentError
+          # Sanitize to default if it isn't parsable as an integer
+          default
+        end
       end
     end
   end

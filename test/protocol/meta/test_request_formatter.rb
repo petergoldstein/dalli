@@ -77,10 +77,27 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags, cas: cas)
     end
 
+    it 'excludes CAS if set to 0' do
+      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS\r\n#{val}\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags, cas: 0)
+    end
+
+    it 'excludes non-numeric CAS values' do
+      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS\r\n#{val}\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags,
+                                                                    cas: "\nset importantkey 1 1000 8\ninjected")
+    end
+
     it 'sets the quiet mode if configured' do
       assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS q\r\n#{val}\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags,
                                                                     quiet: true)
+    end
+
+    it 'sets the base64 mode if configured' do
+      assert_equal "ms #{key} #{val.bytesize} c b F#{bitflags} MS\r\n#{val}\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags,
+                                                                    base64: true)
     end
   end
 
@@ -93,7 +110,7 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                    Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key)
     end
 
-    it 'returns incorporates CAS when passed cas' do
+    it 'incorporates CAS when passed cas' do
       assert_equal "md #{key} C#{cas}\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, cas: cas)
     end
@@ -101,6 +118,87 @@ describe Dalli::Protocol::Meta::RequestFormatter do
     it 'sets the q flag when passed quiet' do
       assert_equal "md #{key} q\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, quiet: true)
+    end
+
+    it 'excludes CAS when set to 0' do
+      assert_equal "md #{key}\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, cas: 0)
+    end
+
+    it 'excludes non-numeric CAS values' do
+      assert_equal "md #{key}\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key,
+                                                                       cas: "\nset importantkey 1 1000 8\ninjected")
+    end
+
+    it 'sets the base64 mode if configured' do
+      assert_equal "md #{key} b\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, base64: true)
+    end
+  end
+
+  describe 'meta_arithmetic' do
+    let(:key) { SecureRandom.hex(4) }
+    let(:delta) { rand(500..999) }
+    let(:initial) { rand(500..999) }
+    let(:cas) { rand(500..999) }
+    let(:ttl) { rand(500..999) }
+
+    it 'returns the expected string with the default N flag when passed non-nil key, delta, and initial' do
+      assert_equal "ma #{key} v D#{delta} J#{initial} N0 MI\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial)
+    end
+
+    it 'excludes the J and N flags when initial is nil and ttl is not set' do
+      assert_equal "ma #{key} v D#{delta} MI\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: nil)
+    end
+
+    it 'omits the D flag is delta is nil' do
+      assert_equal "ma #{key} v J#{initial} N0 MI\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: nil, initial: initial)
+    end
+
+    it 'uses ttl for the N flag when ttl passed explicitly along with an initial value' do
+      assert_equal "ma #{key} v D#{delta} J#{initial} N#{ttl} MI\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial,
+                                                                           ttl: ttl)
+    end
+
+    it 'incorporates CAS when passed cas' do
+      assert_equal "ma #{key} v D#{delta} J#{initial} N0 C#{cas} MI\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial,
+                                                                           cas: cas)
+    end
+
+    it 'excludes CAS when CAS is set to 0' do
+      assert_equal "ma #{key} v D#{delta} J#{initial} N0 MI\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial,
+                                                                           cas: 0)
+    end
+
+    it 'includes the N flag when ttl passed explicitly with a nil initial value' do
+      assert_equal "ma #{key} v D#{delta} N#{ttl} MI\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: nil,
+                                                                           ttl: ttl)
+    end
+
+    it 'swaps from MI to MD when the incr value is explicitly false' do
+      assert_equal "ma #{key} v D#{delta} J#{initial} N0 MD\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial,
+                                                                           incr: false)
+    end
+
+    it 'includes the quiet flag when specified' do
+      assert_equal "ma #{key} v D#{delta} J#{initial} N0 q MI\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial,
+                                                                           quiet: true)
+    end
+
+    it 'sets the base64 mode if configured' do
+      assert_equal "ma #{key} v b D#{delta} J#{initial} N0 MI\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial,
+                                                                           base64: true)
     end
   end
 
@@ -128,6 +226,11 @@ describe Dalli::Protocol::Meta::RequestFormatter do
     it 'returns the expected string with a delay argument' do
       delay = rand(1000..1999)
       assert_equal "flush_all #{delay}\r\n", Dalli::Protocol::Meta::RequestFormatter.flush(delay: delay)
+    end
+
+    it 'santizes the delay argument' do
+      delay = "\nset importantkey 1 1000 8\ninjected"
+      assert_equal "flush_all 0\r\n", Dalli::Protocol::Meta::RequestFormatter.flush(delay: delay)
     end
 
     it 'adds noreply with a delay and quiet argument' do

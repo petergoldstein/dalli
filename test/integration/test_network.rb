@@ -7,8 +7,8 @@ describe 'Network' do
     describe "using the #{p} protocol" do
       describe 'assuming a bad network' do
         it 'handle no server available' do
+          dc = Dalli::Client.new 'localhost:19333'
           assert_raises Dalli::RingError, message: 'No server available' do
-            dc = Dalli::Client.new 'localhost:19333'
             dc.get 'foo'
           end
         end
@@ -16,8 +16,8 @@ describe 'Network' do
         describe 'with a fake server' do
           it 'handle connection reset' do
             memcached_mock(->(sock) { sock.close }) do
+              dc = Dalli::Client.new('localhost:19123')
               assert_raises Dalli::RingError, message: 'No server available' do
-                dc = Dalli::Client.new('localhost:19123')
                 dc.get('abc')
               end
             end
@@ -26,8 +26,8 @@ describe 'Network' do
           it 'handle connection reset with unix socket' do
             socket_path = MemcachedMock::UNIX_SOCKET_PATH
             memcached_mock(->(sock) { sock.close }, :start_unix, socket_path) do
+              dc = Dalli::Client.new(socket_path)
               assert_raises Dalli::RingError, message: 'No server available' do
-                dc = Dalli::Client.new(socket_path)
                 dc.get('abc')
               end
             end
@@ -35,8 +35,8 @@ describe 'Network' do
 
           it 'handle malformed response' do
             memcached_mock(->(sock) { sock.write('123') }) do
+              dc = Dalli::Client.new('localhost:19123')
               assert_raises Dalli::RingError, message: 'No server available' do
-                dc = Dalli::Client.new('localhost:19123')
                 dc.get('abc')
               end
             end
@@ -47,8 +47,8 @@ describe 'Network' do
                              sleep(0.6)
                              sock.close
                            }, :delayed_start) do
+              dc = Dalli::Client.new('localhost:19123')
               assert_raises Dalli::RingError, message: 'No server available' do
-                dc = Dalli::Client.new('localhost:19123')
                 dc.get('abc')
               end
             end
@@ -59,8 +59,8 @@ describe 'Network' do
                              sleep(0.6)
                              sock.write('giraffe')
                            }) do
+              dc = Dalli::Client.new('localhost:19123')
               assert_raises Dalli::RingError, message: 'No server available' do
-                dc = Dalli::Client.new('localhost:19123')
                 dc.get('abc')
               end
             end
