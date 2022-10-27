@@ -98,24 +98,4 @@ describe Dalli::Protocol::Binary do
       expect(-> { Dalli::Protocol::Binary.new('my.fqdn.com:11212:abc') }).must_raise Dalli::DalliError
     end
   end
-
-  describe 'pipeline_next_responses' do
-    subject { Dalli::Protocol::Binary.new('127.0.0.1') }
-
-    it 'raises NetworkError when called before pipeline_response_setup' do
-      assert_raises Dalli::NetworkError do
-        subject.request(:pipelined_get, %w[a b])
-        subject.pipeline_next_responses
-      end
-    end
-
-    it 'raises NetworkError when called after pipeline_abort' do
-      assert_raises Dalli::NetworkError do
-        subject.request(:pipelined_get, %w[a b])
-        subject.pipeline_response_setup
-        subject.pipeline_abort
-        subject.pipeline_next_responses
-      end
-    end
-  end
 end
