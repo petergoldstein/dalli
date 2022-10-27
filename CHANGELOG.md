@@ -4,6 +4,7 @@ Dalli Changelog
 Unreleased
 ==========
 
+- Sanitize CAS inputs to ensure additional commands are not passed to memcached (xhzeem / petergoldstein)
 - Sanitize input to flush command to ensure additional commands are not passed to memcached (xhzeem / petergoldstein)
 - Namespaces passed as procs are now evaluated every time, as opposed to just on initialization (nrw505)
 - Fix missing require of uri in ServerConfigParser (adam12)

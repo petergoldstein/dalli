@@ -44,6 +44,7 @@ module Dalli
       end
 
       def touch(key, ttl)
+        ttl = TtlSanitizer.sanitize(ttl)
         encoded_key, base64 = KeyRegularizer.encode(key)
         req = RequestFormatter.meta_get(key: encoded_key, ttl: ttl, value: false, base64: base64)
         write(req)
