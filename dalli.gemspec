@@ -13,7 +13,7 @@ Gem::Specification.new do |s|
   s.files = Dir.glob('lib/**/*') + [
     'LICENSE',
     'README.md',
-    'History.md',
+    'CHANGELOG.md',
     'Gemfile'
   ]
   s.homepage = 'https://github.com/petergoldstein/dalli'

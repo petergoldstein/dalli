@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.2.3
+==========
+
 - Sanitize CAS inputs to ensure additional commands are not passed to memcached (xhzeem / petergoldstein)
 - Sanitize input to flush command to ensure additional commands are not passed to memcached (xhzeem / petergoldstein)
 - Namespaces passed as procs are now evaluated every time, as opposed to just on initialization (nrw505)
