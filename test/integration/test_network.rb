@@ -71,9 +71,11 @@ describe 'Network' do
           memcached_persistent(p) do |dc|
             server = dc.send(:ring).servers.first
             sock = Dalli::Socket::TCP.open(server.hostname, server.port, server.options)
+
             assert_equal Dalli::Socket::TCP, sock.class
 
             dc.set('abc', 123)
+
             assert_equal(123, dc.get('abc'))
           end
         end
@@ -82,9 +84,11 @@ describe 'Network' do
           memcached_ssl_persistent(p) do |dc|
             server = dc.send(:ring).servers.first
             sock = Dalli::Socket::TCP.open(server.hostname, server.port, server.options)
+
             assert_equal Dalli::Socket::SSLSocket, sock.class
 
             dc.set('abc', 123)
+
             assert_equal(123, dc.get('abc'))
 
             # Confirm that pipelined get works, since this depends on attributes on
@@ -112,6 +116,7 @@ describe 'Network' do
       it 'passes a simple smoke test on a TCP socket' do
         memcached_persistent(p) do |dc, port|
           resp = dc.flush
+
           refute_nil resp
           assert_equal [true, true], resp
 
@@ -119,11 +124,13 @@ describe 'Network' do
           assert_equal 'bar', dc.get(:foo)
 
           resp = dc.get('123')
+
           assert_nil resp
 
           assert op_addset_succeeds(dc.set('123', 'xyz'))
 
           resp = dc.get('123')
+
           assert_equal 'xyz', resp
 
           assert op_addset_succeeds(dc.set('123', 'abc'))
@@ -143,20 +150,25 @@ describe 'Network' do
           assert op_addset_succeeds(dc.set('456', 'xyz', 0, raw: true))
 
           resp = dc.prepend '456', '0'
+
           assert resp
 
           resp = dc.append '456', '9'
+
           assert resp
 
           resp = dc.get('456', raw: true)
+
           assert_equal '0xyz9', resp
 
           assert op_addset_succeeds(dc.set('456', false))
 
           resp = dc.get('456')
+
           refute resp
 
           resp = dc.stats
+
           assert_equal Hash, resp.class
 
           dc.close
@@ -166,6 +178,7 @@ describe 'Network' do
       it 'passes a simple smoke test on unix socket' do
         memcached_persistent(:binary, MemcachedMock::UNIX_SOCKET_PATH) do |dc, path|
           resp = dc.flush
+
           refute_nil resp
           assert_equal [true], resp
 
@@ -173,11 +186,13 @@ describe 'Network' do
           assert_equal 'bar', dc.get(:foo)
 
           resp = dc.get('123')
+
           assert_nil resp
 
           assert op_addset_succeeds(dc.set('123', 'xyz'))
 
           resp = dc.get('123')
+
           assert_equal 'xyz', resp
 
           assert op_addset_succeeds(dc.set('123', 'abc'))
@@ -197,20 +212,25 @@ describe 'Network' do
           assert op_addset_succeeds(dc.set('456', 'xyz', 0, raw: true))
 
           resp = dc.prepend '456', '0'
+
           assert resp
 
           resp = dc.append '456', '9'
+
           assert resp
 
           resp = dc.get('456', raw: true)
+
           assert_equal '0xyz9', resp
 
           assert op_addset_succeeds(dc.set('456', false))
 
           resp = dc.get('456')
+
           refute resp
 
           resp = dc.stats
+
           assert_equal Hash, resp.class
 
           dc.close

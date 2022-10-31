@@ -11,6 +11,7 @@ describe 'Quiet behavior' do
           dc.flush
           key = SecureRandom.hex(3)
           value = SecureRandom.hex(3)
+
           refute Thread.current[::Dalli::QUIET]
           dc.quiet do
             assert Thread.current[::Dalli::QUIET]
@@ -18,6 +19,7 @@ describe 'Quiet behavior' do
             # Response should be nil
             assert_nil dc.set(key, value)
           end
+
           refute Thread.current[::Dalli::QUIET]
 
           assert_equal value, dc.get(key)
@@ -33,6 +35,7 @@ describe 'Quiet behavior' do
           oldvalue = SecureRandom.hex(3)
           value = SecureRandom.hex(3)
           dc.set(existing, oldvalue)
+
           refute Thread.current[::Dalli::QUIET]
           dc.quiet do
             assert Thread.current[::Dalli::QUIET]
@@ -43,6 +46,7 @@ describe 'Quiet behavior' do
             # Should handle error case without error or unexpected behavior
             assert_nil dc.add(existing, value)
           end
+
           refute Thread.current[::Dalli::QUIET]
 
           assert_equal value, dc.get(key)
@@ -59,6 +63,7 @@ describe 'Quiet behavior' do
           oldvalue = SecureRandom.hex(3)
           value = SecureRandom.hex(3)
           dc.set(key, oldvalue)
+
           refute Thread.current[::Dalli::QUIET]
           dc.quiet do
             assert Thread.current[::Dalli::QUIET]
@@ -69,6 +74,7 @@ describe 'Quiet behavior' do
             # Should handle error case without error or unexpected behavior
             assert_nil dc.replace(nonexistent, value)
           end
+
           refute Thread.current[::Dalli::QUIET]
 
           assert_equal value, dc.get(key)
@@ -84,6 +90,7 @@ describe 'Quiet behavior' do
           existing = SecureRandom.hex(4)
           value = SecureRandom.hex(3)
           dc.set(existing, value)
+
           refute Thread.current[::Dalli::QUIET]
           dc.quiet do
             assert Thread.current[::Dalli::QUIET]
@@ -94,6 +101,7 @@ describe 'Quiet behavior' do
             # Should handle error case without error or unexpected behavior
             assert_nil dc.delete(key)
           end
+
           refute Thread.current[::Dalli::QUIET]
 
           assert_nil dc.get(existing)
@@ -108,6 +116,7 @@ describe 'Quiet behavior' do
           key = SecureRandom.hex(3)
           value = SecureRandom.hex(3)
           dc.set(key, value, 90, raw: true)
+
           refute Thread.current[::Dalli::QUIET]
           dc.quiet do
             assert Thread.current[::Dalli::QUIET]
@@ -115,6 +124,7 @@ describe 'Quiet behavior' do
             # Response should be nil
             assert_nil dc.append(key, 'abc')
           end
+
           refute Thread.current[::Dalli::QUIET]
 
           assert_equal "#{value}abc", dc.get(key)
@@ -128,6 +138,7 @@ describe 'Quiet behavior' do
           key = SecureRandom.hex(3)
           value = SecureRandom.hex(3)
           dc.set(key, value, 90, raw: true)
+
           refute Thread.current[::Dalli::QUIET]
           dc.quiet do
             assert Thread.current[::Dalli::QUIET]
@@ -135,6 +146,7 @@ describe 'Quiet behavior' do
             # Response should be nil
             assert_nil dc.prepend(key, 'abc')
           end
+
           refute Thread.current[::Dalli::QUIET]
 
           assert_equal "abc#{value}", dc.get(key)
@@ -149,6 +161,7 @@ describe 'Quiet behavior' do
           value = 546
           incr = 134
           dc.set(key, value, 90, raw: true)
+
           refute Thread.current[::Dalli::QUIET]
           dc.quiet do
             assert Thread.current[::Dalli::QUIET]
@@ -156,6 +169,7 @@ describe 'Quiet behavior' do
             # Response should be nil
             assert_nil dc.incr(key, incr)
           end
+
           refute Thread.current[::Dalli::QUIET]
 
           assert_equal 680, dc.get(key).to_i
@@ -170,6 +184,7 @@ describe 'Quiet behavior' do
           value = 546
           incr = 134
           dc.set(key, value, 90, raw: true)
+
           refute Thread.current[::Dalli::QUIET]
           dc.quiet do
             assert Thread.current[::Dalli::QUIET]
@@ -186,15 +201,18 @@ describe 'Quiet behavior' do
         memcached_persistent(p) do |dc|
           dc.close
           dc.flush
+
           refute Thread.current[::Dalli::QUIET]
           dc.quiet do
             assert Thread.current[::Dalli::QUIET]
 
             # Response should be a non-empty array of nils
             arr = dc.flush(90)
+
             assert_equal 2, arr.size
             assert arr.all?(&:nil?)
           end
+
           refute Thread.current[::Dalli::QUIET]
         end
       end
@@ -205,6 +223,7 @@ describe 'Quiet behavior' do
           dc.flush
           dc.set('a', 'av')
           dc.set('b', 'bv')
+
           assert_equal 'av', dc.get('a')
           assert_equal 'bv', dc.get('b')
 
@@ -213,6 +232,7 @@ describe 'Quiet behavior' do
             assert Thread.current[::Dalli::QUIET]
             dc.delete('non_existent_key')
           end
+
           refute Thread.current[::Dalli::QUIET]
           assert_equal 'av', dc.get('a')
           assert_equal 'bv', dc.get('b')
@@ -225,6 +245,7 @@ describe 'Quiet behavior' do
           dc.flush
           dc.set('a', 'av')
           dc.set('b', 'bv')
+
           assert_equal 'av', dc.get('a')
           assert_equal 'bv', dc.get('b')
 
@@ -235,6 +256,7 @@ describe 'Quiet behavior' do
               dc.get('a')
             end
           end
+
           refute Thread.current[::Dalli::QUIET]
         end
       end
@@ -243,6 +265,7 @@ describe 'Quiet behavior' do
         it 'has protocol instances that respond to quiet?' do
           memcached_persistent(p) do |dc|
             s = dc.send(:ring).servers.first
+
             assert_respond_to s, :quiet?
           end
         end
@@ -250,6 +273,7 @@ describe 'Quiet behavior' do
         it 'has protocol instances that respond to multi?' do
           memcached_persistent(p) do |dc|
             s = dc.send(:ring).servers.first
+
             assert_respond_to s, :multi?
           end
         end

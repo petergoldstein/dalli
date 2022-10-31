@@ -90,6 +90,7 @@ describe Dalli::Protocol::ValueMarshaller do
             exception = assert_raises Dalli::ValueOverMaxSize do
               marshaller.store(key, val, req_options)
             end
+
             assert_equal "Value for #{key} over max size: #{1024 * 1024} <= #{compressed_serialized_value.size}",
                          exception.message
           end
@@ -122,6 +123,7 @@ describe Dalli::Protocol::ValueMarshaller do
             exception = assert_raises Dalli::ValueOverMaxSize do
               marshaller.store(key, val, req_options)
             end
+
             assert_equal "Value for #{key} over max size: #{1024 * 1024} <= #{compressed_raw_value.size}",
                          exception.message
           end
@@ -159,6 +161,7 @@ describe Dalli::Protocol::ValueMarshaller do
             exception = assert_raises Dalli::ValueOverMaxSize do
               marshaller.store(key, val, req_options)
             end
+
             assert_equal "Value for #{key} over max size: #{value_max_bytes} <= #{compressed_serialized_value.size}",
                          exception.message
           end
@@ -183,6 +186,7 @@ describe Dalli::Protocol::ValueMarshaller do
             exception = assert_raises Dalli::ValueOverMaxSize do
               marshaller.store(key, val, req_options)
             end
+
             assert_equal "Value for #{key} over max size: #{value_max_bytes} <= #{compressed_raw_value.size}",
                          exception.message
           end

@@ -15,12 +15,14 @@ describe 'memcached admin commands' do
 
             stats = dc.stats
             servers = stats.keys
+
             assert(servers.any? do |s|
               stats[s]['get_hits'].to_i != 0
             end, 'general stats failed')
 
             stats_items = dc.stats(:items)
             servers = stats_items.keys
+
             assert(servers.all? do |s|
               stats_items[s].keys.any? do |key|
                 key =~ /items:[0-9]+:number/
@@ -29,12 +31,14 @@ describe 'memcached admin commands' do
 
             stats_slabs = dc.stats(:slabs)
             servers = stats_slabs.keys
+
             assert(servers.all? do |s|
               stats_slabs[s].keys.any?('active_slabs')
             end, 'stats slabs failed')
 
             # reset_stats test
             results = dc.reset_stats
+
             assert(results.all? { |x| x })
             stats = dc.stats
             servers = stats.keys
@@ -52,6 +56,7 @@ describe 'memcached admin commands' do
           memcached_persistent(p) do |dc|
             v = dc.version
             servers = v.keys
+
             assert(servers.any? do |s|
               !v[s].nil?
             end, 'version failed')

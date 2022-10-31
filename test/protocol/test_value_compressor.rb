@@ -116,6 +116,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -127,6 +128,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -138,6 +140,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -153,6 +156,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -164,6 +168,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -175,6 +180,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -195,6 +201,7 @@ describe Dalli::Protocol::ValueCompressor do
               it 'compresses the argument' do
                 compressor.expect :compress, compressed_dummy, [raw_value]
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, compressed_dummy
                 assert_equal newbitflags, (bitflags | 0x2)
                 compressor.verify
@@ -207,6 +214,7 @@ describe Dalli::Protocol::ValueCompressor do
               it 'compresses the argument' do
                 compressor.expect :compress, compressed_dummy, [raw_value]
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, compressed_dummy
                 assert_equal newbitflags, (bitflags | 0x2)
                 compressor.verify
@@ -218,6 +226,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -233,6 +242,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -245,6 +255,7 @@ describe Dalli::Protocol::ValueCompressor do
               it 'compresses the argument' do
                 compressor.expect :compress, compressed_dummy, [raw_value]
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, compressed_dummy
                 assert_equal newbitflags, (bitflags | 0x2)
                 compressor.verify
@@ -256,6 +267,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -280,6 +292,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -291,6 +304,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -302,6 +316,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -317,6 +332,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -328,6 +344,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -339,6 +356,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -359,6 +377,7 @@ describe Dalli::Protocol::ValueCompressor do
               it 'compresses the argument' do
                 compressor.expect :compress, compressed_dummy, [raw_value]
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, compressed_dummy
                 assert_equal newbitflags, (bitflags | 0x2)
                 compressor.verify
@@ -371,6 +390,7 @@ describe Dalli::Protocol::ValueCompressor do
               it 'compresses the argument' do
                 compressor.expect :compress, compressed_dummy, [raw_value]
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, compressed_dummy
                 assert_equal newbitflags, (bitflags | 0x2)
                 compressor.verify
@@ -382,6 +402,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -397,6 +418,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -409,6 +431,7 @@ describe Dalli::Protocol::ValueCompressor do
               it 'compresses the argument' do
                 compressor.expect :compress, compressed_dummy, [raw_value]
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, compressed_dummy
                 assert_equal newbitflags, (bitflags | 0x2)
                 compressor.verify
@@ -420,6 +443,7 @@ describe Dalli::Protocol::ValueCompressor do
 
               it 'does not compress the argument' do
                 val, newbitflags = vc.store(raw_value, req_options, bitflags)
+
                 assert_equal val, raw_value
                 assert_equal newbitflags, bitflags
                 compressor.verify
@@ -443,6 +467,7 @@ describe Dalli::Protocol::ValueCompressor do
       it 'should return the value without decompressing' do
         bitflags = rand(32)
         bitflags &= 0xFFFD
+
         assert_equal(0, bitflags & 0x2)
         assert_equal vc.retrieve(raw_value, bitflags), raw_value
         compressor.verify
@@ -457,6 +482,7 @@ describe Dalli::Protocol::ValueCompressor do
         compressor.expect :decompress, decompressed_dummy, [raw_value]
         bitflags = rand(32)
         bitflags |= 0x2
+
         assert_equal(0x2, bitflags & 0x2)
         assert_equal vc.retrieve(raw_value, bitflags), decompressed_dummy
         compressor.verify
@@ -472,10 +498,12 @@ describe Dalli::Protocol::ValueCompressor do
         ::Dalli::Compressor.stub :decompress, error do
           bitflags = rand(32)
           bitflags |= 0x2
+
           assert_equal(0x2, bitflags & 0x2)
           exception = assert_raises Dalli::UnmarshalError do
             vc.retrieve(raw_value, bitflags)
           end
+
           assert_equal exception.message, "Unable to uncompress value: #{error_message}"
         end
       end

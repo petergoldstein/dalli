@@ -18,6 +18,7 @@ describe 'failover' do
                   10_000.times do
                     dc.set('test_123', value)
                   end
+
                   flunk("Did not timeout in #{Time.now - start_time}")
                 end
               rescue Timeout::Error
@@ -36,11 +37,13 @@ describe 'failover' do
           memcached_persistent(p, server_port) do |dc, port|
             dc.set 'foo', 'bar'
             foo = dc.get 'foo'
+
             assert_equal('bar', foo)
 
             memcached_kill(port)
             memcached_persistent(p, port) do
               foo = dc.get 'foo'
+
               assert_nil foo
 
               memcached_kill(port)
@@ -58,12 +61,14 @@ describe 'failover' do
               dc.set 'foo', 'bar'
               dc.set 'foo2', 'bar2'
               foo = dc.get_multi 'foo', 'foo2'
+
               assert_equal({ 'foo' => 'bar', 'foo2' => 'bar2' }, foo)
 
               # wait for socket to expire and get cleaned up
               sleep 5
 
               foo = dc.get_multi 'foo', 'foo2'
+
               assert_equal({ 'foo' => 'bar', 'foo2' => 'bar2' }, foo)
             end
           end
@@ -77,12 +82,14 @@ describe 'failover' do
               dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
               dc.set 'foo', 'bar'
               foo = dc.get 'foo'
+
               assert_equal('bar', foo)
 
               memcached_kill(first_port)
 
               dc.set 'foo', 'bar'
               foo = dc.get 'foo'
+
               assert_equal('bar', foo)
 
               memcached_kill(second_port)
@@ -102,11 +109,13 @@ describe 'failover' do
               dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
               dc.set 'a', 'a1'
               result = dc.get_multi ['a']
+
               assert_equal({ 'a' => 'a1' }, result)
 
               memcached_kill(first_port)
 
               result = dc.get_multi ['a']
+
               assert_equal({ 'a' => 'a1' }, result)
             end
           end
@@ -121,6 +130,7 @@ describe 'failover' do
               dc.set 'foo', 'foo1'
               dc.set 'bar', 'bar1'
               result = dc.get_multi %w[foo bar]
+
               assert_equal({ 'foo' => 'foo1', 'bar' => 'bar1' }, result)
 
               memcached_kill(first_port)
@@ -128,11 +138,13 @@ describe 'failover' do
               dc.set 'foo', 'foo1'
               dc.set 'bar', 'bar1'
               result = dc.get_multi %w[foo bar]
+
               assert_equal({ 'foo' => 'foo1', 'bar' => 'bar1' }, result)
 
               memcached_kill(second_port)
 
               result = dc.get_multi %w[foo bar]
+
               assert_empty(result)
             end
           end
@@ -145,6 +157,7 @@ describe 'failover' do
             memcached_persistent(p, port2) do |_second_dc, second_port|
               dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
               result = dc.stats
+
               assert_instance_of Hash, result["localhost:#{first_port}"]
               assert_instance_of Hash, result["localhost:#{second_port}"]
 
@@ -152,6 +165,7 @@ describe 'failover' do
 
               dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
               result = dc.stats
+
               assert_instance_of NilClass, result["localhost:#{first_port}"]
               assert_instance_of Hash, result["localhost:#{second_port}"]
 

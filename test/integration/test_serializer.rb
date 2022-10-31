@@ -9,6 +9,7 @@ describe 'Serializer configuration' do
       it 'defaults to Marshal' do
         memcached(p, 29_198) do |dc|
           dc.set 1, 2
+
           assert_equal Marshal, dc.instance_variable_get(:@ring).servers.first.serializer
         end
       end

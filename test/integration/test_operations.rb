@@ -15,6 +15,7 @@ describe 'operations' do
             val1 = '1234567890' * 999_999
             dc.set('a', val1)
             val2 = dc.get('a')
+
             assert_equal val1, val2
 
             assert op_addset_succeeds(dc.set('a', nil))
@@ -33,6 +34,7 @@ describe 'operations' do
         it 'allows "Not found" as value' do
           memcached_persistent(p) do |dc|
             dc.set('key1', 'Not found')
+
             assert_equal 'Not found', dc.get('key1')
           end
         end
@@ -43,6 +45,7 @@ describe 'operations' do
           memcached_persistent(p) do |dc|
             dc.flush
             dc.set 'key', 'value'
+
             assert_equal 'value', dc.gat('key', 10)
             assert_equal 'value', dc.gat('key')
           end
@@ -51,6 +54,7 @@ describe 'operations' do
         it 'returns nil on a miss' do
           memcached_persistent(p) do |dc|
             dc.flush
+
             assert_nil dc.gat('notexist', 10)
           end
         end
@@ -61,6 +65,7 @@ describe 'operations' do
           memcached_persistent(p) do |dc|
             dc.flush
             dc.set 'key', 'value'
+
             assert dc.touch('key', 10)
             assert dc.touch('key')
             assert_equal 'value', dc.get('key')
@@ -74,6 +79,7 @@ describe 'operations' do
         it 'returns nil on a miss' do
           memcached_persistent(p) do |dc|
             dc.flush
+
             assert_nil dc.touch('notexist')
           end
         end
@@ -84,6 +90,7 @@ describe 'operations' do
           memcached_persistent(p) do |dc|
             dc.flush
             dc.set('key', 'value')
+
             assert op_replace_succeeds(dc.set('key', 'value2'))
 
             assert_equal 'value2', dc.get('key')
@@ -93,6 +100,7 @@ describe 'operations' do
         it 'returns a CAS when no pre-existing value exists' do
           memcached_persistent(p) do |dc|
             dc.flush
+
             assert op_replace_succeeds(dc.set('key', 'value2'))
             assert_equal 'value2', dc.get('key')
           end
@@ -104,6 +112,7 @@ describe 'operations' do
           memcached_persistent(p) do |dc|
             dc.flush
             dc.set('key', 'value')
+
             refute dc.add('key', 'value')
 
             assert_equal 'value', dc.get('key')
@@ -113,6 +122,7 @@ describe 'operations' do
         it 'returns a CAS when no pre-existing value exists' do
           memcached_persistent(p) do |dc|
             dc.flush
+
             assert op_replace_succeeds(dc.add('key', 'value2'))
           end
         end
@@ -123,6 +133,7 @@ describe 'operations' do
           memcached_persistent(p) do |dc|
             dc.flush
             dc.set('key', 'value')
+
             assert op_replace_succeeds(dc.replace('key', 'value2'))
 
             assert_equal 'value2', dc.get('key')
@@ -132,6 +143,7 @@ describe 'operations' do
         it 'returns false when no pre-existing value exists' do
           memcached_persistent(p) do |dc|
             dc.flush
+
             refute dc.replace('key', 'value')
           end
         end
@@ -142,6 +154,7 @@ describe 'operations' do
           memcached_persistent(p) do |dc|
             dc.flush
             dc.set('some_key', 'some_value')
+
             assert_equal 'some_value', dc.get('some_key')
 
             assert dc.delete('some_key')
@@ -166,6 +179,7 @@ describe 'operations' do
             dc.flush
             dc.set('fetch_key', 'Not found')
             res = dc.fetch('fetch_key') { flunk 'fetch block called' }
+
             assert_equal 'Not found', res
           end
         end
@@ -180,6 +194,7 @@ describe 'operations' do
               executed = true
               expected
             end
+
             assert_equal expected, value
             assert executed
 
@@ -188,6 +203,7 @@ describe 'operations' do
               executed = true
               expected
             end
+
             assert_equal expected, value
             refute executed
           end
@@ -199,6 +215,7 @@ describe 'operations' do
 
             dc.set('fetch_key', false)
             res = dc.fetch('fetch_key') { flunk 'fetch block called' }
+
             refute res
           end
         end
@@ -209,6 +226,7 @@ describe 'operations' do
 
             dc.set('fetch_key', nil)
             res = dc.fetch('fetch_key') { flunk 'fetch block called' }
+
             assert_nil res
           end
 
@@ -220,6 +238,7 @@ describe 'operations' do
               executed = true
               'bar'
             end
+
             assert_equal 'bar', res
             assert executed
           end
@@ -245,9 +264,11 @@ describe 'operations' do
             client.flush
 
             resp = client.incr('mycounter', 1)
+
             assert_nil resp
 
             resp = client.decr('mycounter', 1)
+
             assert_nil resp
           end
         end
@@ -257,11 +278,14 @@ describe 'operations' do
             client.flush
 
             resp = client.incr('mycounter', 1, 0, 2)
+
             assert_equal 2, resp
             resp = client.incr('mycounter', 1)
+
             assert_equal 3, resp
 
             resp = client.decr('mycounter', 2)
+
             assert_equal 1, resp
           end
         end
@@ -271,17 +295,21 @@ describe 'operations' do
             dc.flush
 
             resp = dc.decr('counter', 100, 5, 0)
+
             assert_equal 0, resp
 
             resp = dc.decr('counter', 10)
+
             assert_equal 0, resp
 
             resp = dc.incr('counter', 10)
+
             assert_equal 10, resp
 
             current = 10
             100.times do |x|
               resp = dc.incr('counter', 10)
+
               assert_equal current + ((x + 1) * 10), resp
             end
           end
@@ -292,30 +320,39 @@ describe 'operations' do
             dc.flush
 
             resp = dc.decr('10billion', 0, 5, 10)
+
             assert_equal 10, resp
             # go over the 32-bit mark to verify proper (un)packing
             resp = dc.incr('10billion', 10_000_000_000)
+
             assert_equal 10_000_000_010, resp
 
             resp = dc.decr('10billion', 1)
+
             assert_equal 10_000_000_009, resp
 
             resp = dc.decr('10billion', 0)
+
             assert_equal 10_000_000_009, resp
 
             resp = dc.incr('10billion', 0)
+
             assert_equal 10_000_000_009, resp
 
             resp = dc.decr('10billion', 9_999_999_999)
+
             assert_equal 10, resp
 
             resp = dc.incr('big', 100, 5, 0xFFFFFFFFFFFFFFFE)
+
             assert_equal 0xFFFFFFFFFFFFFFFE, resp
             resp = dc.incr('big', 1)
+
             assert_equal 0xFFFFFFFFFFFFFFFF, resp
 
             # rollover the 64-bit value, we'll get something undefined.
             resp = dc.incr('big', 1)
+
             refute_equal 0x10000000000000000, resp
             dc.reset
           end
@@ -326,6 +363,7 @@ describe 'operations' do
         it 'support the append and prepend operations' do
           memcached_persistent(p) do |dc|
             dc.flush
+
             assert op_addset_succeeds(dc.set('456', 'xyz', 0, raw: true))
             assert dc.prepend('456', '0')
             assert dc.append('456', '9')
