@@ -17,9 +17,11 @@ describe 'TTL behavior' do
       it 'supports a TTL on set' do
         memcached_persistent(p) do |dc|
           key = 'foo'
+
           assert dc.set(key, 'bar', 1)
           assert_equal 'bar', dc.get(key)
           sleep 1.2
+
           assert_nil dc.get(key)
         end
       end

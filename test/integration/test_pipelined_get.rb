@@ -10,6 +10,7 @@ describe 'Pipelined Get' do
           dc.close
           dc.flush
           resp = dc.get_multi(%w[a b c d e f])
+
           assert_empty(resp)
 
           dc.set('a', 'foo')
@@ -19,6 +20,7 @@ describe 'Pipelined Get' do
           # Invocation without block
           resp = dc.get_multi(%w[a b c d e f])
           expected_resp = { 'a' => 'foo', 'b' => 123, 'c' => %w[a b c] }
+
           assert_equal(expected_resp, resp)
 
           # Invocation with block
@@ -26,6 +28,7 @@ describe 'Pipelined Get' do
             assert(expected_resp.key?(k) && expected_resp[k] == v)
             expected_resp.delete(k)
           end
+
           assert_empty expected_resp
 
           # Perform a big quiet set with 1000 elements.
@@ -39,6 +42,7 @@ describe 'Pipelined Get' do
 
           # Retrieve the elements with a pipelined get
           result = dc.get_multi(arr)
+
           assert_equal(1000, result.size)
           assert_equal(50, result['50'])
         end
@@ -52,6 +56,7 @@ describe 'Pipelined Get' do
           keys_to_query = ['a', 'b', 'contains space', 'ƒ©åÍÎ']
 
           resp = dc.get_multi(keys_to_query)
+
           assert_empty(resp)
 
           dc.set('a', 'foo')
@@ -61,6 +66,7 @@ describe 'Pipelined Get' do
           # Invocation without block
           resp = dc.get_multi(keys_to_query)
           expected_resp = { 'a' => 'foo', 'contains space' => 123, 'ƒ©åÍÎ' => %w[a b c] }
+
           assert_equal(expected_resp, resp)
 
           # Invocation with block
@@ -68,6 +74,7 @@ describe 'Pipelined Get' do
             assert(expected_resp.key?(k) && expected_resp[k] == v)
             expected_resp.delete(k)
           end
+
           assert_empty expected_resp
         end
       end

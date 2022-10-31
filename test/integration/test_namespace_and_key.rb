@@ -11,6 +11,7 @@ describe 'Namespace and key behavior' do
           dc.set('namespaced', 1)
           dc2 = Dalli::Client.new("localhost:#{port}", namespace: 'b')
           dc2.set('namespaced', 2)
+
           assert_equal 1, dc.get('namespaced')
           assert_equal 2, dc2.get('namespaced')
         end
@@ -20,6 +21,7 @@ describe 'Namespace and key behavior' do
         memcached_persistent(p) do |_, port|
           dc = Dalli::Client.new("localhost:#{port}", namespace: nil)
           dc.set('key', 1)
+
           assert_equal 1, dc.get('key')
         end
       end
@@ -29,6 +31,7 @@ describe 'Namespace and key behavior' do
           dc = Dalli::Client.new("localhost:#{port}", namespace: 'some:namspace')
           key = 'this-cache-key-is-far-too-long-so-it-must-be-hashed-and-truncated-and-stuff' * 10
           value = 'some value'
+
           assert op_addset_succeeds(dc.set(key, value))
           assert_equal value, dc.get(key)
         end
@@ -39,6 +42,7 @@ describe 'Namespace and key behavior' do
           dc = Dalli::Client.new("localhost:#{port}", namespace: 'a')
           dc.set('a', 1)
           dc.set('b', 2)
+
           assert_equal({ 'a' => 1, 'b' => 2 }, dc.get_multi('a', 'b'))
         end
       end
@@ -49,6 +53,7 @@ describe 'Namespace and key behavior' do
           dc = Dalli::Client.new("localhost:#{port}", namespace: '(?!)')
           dc.set('a', 1)
           dc.set('b', 2)
+
           assert_equal({ 'a' => 1, 'b' => 2 }, dc.get_multi('a', 'b'))
         end
       end
@@ -56,10 +61,13 @@ describe 'Namespace and key behavior' do
       it 'allows whitespace characters in keys' do
         memcached_persistent(p) do |dc|
           dc.set "\t", 1
+
           assert_equal 1, dc.get("\t")
           dc.set "\n", 1
+
           assert_equal 1, dc.get("\n")
           dc.set '   ', 1
+
           assert_equal 1, dc.get('   ')
         end
       end
@@ -79,6 +87,7 @@ describe 'Namespace and key behavior' do
         memcached_persistent(p) do |_, port|
           dc = Dalli::Client.new("localhost:#{port}", namespace: :wunderschoen)
           dc.set 'x' * 251, 1
+
           assert_equal(1, dc.get(('x' * 251).to_s))
         end
       end

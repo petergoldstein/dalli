@@ -11,6 +11,7 @@ describe 'concurrent behavior' do
           workers = []
 
           cache.set('f', 'zzz')
+
           assert op_cas_succeeds((cache.cas('f') do |value|
             value << 'z'
           end))
@@ -29,12 +30,15 @@ describe 'concurrent behavior' do
                 res = cache.cas('f') do |value|
                   value << 'z'
                 end
+
                 refute_nil res
                 refute cache.add('a', 11)
                 assert_equal({ 'a' => 9, 'b' => 11 }, cache.get_multi(%w[a b]))
                 inc = cache.incr('cat', 10)
+
                 assert_equal 0, inc % 5
                 cache.decr('cat', 5)
+
                 assert_equal 11, cache.get('b')
 
                 assert_equal %w[a b], cache.get_multi('a', 'b', 'c').keys.sort

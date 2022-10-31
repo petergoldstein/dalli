@@ -112,6 +112,7 @@ describe Dalli::ServersArgNormalizer do
         err = assert_raises ArgumentError do
           subject
         end
+
         assert_equal 'An explicit servers argument must be a comma separated string or an array containing strings.',
                      err.message
       end
@@ -124,6 +125,7 @@ describe Dalli::ServersArgNormalizer do
         err = assert_raises ArgumentError do
           subject
         end
+
         assert_equal 'An explicit servers argument must be a comma separated string or an array containing strings.',
                      err.message
       end

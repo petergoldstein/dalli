@@ -225,16 +225,19 @@ describe Dalli::Protocol::Meta::RequestFormatter do
 
     it 'returns the expected string with a delay argument' do
       delay = rand(1000..1999)
+
       assert_equal "flush_all #{delay}\r\n", Dalli::Protocol::Meta::RequestFormatter.flush(delay: delay)
     end
 
     it 'santizes the delay argument' do
       delay = "\nset importantkey 1 1000 8\ninjected"
+
       assert_equal "flush_all 0\r\n", Dalli::Protocol::Meta::RequestFormatter.flush(delay: delay)
     end
 
     it 'adds noreply with a delay and quiet argument' do
       delay = rand(1000..1999)
+
       assert_equal "flush_all #{delay} noreply\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.flush(delay: delay, quiet: true)
     end

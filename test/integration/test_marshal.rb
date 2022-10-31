@@ -20,6 +20,7 @@ describe 'Serializer configuration' do
       it 'allow large values under the limit to be set' do
         memcached_persistent(p) do |dc|
           value = '0' * 1024 * 1024
+
           assert dc.set('verylarge', value, nil, compress: true)
         end
       end

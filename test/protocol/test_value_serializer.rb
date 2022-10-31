@@ -41,6 +41,7 @@ describe Dalli::Protocol::ValueSerializer do
       it 'serializes the value' do
         serializer.expect :dump, serialized_dummy, [raw_value]
         val, newbitflags = vs.store(raw_value, req_options, bitflags)
+
         assert_equal val, serialized_dummy
         assert_equal newbitflags, (bitflags | 0x1)
         serializer.verify
@@ -53,6 +54,7 @@ describe Dalli::Protocol::ValueSerializer do
       it 'serializes the value' do
         serializer.expect :dump, serialized_dummy, [raw_value]
         val, newbitflags = vs.store(raw_value, req_options, bitflags)
+
         assert_equal val, serialized_dummy
         assert_equal newbitflags, (bitflags | 0x1)
         serializer.verify
@@ -65,6 +67,7 @@ describe Dalli::Protocol::ValueSerializer do
       it 'serializes the value' do
         serializer.expect :dump, serialized_dummy, [raw_value]
         val, newbitflags = vs.store(raw_value, req_options, bitflags)
+
         assert_equal val, serialized_dummy
         assert_equal newbitflags, (bitflags | 0x1)
         serializer.verify
@@ -76,6 +79,7 @@ describe Dalli::Protocol::ValueSerializer do
 
       it 'does not call the serializer and just converts the input value to a string' do
         val, newbitflags = vs.store(raw_value, req_options, bitflags)
+
         assert_equal val, raw_value.to_s
         assert_equal newbitflags, bitflags
         serializer.verify
@@ -93,6 +97,7 @@ describe Dalli::Protocol::ValueSerializer do
           exception = assert_raises Timeout::Error do
             vs.store(raw_value, req_options, bitflags)
           end
+
           assert_equal exception.message, error_message
         end
       end
@@ -109,6 +114,7 @@ describe Dalli::Protocol::ValueSerializer do
           exception = assert_raises Dalli::MarshalError do
             vs.store(raw_value, req_options, bitflags)
           end
+
           assert_equal exception.message, error_message
         end
       end
@@ -125,6 +131,7 @@ describe Dalli::Protocol::ValueSerializer do
           exception = assert_raises Dalli::MarshalError do
             vs.store(raw_value, req_options, bitflags)
           end
+
           assert_equal exception.message, error_message
         end
       end
@@ -142,6 +149,7 @@ describe Dalli::Protocol::ValueSerializer do
       it 'should return the value without deserializing' do
         bitflags = rand(32)
         bitflags &= 0xFFFE
+
         assert_equal(0, bitflags & 0x1)
         assert_equal vs.retrieve(raw_value, bitflags), raw_value
         serializer.verify
@@ -153,6 +161,7 @@ describe Dalli::Protocol::ValueSerializer do
         serializer.expect :load, deserialized_dummy, [raw_value]
         bitflags = rand(32)
         bitflags |= 0x1
+
         assert_equal(0x1, bitflags & 0x1)
         assert_equal vs.retrieve(raw_value, bitflags), deserialized_dummy
         serializer.verify
@@ -171,6 +180,7 @@ describe Dalli::Protocol::ValueSerializer do
             vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
           end
         end
+
         assert_equal exception.message, "Unable to unmarshal value: #{error_message}"
       end
     end
@@ -187,6 +197,7 @@ describe Dalli::Protocol::ValueSerializer do
             vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
           end
         end
+
         assert_equal exception.message, "Unable to unmarshal value: #{error_message}"
       end
     end
@@ -200,6 +211,7 @@ describe Dalli::Protocol::ValueSerializer do
         exception = assert_raises Dalli::UnmarshalError do
           vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
         end
+
         assert_equal exception.message, "Unable to unmarshal value: #{error_message}"
       end
     end
@@ -213,6 +225,7 @@ describe Dalli::Protocol::ValueSerializer do
         exception = assert_raises Dalli::UnmarshalError do
           vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
         end
+
         assert exception.message.start_with?("Unable to unmarshal value: #{error_message}")
       end
     end
@@ -228,6 +241,7 @@ describe Dalli::Protocol::ValueSerializer do
             vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
           end
         end
+
         assert_equal error_message, exception.message
       end
     end
@@ -244,6 +258,7 @@ describe Dalli::Protocol::ValueSerializer do
             vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
           end
         end
+
         assert exception.message.start_with?("Unable to unmarshal value: #{error_message}")
       end
     end
@@ -259,6 +274,7 @@ describe Dalli::Protocol::ValueSerializer do
             vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
           end
         end
+
         assert exception.message.start_with?(error_message)
       end
     end
@@ -272,6 +288,7 @@ describe Dalli::Protocol::ValueSerializer do
         exception = assert_raises Dalli::UnmarshalError do
           vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
         end
+
         assert_equal exception.message, "Unable to unmarshal value: #{error_message}"
       end
     end
@@ -285,6 +302,7 @@ describe Dalli::Protocol::ValueSerializer do
         exception = assert_raises Dalli::UnmarshalError do
           vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
         end
+
         assert_equal exception.message, "Unable to unmarshal value: #{error_message}"
       end
     end
@@ -300,6 +318,7 @@ describe Dalli::Protocol::ValueSerializer do
             vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
           end
         end
+
         assert_equal exception.message, error_message
       end
     end

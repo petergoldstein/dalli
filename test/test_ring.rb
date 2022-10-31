@@ -47,6 +47,7 @@ describe 'Ring' do
         ring = Dalli::Ring.new(servers, Dalli::Protocol::Binary, {})
         memcached(:binary, 19_191) do |mc|
           ring = mc.send(:ring)
+
           assert_equal ring.servers.first.port, ring.server_for_key('test').port
         end
       end
@@ -66,6 +67,7 @@ describe 'Ring' do
         ring = Dalli::Ring.new(servers, Dalli::Protocol::Binary, {})
         memcached(:binary, 19_191) do |mc|
           ring = mc.send(:ring)
+
           assert_equal ring.servers.first.port, ring.server_for_key('test').port
         end
       end
@@ -75,6 +77,7 @@ describe 'Ring' do
       memcached(:binary, 19_997) do
         down_retry_delay = 0.5
         dc = Dalli::Client.new(['localhost:19997', 'localhost:19998'], down_retry_delay: down_retry_delay)
+
         assert_equal 1, dc.stats.values.compact.count
 
         memcached(:binary, 19_998) do

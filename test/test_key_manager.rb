@@ -31,6 +31,7 @@ describe 'KeyManager' do
             err = assert_raises ArgumentError do
               key_manager
             end
+
             assert_equal 'The digest_class object must respond to the hexdigest method', err.message
           end
         end
@@ -113,6 +114,7 @@ describe 'KeyManager' do
           err = assert_raises ArgumentError do
             subject
           end
+
           assert_equal 'key cannot be blank', err.message
         end
       end
@@ -124,6 +126,7 @@ describe 'KeyManager' do
           err = assert_raises ArgumentError do
             subject
           end
+
           assert_equal 'key cannot be blank', err.message
         end
       end
@@ -187,6 +190,7 @@ describe 'KeyManager' do
           err = assert_raises ArgumentError do
             subject
           end
+
           assert_equal 'key cannot be blank', err.message
         end
       end
@@ -198,6 +202,7 @@ describe 'KeyManager' do
           err = assert_raises ArgumentError do
             subject
           end
+
           assert_equal 'key cannot be blank', err.message
         end
       end

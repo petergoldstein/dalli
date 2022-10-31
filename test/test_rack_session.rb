@@ -74,6 +74,7 @@ describe Rack::Session::Dalli do
     }
 
     rsd = Rack::Session::Dalli.new(incrementor, opts)
+
     assert_equal(opts[:namespace], rsd.data.with { |c| c.instance_eval { @options[:namespace] } })
     assert_equal(opts[:compression_min_size], rsd.data.with { |c| c.instance_eval { @options[:compression_min_size] } })
   end
@@ -88,6 +89,7 @@ describe Rack::Session::Dalli do
 
   it 'generates sids without an existing Dalli::Client' do
     rsd = Rack::Session::Dalli.new(incrementor)
+
     assert rsd.send :generate_sid
   end
 
@@ -99,6 +101,7 @@ describe Rack::Session::Dalli do
 
     with_connectionpool do
       rsd = Rack::Session::Dalli.new(incrementor, opts)
+
       assert_equal 10, rsd.data.available
       rsd.data.with do |mc|
         assert_equal(opts[:namespace], mc.instance_eval { @options[:namespace] })
@@ -109,6 +112,7 @@ describe Rack::Session::Dalli do
   it 'creates a new cookie' do
     rsd = Rack::Session::Dalli.new(incrementor)
     res = Rack::MockRequest.new(rsd).get('/')
+
     assert_includes res['Set-Cookie'], "#{session_key}="
     assert_equal '{"counter"=>1}', res.body
   end
@@ -118,6 +122,7 @@ describe Rack::Session::Dalli do
     req = Rack::MockRequest.new(rsd)
     res = req.get('/')
     cookie = res['Set-Cookie']
+
     assert_equal '{"counter"=>2}', req.get('/', 'HTTP_COOKIE' => cookie).body
     assert_equal '{"counter"=>3}', req.get('/', 'HTTP_COOKIE' => cookie).body
   end
@@ -127,6 +132,7 @@ describe Rack::Session::Dalli do
     req = Rack::MockRequest.new(rsd)
     res = req.get('/')
     sid = res['Set-Cookie'][session_match, 1]
+
     assert_equal '{"counter"=>1}', req.get("/?rack.session=#{sid}").body
     assert_equal '{"counter"=>1}', req.get("/?rack.session=#{sid}").body
   end
@@ -136,6 +142,7 @@ describe Rack::Session::Dalli do
     req = Rack::MockRequest.new(rsd)
     res = req.get('/')
     sid = res['Set-Cookie'][session_match, 1]
+
     assert_equal '{"counter"=>2}', req.get("/?rack.session=#{sid}").body
     assert_equal '{"counter"=>3}', req.get("/?rack.session=#{sid}").body
   end
@@ -145,8 +152,10 @@ describe Rack::Session::Dalli do
     rsd = Rack::Session::Dalli.new(incrementor)
     res = Rack::MockRequest.new(rsd)
                            .get('/', 'HTTP_COOKIE' => bad_cookie)
+
     assert_equal '{"counter"=>1}', res.body
     cookie = res['Set-Cookie'][session_match]
+
     refute_match(/#{bad_cookie}/, cookie)
   end
 
@@ -156,17 +165,20 @@ describe Rack::Session::Dalli do
     res = Rack::MockRequest.new(rsd)
                            .get('/', 'HTTP_COOKIE' => bad_cookie)
     cookie = res['Set-Cookie'][session_match]
+
     refute_match(/#{bad_cookie}$/, cookie)
   end
 
   it 'sets an expiration on new sessions' do
     rsd = Rack::Session::Dalli.new(incrementor, expire_after: 3)
     res = Rack::MockRequest.new(rsd).get('/')
+
     assert_includes res.body, '"counter"=>1'
     cookie = res['Set-Cookie']
     puts 'Sleeping to expire session' if $DEBUG
     sleep 4
     res = Rack::MockRequest.new(rsd).get('/', 'HTTP_COOKIE' => cookie)
+
     refute_equal cookie, res['Set-Cookie']
     assert_includes res.body, '"counter"=>1'
   end
@@ -174,14 +186,17 @@ describe Rack::Session::Dalli do
   it 'maintains freshness of existing sessions' do
     rsd = Rack::Session::Dalli.new(incrementor, expire_after: 3)
     res = Rack::MockRequest.new(rsd).get('/')
+
     assert_includes res.body, '"counter"=>1'
     cookie = res['Set-Cookie']
     res = Rack::MockRequest.new(rsd).get('/', 'HTTP_COOKIE' => cookie)
+
     assert_equal cookie, res['Set-Cookie']
     assert_includes res.body, '"counter"=>2'
     puts 'Sleeping to expire session' if $DEBUG
     sleep 4
     res = Rack::MockRequest.new(rsd).get('/', 'HTTP_COOKIE' => cookie)
+
     refute_equal cookie, res['Set-Cookie']
     assert_includes res.body, '"counter"=>1'
   end
@@ -192,13 +207,16 @@ describe Rack::Session::Dalli do
 
     res0 = req.get('/')
     cookie = res0['Set-Cookie'][session_match]
+
     assert_equal '{"counter"=>1}', res0.body
 
     res1 = req.get('/', 'HTTP_COOKIE' => cookie)
+
     assert_nil res1['Set-Cookie']
     assert_equal '{"counter"=>2}', res1.body
 
     res2 = req.get('/', 'HTTP_COOKIE' => cookie)
+
     assert_nil res2['Set-Cookie']
     assert_equal '{"counter"=>3}', res2.body
   end
@@ -211,13 +229,16 @@ describe Rack::Session::Dalli do
 
     res1 = req.get('/')
     session = (cookie = res1['Set-Cookie'])[session_match]
+
     assert_equal '{"counter"=>1}', res1.body
 
     res2 = dreq.get('/', 'HTTP_COOKIE' => cookie)
+
     assert_nil res2['Set-Cookie']
     assert_equal '{"counter"=>2}', res2.body
 
     res3 = req.get('/', 'HTTP_COOKIE' => cookie)
+
     refute_equal session, res3['Set-Cookie'][session_match]
     assert_equal '{"counter"=>1}', res3.body
   end
@@ -230,19 +251,23 @@ describe Rack::Session::Dalli do
 
     res1 = req.get('/')
     session = (cookie = res1['Set-Cookie'])[session_match]
+
     assert_equal '{"counter"=>1}', res1.body
 
     res2 = rreq.get('/', 'HTTP_COOKIE' => cookie)
     new_cookie = res2['Set-Cookie']
     new_session = new_cookie[session_match]
+
     refute_equal session, new_session
     assert_equal '{"counter"=>2}', res2.body
 
     res3 = req.get('/', 'HTTP_COOKIE' => new_cookie)
+
     assert_equal '{"counter"=>3}', res3.body
 
     # Old cookie was deleted
     res4 = req.get('/', 'HTTP_COOKIE' => cookie)
+
     assert_equal '{"counter"=>1}', res4.body
   end
 
@@ -254,13 +279,16 @@ describe Rack::Session::Dalli do
     creq = Rack::MockRequest.new(count)
 
     res0 = dreq.get('/')
+
     assert_nil res0['Set-Cookie']
     assert_equal '{"counter"=>1}', res0.body
 
     res0 = creq.get('/')
     res1 = dreq.get('/', 'HTTP_COOKIE' => res0['Set-Cookie'])
+
     assert_equal '{"counter"=>2}', res1.body
     res2 = dreq.get('/', 'HTTP_COOKIE' => res0['Set-Cookie'])
+
     assert_equal '{"counter"=>3}', res2.body
   end
 
@@ -272,13 +300,16 @@ describe Rack::Session::Dalli do
     creq = Rack::MockRequest.new(count)
 
     res0 = sreq.get('/')
+
     assert_nil res0['Set-Cookie']
     assert_equal '{"counter"=>1}', res0.body
 
     res0 = creq.get('/')
     res1 = sreq.get('/', 'HTTP_COOKIE' => res0['Set-Cookie'])
+
     assert_equal '{"counter"=>2}', res1.body
     res2 = sreq.get('/', 'HTTP_COOKIE' => res0['Set-Cookie'])
+
     assert_equal '{"counter"=>2}', res2.body
   end
 
@@ -299,11 +330,13 @@ describe Rack::Session::Dalli do
     res0 = req.get('/')
     cookie = res0['Set-Cookie']
     ses0 = JSON.parse(res0.body)
+
     refute_nil ses0
     assert_equal '{"a"=>"b", "c"=>{"d"=>"e"}, "f"=>{"g"=>{"h"=>"i"}}, "test"=>true}', ses0.to_s
 
     res1 = req.get('/', 'HTTP_COOKIE' => cookie)
     ses1 = JSON.parse(res1.body)
+
     refute_nil ses1
     assert_equal '{"a"=>"b", "c"=>{"d"=>"e"}, "f"=>{"g"=>{"h"=>"j"}}, "test"=>true}', ses1.to_s
 

@@ -19,6 +19,7 @@ describe 'Compressor' do
       it 'default to Dalli::Compressor' do
         memcached(p, 29_199) do |dc|
           dc.set 1, 2
+
           assert_equal Dalli::Compressor, dc.instance_variable_get(:@ring).servers.first.compressor
         end
       end
@@ -44,6 +45,7 @@ describe 'Compressor' do
           memcached(p, 19_127) do |_dc|
             memcache = Dalli::Client.new('127.0.0.1:19127', { compress: true, compressor: Dalli::GzipCompressor })
             data = (0...1025).map { rand(65..90).chr }.join
+
             assert memcache.set('test', data)
             assert_equal(data, memcache.get('test'))
             assert_equal Dalli::GzipCompressor, memcache.instance_variable_get(:@ring).servers.first.compressor

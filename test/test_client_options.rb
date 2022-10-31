@@ -14,18 +14,21 @@ describe 'Dalli client options' do
       dc = Dalli::Client.new
       ring = dc.send(:ring)
       s1 = ring.servers.first.hostname
+
       assert_equal 1, ring.servers.size
       dc.close
 
       dc = Dalli::Client.new('localhost:11211')
       ring = dc.send(:ring)
       s2 = ring.servers.first.hostname
+
       assert_equal 1, ring.servers.size
       dc.close
 
       dc = Dalli::Client.new(['localhost:11211'])
       ring = dc.send(:ring)
       s3 = ring.servers.first.hostname
+
       assert_equal 1, ring.servers.size
       dc.close
 
@@ -36,8 +39,10 @@ describe 'Dalli client options' do
     it 'accept comma separated string' do
       dc = Dalli::Client.new('server1.example.com:11211,server2.example.com:11211')
       ring = dc.send(:ring)
+
       assert_equal 2, ring.servers.size
       s1, s2 = ring.servers.map(&:hostname)
+
       assert_equal 'server1.example.com', s1
       assert_equal 'server2.example.com', s2
     end
@@ -45,8 +50,10 @@ describe 'Dalli client options' do
     it 'accept array of servers' do
       dc = Dalli::Client.new(['server1.example.com:11211', 'server2.example.com:11211'])
       ring = dc.send(:ring)
+
       assert_equal 2, ring.servers.size
       s1, s2 = ring.servers.map(&:hostname)
+
       assert_equal 'server1.example.com', s1
       assert_equal 'server2.example.com', s2
     end

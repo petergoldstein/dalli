@@ -20,6 +20,7 @@ describe 'Encoding' do
           utf_key = utf8 = 'ƒ©åÍÎ'
 
           dc.set(utf_key, utf8)
+
           assert_equal utf8, dc.get(utf_key)
         end
       end

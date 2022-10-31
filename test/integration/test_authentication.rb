@@ -12,6 +12,7 @@ describe 'authentication' do
           dc.set('key1', 'abcd')
         end
       end
+
       assert_equal 'Authentication not supported for the meta protocol.', err.message
     end
   end
