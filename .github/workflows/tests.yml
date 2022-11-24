@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     strategy:
       fail-fast: false
@@ -16,7 +16,7 @@ jobs:
           - '2.7'
           - '2.6'
           - jruby-9.3
-        memcached-version: ['1.5.22', '1.6.15']
+        memcached-version: ['1.5.22', '1.6.17']
 
     steps:
     - uses: actions/checkout@v3
