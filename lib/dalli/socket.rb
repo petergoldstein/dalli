@@ -13,7 +13,7 @@ module Dalli
     ##
     module InstanceMethods
       def readfull(count)
-        value = +''
+        value = String.new(capacity: count + 1)
         loop do
           result = read_nonblock(count - value.bytesize, exception: false)
           value << result if append_to_buffer?(result)
