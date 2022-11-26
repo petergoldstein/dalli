@@ -4,6 +4,8 @@ Dalli Changelog
 Unreleased
 ==========
 
+- Preallocate the read buffer in Socket#readfull (casperisfine)
+
 3.2.3
 ==========
 
