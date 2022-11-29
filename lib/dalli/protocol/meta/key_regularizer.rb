@@ -23,7 +23,7 @@ module Dalli
         def self.decode(encoded_key, base64_encoded)
           return encoded_key unless base64_encoded
 
-          Base64.strict_decode64(encoded_key).force_encoding('UTF-8')
+          Base64.strict_decode64(encoded_key).force_encoding(Encoding::UTF_8)
         end
       end
     end
