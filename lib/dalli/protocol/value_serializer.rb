@@ -19,6 +19,17 @@ module Dalli
       # Looks like most clients use bit 0 to indicate native language serialization
       FLAG_SERIALIZED = 0x1
 
+      ENCODING_FLAGS = {
+        Encoding::UTF_8 => 0x4,
+        Encoding::US_ASCII => 0x8,
+        Encoding::BINARY => 0x0,
+      }.freeze
+      ENCODING_INDEX = {
+        0x4 => Encoding::UTF_8,
+        0x8 => Encoding::US_ASCII,
+      }.freeze
+      ENCODING_MASK = ENCODING_FLAGS.values.inject(:|)
+
       attr_accessor :serialization_options
 
       def initialize(protocol_options)
@@ -27,8 +38,15 @@ module Dalli
       end
 
       def store(value, req_options, bitflags)
-        do_serialize = !(req_options && req_options[:raw])
+        if do_serialize = !(req_options && req_options[:raw])
+          # We compare value.class to make sure not to match String subclasses
+          if String == value.class && encoding_flag = ENCODING_FLAGS[value.encoding]
+            do_serialize = false
+          end
+        end
+
         store_value = do_serialize ? serialize_value(value) : value.to_s
+        bitflags |= encoding_flag if encoding_flag
         bitflags |= FLAG_SERIALIZED if do_serialize
         [store_value, bitflags]
       end
@@ -44,7 +62,11 @@ module Dalli
 
       def retrieve(value, bitflags)
         serialized = (bitflags & FLAG_SERIALIZED) != 0
-        serialized ? serializer.load(value) : value
+        payload = serialized ? serializer.load(value) : value
+        if encoding = ENCODING_INDEX[bitflags & ENCODING_MASK]
+          payload.force_encoding(encoding)
+        end
+        payload
       rescue TypeError => e
         filter_type_error(e)
       rescue ArgumentError => e
