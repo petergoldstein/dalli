@@ -79,6 +79,27 @@ describe 'Pipelined Get' do
         end
       end
 
+      it 'does not block for a large number of existing keys' do
+        memcached_persistent(p) do |dc|
+          dc.close
+          dc.flush
+
+          key_count = 200_000
+          range = 0...key_count
+          dc.quiet do
+            range.each { |i| dc.set(i, "foobar_#{i}") }
+          end
+
+          Timeout.timeout 60 do
+            resp = dc.get_multi(range.to_a)
+
+            assert_equal key_count, resp.count
+          end
+        rescue Timeout::Error
+          flunk "timed out while getting #{key_count} keys with get_multi"
+        end
+      end
+
       describe 'pipeline_next_responses' do
         it 'raises NetworkError when called before pipeline_response_setup' do
           memcached_persistent(p) do |dc|

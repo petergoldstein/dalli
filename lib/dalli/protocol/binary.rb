@@ -163,6 +163,10 @@ module Dalli
         write(req)
       end
 
+      def request_header_size
+        24
+      end
+
       require_relative 'binary/request_formatter'
       require_relative 'binary/response_header'
       require_relative 'binary/response_processor'
