@@ -11,7 +11,7 @@ describe Dalli::Protocol::ValueSerializer do
         let(:options) { {} }
 
         it 'defaults to Marshal' do
-          assert_equal subject.serializer, ::Marshal
+          assert_equal subject.serializer, Marshal
         end
       end
 
