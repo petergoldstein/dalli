@@ -31,8 +31,8 @@ describe Dalli::Protocol::ValueMarshaller do
     let(:client_options) { {} }
     let(:val) { SecureRandom.hex(4096) }
     let(:serialized_value) { Marshal.dump(val) }
-    let(:compressed_serialized_value) { ::Dalli::Compressor.compress(serialized_value) }
-    let(:compressed_raw_value) { ::Dalli::Compressor.compress(val) }
+    let(:compressed_serialized_value) { Dalli::Compressor.compress(serialized_value) }
+    let(:compressed_raw_value) { Dalli::Compressor.compress(val) }
     let(:key) { SecureRandom.hex(5) }
 
     describe 'when the bytesize is under value_max_bytes' do
@@ -207,8 +207,8 @@ describe Dalli::Protocol::ValueMarshaller do
     let(:marshaller) { Dalli::Protocol::ValueMarshaller.new({}) }
     let(:val) { SecureRandom.hex(4096) }
     let(:serialized_value) { Marshal.dump(val) }
-    let(:compressed_serialized_value) { ::Dalli::Compressor.compress(serialized_value) }
-    let(:compressed_raw_value) { ::Dalli::Compressor.compress(val) }
+    let(:compressed_serialized_value) { Dalli::Compressor.compress(serialized_value) }
+    let(:compressed_raw_value) { Dalli::Compressor.compress(val) }
 
     it 'retrieves the value when the flags indicate the value is both compressed and serialized' do
       assert_equal val, marshaller.retrieve(compressed_serialized_value, 0x3)

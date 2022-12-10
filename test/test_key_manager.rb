@@ -11,16 +11,16 @@ describe 'KeyManager' do
         let(:options) { {} }
 
         it 'uses Digest::MD5 as a default' do
-          assert_equal ::Digest::MD5, key_manager.digest_class
+          assert_equal Digest::MD5, key_manager.digest_class
         end
       end
 
       describe 'when there is an explicit digest_class parameter provided' do
         describe 'and the class implements hexdigest' do
-          let(:options) { { digest_class: ::Digest::SHA2 } }
+          let(:options) { { digest_class: Digest::SHA2 } }
 
           it 'uses the specified argument' do
-            assert_equal ::Digest::SHA2, key_manager.digest_class
+            assert_equal Digest::SHA2, key_manager.digest_class
           end
         end
 
@@ -104,7 +104,7 @@ describe 'KeyManager' do
     subject { key_manager.validate_key(key) }
 
     describe 'when there is no namespace' do
-      let(:key_manager) { ::Dalli::KeyManager.new(options) }
+      let(:key_manager) { Dalli::KeyManager.new(options) }
       let(:options) { {} }
 
       describe 'when the key is nil' do
@@ -157,7 +157,7 @@ describe 'KeyManager' do
         let(:key) { Array.new(keylen) { alphanum.sample }.join }
 
         describe 'when there is no digest_class parameter' do
-          let(:truncated_key) { "#{key[0, 212]}:md5:#{::Digest::MD5.hexdigest(key)}" }
+          let(:truncated_key) { "#{key[0, 212]}:md5:#{Digest::MD5.hexdigest(key)}" }
 
           it 'returns the truncated key' do
             assert_equal 249, subject.length
@@ -166,8 +166,8 @@ describe 'KeyManager' do
         end
 
         describe 'when there is a custom digest_class parameter' do
-          let(:options) { { digest_class: ::Digest::SHA2 } }
-          let(:truncated_key) { "#{key[0, 180]}:md5:#{::Digest::SHA2.hexdigest(key)}" }
+          let(:options) { { digest_class: Digest::SHA2 } }
+          let(:truncated_key) { "#{key[0, 180]}:md5:#{Digest::SHA2.hexdigest(key)}" }
 
           it 'returns the truncated key' do
             assert_equal 249, subject.length
@@ -178,7 +178,7 @@ describe 'KeyManager' do
     end
 
     describe 'when there is a namespace' do
-      let(:key_manager) { ::Dalli::KeyManager.new(options) }
+      let(:key_manager) { Dalli::KeyManager.new(options) }
       let(:half_namespace_len) { rand(1..5) }
       let(:namespace_as_s) { SecureRandom.hex(half_namespace_len) }
       let(:options) { { namespace: namespace_as_s } }
@@ -235,7 +235,7 @@ describe 'KeyManager' do
         describe 'when there is no digest_class parameter' do
           let(:key_prefix) { key[0, 212 - (2 * half_namespace_len)] }
           let(:truncated_key) do
-            "#{namespace_as_s}:#{key_prefix}:md5:#{::Digest::MD5.hexdigest("#{namespace_as_s}:#{key}")}"
+            "#{namespace_as_s}:#{key_prefix}:md5:#{Digest::MD5.hexdigest("#{namespace_as_s}:#{key}")}"
           end
 
           it 'returns the truncated key' do
@@ -245,10 +245,10 @@ describe 'KeyManager' do
         end
 
         describe 'when there is a custom digest_class parameter' do
-          let(:options) { { digest_class: ::Digest::SHA2, namespace: namespace_as_s } }
+          let(:options) { { digest_class: Digest::SHA2, namespace: namespace_as_s } }
           let(:key_prefix) { key[0, 180 - (2 * half_namespace_len)] }
           let(:truncated_key) do
-            "#{namespace_as_s}:#{key_prefix}:md5:#{::Digest::SHA2.hexdigest("#{namespace_as_s}:#{key}")}"
+            "#{namespace_as_s}:#{key_prefix}:md5:#{Digest::SHA2.hexdigest("#{namespace_as_s}:#{key}")}"
           end
 
           it 'returns the truncated key' do
@@ -262,7 +262,7 @@ describe 'KeyManager' do
 
   describe 'key_with_namespace' do
     let(:raw_key) { SecureRandom.hex(10) }
-    let(:key_manager) { ::Dalli::KeyManager.new(options) }
+    let(:key_manager) { Dalli::KeyManager.new(options) }
     subject { key_manager.key_with_namespace(raw_key) }
 
     describe 'without namespace' do
@@ -284,7 +284,7 @@ describe 'KeyManager' do
   end
 
   describe 'key_without_namespace' do
-    let(:key_manager) { ::Dalli::KeyManager.new(options) }
+    let(:key_manager) { Dalli::KeyManager.new(options) }
     subject { key_manager.key_without_namespace(raw_key) }
 
     describe 'without namespace' do

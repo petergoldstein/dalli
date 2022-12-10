@@ -12,15 +12,15 @@ describe 'Quiet behavior' do
           key = SecureRandom.hex(3)
           value = SecureRandom.hex(3)
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
           dc.quiet do
-            assert Thread.current[::Dalli::QUIET]
+            assert Thread.current[Dalli::QUIET]
 
             # Response should be nil
             assert_nil dc.set(key, value)
           end
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
 
           assert_equal value, dc.get(key)
         end
@@ -36,9 +36,9 @@ describe 'Quiet behavior' do
           value = SecureRandom.hex(3)
           dc.set(existing, oldvalue)
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
           dc.quiet do
-            assert Thread.current[::Dalli::QUIET]
+            assert Thread.current[Dalli::QUIET]
 
             # Response should be nil
             assert_nil dc.add(key, value)
@@ -47,7 +47,7 @@ describe 'Quiet behavior' do
             assert_nil dc.add(existing, value)
           end
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
 
           assert_equal value, dc.get(key)
           assert_equal oldvalue, dc.get(existing)
@@ -64,9 +64,9 @@ describe 'Quiet behavior' do
           value = SecureRandom.hex(3)
           dc.set(key, oldvalue)
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
           dc.quiet do
-            assert Thread.current[::Dalli::QUIET]
+            assert Thread.current[Dalli::QUIET]
 
             # Response should be nil
             assert_nil dc.replace(key, value)
@@ -75,7 +75,7 @@ describe 'Quiet behavior' do
             assert_nil dc.replace(nonexistent, value)
           end
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
 
           assert_equal value, dc.get(key)
           assert_nil dc.get(nonexistent)
@@ -91,9 +91,9 @@ describe 'Quiet behavior' do
           value = SecureRandom.hex(3)
           dc.set(existing, value)
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
           dc.quiet do
-            assert Thread.current[::Dalli::QUIET]
+            assert Thread.current[Dalli::QUIET]
 
             # Response should be nil
             assert_nil dc.delete(existing)
@@ -102,7 +102,7 @@ describe 'Quiet behavior' do
             assert_nil dc.delete(key)
           end
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
 
           assert_nil dc.get(existing)
           assert_nil dc.get(key)
@@ -117,15 +117,15 @@ describe 'Quiet behavior' do
           value = SecureRandom.hex(3)
           dc.set(key, value, 90, raw: true)
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
           dc.quiet do
-            assert Thread.current[::Dalli::QUIET]
+            assert Thread.current[Dalli::QUIET]
 
             # Response should be nil
             assert_nil dc.append(key, 'abc')
           end
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
 
           assert_equal "#{value}abc", dc.get(key)
         end
@@ -139,15 +139,15 @@ describe 'Quiet behavior' do
           value = SecureRandom.hex(3)
           dc.set(key, value, 90, raw: true)
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
           dc.quiet do
-            assert Thread.current[::Dalli::QUIET]
+            assert Thread.current[Dalli::QUIET]
 
             # Response should be nil
             assert_nil dc.prepend(key, 'abc')
           end
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
 
           assert_equal "abc#{value}", dc.get(key)
         end
@@ -162,15 +162,15 @@ describe 'Quiet behavior' do
           incr = 134
           dc.set(key, value, 90, raw: true)
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
           dc.quiet do
-            assert Thread.current[::Dalli::QUIET]
+            assert Thread.current[Dalli::QUIET]
 
             # Response should be nil
             assert_nil dc.incr(key, incr)
           end
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
 
           assert_equal 680, dc.get(key).to_i
         end
@@ -185,9 +185,9 @@ describe 'Quiet behavior' do
           incr = 134
           dc.set(key, value, 90, raw: true)
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
           dc.quiet do
-            assert Thread.current[::Dalli::QUIET]
+            assert Thread.current[Dalli::QUIET]
 
             # Response should be nil
             assert_nil dc.decr(key, incr)
@@ -202,9 +202,9 @@ describe 'Quiet behavior' do
           dc.close
           dc.flush
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
           dc.quiet do
-            assert Thread.current[::Dalli::QUIET]
+            assert Thread.current[Dalli::QUIET]
 
             # Response should be a non-empty array of nils
             arr = dc.flush(90)
@@ -213,7 +213,7 @@ describe 'Quiet behavior' do
             assert arr.all?(&:nil?)
           end
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
         end
       end
 
@@ -227,13 +227,13 @@ describe 'Quiet behavior' do
           assert_equal 'av', dc.get('a')
           assert_equal 'bv', dc.get('b')
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
           dc.multi do
-            assert Thread.current[::Dalli::QUIET]
+            assert Thread.current[Dalli::QUIET]
             dc.delete('non_existent_key')
           end
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
           assert_equal 'av', dc.get('a')
           assert_equal 'bv', dc.get('b')
         end
@@ -249,15 +249,15 @@ describe 'Quiet behavior' do
           assert_equal 'av', dc.get('a')
           assert_equal 'bv', dc.get('b')
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
           dc.multi do
-            assert Thread.current[::Dalli::QUIET]
+            assert Thread.current[Dalli::QUIET]
             assert_raises Dalli::NotPermittedMultiOpError do
               dc.get('a')
             end
           end
 
-          refute Thread.current[::Dalli::QUIET]
+          refute Thread.current[Dalli::QUIET]
         end
       end
 

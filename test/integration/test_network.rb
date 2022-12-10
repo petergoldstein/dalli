@@ -145,7 +145,7 @@ describe 'Network' do
           dc.close
           dc = nil
 
-          dc = Dalli::Client.new("localhost:#{port}", digest_class: ::OpenSSL::Digest::SHA1)
+          dc = Dalli::Client.new("localhost:#{port}", digest_class: OpenSSL::Digest::SHA1)
 
           assert op_addset_succeeds(dc.set('456', 'xyz', 0, raw: true))
 

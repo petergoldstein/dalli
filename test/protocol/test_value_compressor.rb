@@ -61,7 +61,7 @@ describe Dalli::Protocol::ValueCompressor do
         let(:options) { {} }
 
         it 'defaults to Dalli::Compressor' do
-          assert_equal subject.compressor, ::Dalli::Compressor
+          assert_equal subject.compressor, Dalli::Compressor
         end
       end
 
@@ -495,7 +495,7 @@ describe Dalli::Protocol::ValueCompressor do
 
       it 'translates that into a UnmarshalError' do
         error = ->(_arg) { raise Zlib::Error, error_message }
-        ::Dalli::Compressor.stub :decompress, error do
+        Dalli::Compressor.stub :decompress, error do
           bitflags = rand(32)
           bitflags |= 0x2
 
