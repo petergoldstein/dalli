@@ -109,7 +109,7 @@ module Dalli
         end
 
         def self.as_8byte_uint(val)
-          [val >> 32, 0xFFFFFFFF & val]
+          [val >> 32, val & 0xFFFFFFFF]
         end
       end
     end
