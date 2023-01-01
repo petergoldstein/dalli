@@ -217,7 +217,7 @@ describe 'KeyManager' do
       end
 
       describe 'when the key with namespace is shorter than 250 characters' do
-        let(:keylen) { rand(250 - (2 * half_namespace_len)) + 1 }
+        let(:keylen) { rand(250 - (half_namespace_len * 2)) + 1 }
         let(:alphanum) { [('a'..'z').to_a, ('A'..'Z').to_a, ('0'..'9').to_a].flatten }
         let(:key) { Array.new(keylen) { alphanum.sample }.join }
 
@@ -228,12 +228,12 @@ describe 'KeyManager' do
       end
 
       describe 'when the key with namespace is longer than 250 characters' do
-        let(:keylen) { rand(251..500) - (2 * half_namespace_len) }
+        let(:keylen) { rand(251..500) - (half_namespace_len * 2) }
         let(:alphanum) { [('a'..'z').to_a, ('A'..'Z').to_a, ('0'..'9').to_a].flatten }
         let(:key) { Array.new(keylen) { alphanum.sample }.join }
 
         describe 'when there is no digest_class parameter' do
-          let(:key_prefix) { key[0, 212 - (2 * half_namespace_len)] }
+          let(:key_prefix) { key[0, 212 - (half_namespace_len * 2)] }
           let(:truncated_key) do
             "#{namespace_as_s}:#{key_prefix}:md5:#{Digest::MD5.hexdigest("#{namespace_as_s}:#{key}")}"
           end
@@ -246,7 +246,7 @@ describe 'KeyManager' do
 
         describe 'when there is a custom digest_class parameter' do
           let(:options) { { digest_class: Digest::SHA2, namespace: namespace_as_s } }
-          let(:key_prefix) { key[0, 180 - (2 * half_namespace_len)] }
+          let(:key_prefix) { key[0, 180 - (half_namespace_len * 2)] }
           let(:truncated_key) do
             "#{namespace_as_s}:#{key_prefix}:md5:#{Digest::SHA2.hexdigest("#{namespace_as_s}:#{key}")}"
           end
