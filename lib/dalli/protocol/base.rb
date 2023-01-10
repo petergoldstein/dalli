@@ -197,8 +197,6 @@ module Dalli
         authenticate_connection if require_auth?
         @version = version # Connect socket if not authed
         up!
-      rescue Dalli::DalliError
-        raise
       end
 
       def pipelined_get(keys)
