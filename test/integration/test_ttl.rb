@@ -7,6 +7,7 @@ describe 'TTL behavior' do
     describe "using the #{p} protocol" do
       it 'raises error with invalid client level expires_in' do
         bad_data = [{ bad: 'expires in data' }, Hash, [1, 2, 3]]
+
         bad_data.each do |bad|
           assert_raises ArgumentError do
             Dalli::Client.new('foo', { expires_in: bad })
