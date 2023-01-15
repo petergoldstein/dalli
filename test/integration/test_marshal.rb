@@ -9,6 +9,7 @@ describe 'Serializer configuration' do
       it 'does not allow values over the 1MB limit' do
         memcached_persistent(p) do |dc|
           value = SecureRandom.random_bytes((1024 * 1024) + 30_000)
+
           with_nil_logger do
             assert_raises Dalli::ValueOverMaxSize do
               dc.set('verylarge', value)
