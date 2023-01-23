@@ -86,7 +86,7 @@ module Dalli
           touch: TTL_AND_KEY,
           gat: TTL_AND_KEY
         }.freeze
-        FORMAT = BODY_FORMATS.transform_values { |v| REQ_HEADER_FORMAT + v; }
+        FORMAT = BODY_FORMATS.transform_values { |v| REQ_HEADER_FORMAT + v }
 
         # rubocop:disable Metrics/ParameterLists
         def self.standard_request(opkey:, key: nil, value: nil, opaque: 0, cas: 0, bitflags: nil, ttl: nil)

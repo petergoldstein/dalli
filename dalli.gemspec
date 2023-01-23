@@ -19,15 +19,6 @@ Gem::Specification.new do |s|
   s.homepage = 'https://github.com/petergoldstein/dalli'
   s.required_ruby_version = '>= 2.6'
 
-  s.add_development_dependency 'connection_pool'
-  s.add_development_dependency 'minitest', '~> 5'
-  s.add_development_dependency 'rack', '~> 2.0', '>= 2.2.0'
-  s.add_development_dependency 'rake', '~> 13.0'
-  s.add_development_dependency 'rubocop'
-  s.add_development_dependency 'rubocop-minitest'
-  s.add_development_dependency 'rubocop-performance'
-  s.add_development_dependency 'rubocop-rake'
-  s.add_development_dependency 'simplecov'
   s.metadata = {
     'rubygems_mfa_required' => 'true'
   }
