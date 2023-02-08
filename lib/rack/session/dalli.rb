@@ -178,7 +178,7 @@ module Rack
       def with_dalli_client(result_on_error = nil, &block)
         @data.with(&block)
       rescue ::Dalli::DalliError, Errno::ECONNREFUSED
-        raise if /undefined class/.match?($ERROR_INFO.message)
+        raise if $ERROR_INFO.message.include?('undefined class')
 
         if $VERBOSE
           warn "#{self} is unable to find memcached server."
