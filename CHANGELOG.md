@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.2.4
+==========
+
+- Cache PID calls for performance since glibc no longer caches in recent versions (casperisfine)
 - Preallocate the read buffer in Socket#readfull (casperisfine)
 
 3.2.3
