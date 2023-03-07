@@ -45,6 +45,7 @@ module Dalli
     ##
     def make_getkq_requests(groups)
       groups.each do |server, keys_for_server|
+        server.pipeline_get_setup
         server.request(:pipelined_get, keys_for_server)
       rescue DalliError, NetworkError => e
         Dalli.logger.debug { e.inspect }

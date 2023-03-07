@@ -31,6 +31,12 @@ module Dalli
       end
     end
 
+    def pipeline_get_setup 
+      @lock.synchronize do
+        super
+      end
+    end
+
     def pipeline_response_setup
       @lock.synchronize do
         super

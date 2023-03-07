@@ -59,16 +59,21 @@ module Dalli
 
       def unlock!; end
 
+      # verify and start request before sending GETKQ commands, 
+      # otherwise the socket could get corrupted if we fail to reach pipline_response stage
+      def pipeline_get_setup
+        verify_state(:getkq)
+        @connection_manager.start_request!
+      end 
+
       # Start reading key/value pairs from this connection. This is usually called
       # after a series of GETKQ commands. A NOOP is sent, and the server begins
       # flushing responses for kv pairs that were found.
       #
       # Returns nothing.
       def pipeline_response_setup
-        verify_state(:getkq)
         write_noop
         response_buffer.reset
-        @connection_manager.start_request!
       end
 
       # Attempt to receive and parse as many key/value pairs as possible
