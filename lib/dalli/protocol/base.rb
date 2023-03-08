@@ -210,7 +210,7 @@ module Dalli
           req << quiet_get_request(key)
         end
         # Could send noop here instead of in pipeline_response_setup
-        write(req)
+        write_nonblock(req)
       end
 
       def response_buffer

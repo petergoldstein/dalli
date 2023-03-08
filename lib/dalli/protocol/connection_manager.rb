@@ -171,6 +171,16 @@ module Dalli
         @sock.read_available
       end
 
+      # Non-blocking write. Should only be used in the context
+      # of a caller who has called start_request!, but not yet
+      # called finish_request!. Here to support the operation
+      # of the get_multi operation. 
+      def write_nonblock 
+        @sock.write(bytes)
+      rescue SystemCallError, Timeout::Error => e
+        error_on_request!(e)
+      end
+
       def max_allowed_failures
         @max_allowed_failures ||= @options[:socket_max_failures] || 2
       end
