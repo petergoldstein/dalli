@@ -175,7 +175,7 @@ module Dalli
       # of a caller who has called start_request!, but not yet
       # called finish_request!. Here to support the operation
       # of the get_multi operation. 
-      def write_nonblock 
+      def write_nonblock(bytes) 
         @sock.write(bytes)
       rescue SystemCallError, Timeout::Error => e
         error_on_request!(e)

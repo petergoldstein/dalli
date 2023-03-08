@@ -162,8 +162,12 @@ module Dalli
         response_processor.version
       end
 
-      def write_noop
-        write(RequestFormatter.meta_noop)
+      def write_noop(nonblock: false)
+        if nonblock
+          write_nonblock(RequestFormatter.meta_noop)
+        else 
+          write(RequestFormatter.meta_noop)
+        end
       end
 
       def authenticate_connection

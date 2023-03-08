@@ -158,9 +158,13 @@ module Dalli
         response_processor.version
       end
 
-      def write_noop
+      def write_noop(nonblock: false)
         req = RequestFormatter.standard_request(opkey: :noop)
-        write(req)
+        if nonblock
+          write_nonblock(req)
+        else 
+          write(req)
+        end
       end
 
       require_relative 'binary/request_formatter'
