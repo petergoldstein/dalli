@@ -12,6 +12,9 @@ module Dalli
   # socket/server communication error
   class NetworkError < DalliError; end
 
+  # socket returned unexpected value error
+  class SocketCorruptionError < NetworkError; end
+
   # no server available/alive error
   class RingError < DalliError; end
 
