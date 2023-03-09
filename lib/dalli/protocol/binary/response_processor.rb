@@ -79,7 +79,9 @@ module Dalli
         end
 
         # returns [key, value]
-        def getk(cache_nils: false, key: nil)
+        # raises SocketCorruptionError if the response key does not match the requested key. 
+        # otherwise mirrors the get implementation 
+        def getk(key, cache_nils: false)
           resp_header, body = read_response
 
           return false if resp_header.not_stored? # Not stored, normal status for add operation
@@ -90,10 +92,8 @@ module Dalli
 
           res = unpack_response_body(resp_header, body, true)
 
-          if key.present?
-            if key != res.first
-              raise Dalli::SocketCorruptionError, "Socket corruption detected - key does not match response"
-            end
+          if key != res.first
+            raise Dalli::SocketCorruptionError, "Socket corruption detected - key does not match response"
           end
 
           res
