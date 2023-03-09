@@ -21,6 +21,7 @@ module Dalli
           flush: 0x08,
           noop: 0x0A,
           version: 0x0B,
+          getk: 0x0c,
           getkq: 0x0D,
           append: 0x0E,
           prepend: 0x0F,
@@ -52,6 +53,7 @@ module Dalli
 
         BODY_FORMATS = {
           get: KEY_ONLY,
+          getk: KEY_ONLY,
           getkq: KEY_ONLY,
           delete: KEY_ONLY,
           deleteq: KEY_ONLY,

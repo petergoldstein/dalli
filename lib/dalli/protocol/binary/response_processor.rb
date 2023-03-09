@@ -66,7 +66,7 @@ module Dalli
           raise Dalli::DalliError, "Response error #{resp_header.status}: #{RESPONSE_CODES[resp_header.status]}"
         end
 
-        def get(cache_nils: false)
+        def getk(cache_nils: false, key: nil)
           resp_header, body = read_response
 
           return false if resp_header.not_stored? # Not stored, normal status for add operation
@@ -75,7 +75,19 @@ module Dalli
           raise_on_not_ok!(resp_header)
           return true unless body
 
-          unpack_response_body(resp_header, body, true).last
+          res = unpack_response_body(resp_header, body, true)
+
+          if key.present?
+            if key != res.first
+              raise Dalli::NetworkError, "Socket corruption detected - key does not match response"
+            end
+          end
+
+          res
+        end
+
+        def get(cache_nils: false)
+          getk(cache_nils: cache_nils).last
         end
 
         ##

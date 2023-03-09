@@ -25,6 +25,12 @@ module Dalli
         response_processor.get(cache_nils: cache_nils?(options))
       end
 
+      def getk(key, options = nil)
+        req = RequestFormatter.standard_request(opkey: :getk, key: key)
+        write(req)
+        response_processor.getk(cache_nils: cache_nils?(options), key: key)&.last
+      end
+
       def quiet_get_request(key)
         RequestFormatter.standard_request(opkey: :getkq, key: key)
       end

@@ -61,7 +61,7 @@ module Dalli
     # Get the value associated with the key.
     # If a value is not found, then +nil+ is returned.
     def get(key, req_options = nil)
-      perform(:get, key, req_options)
+      perform(:getk, key, req_options)
     end
 
     ##
