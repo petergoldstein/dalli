@@ -53,7 +53,7 @@ module Dalli
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
       @options = normalize_options(options)
 
-      if @options[:safe_get].present? && @options[:safe_get] == true && @options[:protocol].present? && @options[:protocol] != :binary
+      if @options[:safe_get] == true && !@options[:protocol].nil? && @options[:protocol] != :binary
         raise NotImplementedError, "Safe get is not implemented for the #{@options[:protocol]} protocol"
       end
 
