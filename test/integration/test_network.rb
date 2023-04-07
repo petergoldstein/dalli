@@ -72,7 +72,7 @@ describe 'Network' do
             server = dc.send(:ring).servers.first
             sock = Dalli::Socket::TCP.open(server.hostname, server.port, server.options)
 
-            assert_equal Dalli::Socket::TCP, sock.class
+            assert_instance_of Dalli::Socket::TCP, sock
 
             dc.set('abc', 123)
 
@@ -85,7 +85,7 @@ describe 'Network' do
             server = dc.send(:ring).servers.first
             sock = Dalli::Socket::TCP.open(server.hostname, server.port, server.options)
 
-            assert_equal Dalli::Socket::SSLSocket, sock.class
+            assert_instance_of Dalli::Socket::SSLSocket, sock
 
             dc.set('abc', 123)
 
@@ -169,7 +169,7 @@ describe 'Network' do
 
           resp = dc.stats
 
-          assert_equal Hash, resp.class
+          assert_instance_of Hash, resp
 
           dc.close
         end
@@ -231,7 +231,7 @@ describe 'Network' do
 
           resp = dc.stats
 
-          assert_equal Hash, resp.class
+          assert_instance_of Hash, resp
 
           dc.close
         end
