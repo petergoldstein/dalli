@@ -17,9 +17,8 @@ module Dalli
       return {} if keys.empty?
 
       @ring.lock do
-        servers = setup_requests(keys)
-        start_time = Time.now
-        servers = fetch_responses(servers, start_time, @ring.socket_timeout, &block) until servers.empty?
+        requests = setup_requests(keys)
+        fetch_responses(requests, @ring.socket_timeout, &block)
       end
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }
@@ -27,58 +26,17 @@ module Dalli
       retry
     end
 
-    def setup_requests(keys)
-      groups = groups_for_keys(keys)
-      make_getkq_requests(groups)
-
-      # TODO: How does this exit on a NetworkError
-      finish_queries(groups.keys)
-    end
-
-    ##
-    # Loop through the server-grouped sets of keys, writing
-    # the corresponding getkq requests to the appropriate servers
-    #
-    # It's worth noting that we could potentially reduce bytes
-    # on the wire by switching from getkq to getq, and using
-    # the opaque value to match requests to responses.
-    ##
-    def make_getkq_requests(groups)
-      groups.each do |server, keys_for_server|
-        server.request(:pipelined_get, keys_for_server)
-      rescue DalliError, NetworkError => e
-        Dalli.logger.debug { e.inspect }
-        Dalli.logger.debug { "unable to get keys for server #{server.name}" }
+    def setup_requests(all_keys)
+      groups_for_keys(all_keys).to_h do |server, keys|
+        # It's worth noting that we could potentially reduce bytes
+        # on the wire by switching from getkq to getq, and using
+        # the opaque value to match requests to responses.
+        [server, server.pipelined_get_request(keys)]
       end
-    end
-
-    ##
-    # This loops through the servers that have keys in
-    # our set, sending the noop to terminate the set of queries.
-    ##
-    def finish_queries(servers)
-      deleted = []
-
-      servers.each do |server|
-        next unless server.alive?
-
-        begin
-          finish_query_for_server(server)
-        rescue Dalli::NetworkError
-          raise
-        rescue Dalli::DalliError
-          deleted.append(server)
-        end
-      end
-
-      servers.delete_if { |server| deleted.include?(server) }
-    rescue Dalli::NetworkError
-      abort_without_timeout(servers)
-      raise
     end
 
     def finish_query_for_server(server)
-      server.pipeline_response_setup
+      server.finish_pipeline_request
     rescue Dalli::NetworkError
       raise
     rescue Dalli::DalliError => e
@@ -92,29 +50,101 @@ module Dalli
       servers.each(&:pipeline_abort)
     end
 
-    def fetch_responses(servers, start_time, timeout, &block)
+    def fetch_responses(requests, timeout, &block)
+      # FIXME: this was here. why. where should it go?
       # Remove any servers which are not connected
-      servers.delete_if { |s| !s.connected? }
-      return [] if servers.empty?
+      # servers.delete_if { |s| !s.connected? }
 
-      time_left = remaining_time(start_time, timeout)
-      readable_servers = servers_with_response(servers, time_left)
-      if readable_servers.empty?
-        abort_with_timeout(servers)
-        return []
-      end
+      start_time = Time.now
+      servers = requests.keys
 
-      # Loop through the servers with responses, and
-      # delete any from our list that are finished
-      readable_servers.each do |server|
-        servers.delete(server) if process_server(server, &block)
+      # FIXME: this was executed before the finish request was sent. Why?
+      servers.delete_if { |s| !s.alive? }
+
+      # could be postponed to after the first write
+      servers.each(&:pipeline_response_setup)
+
+      until servers.empty?
+        time_left = remaining_time(start_time, timeout)
+        servers = read_write_select(servers, requests, time_left, &block)
       end
-      servers
     rescue NetworkError
       # Abort and raise if we encountered a network error.  This triggers
       # a retry at the top level.
       abort_without_timeout(servers)
       raise
+    end
+
+    def read_write_select(servers, requests, time_left, &block)
+      # TODO: - This is a bit challenging.  Essentially the PipelinedGetter
+      # is a reactor, but without the benefit of a Fiber or separate thread.
+      # My suspicion is that we may want to try and push this down into the
+      # individual servers, but I'm not sure.  For now, we keep the
+      # mapping between the alerted object (the socket) and the
+      # corrresponding server here.
+      server_map = servers.each_with_object({}) { |s, h| h[s.sock] = s }
+
+      readable, writable, = IO.select(server_map.keys, server_map.keys,
+                                      nil, time_left)
+
+      if readable.nil?
+        abort_with_timeout(servers)
+        return []
+      end
+
+      writable.each do |socket|
+        server = server_map[socket]
+        process_writable(server, servers, requests)
+      end
+
+      readable.each do |socket|
+        server = server_map[socket]
+
+        servers.delete(server) if process_server(server, &block)
+      end
+
+      servers
+    end
+
+    def process_writable(server, servers, requests)
+      request = requests[server]
+      return unless request
+
+      new_request = server_pipelined_get(server, request)
+
+      if new_request.empty?
+        requests.delete(server)
+
+        begin
+          finish_query_for_server(server)
+        rescue Dalli::NetworkError
+          raise
+        rescue Dalli::DalliError
+          servers.delete(server)
+        end
+      else
+        requests[server] = new_request
+      end
+    rescue Dalli::NetworkError
+      abort_without_timeout(servers)
+      raise
+    rescue DalliError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { "unable to get keys for server #{server.name}" }
+    end
+
+    def server_pipelined_get(server, request)
+      buffer_size = server.socket_sndbuf
+      chunk = request[0..buffer_size]
+      written = server.request(:pipelined_get, chunk)
+      return if written == :wait_writable
+
+      request[written..]
+    rescue Dalli::NetworkError
+      raise
+    rescue DalliError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { "unable to get keys for server #{server.name}" }
     end
 
     def remaining_time(start, timeout)
@@ -142,23 +172,6 @@ module Dalli
       end
 
       server.pipeline_complete?
-    end
-
-    def servers_with_response(servers, timeout)
-      return [] if servers.empty?
-
-      # TODO: - This is a bit challenging.  Essentially the PipelinedGetter
-      # is a reactor, but without the benefit of a Fiber or separate thread.
-      # My suspicion is that we may want to try and push this down into the
-      # individual servers, but I'm not sure.  For now, we keep the
-      # mapping between the alerted object (the socket) and the
-      # corrresponding server here.
-      server_map = servers.each_with_object({}) { |s, h| h[s.sock] = s }
-
-      readable, = IO.select(server_map.keys, nil, nil, timeout)
-      return [] if readable.nil?
-
-      readable.map { |sock| server_map[sock] }
     end
 
     def groups_for_keys(*keys)

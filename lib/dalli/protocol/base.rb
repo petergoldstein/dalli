@@ -18,7 +18,8 @@ module Dalli
 
       def_delegators :@value_marshaller, :serializer, :compressor, :compression_min_size, :compress_by_default?
       def_delegators :@connection_manager, :name, :sock, :hostname, :port, :close, :connected?, :socket_timeout,
-                     :socket_type, :up!, :down!, :write, :reconnect_down_server?, :raise_down_error
+                     :socket_type, :socket_sndbuf, :up!, :down!, :write, :write_nonblock, :reconnect_down_server?,
+                     :raise_down_error
 
       def initialize(attribs, client_options = {})
         hostname, port, socket_type, @weight, user_creds = ServerConfigParser.parse(attribs)
@@ -59,16 +60,17 @@ module Dalli
 
       def unlock!; end
 
-      # Start reading key/value pairs from this connection. This is usually called
-      # after a series of GETKQ commands. A NOOP is sent, and the server begins
-      # flushing responses for kv pairs that were found.
+      # Get ready to read key/value pairs from this connection.
+      # This is usually called before or after the first GETKQ command.
       #
       # Returns nothing.
       def pipeline_response_setup
         verify_state(:getkq)
-        write_noop
         response_buffer.reset
-        @connection_manager.start_request!
+      end
+
+      def finish_pipeline_request
+        write_noop
       end
 
       # Attempt to receive and parse as many key/value pairs as possible
@@ -143,6 +145,14 @@ module Dalli
       end
       alias multi? quiet?
 
+      def pipelined_get_request(keys)
+        req = +String.new(capacity: pipelined_get_capacity(keys))
+        keys.each do |key|
+          req << quiet_get_request(key)
+        end
+        req
+      end
+
       # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
 
       private
@@ -199,13 +209,14 @@ module Dalli
         up!
       end
 
-      def pipelined_get(keys)
-        req = +''
-        keys.each do |key|
-          req << quiet_get_request(key)
-        end
-        # Could send noop here instead of in pipeline_response_setup
-        write(req)
+      def pipelined_get(bytes)
+        write_nonblock(bytes)
+      rescue SystemCallError, Timeout::Error, EOFError => e
+        @connection_manager.error_on_request!(e)
+      end
+
+      def pipelined_get_capacity(keys)
+        (keys.size * request_header_size) + keys.reduce(0) { |acc, k| acc + k.size }
       end
 
       def response_buffer
