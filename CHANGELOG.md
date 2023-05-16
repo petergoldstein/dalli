@@ -4,11 +4,14 @@ Dalli Changelog
 Unreleased
 ==========
 
+- Better handle memcached requests being interrupted by Thread#raise or Thread#kill (byroot)
+- Unexpected errors are no longer treated as `Dalli::NetworkError`, including errors raised by `Timeout.timeout` (byroot)
+
 3.2.4
 ==========
 
-- Cache PID calls for performance since glibc no longer caches in recent versions (casperisfine)
-- Preallocate the read buffer in Socket#readfull (casperisfine)
+- Cache PID calls for performance since glibc no longer caches in recent versions (byroot)
+- Preallocate the read buffer in Socket#readfull (byroot)
 
 3.2.3
 ==========
@@ -51,7 +54,7 @@ Unreleased
 3.1.4
 ==========
 
-- Improve response parsing performance (casperisfine)
+- Improve response parsing performance (byroot)
 - Reorganize binary protocol parsing a bit (petergoldstein)
 - Fix handling of non-ASCII keys in get_multi (petergoldstein)
 

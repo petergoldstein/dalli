@@ -82,7 +82,7 @@ describe 'Pipelined Get' do
       describe 'pipeline_next_responses' do
         it 'raises NetworkError when called before pipeline_response_setup' do
           memcached_persistent(p) do |dc|
-            server = dc.instance_variable_get(:@ring).servers.first
+            server = dc.send(:ring).servers.first
             server.request(:pipelined_get, %w[a b])
             assert_raises Dalli::NetworkError do
               server.pipeline_next_responses
@@ -92,7 +92,7 @@ describe 'Pipelined Get' do
 
         it 'raises NetworkError when called after pipeline_abort' do
           memcached_persistent(p) do |dc|
-            server = dc.instance_variable_get(:@ring).servers.first
+            server = dc.send(:ring).servers.first
             server.request(:pipelined_get, %w[a b])
             server.pipeline_response_setup
             server.pipeline_abort

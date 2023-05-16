@@ -113,6 +113,112 @@ describe 'Network' do
         end
       end
 
+      it 'handles asynchronous Thread#raise' do
+        with_nil_logger do
+          memcached(p, 19_191) do |dc|
+            10.times do |i|
+              thread = Thread.new do
+                loop do
+                  assert_instance_of Integer, dc.set("key:#{i}", i.to_s)
+                end
+              rescue RuntimeError
+                nil # expected
+              end
+              thread.join(rand(0.01..0.2))
+
+              thread.raise('Test Timeout Error')
+              joined_thread = thread.join(1)
+
+              refute_nil joined_thread
+              refute_predicate joined_thread, :alive?
+              assert_equal i.to_s, dc.get("key:#{i}")
+            end
+          end
+        end
+      end
+
+      it 'handles asynchronous Thread#raise during pipelined get' do
+        with_nil_logger do
+          memcached(p, 19_191) do |dc|
+            10.times do |i|
+              expected_response = 100.times.to_h { |x| ["key:#{i}:#{x}", x.to_s] }
+              expected_response.each do |key, val|
+                dc.set(key, val)
+              end
+
+              thread = Thread.new do
+                loop do
+                  assert_equal expected_response, dc.get_multi(expected_response.keys)
+                end
+              rescue RuntimeError
+                nil # expected
+              end
+              thread.join(rand(0.01..0.2))
+
+              thread.raise('Test Timeout Error')
+              joined_thread = thread.join(1)
+
+              refute_nil joined_thread
+              refute_predicate joined_thread, :alive?
+              assert_equal expected_response, dc.get_multi(expected_response.keys)
+            end
+          end
+        end
+      end
+
+      it 'handles asynchronous Thread#kill' do
+        with_nil_logger do
+          memcached(p, 19_191) do |dc|
+            10.times do |i|
+              thread = Thread.new do
+                loop do
+                  assert_instance_of Integer, dc.set("key:#{i}", i.to_s)
+                end
+              rescue RuntimeError
+                nil # expected
+              end
+              thread.join(rand(0.01..0.2))
+
+              thread.kill
+              joined_thread = thread.join(1)
+
+              refute_nil joined_thread
+              refute_predicate joined_thread, :alive?
+              assert_equal i.to_s, dc.get("key:#{i}")
+            end
+          end
+        end
+      end
+
+      it 'handles asynchronous Thread#kill during pipelined get' do
+        with_nil_logger do
+          memcached(p, 19_191) do |dc|
+            10.times do |i|
+              expected_response = 100.times.to_h { |x| ["key:#{i}:#{x}", x.to_s] }
+              expected_response.each do |key, val|
+                dc.set(key, val)
+              end
+
+              thread = Thread.new do
+                loop do
+                  assert_equal expected_response, dc.get_multi(expected_response.keys)
+                end
+              rescue RuntimeError
+                nil # expected
+              end
+              thread.join(rand(0.01..0.2))
+
+              thread.kill
+              joined_thread = thread.join(1)
+
+              refute_nil joined_thread
+              refute_predicate joined_thread, :alive?
+              assert_equal expected_response, dc.get_multi(expected_response.keys)
+            end
+          end
+        end
+      end
+
       it 'passes a simple smoke test on a TCP socket' do
         memcached_persistent(p) do |dc, port|
           resp = dc.flush
