@@ -32,7 +32,13 @@ module Dalli
         verify_state(opkey)
 
         begin
-          send(opkey, *args)
+          @connection_manager.start_request!
+          response = send(opkey, *args)
+
+          # pipelined_get emit query but doesn't read the response(s)
+          @connection_manager.finish_request! unless opkey == :pipelined_get
+
+          response
         rescue Dalli::MarshalError => e
           log_marshal_err(args.first, e)
           raise
@@ -40,7 +46,8 @@ module Dalli
           raise
         rescue StandardError => e
           log_unexpected_err(e)
-          down!
+          close
+          raise
         end
       end
 
@@ -65,10 +72,9 @@ module Dalli
       #
       # Returns nothing.
       def pipeline_response_setup
-        verify_state(:getkq)
+        verify_pipelined_state(:getkq)
         write_noop
         response_buffer.reset
-        @connection_manager.start_request!
       end
 
       # Attempt to receive and parse as many key/value pairs as possible
@@ -167,6 +173,11 @@ module Dalli
         # because of timeout or other error.  Method raises an error
         # if it can't connect
         raise_down_error unless ensure_connected!
+      end
+
+      def verify_pipelined_state(_opkey)
+        @connection_manager.confirm_in_progress!
+        raise_down_error unless connected?
       end
 
       # The socket connection to the underlying server is initialized as a side

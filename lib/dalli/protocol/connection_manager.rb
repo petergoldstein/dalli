@@ -54,6 +54,7 @@ module Dalli
 
         @sock = memcached_socket
         @pid = PIDCache.pid
+        @request_in_progress = false
       rescue SystemCallError, Timeout::Error, EOFError, SocketError => e
         # SocketError = DNS resolution failure
         error_on_request!(e)
@@ -98,7 +99,13 @@ module Dalli
       end
 
       def confirm_ready!
-        error_on_request!(RuntimeError.new('Already writing to socket')) if request_in_progress?
+        close if request_in_progress?
+        close_on_fork if fork_detected?
+      end
+
+      def confirm_in_progress!
+        raise '[Dalli] No request in progress. This may be a bug in Dalli.' unless request_in_progress?
+
         close_on_fork if fork_detected?
       end
 
@@ -124,10 +131,14 @@ module Dalli
       end
 
       def start_request!
+        raise '[Dalli] Request already in progress. This may be a bug in Dalli.' if @request_in_progress
+
         @request_in_progress = true
       end
 
       def finish_request!
+        raise '[Dalli] No request in progress. This may be a bug in Dalli.' unless @request_in_progress
+
         @request_in_progress = false
       end
 
@@ -136,36 +147,26 @@ module Dalli
       end
 
       def read_line
-        start_request!
         data = @sock.gets("\r\n")
         error_on_request!('EOF in read_line') if data.nil?
-        finish_request!
         data
       rescue SystemCallError, Timeout::Error, EOFError => e
         error_on_request!(e)
       end
 
       def read(count)
-        start_request!
-        data = @sock.readfull(count)
-        finish_request!
-        data
+        @sock.readfull(count)
       rescue SystemCallError, Timeout::Error, EOFError => e
         error_on_request!(e)
       end
 
       def write(bytes)
-        start_request!
-        result = @sock.write(bytes)
-        finish_request!
-        result
+        @sock.write(bytes)
       rescue SystemCallError, Timeout::Error => e
         error_on_request!(e)
       end
 
-      # Non-blocking read.  Should only be used in the context
-      # of a caller who has called start_request!, but not yet
-      # called finish_request!.  Here to support the operation
+      # Non-blocking read.  Here to support the operation
       # of the get_multi operation
       def read_nonblock
         @sock.read_available
