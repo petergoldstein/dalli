@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+
+3.2.5
+==========
+
 - Better handle memcached requests being interrupted by Thread#raise or Thread#kill (byroot)
 - Unexpected errors are no longer treated as `Dalli::NetworkError`, including errors raised by `Timeout.timeout` (byroot)
 
