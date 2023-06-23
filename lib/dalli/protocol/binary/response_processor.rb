@@ -52,7 +52,7 @@ module Dalli
           bitflags = extra_len.positive? ? body.unpack1('N') : 0x0
           key = body.byteslice(extra_len, key_len).force_encoding(Encoding::UTF_8) if key_len.positive?
           value = body.byteslice((extra_len + key_len)..-1)
-          value = parse_as_stored_value ? @value_marshaller.retrieve(value, bitflags) : value
+          value = @value_marshaller.retrieve(value, bitflags) if parse_as_stored_value
           [key, value]
         end
 
