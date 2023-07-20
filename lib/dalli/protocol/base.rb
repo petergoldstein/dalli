@@ -106,7 +106,7 @@ module Dalli
         end
 
         values
-      rescue SystemCallError, Timeout::Error, EOFError => e
+      rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
         @connection_manager.error_on_request!(e)
       end
 
