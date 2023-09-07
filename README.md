@@ -23,7 +23,7 @@ The name is a variant of Salvador Dali for his famous painting [The Persistence 
 * [Announcements](https://github.com/petergoldstein/dalli/discussions/categories/announcements) - Announcements of interest to the Dalli community will be posted here.
 * [Bug Reports](https://github.com/petergoldstein/dalli/issues) - If you discover a problem with Dalli, please submit a bug report in the tracker.
 * [Forum](https://github.com/petergoldstein/dalli/discussions/categories/q-a) - If you have questions about Dalli, please post them here.
-* [Client API](https://rubydoc.info/github/petergoldstein/dalli/Dalli/Client) - Ruby documentation for the `Dalli::Client` API
+* [Client API](https://www.rubydoc.info/gems/dalli) - Ruby documentation for the `Dalli::Client` API
 
 ## Development
 
