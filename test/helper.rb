@@ -24,7 +24,7 @@ raise StandardError, 'No supported version of memcached could be found.' unless 
 # Generate self-signed certs for SSL once per suite run.
 CertificateGenerator.generate
 
-module MiniTest
+module Minitest
   class Spec
     include Memcached::Helper
 
