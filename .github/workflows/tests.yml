@@ -21,7 +21,7 @@ jobs:
         memcached-version: ['1.5.22', '1.6.20']
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install Memcached ${{ matrix.memcached-version }}
       working-directory: scripts
       env:
