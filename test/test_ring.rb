@@ -21,7 +21,7 @@ describe 'Ring' do
       ring = Dalli::Ring.new(servers, TestServer, {})
       previous_value = 0
       ring.continuum.each do |entry|
-        assert entry.value > previous_value
+        assert_operator entry.value, :>, previous_value
         previous_value = entry.value
       end
     end

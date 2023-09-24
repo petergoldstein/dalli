@@ -6,7 +6,7 @@ describe 'Dalli client options' do
   it 'not warn about valid options' do
     dc = Dalli::Client.new('foo', compress: true)
     # Rails.logger.expects :warn
-    assert dc.instance_variable_get(:@options)[:compress]
+    assert_operator dc.instance_variable_get(:@options), :[], :compress
   end
 
   describe 'servers configuration' do
