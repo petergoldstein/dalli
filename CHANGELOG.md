@@ -4,6 +4,7 @@ Dalli Changelog
 Unreleased
 ==========
 
+- Rescue IO::TimeoutError raised by Ruby since 3.2.0 on blocking reads/writes (skaes)
 
 3.2.5
 ==========
