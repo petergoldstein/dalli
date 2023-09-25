@@ -8,10 +8,11 @@ module Dalli
     # Ruby 3.2 raises IO::TimeoutError on blocking reads/writes, but
     # it is not defined in earlier Ruby versions.
     require 'timeout'
-    if defined?(IO::TimeoutError)
-      TIMEOUT_ERRORS = [Timeout::Error, IO::TimeoutError]
-    else
-      TIMEOUT_ERRORS = [Timeout::Error]
-    end
+    TIMEOUT_ERRORS =
+      if defined?(IO::TimeoutError)
+        [Timeout::Error, IO::TimeoutError]
+      else
+        [Timeout::Error]
+      end
   end
 end
