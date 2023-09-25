@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'timeout'
+
 module Dalli
   module Protocol
     # Preserved for backwards compatibility.  Should be removed in 4.0
@@ -7,7 +9,6 @@ module Dalli
 
     # Ruby 3.2 raises IO::TimeoutError on blocking reads/writes, but
     # it is not defined in earlier Ruby versions.
-    require 'timeout'
     TIMEOUT_ERRORS =
       if defined?(IO::TimeoutError)
         [Timeout::Error, IO::TimeoutError]
