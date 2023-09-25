@@ -18,7 +18,7 @@ jobs:
           - '2.6'
           - jruby-9.3
           - jruby-9.4
-        memcached-version: ['1.5.22', '1.6.20']
+        memcached-version: ['1.5.22', '1.6.21']
 
     steps:
     - uses: actions/checkout@v4
