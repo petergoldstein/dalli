@@ -4,7 +4,11 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.2.6
+==========
+
 - Rescue IO::TimeoutError raised by Ruby since 3.2.0 on blocking reads/writes (skaes)
+- Fix rubydoc link (JuanitoFatas)
 
 3.2.5
 ==========
