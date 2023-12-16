@@ -88,7 +88,7 @@ module Dalli
       # options - supports enhanced logging in the case of a timeout
       attr_accessor :options
 
-      if RUBY_VERSION >= "3.0"
+      if RUBY_VERSION >= '3.0'
         def self.open(host, port, options = {})
           sock = new(host, port, connect_timeout: options[:socket_timeout])
           sock.options = { host: host, port: port }.merge(options)
@@ -114,14 +114,14 @@ module Dalli
         sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVBUF, options[:rcvbuf]) if options[:rcvbuf]
         sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDBUF, options[:sndbuf]) if options[:sndbuf]
 
-        if options[:socket_timeout]
-          seconds, fractional = options[:socket_timeout].divmod(1)
-          microseconds = fractional * 1_000_000
-          timeval = [seconds, microseconds].pack("l_2")
+        return unless options[:socket_timeout]
 
-          sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO, timeval)
-          sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDTIMEO, timeval)
-        end
+        seconds, fractional = options[:socket_timeout].divmod(1)
+        microseconds = fractional * 1_000_000
+        timeval = [seconds, microseconds].pack('l_2')
+
+        sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO, timeval)
+        sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDTIMEO, timeval)
       end
 
       def self.wrapping_ssl_socket(tcp_socket, host, ssl_context)
