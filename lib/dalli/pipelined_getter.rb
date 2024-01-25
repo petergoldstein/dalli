@@ -60,7 +60,7 @@ module Dalli
       deleted = []
 
       servers.each do |server|
-        next unless server.alive?
+        next unless server.connected?
 
         begin
           finish_query_for_server(server)
