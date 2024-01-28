@@ -113,6 +113,16 @@ describe 'Network' do
         end
       end
 
+      it 'handles timeout error during pipelined get' do
+        with_nil_logger do
+          memcached(p, 19_191) do |dc|
+            dc.send(:ring).server_for_key('abc').sock.stub(:write, proc { raise Timeout::Error }) do
+              assert_empty dc.get_multi(['abc'])
+            end
+          end
+        end
+      end
+
       it 'handles asynchronous Thread#raise' do
         with_nil_logger do
           memcached(p, 19_191) do |dc|
