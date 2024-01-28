@@ -22,4 +22,6 @@ Gem::Specification.new do |s|
   s.metadata = {
     'rubygems_mfa_required' => 'true'
   }
+
+  s.add_dependency 'base64'
 end
