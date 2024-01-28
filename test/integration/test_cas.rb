@@ -164,7 +164,7 @@ describe 'CAS behavior' do
           # Accepts CAS, replaces, and returns new CAS
           cas = dc.replace_cas('key', 'value2', cas)
 
-          assert cas.is_a?(Integer)
+          assert_kind_of Integer, cas
 
           assert_equal 'value2', dc.get('key')
         end
