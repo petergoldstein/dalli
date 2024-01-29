@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'base64'
-
 module Dalli
   module Protocol
     class Meta
@@ -17,13 +15,15 @@ module Dalli
         def self.encode(key)
           return [key, false] if key.ascii_only? && !WHITESPACE.match(key)
 
-          [Base64.strict_encode64(key), true]
+          strict_base64_encoded = [key].pack('m0')
+          [strict_base64_encoded, true]
         end
 
         def self.decode(encoded_key, base64_encoded)
           return encoded_key unless base64_encoded
 
-          Base64.strict_decode64(encoded_key).force_encoding(Encoding::UTF_8)
+          strict_base64_decoded = encoded_key.unpack1('m0')
+          strict_base64_decoded.force_encoding(Encoding::UTF_8)
         end
       end
     end
