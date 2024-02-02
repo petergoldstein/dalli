@@ -88,7 +88,8 @@ module Dalli
       # options - supports enhanced logging in the case of a timeout
       attr_accessor :options
 
-      if RUBY_VERSION >= '3.0'
+      if RUBY_VERSION >= '3.0' &&
+          !::TCPSocket.private_instance_methods.include?(:original_resolv_initialize)
         def self.open(host, port, options = {})
           sock = new(host, port, connect_timeout: options[:socket_timeout])
           sock.options = { host: host, port: port }.merge(options)
