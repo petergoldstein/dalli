@@ -20,6 +20,8 @@ Gem::Specification.new do |s|
   s.required_ruby_version = '>= 2.6'
 
   s.metadata = {
+    'bug_tracker_uri' => 'https://github.com/petergoldstein/dalli/issues',
+    'changelog_uri' => 'https://github.com/petergoldstein/dalli/blob/main/CHANGELOG.md',
     'rubygems_mfa_required' => 'true'
   }
 end
