@@ -89,7 +89,7 @@ module Dalli
       attr_accessor :options
 
       if RUBY_VERSION >= '3.0' &&
-          !::TCPSocket.private_instance_methods.include?(:original_resolv_initialize)
+         !::TCPSocket.private_instance_methods.include?(:original_resolv_initialize)
         def self.open(host, port, options = {})
           sock = new(host, port, connect_timeout: options[:socket_timeout])
           sock.options = { host: host, port: port }.merge(options)
