@@ -88,29 +88,30 @@ module Dalli
       # options - supports enhanced logging in the case of a timeout
       attr_accessor :options
 
-      # Check that TCPSocket#initialize was not overwritten by resolv-replace gem
-      # (part of ruby standard library since 3.0.0, should be removed in 3.4.0),
-      # as it does not handle keyword arguments correctly.
-      # To check this we are using the fact that resolv-replace
-      # aliases TCPSocket#initialize method to #original_resolv_initialize.
-      # https://github.com/ruby/resolv-replace/blob/v0.1.1/lib/resolv-replace.rb#L8
-      if RUBY_VERSION >= '3.0' &&
-         !::TCPSocket.private_instance_methods.include?(:original_resolv_initialize)
-        def self.open(host, port, options = {})
-          sock = new(host, port, connect_timeout: options[:socket_timeout])
+      def self.open(host, port, options = {})
+        create_socket_with_timeout(host, port, options) do |sock|
           sock.options = { host: host, port: port }.merge(options)
           init_socket_options(sock, options)
 
           options[:ssl_context] ? wrapping_ssl_socket(sock, host, options[:ssl_context]) : sock
         end
-      else
-        def self.open(host, port, options = {})
+      end
+
+      def self.create_socket_with_timeout(host, port, options)
+        # Check that TCPSocket#initialize was not overwritten by resolv-replace gem
+        # (part of ruby standard library since 3.0.0, should be removed in 3.4.0),
+        # as it does not handle keyword arguments correctly.
+        # To check this we are using the fact that resolv-replace
+        # aliases TCPSocket#initialize method to #original_resolv_initialize.
+        # https://github.com/ruby/resolv-replace/blob/v0.1.1/lib/resolv-replace.rb#L21
+        if RUBY_VERSION >= '3.0' &&
+           !::TCPSocket.private_instance_methods.include?(:original_resolv_initialize)
+          sock = new(host, port, connect_timeout: options[:socket_timeout])
+          yield(sock)
+        else
           Timeout.timeout(options[:socket_timeout]) do
             sock = new(host, port)
-            sock.options = { host: host, port: port }.merge(options)
-            init_socket_options(sock, options)
-
-            options[:ssl_context] ? wrapping_ssl_socket(sock, host, options[:ssl_context]) : sock
+            yield(sock)
           end
         end
       end
