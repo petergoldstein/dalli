@@ -4,6 +4,8 @@ Dalli Changelog
 Unreleased
 ==========
 
+ - Handle IO::TimeoutError when establishing connection (eugeneius)
+
 3.2.7
 ==========
 

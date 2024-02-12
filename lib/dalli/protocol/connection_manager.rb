@@ -55,7 +55,7 @@ module Dalli
         @sock = memcached_socket
         @pid = PIDCache.pid
         @request_in_progress = false
-      rescue SystemCallError, Timeout::Error, EOFError, SocketError => e
+      rescue SystemCallError, *TIMEOUT_ERRORS, EOFError, SocketError => e
         # SocketError = DNS resolution failure
         error_on_request!(e)
       end

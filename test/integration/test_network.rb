@@ -42,6 +42,13 @@ describe 'Network' do
             end
           end
 
+          it 'handle socket timeouts' do
+            dc = Dalli::Client.new('localhost:19123', socket_timeout: 0)
+            assert_raises Dalli::RingError, message: 'No server available' do
+              dc.get('abc')
+            end
+          end
+
           it 'handle connect timeouts' do
             memcached_mock(lambda { |sock|
                              sleep(0.6)
