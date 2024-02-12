@@ -4,7 +4,13 @@ Dalli Changelog
 Unreleased
 ==========
 
- - Handle IO::TimeoutError when establishing connection (eugeneius)
+3.2.8
+==========
+
+- Handle IO::TimeoutError when establishing connection (eugeneius)
+- Drop dependency on base64 gem (Earlopain)
+- Address incompatibility with resolv-replace (y9v)
+- Add rubygems.org metadata (m-nakamura145)
 
 3.2.7
 ==========
