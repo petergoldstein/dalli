@@ -14,6 +14,9 @@ group :development, :test do
   gem 'rubocop-performance'
   gem 'rubocop-rake'
   gem 'simplecov'
+
+  # For compatibility testing
+  gem 'resolv-replace', require: false
 end
 
 group :test do
