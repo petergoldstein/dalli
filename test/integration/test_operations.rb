@@ -221,7 +221,9 @@ describe 'operations' do
         end
 
         it 'supports with nil values when cache_nils: true' do
-          memcached_persistent(p, 21_345, '', cache_nils: true) do |dc|
+          port = find_available_port
+
+          memcached_persistent(p, port, '', cache_nils: true) do |dc|
             dc.flush
 
             dc.set('fetch_key', nil)
@@ -230,7 +232,7 @@ describe 'operations' do
             assert_nil res
           end
 
-          memcached_persistent(p, 21_345, '', cache_nils: false) do |dc|
+          memcached_persistent(p, port, '', cache_nils: false) do |dc|
             dc.flush
             dc.set('fetch_key', nil)
             executed = false

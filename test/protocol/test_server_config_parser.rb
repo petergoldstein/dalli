@@ -4,7 +4,7 @@ require_relative '../helper'
 
 describe Dalli::Protocol::ServerConfigParser do
   describe 'parse' do
-    let(:port) { rand(9999..99_999) }
+    let(:port) { find_available_port }
     let(:weight) { rand(1..5) }
 
     describe 'when the string is not an memcached URI' do
@@ -90,7 +90,7 @@ describe Dalli::Protocol::ServerConfigParser do
     describe 'when the string is a memcached URI' do
       let(:user) { SecureRandom.hex(5) }
       let(:password) { SecureRandom.hex(5) }
-      let(:port) { rand(15_000..16_023) }
+      let(:port) { find_available_port }
       let(:hostname) { "a#{SecureRandom.hex(3)}.b#{SecureRandom.hex(3)}.com" }
 
       describe 'when the URI is properly formed and includes all values' do

@@ -12,7 +12,7 @@ module MemcachedMock
                       f.close
                       f.path)
 
-  def self.start(port = 19_123)
+  def self.start(port = find_available_port)
     server = TCPServer.new('localhost', port)
     session = server.accept
     yield(session)
@@ -29,9 +29,17 @@ module MemcachedMock
     yield(session)
   end
 
-  def self.delayed_start(port = 19_123, wait = 1)
+  def self.delayed_start(port = find_available_port, wait = 1)
     server = TCPServer.new('localhost', port)
     sleep wait
     yield(server)
+  end
+
+  def self.find_available_port
+    socket = Socket.new(:INET, :STREAM, 0)
+    socket.bind(Addrinfo.tcp('127.0.0.1', 0))
+    port = socket.local_address.ip_port
+    socket.close
+    port
   end
 end

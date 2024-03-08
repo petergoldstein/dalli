@@ -33,8 +33,7 @@ describe 'failover' do
 
       describe 'assuming some bad servers' do
         it 'silently reconnect if server hiccups' do
-          server_port = 30_124
-          memcached_persistent(p, server_port) do |dc, port|
+          memcached_persistent(p, find_available_port) do |dc, port|
             dc.set 'foo', 'bar'
             foo = dc.get 'foo'
 
@@ -52,11 +51,8 @@ describe 'failover' do
         end
 
         it 'reconnects if server idles the connection' do
-          port1 = 32_112
-          port2 = 37_887
-
-          memcached(p, port1, '-o idle_timeout=1') do |_, first_port|
-            memcached(p, port2, '-o idle_timeout=1') do |_, second_port|
+          memcached(p, find_available_port, '-o idle_timeout=1') do |_, first_port|
+            memcached(p, find_available_port, '-o idle_timeout=1') do |_, second_port|
               dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
               dc.set 'foo', 'bar'
               dc.set 'foo2', 'bar2'
@@ -75,10 +71,8 @@ describe 'failover' do
         end
 
         it 'handle graceful failover' do
-          port1 = 31_777
-          port2 = 32_113
-          memcached_persistent(p, port1) do |_first_dc, first_port|
-            memcached_persistent(p, port2) do |_second_dc, second_port|
+          memcached_persistent(p, find_available_port) do |_first_dc, first_port|
+            memcached_persistent(p, find_available_port) do |_second_dc, second_port|
               dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
               dc.set 'foo', 'bar'
               foo = dc.get 'foo'
@@ -102,10 +96,8 @@ describe 'failover' do
         end
 
         it 'handle them gracefully in get_multi' do
-          port1 = 32_971
-          port2 = 34_312
-          memcached_persistent(p, port1) do |_first_dc, first_port|
-            memcached(p, port2) do |_second_dc, second_port|
+          memcached_persistent(p, find_available_port) do |_first_dc, first_port|
+            memcached(p, find_available_port) do |_second_dc, second_port|
               dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
               dc.set 'a', 'a1'
               result = dc.get_multi ['a']
@@ -122,10 +114,8 @@ describe 'failover' do
         end
 
         it 'handle graceful failover in get_multi' do
-          port1 = 34_541
-          port2 = 33_044
-          memcached_persistent(p, port1) do |_first_dc, first_port|
-            memcached_persistent(p, port2) do |_second_dc, second_port|
+          memcached_persistent(p, find_available_port) do |_first_dc, first_port|
+            memcached_persistent(p, find_available_port) do |_second_dc, second_port|
               dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
               dc.set 'foo', 'foo1'
               dc.set 'bar', 'bar1'
@@ -151,10 +141,8 @@ describe 'failover' do
         end
 
         it 'stats it still properly report' do
-          port1 = 34_547
-          port2 = 33_219
-          memcached_persistent(p, port1) do |_first_dc, first_port|
-            memcached_persistent(p, port2) do |_second_dc, second_port|
+          memcached_persistent(p, find_available_port) do |_first_dc, first_port|
+            memcached_persistent(p, find_available_port) do |_second_dc, second_port|
               dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
               result = dc.stats
 

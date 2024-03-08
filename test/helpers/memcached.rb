@@ -46,13 +46,14 @@ module Memcached
     # but sets terminate_process to false ensuring that the process persists
     # past execution of the block argument.
     # rubocop:disable Metrics/ParameterLists
-    def memcached_persistent(protocol = :binary, port_or_socket = 21_345, args = '', client_options = {}, &block)
+    def memcached_persistent(protocol = :binary, port_or_socket = find_available_port, args = '', client_options = {},
+                             &block)
       memcached(protocol, port_or_socket, args, client_options, terminate_process: false, &block)
     end
     # rubocop:enable Metrics/ParameterLists
 
     # Launches a persistent memcached process, configured to use SSL
-    def memcached_ssl_persistent(protocol = :binary, port_or_socket = rand(21_397..21_896), &block)
+    def memcached_ssl_persistent(protocol = :binary, port_or_socket = find_available_port, &block)
       memcached_persistent(protocol,
                            port_or_socket,
                            CertificateGenerator.ssl_args,
@@ -67,7 +68,7 @@ module Memcached
     end
 
     # Launches a persistent memcached process, configured to use SASL authentication
-    def memcached_sasl_persistent(port_or_socket = 21_398, &block)
+    def memcached_sasl_persistent(port_or_socket = find_available_port, &block)
       memcached_persistent(:binary, port_or_socket, '-S', sasl_credentials, &block)
     end
 
@@ -94,6 +95,10 @@ module Memcached
 
     def supports_fork?
       Process.respond_to?(:fork)
+    end
+
+    def find_available_port
+      MemcachedMock.find_available_port
     end
   end
 end
