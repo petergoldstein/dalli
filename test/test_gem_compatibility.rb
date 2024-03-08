@@ -8,6 +8,7 @@ require_relative 'helper'
 describe 'gem compatibility' do
   %w[
     resolv-replace
+    socksify
   ].each do |gem_name|
     it "passes smoke test with #{gem_name.inspect} gem required" do
       memcached(:binary, rand(21_397..21_896)) do |_, port|

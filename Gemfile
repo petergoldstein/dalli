@@ -17,6 +17,7 @@ group :development, :test do
 
   # For compatibility testing
   gem 'resolv-replace', require: false
+  gem 'socksify', require: false
 end
 
 group :test do

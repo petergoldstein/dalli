@@ -97,15 +97,14 @@ module Dalli
         end
       end
 
+      TCPSOCKET_ORIGINAL_INITIALIZE_PARAMETERS = [[:rest].freeze].freeze
+      private_constant :TCPSOCKET_ORIGINAL_INITIALIZE_PARAMETERS
+
       def self.create_socket_with_timeout(host, port, options)
-        # Check that TCPSocket#initialize was not overwritten by resolv-replace gem
-        # (part of ruby standard library since 3.0.0, should be removed in 3.4.0),
-        # as it does not handle keyword arguments correctly.
-        # To check this we are using the fact that resolv-replace
-        # aliases TCPSocket#initialize method to #original_resolv_initialize.
-        # https://github.com/ruby/resolv-replace/blob/v0.1.1/lib/resolv-replace.rb#L21
+        # Some gems like resolv-replace and socksify monkey patch TCPSocket and make it impossible to use the
+        # Ruby 3+ `connect_timeout:` keyword argument. If that's the case, we fallback to using the `Timeout` module.
         if RUBY_VERSION >= '3.0' &&
-           !::TCPSocket.private_instance_methods.include?(:original_resolv_initialize)
+           ::TCPSocket.instance_method(:initialize).parameters == TCPSOCKET_ORIGINAL_INITIALIZE_PARAMETERS
           sock = new(host, port, connect_timeout: options[:socket_timeout])
           yield(sock)
         else
