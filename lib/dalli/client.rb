@@ -190,10 +190,12 @@ module Dalli
     def quiet
       old = Thread.current[::Dalli::QUIET]
       Thread.current[::Dalli::QUIET] = true
-      yield
-    ensure
-      @ring&.pipeline_consume_and_ignore_responses
-      Thread.current[::Dalli::QUIET] = old
+      begin
+        yield
+      ensure
+        @ring&.pipeline_consume_and_ignore_responses unless old
+        Thread.current[::Dalli::QUIET] = old
+      end
     end
     alias multi quiet
 
