@@ -23,7 +23,9 @@ module Dalli
         # amount of time to sleep between retries when a failure occurs
         socket_failure_delay: 0.1,
         # Set keepalive
-        keepalive: true
+        keepalive: true,
+        # map a "host:port" to a specific name
+        host_to_name_map: {}
       }.freeze
 
       attr_accessor :hostname, :port, :socket_type, :options
@@ -45,7 +47,13 @@ module Dalli
         if socket_type == :unix
           hostname
         else
-          "#{hostname}:#{port}"
+          name = "#{hostname}:#{port}"
+
+          if options[:host_to_name_map][name].nil?
+            name
+          else
+            options[:host_to_name_map][name]
+          end
         end
       end
 
