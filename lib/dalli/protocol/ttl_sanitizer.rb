@@ -31,7 +31,7 @@ module Dalli
         return ttl_as_i if ttl_as_i > now # Already a timestamp
 
         Dalli.logger.debug "Expiration interval (#{ttl_as_i}) too long for Memcached " \
-                           'and too short to be a future timestamp,' \
+                           'and too short to be a future timestamp, ' \
                            'converting to an expiration timestamp'
         now + ttl_as_i
       end
