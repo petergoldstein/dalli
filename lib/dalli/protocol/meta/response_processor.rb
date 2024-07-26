@@ -32,7 +32,7 @@ module Dalli
           return cache_nils ? ::Dalli::NOT_FOUND : nil if tokens.first == EN
           return true unless tokens.first == VA
 
-          @value_marshaller.retrieve(read_line, bitflags_from_tokens(tokens))
+          @value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens))
         end
 
         def meta_get_with_value_and_cas
@@ -42,7 +42,7 @@ module Dalli
           cas = cas_from_tokens(tokens)
           return [nil, cas] unless tokens.first == VA
 
-          [@value_marshaller.retrieve(read_line, bitflags_from_tokens(tokens)), cas]
+          [@value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens)), cas]
         end
 
         def meta_get_without_value
@@ -204,6 +204,10 @@ module Dalli
         def next_line_to_tokens
           line = read_line
           line&.split || []
+        end
+
+        def read_data(data_size)
+          @io_source.read(data_size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
         end
       end
     end
