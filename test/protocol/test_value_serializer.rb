@@ -279,6 +279,23 @@ describe Dalli::Protocol::ValueSerializer do
       end
     end
 
+    describe 'when deserialization raises an ArgumentError for a user class' do
+      let(:error_message) { 'dump format error (user class)' }
+      let(:serializer) { Marshal }
+      # This is a "user class", extending a built-in class String. FooString = Class.new(String)
+      let(:raw_value) { "\x04\bC:\x0EFooString\"\x00" }
+
+      it 'raises UnmarshalError on that user extended class' do
+        # Note that the class does not match the inheritance in the serialized data.
+        FooString = Class.new(Hash) # rubocop:disable Lint/ConstantDefinitionInBlock
+        exception = assert_raises Dalli::UnmarshalError do
+          vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
+        end
+
+        assert_equal exception.message, "Unable to unmarshal value: #{error_message}"
+      end
+    end
+
     describe 'when deserialization raises an ArgumentError for an undefined class' do
       let(:error_message) { 'undefined class/module NonexistentClass' }
       let(:serializer) { Marshal }

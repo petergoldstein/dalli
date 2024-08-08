@@ -38,7 +38,7 @@ module Dalli
       # in current systems
       # rubocop:disable Layout/LineLength
       TYPE_ERR_REGEXP = %r{needs to have method `_load'|exception class/object expected|instance of IO needed|incompatible marshal file format}.freeze
-      ARGUMENT_ERR_REGEXP = /undefined class|marshal data too short/.freeze
+      ARGUMENT_ERR_REGEXP = /undefined class|marshal data too short|dump format error \(user class\)/.freeze
       NAME_ERR_STR = 'uninitialized constant'
       # rubocop:enable Layout/LineLength
 
