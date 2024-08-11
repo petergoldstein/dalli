@@ -42,9 +42,22 @@ module Dalli
       NAME_ERR_STR = 'uninitialized constant'
       # rubocop:enable Layout/LineLength
 
-      def retrieve(value, bitflags)
+      def retrieve(value, bitflags) # rubocop:disable Metrics/MethodLength
         serialized = (bitflags & FLAG_SERIALIZED) != 0
-        serialized ? serializer.load(value) : value
+        if serialized
+          if serializer.is_a?(Marshal)
+            begin
+              serializer.load(value)
+            rescue StandardError => e
+              raise UnmarshalError, "Unable to unmarshal value: #{e.message}"
+            end
+          else
+            # Use Dalli's existing exception filtering for deserialization when not using Marshal to serialize.
+            serializer.load(value)
+          end
+        else
+          value
+        end
       rescue TypeError => e
         filter_type_error(e)
       rescue ArgumentError => e

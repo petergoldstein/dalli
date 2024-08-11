@@ -158,6 +158,7 @@ describe Dalli::Protocol::ValueSerializer do
 
     describe 'when the bitflags specify serialization' do
       it 'should deserialize the value' do
+        serializer.expect :is_a?, true, [Marshal]
         serializer.expect :load, deserialized_dummy, [raw_value]
         bitflags = rand(32)
         bitflags |= 0x1
