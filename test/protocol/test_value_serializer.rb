@@ -181,7 +181,7 @@ describe Dalli::Protocol::ValueSerializer do
           end
         end
 
-        assert_equal exception.message, "Unable to unmarshal value: #{error_message}"
+        assert_equal exception.cause.message, error_message
       end
     end
 
@@ -198,7 +198,7 @@ describe Dalli::Protocol::ValueSerializer do
           end
         end
 
-        assert_equal exception.message, "Unable to unmarshal value: #{error_message}"
+        assert_equal exception.cause.message, error_message
       end
     end
 
@@ -212,7 +212,7 @@ describe Dalli::Protocol::ValueSerializer do
           vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
         end
 
-        assert_equal exception.message, "Unable to unmarshal value: #{error_message}"
+        assert_equal exception.cause.message, error_message
       end
     end
 
@@ -226,23 +226,7 @@ describe Dalli::Protocol::ValueSerializer do
           vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
         end
 
-        assert exception.message.start_with?("Unable to unmarshal value: #{error_message}")
-      end
-    end
-
-    describe 'when deserialization raises a TypeError with a non-matching message' do
-      let(:error_message) { SecureRandom.hex(10) }
-      let(:serializer) { Marshal }
-
-      it 're-raises TypeError' do
-        error = ->(_arg) { raise TypeError, error_message }
-        exception = serializer.stub :load, error do
-          assert_raises TypeError do
-            vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
-          end
-        end
-
-        assert_equal error_message, exception.message
+        assert exception.cause.message.start_with?(error_message)
       end
     end
 
@@ -259,23 +243,7 @@ describe Dalli::Protocol::ValueSerializer do
           end
         end
 
-        assert exception.message.start_with?("Unable to unmarshal value: #{error_message}")
-      end
-    end
-
-    describe 'when deserialization raises a NameError with a non-matching message' do
-      let(:error_message) { SecureRandom.hex(10) }
-      let(:serializer) { Marshal }
-
-      it 're-raises NameError' do
-        error = ->(_arg) { raise NameError, error_message }
-        exception = serializer.stub :load, error do
-          assert_raises NameError do
-            vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
-          end
-        end
-
-        assert exception.message.start_with?(error_message)
+        assert exception.cause.message.start_with?(error_message)
       end
     end
 
@@ -289,7 +257,7 @@ describe Dalli::Protocol::ValueSerializer do
           vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
         end
 
-        assert_equal exception.message, "Unable to unmarshal value: #{error_message}"
+        assert_equal exception.cause.message, error_message
       end
     end
 
@@ -303,23 +271,7 @@ describe Dalli::Protocol::ValueSerializer do
           vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
         end
 
-        assert_equal exception.message, "Unable to unmarshal value: #{error_message}"
-      end
-    end
-
-    describe 'when deserialization raises an ArgumentError with a non-matching message' do
-      let(:error_message) { SecureRandom.hex(10) }
-      let(:serializer) { Marshal }
-
-      it 're-raises ArgumentError' do
-        error = ->(_arg) { raise ArgumentError, error_message }
-        exception = serializer.stub :load, error do
-          assert_raises ArgumentError do
-            vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
-          end
-        end
-
-        assert_equal exception.message, error_message
+        assert_equal exception.cause.message, error_message
       end
     end
 
@@ -334,7 +286,7 @@ describe Dalli::Protocol::ValueSerializer do
                      deserialized_value
       end
 
-      it 'raises UnmarshalError for non-seriaized data' do
+      it 'raises UnmarshalError for non-serialized data' do
         assert_raises Dalli::UnmarshalError do
           vs.retrieve(:not_serialized_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
         end
