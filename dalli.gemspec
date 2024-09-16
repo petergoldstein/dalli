@@ -24,4 +24,6 @@ Gem::Specification.new do |s|
     'changelog_uri' => 'https://github.com/petergoldstein/dalli/blob/main/CHANGELOG.md',
     'rubygems_mfa_required' => 'true'
   }
+
+  s.add_dependency 'logger'
 end

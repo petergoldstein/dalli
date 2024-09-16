@@ -11,7 +11,6 @@ ENV['SASL_CONF_PATH'] = "#{File.dirname(__FILE__)}/sasl/memcached.conf"
 
 require 'dalli'
 require 'logger'
-require 'ostruct'
 require 'securerandom'
 
 Dalli.logger = Logger.new($stdout)

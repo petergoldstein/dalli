@@ -15,7 +15,7 @@ describe 'Network' do
 
         describe 'with a fake server' do
           it 'handle connection reset' do
-            memcached_mock(->(sock) { sock.close }) do
+            memcached_mock(lambda(&:close)) do
               dc = Dalli::Client.new('localhost:19123')
               assert_raises Dalli::RingError, message: 'No server available' do
                 dc.get('abc')
@@ -25,7 +25,7 @@ describe 'Network' do
 
           it 'handle connection reset with unix socket' do
             socket_path = MemcachedMock::UNIX_SOCKET_PATH
-            memcached_mock(->(sock) { sock.close }, :start_unix, socket_path) do
+            memcached_mock(lambda(&:close), :start_unix, socket_path) do
               dc = Dalli::Client.new(socket_path)
               assert_raises Dalli::RingError, message: 'No server available' do
                 dc.get('abc')
