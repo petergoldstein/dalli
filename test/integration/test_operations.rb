@@ -45,23 +45,38 @@ describe 'operations' do
 
             val1 = 'meta'
             dc.set('meta_key', val1)
-            dc.get('meta_key', meta_flags: %i[l h t])
-            # ensure hit true and last accessed 0
-            response = dc.get('meta_key', meta_flags: %i[l h t])
-            val2 = response.first
-            meta_flags = response.last
+            val2, meta_flags = dc.get('meta_key', meta_flags: %i[l h t])
 
             assert_equal val1, val2
-            assert_equal({ c: 0, l: 0, h: true, t: -1, bitflag: nil }, meta_flags)
+            # not yet hit, and last accessed 0 from set
+            assert_equal({ c: 0, l: 0, h: false, t: -1, bitflag: nil }, meta_flags)
 
-            assert op_addset_succeeds(dc.set('a', nil))
-            assert_nil dc.get('a')
+            sleep 1 # we can't simulate time in memcached so we need to sleep
+            # ensure hit true and last accessed 1
+            val2, meta_flags = dc.get('meta_key', meta_flags: %i[l h t])
+
+            assert_equal val1, val2
+            assert_equal({ c: 0, l: 1, h: true, t: -1, bitflag: nil }, meta_flags)
+
+            assert op_addset_succeeds(dc.set('meta_key', nil))
+            assert_nil dc.get('meta_key')
           end
         end
 
         it 'returns nil on a miss' do
           memcached_persistent(p) do |dc|
             assert_nil dc.get('notexist')
+          end
+        end
+
+        it 'returns nil on a miss with meta flags' do
+          memcached_persistent(p) do |dc|
+            skip 'not supported' if p == :binary
+
+            val2, meta_flags = dc.get('notexist', meta_flags: %i[l h t])
+
+            assert_nil val2
+            assert_empty(meta_flags)
           end
         end
 
@@ -92,6 +107,27 @@ describe 'operations' do
             dc.flush
 
             assert_nil dc.gat('notexist', 10)
+          end
+        end
+
+        it 'return the value and the meta flags' do
+          memcached_persistent(p) do |dc|
+            skip 'not supported' if p == :binary
+            dc.flush
+
+            val1 = 'meta'
+            dc.set('meta_key', val1)
+            dc.gat('meta_key', 10, meta_flags: %i[l h t])
+            # ensure hit true and last accessed 0
+            response = dc.gat('meta_key', 10, meta_flags: %i[l h t])
+            val2 = response.first
+            meta_flags = response.last
+
+            assert_equal val1, val2
+            assert_equal({ c: 0, l: 0, h: true, t: 10, bitflag: nil }, meta_flags)
+
+            assert op_addset_succeeds(dc.set('meta_key', nil))
+            assert_nil dc.get('meta_key')
           end
         end
       end
