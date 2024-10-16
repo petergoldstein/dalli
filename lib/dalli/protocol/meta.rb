@@ -42,7 +42,8 @@ module Dalli
       def gat(key, ttl, options = nil)
         ttl = TtlSanitizer.sanitize(ttl)
         encoded_key, base64 = KeyRegularizer.encode(key)
-        req = RequestFormatter.meta_get(key: encoded_key, ttl: ttl, base64: base64, meta_flags: meta_flag_options(options))
+        req = RequestFormatter.meta_get(key: encoded_key, ttl: ttl, base64: base64,
+                                        meta_flags: meta_flag_options(options))
         write(req)
         if meta_flag_options(options)
           response_processor.meta_get_with_value_and_meta_flags(cache_nils: cache_nils?(options))

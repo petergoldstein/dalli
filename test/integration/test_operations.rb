@@ -43,16 +43,16 @@ describe 'operations' do
             skip 'not supported' if p == :binary
             dc.flush
 
-            val1 = "meta"
+            val1 = 'meta'
             dc.set('meta_key', val1)
-            response = dc.get('meta_key', meta_flags: [:l, :h, :t])
+            dc.get('meta_key', meta_flags: %i[l h t])
             # ensure hit true and last accessed 0
-            response = dc.get('meta_key', meta_flags: [:l, :h, :t])
+            response = dc.get('meta_key', meta_flags: %i[l h t])
             val2 = response.first
             meta_flags = response.last
 
             assert_equal val1, val2
-            assert_equal meta_flags, {c: 0, l: 0, h: true, t: -1, bitflag: nil}
+            assert_equal({ c: 0, l: 0, h: true, t: -1, bitflag: nil }, meta_flags)
 
             assert op_addset_succeeds(dc.set('a', nil))
             assert_nil dc.get('a')

@@ -49,12 +49,7 @@ module Dalli
           tokens = error_on_unexpected!([VA, EN, HD])
           return [(cache_nils ? ::Dalli::NOT_FOUND : nil), {}] if tokens.first == EN
 
-          meta_flags = {
-            c: cas_from_tokens(tokens),
-            h: hit_from_tokens(tokens),
-            l: last_accessed_from_tokens(tokens),
-            t: ttl_remaining_from_tokens(tokens),
-          }
+          meta_flags = meta_flags_from_tokens(tokens)
           return [(cache_nils ? ::Dalli::NOT_FOUND : nil), meta_flags] unless tokens.first == VA
 
           value, bitflag = @value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens))
@@ -187,6 +182,15 @@ module Dalli
           raise Dalli::DalliError, "Response error: #{tokens.first}" unless expected_codes.include?(tokens.first)
 
           tokens
+        end
+
+        def meta_flags_from_tokens(tokens)
+          {
+            c: cas_from_tokens(tokens),
+            h: hit_from_tokens(tokens),
+            l: last_accessed_from_tokens(tokens),
+            t: ttl_remaining_from_tokens(tokens)
+          }
         end
 
         def bitflags_from_tokens(tokens)
