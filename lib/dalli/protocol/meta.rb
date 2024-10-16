@@ -25,9 +25,13 @@ module Dalli
       # Retrieval Commands
       def get(key, options = nil)
         encoded_key, base64 = KeyRegularizer.encode(key)
-        req = RequestFormatter.meta_get(key: encoded_key, base64: base64)
+        req = RequestFormatter.meta_get(key: encoded_key, base64: base64, meta_flags: meta_flag_options(options))
         write(req)
-        response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
+        if meta_flag_options(options)
+          response_processor.meta_get_with_value_and_meta_flags(cache_nils: cache_nils?(options))
+        else
+          response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
+        end
       end
 
       def quiet_get_request(key)
@@ -38,9 +42,13 @@ module Dalli
       def gat(key, ttl, options = nil)
         ttl = TtlSanitizer.sanitize(ttl)
         encoded_key, base64 = KeyRegularizer.encode(key)
-        req = RequestFormatter.meta_get(key: encoded_key, ttl: ttl, base64: base64)
+        req = RequestFormatter.meta_get(key: encoded_key, ttl: ttl, base64: base64, meta_flags: meta_flag_options(options))
         write(req)
-        response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
+        if meta_flag_options(options)
+          response_processor.meta_get_with_value_and_meta_flags(cache_nils: cache_nils?(options))
+        else
+          response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
+        end
       end
 
       def touch(key, ttl)

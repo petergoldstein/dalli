@@ -45,6 +45,23 @@ module Dalli
           [@value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens)), cas]
         end
 
+        def meta_get_with_value_and_meta_flags(cache_nils: false)
+          tokens = error_on_unexpected!([VA, EN, HD])
+          return [(cache_nils ? ::Dalli::NOT_FOUND : nil), {}] if tokens.first == EN
+
+          meta_flags = {
+            c: cas_from_tokens(tokens),
+            h: hit_from_tokens(tokens),
+            l: last_accessed_from_tokens(tokens),
+            t: ttl_remaining_from_tokens(tokens),
+          }
+          return [(cache_nils ? ::Dalli::NOT_FOUND : nil), meta_flags] unless tokens.first == VA
+
+          value, bitflag = @value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens))
+          meta_flags[:bitflag] = bitflag
+          [value, meta_flags]
+        end
+
         def meta_get_without_value
           tokens = error_on_unexpected!([EN, HD])
           tokens.first == EN ? nil : true
@@ -178,6 +195,18 @@ module Dalli
 
         def cas_from_tokens(tokens)
           value_from_tokens(tokens, 'c')&.to_i
+        end
+
+        def hit_from_tokens(tokens)
+          value_from_tokens(tokens, 'h')&.to_i != 0
+        end
+
+        def last_accessed_from_tokens(tokens)
+          value_from_tokens(tokens, 'l')&.to_i
+        end
+
+        def ttl_remaining_from_tokens(tokens)
+          value_from_tokens(tokens, 't')&.to_i
         end
 
         def key_from_tokens(tokens)
