@@ -3,6 +3,7 @@
 require 'digest/md5'
 require 'set'
 
+# rubocop:disable Metrics/ClassLength
 # encoding: ascii
 module Dalli
   ##
@@ -196,6 +197,15 @@ module Dalli
       Thread.current[::Dalli::QUIET] = old
     end
     alias multi quiet
+
+    ##
+    # set multiple keys efficiently in pipelined queit mode.  Returns nil.
+    def set_multi(pairs, ttl, req_options = nil)
+      return if pairs.empty?
+
+      pipelined_setter.process(pairs, ttl, req_options)
+      nil
+    end
 
     def set(key, value, ttl = nil, req_options = nil)
       set_cas(key, value, 0, ttl, req_options)
@@ -440,5 +450,11 @@ module Dalli
     def pipelined_getter
       PipelinedGetter.new(ring, @key_manager)
     end
+
+    def pipelined_setter
+      PipelinedSetter.new(ring, @key_manager)
+    end
   end
 end
+# rubocop:enable Metrics/ClassLength
+#
