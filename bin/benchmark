@@ -1,6 +1,11 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# This helps benchmark current performance of Dalli
+# as well as compare performance of optimizated and non-optimized calls like multi-set vs set
+# run with:
+# bundle exec bin/benchmark
+
 require 'bundler/inline'
 require 'json'
 
@@ -27,6 +32,7 @@ class StringSerializer
 end
 
 client = Dalli::Client.new('localhost', compress: false)
+meta_client = Dalli::Client.new('localhost', protocol: :meta, serializer: StringSerializer, compress: false)
 json_client = Dalli::Client.new('localhost', serializer: JSON, compress: false)
 string_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
 
@@ -34,8 +40,57 @@ payload = 'B' * 1_000_000
 client.set('key', payload)
 json_client.set('json_key', payload)
 string_client.set('string_key', payload)
+meta_client.set('meta_key', payload)
+
+# Benchmark.ips do |x|
+#   x.report('get 1MB MARSHAL') { client.get('key') }
+#   x.report('get 1MB JSON') { json_client.get('json_key') }
+#   x.report('get 1MB STRING') { string_client.get('string_key') }
+# end
+
+payload_fifty = 'B' * 50_000
+keys = {}
+100.times do |i|
+  keys["multi_#{i}"] = payload_fifty
+end
+
+###
+# GC Suite
+# benchmark without GC skewing things
+###
+class GCSuite
+  def warming(*)
+    run_gc
+  end
+
+  def running(*)
+    run_gc
+  end
+
+  def warmup_stats(*); end
+
+  def add_report(*); end
+
+  private
+
+  def run_gc
+    GC.enable
+    GC.start
+    GC.disable
+  end
+end
+
+suite = GCSuite.new
+
 Benchmark.ips do |x|
-  x.report('get 1MB MARSHAL') { client.get('key') }
-  x.report('get 1MB JSON') { json_client.get('json_key') }
-  x.report('get 1MB STRING') { string_client.get('string_key') }
+  x.config(warmup: 2, time: 10, suite: suite)
+  x.report('write 100 keys simple') do
+    client.quiet do
+      keys.each do |key, value|
+        client.set(key, value, 3600, raw: true)
+      end
+    end
+  end
+  x.report('write_mutli 100 keys') { meta_client.set_multi(keys, 3600, raw: true) }
+  x.compare!
 end

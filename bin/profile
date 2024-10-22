@@ -1,0 +1,108 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# This helps benchmark current performance of Dalli
+# as well as compare performance of optimizated and non-optimized calls like multi-set vs set
+# run with:
+# RUBY_YJIT_ENABLE=1 bundle exec bin/profile
+
+require 'bundler/inline'
+require 'json'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'dalli'
+  gem 'benchmark-ips'
+  gem 'stackprof'
+end
+
+require 'dalli'
+require 'benchmark/ips'
+require 'stackprof'
+
+##
+# StringSerializer is a serializer that avoids the overhead of Marshal or JSON.
+##
+class StringSerializer
+  def self.dump(value)
+    value
+  end
+
+  def self.load(value)
+    value
+  end
+end
+
+client = Dalli::Client.new('localhost', compress: false)
+meta_client = Dalli::Client.new('localhost', protocol: :meta, serializer: StringSerializer, compress: false)
+json_client = Dalli::Client.new('localhost', serializer: JSON, compress: false)
+string_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
+
+payload = 'B' * 1_000_000
+client.set('key', payload)
+json_client.set('json_key', payload)
+string_client.set('string_key', payload)
+meta_client.set('meta_key', payload)
+
+payload_fifty = 'B' * 50_000
+keys = {}
+100.times do |i|
+  keys["multi_#{i}"] = payload_fifty
+end
+
+# Benchmark.ips do |x|
+#   x.config(warmup: 2, time: 10, suite: suite)
+#   x.report('write 100 keys simple') do
+#     client.quiet do
+#       keys.each do |key, value|
+#         client.set(key, value, 3600, raw: true)
+#       end
+#     end
+#   end
+#   x.report('write_mutli 100 keys') { meta_client.set_multi(keys, 3600, raw: true) }
+#   x.compare!
+# end
+
+profile_job = ENV['PROFILE_JOB'] || 'set_multi'
+
+if profile_job == 'get_multi'
+  profile = StackProf.run(mode: :wall, interval: 1_000) do
+    5_000.times do
+      meta_client.get_multi(keys.keys)
+    end
+  end
+
+  result = StackProf::Report.new(profile)
+  puts
+  result.print_text
+  puts "\n\n\n"
+  result.print_method(/Dalli::Client#get_multi/)
+elsif profile_job == 'set_single'
+  profile = StackProf.run(mode: :wall, interval: 1_000) do
+    5_000.times do
+      client.quiet do
+        keys.each do |key, value|
+          client.set(key, value, 3600, raw: true)
+        end
+      end
+    end
+  end
+
+  result = StackProf::Report.new(profile)
+  puts
+  result.print_text
+  puts "\n\n\n"
+  result.print_method(/Dalli::Client#quiet/)
+else
+  profile = StackProf.run(mode: :wall, interval: 1_000) do
+    5_000.times do
+      meta_client.set_multi(keys, 3600, raw: true)
+    end
+  end
+
+  result = StackProf::Report.new(profile)
+  puts
+  result.print_text
+  puts "\n\n\n"
+  result.print_method(/Dalli::Client#set_multi/)
+end
