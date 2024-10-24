@@ -36,7 +36,7 @@ TERMINATOR = "\r\n"
 client = Dalli::Client.new('localhost', compress: false)
 meta_client = Dalli::Client.new('localhost', protocol: :meta, serializer: StringSerializer, compress: false)
 string_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
-# The raw socket implementation is used to benchmark the performance of dalli and the overhead of the various abstractions
+# The raw socket implementation is used to benchmark the performance of dalli & the overhead of the various abstractions
 # in the library.
 sock = TCPSocket.new('127.0.0.1', '11211', connect_timeout: 1)
 sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
