@@ -143,8 +143,8 @@ describe Rack::Session::Dalli do
     res = req.get('/')
     sid = res['Set-Cookie'][session_match, 1]
 
-    assert_includes req.get("/?rack.session=#{sid}").body.delete(' '), '{"counter"=>2}'
-    assert_includes req.get("/?rack.session=#{sid}").body.delete(' '), '{"counter"=>3}'
+    assert_equal '{"counter"=>2}', req.get("/?rack.session=#{sid}").body.delete(' ')
+    assert_equal '{"counter"=>3}', req.get("/?rack.session=#{sid}").body.delete(' ')
   end
 
   it 'survives nonexistant cookies' do

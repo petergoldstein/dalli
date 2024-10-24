@@ -1,0 +1,41 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'bundler/inline'
+require 'json'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'dalli'
+  gem 'benchmark-ips'
+end
+
+require 'dalli'
+require 'benchmark/ips'
+
+##
+# StringSerializer is a serializer that avoids the overhead of Marshal or JSON.
+##
+class StringSerializer
+  def self.dump(value)
+    value
+  end
+
+  def self.load(value)
+    value
+  end
+end
+
+client = Dalli::Client.new('localhost', compress: false)
+json_client = Dalli::Client.new('localhost', serializer: JSON, compress: false)
+string_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
+
+payload = 'B' * 1_000_000
+client.set('key', payload)
+json_client.set('json_key', payload)
+string_client.set('string_key', payload)
+Benchmark.ips do |x|
+  x.report('get 1MB MARSHAL') { client.get('key') }
+  x.report('get 1MB JSON') { json_client.get('json_key') }
+  x.report('get 1MB STRING') { string_client.get('string_key') }
+end
