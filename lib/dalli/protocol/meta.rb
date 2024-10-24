@@ -22,10 +22,14 @@ module Dalli
       # * only supports single server at the moment
       # * only supports set at the moment
       # * doesn't support cas at the moment
+      # rubocop:disable Metrics/MethodLength
       def write_multi_storage_req(_mode, pairs, ttl = nil, _cas = nil, options = {})
         ttl = TtlSanitizer.sanitize(ttl) if ttl
+        count = pairs.length
+        tail = ''
 
         pairs.each do |key, raw_value|
+          count -= 1
           (value, bitflags) = @value_marshaller.store(key, raw_value, options)
           encoded_key, _base64 = KeyRegularizer.encode(key)
           value_bytesize = value.bytesize
@@ -34,11 +38,19 @@ module Dalli
           # * String.new is used to avoid an extra allocation from <<
           # * first chunk uses interpolated values to avoid extra allocation, but << for larger 'value' strings
           # * avoids using the request formatter pattern for single inline builder
-          @connection_manager.write(String.new("ms #{encoded_key} #{value_bytesize} c F#{bitflags} T#{ttl} MS q\r\n",
-                                               capacity: key.size + value_bytesize + 40) << value << "\r\n")
+
+          # if last pair of hash, add TERMINATOR
+          tail = if count.zero?
+                   ''
+                 else
+                   'q'
+                 end
+          @connection_manager.write(String.new("ms #{encoded_key} #{value_bytesize} c F#{bitflags} T#{ttl} MS #{tail}\r\n",
+                                               capacity: key.size + value_bytesize + 40) << value << TERMINATOR)
         end
-        noop
+        response_processor.meta_set_with_cas
       end
+      # rubocop:enable Metrics/MethodLength
 
       private
 
