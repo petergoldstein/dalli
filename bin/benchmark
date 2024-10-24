@@ -94,43 +94,43 @@ end
 
 suite = GCSuite.new
 
-Benchmark.ips do |x|
-  x.report('get 1MB MARSHAL') { client.get('key') }
-  x.report('get 1MB STRING') { string_client.get('string_key') }
-  x.report('meta_get 1MB STRING') { meta_client.get('meta_key') }
-end
-
 # Benchmark.ips do |x|
-#   x.config(warmup: 2, time: 5, suite: suite)
-#   x.report('binary get_mutli 100 keys') { client.get_multi(pairs.keys) }
-#   x.report('meta get_mutli 100 keys') { meta_client.get_multi(pairs.keys) }
-#   x.compare!
+#   x.report('get 1MB MARSHAL') { client.get('key') }
+#   x.report('get 1MB STRING') { string_client.get('string_key') }
+#   x.report('meta_get 1MB STRING') { meta_client.get('meta_key') }
 # end
 
 Benchmark.ips do |x|
   x.config(warmup: 2, time: 5, suite: suite)
-  x.report('write 100 keys simple') do
-    client.quiet do
-      pairs.each do |key, value|
-        client.set(key, value, 3600, raw: true)
-      end
-    end
-  end
-  x.report('write 100 keys rawsock') do
-    count = pairs.length
-    tail = ''
-    value_bytesize = payload_fifty.bytesize
-    ttl = 3600
-
-    pairs.each do |key, value|
-      count -= 1
-      tail = count.zero? ? '' : 'q'
-      sock.write(String.new("ms #{key} #{value_bytesize} c F0 T#{ttl} MS #{tail}\r\n",
-                            capacity: key.size + value_bytesize + 40) << value << TERMINATOR)
-    end
-    sock.flush
-    sock.readline # clear the buffer
-  end
-  x.report('write_mutli 100 keys') { meta_client.set_multi(pairs, 3600, raw: true) }
+  x.report('binary get_mutli 100 keys') { client.get_multi(pairs.keys) }
+  x.report('meta get_mutli 100 keys') { meta_client.get_multi(pairs.keys) }
   x.compare!
 end
+
+# Benchmark.ips do |x|
+#   x.config(warmup: 2, time: 5, suite: suite)
+#   x.report('write 100 keys simple') do
+#     client.quiet do
+#       pairs.each do |key, value|
+#         client.set(key, value, 3600, raw: true)
+#       end
+#     end
+#   end
+#   x.report('write 100 keys rawsock') do
+#     count = pairs.length
+#     tail = ''
+#     value_bytesize = payload_fifty.bytesize
+#     ttl = 3600
+
+#     pairs.each do |key, value|
+#       count -= 1
+#       tail = count.zero? ? '' : 'q'
+#       sock.write(String.new("ms #{key} #{value_bytesize} c F0 T#{ttl} MS #{tail}\r\n",
+#                             capacity: key.size + value_bytesize + 40) << value << TERMINATOR)
+#     end
+#     sock.flush
+#     sock.readline # clear the buffer
+#   end
+#   x.report('write_mutli 100 keys') { meta_client.set_multi(pairs, 3600, raw: true) }
+#   x.compare!
+# end

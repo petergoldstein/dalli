@@ -23,8 +23,6 @@ module Dalli
       # * only supports set at the moment
       # * doesn't support cas at the moment
       # rubocop:disable Metrics/MethodLength
-      # rubocop:disable Metrics/AbcSize
-      # rubocop:disable Layout/LineLength
       def write_multi_storage_req(_mode, pairs, ttl = nil, _cas = nil, options = {})
         ttl = TtlSanitizer.sanitize(ttl) if ttl
         count = pairs.length
@@ -47,14 +45,13 @@ module Dalli
                  else
                    'q'
                  end
-          @connection_manager.write(String.new("ms #{encoded_key} #{value_bytesize} c F#{bitflags} T#{ttl} MS #{tail}\r\n",
-                                               capacity: key.size + value_bytesize + 40) << value << TERMINATOR)
+          @connection_manager.write("ms #{encoded_key} #{value_bytesize} c F#{bitflags} T#{ttl} MS #{tail}\r\n")
+          @connection_manager.write(value)
+          @connection_manager.write(TERMINATOR)
         end
         response_processor.meta_set_with_cas
       end
       # rubocop:enable Metrics/MethodLength
-      # rubocop:enable Metrics/AbcSize
-      # rubocop:enable Layout/LineLength
 
       private
 
