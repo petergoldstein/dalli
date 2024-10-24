@@ -31,27 +31,39 @@ class StringSerializer
   end
 end
 
+TERMINATOR = "\r\n"
+
 client = Dalli::Client.new('localhost', compress: false)
 meta_client = Dalli::Client.new('localhost', protocol: :meta, serializer: StringSerializer, compress: false)
-json_client = Dalli::Client.new('localhost', serializer: JSON, compress: false)
 string_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
+# The raw socket implementation is used to benchmark the performance of dalli and the overhead of the various abstractions
+# in the library.
+sock = TCPSocket.new('127.0.0.1', '11211', connect_timeout: 1)
+sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
+sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true)
+# sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVBUF, options[:rcvbuf]) if options[:rcvbuf]
+sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, 1024 * 1024 * 8)
 
 payload = 'B' * 1_000_000
+
+# ensure the clients are all connected and working
 client.set('key', payload)
-json_client.set('json_key', payload)
 string_client.set('string_key', payload)
 meta_client.set('meta_key', payload)
+sock.write("set sock_key 0 3600 1000000\r\n")
+sock.write(payload)
+sock.write("\r\n")
 
-# Benchmark.ips do |x|
-#   x.report('get 1MB MARSHAL') { client.get('key') }
-#   x.report('get 1MB JSON') { json_client.get('json_key') }
-#   x.report('get 1MB STRING') { string_client.get('string_key') }
-# end
-
+# ensure we have basic data for the benchmarks and get calls
 payload_fifty = 'B' * 50_000
-keys = {}
+pairs = {}
 100.times do |i|
-  keys["multi_#{i}"] = payload_fifty
+  pairs["multi_#{i}"] = payload_fifty
+end
+client.quiet do
+  pairs.each do |key, value|
+    client.set(key, value, 3600, raw: true)
+  end
 end
 
 ###
@@ -83,14 +95,42 @@ end
 suite = GCSuite.new
 
 Benchmark.ips do |x|
-  x.config(warmup: 2, time: 10, suite: suite)
+  x.report('get 1MB MARSHAL') { client.get('key') }
+  x.report('get 1MB STRING') { string_client.get('string_key') }
+  x.report('meta_get 1MB STRING') { meta_client.get('meta_key') }
+end
+
+# Benchmark.ips do |x|
+#   x.config(warmup: 2, time: 5, suite: suite)
+#   x.report('binary get_mutli 100 keys') { client.get_multi(pairs.keys) }
+#   x.report('meta get_mutli 100 keys') { meta_client.get_multi(pairs.keys) }
+#   x.compare!
+# end
+
+Benchmark.ips do |x|
+  x.config(warmup: 2, time: 5, suite: suite)
   x.report('write 100 keys simple') do
     client.quiet do
-      keys.each do |key, value|
+      pairs.each do |key, value|
         client.set(key, value, 3600, raw: true)
       end
     end
   end
-  x.report('write_mutli 100 keys') { meta_client.set_multi(keys, 3600, raw: true) }
+  x.report('write 100 keys rawsock') do
+    count = pairs.length
+    tail = ''
+    value_bytesize = payload_fifty.bytesize
+    ttl = 3600
+
+    pairs.each do |key, value|
+      count -= 1
+      tail = count.zero? ? '' : 'q'
+      sock.write(String.new("ms #{key} #{value_bytesize} c F0 T#{ttl} MS #{tail}\r\n",
+                            capacity: key.size + value_bytesize + 40) << value << TERMINATOR)
+    end
+    sock.flush
+    sock.readline # clear the buffer
+  end
+  x.report('write_mutli 100 keys') { meta_client.set_multi(pairs, 3600, raw: true) }
   x.compare!
 end

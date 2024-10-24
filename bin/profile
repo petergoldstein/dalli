@@ -35,12 +35,10 @@ end
 
 client = Dalli::Client.new('localhost', compress: false)
 meta_client = Dalli::Client.new('localhost', protocol: :meta, serializer: StringSerializer, compress: false)
-json_client = Dalli::Client.new('localhost', serializer: JSON, compress: false)
 string_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
 
 payload = 'B' * 1_000_000
 client.set('key', payload)
-json_client.set('json_key', payload)
 string_client.set('string_key', payload)
 meta_client.set('meta_key', payload)
 
@@ -50,34 +48,34 @@ keys = {}
   keys["multi_#{i}"] = payload_fifty
 end
 
-# Benchmark.ips do |x|
-#   x.config(warmup: 2, time: 10, suite: suite)
-#   x.report('write 100 keys simple') do
-#     client.quiet do
-#       keys.each do |key, value|
-#         client.set(key, value, 3600, raw: true)
-#       end
-#     end
-#   end
-#   x.report('write_mutli 100 keys') { meta_client.set_multi(keys, 3600, raw: true) }
-#   x.compare!
-# end
+# ensure theres is data for get calls
+client.quiet do
+  keys.each do |key, value|
+    client.set(key, value, 3600, raw: true)
+  end
+end
 
 profile_job = ENV['PROFILE_JOB'] || 'set_multi'
+method_name = ''
 
-if profile_job == 'get_multi'
+case profile_job
+when 'get_multi'
   profile = StackProf.run(mode: :wall, interval: 1_000) do
     5_000.times do
       meta_client.get_multi(keys.keys)
     end
   end
-
-  result = StackProf::Report.new(profile)
-  puts
-  result.print_text
-  puts "\n\n\n"
-  result.print_method(/Dalli::Client#get_multi/)
-elsif profile_job == 'set_single'
+  method_name = /Dalli::Client#get_multi/
+when 'get_single'
+  profile = StackProf.run(mode: :wall, interval: 1_000) do
+    5_000.times do
+      keys.keys.each do |key|
+        meta_client.get(key)
+      end
+    end
+  end
+  method_name = /Dalli::Client#get/
+when 'set_single'
   profile = StackProf.run(mode: :wall, interval: 1_000) do
     5_000.times do
       client.quiet do
@@ -87,22 +85,18 @@ elsif profile_job == 'set_single'
       end
     end
   end
-
-  result = StackProf::Report.new(profile)
-  puts
-  result.print_text
-  puts "\n\n\n"
-  result.print_method(/Dalli::Client#quiet/)
+  method_name = /Dalli::Client#set/
 else
   profile = StackProf.run(mode: :wall, interval: 1_000) do
     5_000.times do
       meta_client.set_multi(keys, 3600, raw: true)
     end
   end
-
-  result = StackProf::Report.new(profile)
-  puts
-  result.print_text
-  puts "\n\n\n"
-  result.print_method(/Dalli::Client#set_multi/)
+  method_name = /Dalli::Client#set_multi/
 end
+
+result = StackProf::Report.new(profile)
+puts
+result.print_text
+puts "\n\n\n"
+result.print_method(method_name)

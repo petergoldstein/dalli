@@ -154,6 +154,9 @@ module Dalli
           # The full response is in our buffer, so parse it and return
           # the values
           body = buf.slice(header_len, body_len)
+          # No difference in performance for below
+          # body = buf[header_len, body_len]
+          # body = buf.byteslice(header_len, body_len)
           full_response_from_buffer(tokens, body, resp_size)
         end
 
