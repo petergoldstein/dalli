@@ -56,27 +56,27 @@ module Dalli
       # rubocop:disable Metrics/MethodLength
       # rubocop:disable Metrics/AbcSize
       # rubocop:disable Metrics/CyclomaticComplexity
-      # rubocop:disable Metrics/PerceivedComplexity
       def read_multi_req(keys)
         count = keys.length
         keys.each do |key|
           count -= 1
-          tail = count.zero? ? '' : 'q'
-          @connection_manager.write("mg #{key} v f k #{tail}\r\n")
+          @connection_manager.write("mg #{key} v f k q\r\n")
         end
+        @connection_manager.write("mn\r\n")
         @connection_manager.flush
         # read all the memcached responses back and build a hash of key value pairs
         results = {}
         last_result = false
         while (line = @connection_manager.readline.chomp) != ''
           last_result = true if line.start_with?('EN ')
+          break if line.start_with?('MN')
           next unless line.start_with?('VA ') || last_result
 
           _, value_length, _flags, key = line.split
           value = @connection_manager.read_exact(value_length.to_i)
           @connection_manager.read_exact(2) # Read trailing \r\n
           results[key[1..]] = value
-          break if results.size == keys.size
+          # break if results.size == keys.size
           break if last_result
         end
         results
@@ -84,7 +84,6 @@ module Dalli
       # rubocop:enable Metrics/AbcSize
       # rubocop:enable Metrics/MethodLength
       # rubocop:enable Metrics/CyclomaticComplexity
-      # rubocop:enable Metrics/PerceivedComplexity
 
       private
 
