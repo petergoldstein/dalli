@@ -18,7 +18,7 @@ module Dalli
       return {} if keys.empty?
 
       # optimized path only works for meta and single server setups at the moment
-      if @ring.servers.size > 1 || @ring.servers.first.response_processor.class.to_s.include?('Binary') || block_given?
+      if @ring.servers.size > 1 || @ring.servers.first.response_processor.class.to_s.include?('Binary') || block
         @ring.lock do
           servers = setup_requests(keys)
           start_time = Time.now
@@ -32,8 +32,8 @@ module Dalli
       Dalli.logger.debug { 'retrying pipelined gets because of timeout' }
       retry
     end
-    # rubocop:enable Metrics/AbcSize
 
+    # rubocop:enable Metrics/AbcSize
     def setup_requests(keys)
       groups = groups_for_keys(keys)
       make_getkq_requests(groups)
