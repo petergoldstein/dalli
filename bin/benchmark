@@ -31,6 +31,8 @@ class StringSerializer
   end
 end
 
+BENCH_TIME = (ENV['BENCH_TIME'] || 5).to_i
+BENCH_JOB  = ENV['BENCH_JOB'] || 'set_multi'
 TERMINATOR = "\r\n"
 
 client = Dalli::Client.new('localhost', compress: false)
@@ -53,6 +55,8 @@ meta_client.set('meta_key', payload)
 sock.write("set sock_key 0 3600 1000000\r\n")
 sock.write(payload)
 sock.write("\r\n")
+sock.flush
+sock.readline # clear the buffer
 
 # ensure we have basic data for the benchmarks and get calls
 payload_fifty = 'B' * 50_000
@@ -91,46 +95,104 @@ class GCSuite
     GC.disable
   end
 end
-
 suite = GCSuite.new
 
-# Benchmark.ips do |x|
-#   x.report('get 1MB MARSHAL') { client.get('key') }
-#   x.report('get 1MB STRING') { string_client.get('string_key') }
-#   x.report('meta_get 1MB STRING') { meta_client.get('meta_key') }
-# end
+# rubocop:disable Metrics/MethodLength
+# rubocop:disable Metrics/AbcSize
+# rubocop:disable Metrics/CyclomaticComplexity
+# rubocop:disable Metrics/PerceivedComplexity
+def sock_get_multi(sock, pairs)
+  count = pairs.length
+  pairs.each_key do |key|
+    count -= 1
+    tail = count.zero? ? '' : 'q'
+    sock.write("mg #{key} v f k #{tail}\r\n")
+  end
+  sock.flush
+  # read all the memcached responses back and build a hash of key value pairs
+  results = {}
+  last_result = false
+  while (line = sock.readline.chomp) != ''
+    last_result = true if line.start_with?('EN ')
+    next unless line.start_with?('VA ') || last_result
 
-Benchmark.ips do |x|
-  x.config(warmup: 2, time: 5, suite: suite)
-  x.report('binary get_mutli 100 keys') { client.get_multi(pairs.keys) }
-  x.report('meta get_mutli 100 keys') { meta_client.get_multi(pairs.keys) }
-  x.compare!
+    _, value_length, _flags, key = line.split
+    value = sock.read(value_length.to_i)
+    sock.read(2) # Read trailing \r\n
+    results[key[1..]] = value
+    break if results.size == pairs.size
+    break if last_result
+  end
+  results
 end
+# rubocop:enable Metrics/AbcSize
+# rubocop:enable Metrics/MethodLength
+# rubocop:enable Metrics/CyclomaticComplexity
+# rubocop:enable Metrics/PerceivedComplexity
 
-# Benchmark.ips do |x|
-#   x.config(warmup: 2, time: 5, suite: suite)
-#   x.report('write 100 keys simple') do
-#     client.quiet do
-#       pairs.each do |key, value|
-#         client.set(key, value, 3600, raw: true)
-#       end
-#     end
-#   end
-#   x.report('write 100 keys rawsock') do
-#     count = pairs.length
-#     tail = ''
-#     value_bytesize = payload_fifty.bytesize
-#     ttl = 3600
+case BENCH_JOB
+when 'set'
+  Benchmark.ips do |x|
+    x.config(warmup: 2, time: BENCH_TIME, suite: suite)
+    x.report('set 1MB MARSHAL') { client.set('key', payload) }
+    x.report('set 1MB STRING') { string_client.set('string_key', payload) }
+    x.report('meta_set 1MB STRING') { meta_client.set('meta_key', payload) }
+    x.report('set 1MB raw sock') do
+      sock.write("ms sock_key 1000000 c F0 T3600 MS \r\n")
+      sock.write(payload)
+      sock.write("\r\n")
+      sock.flush
+      sock.readline # clear the buffer
+    end
+    x.compare!
+  end
+when 'get'
+  Benchmark.ips do |x|
+    x.config(warmup: 2, time: BENCH_TIME, suite: suite)
+    x.report('get 1MB MARSHAL') { client.get('key') }
+    x.report('get 1MB STRING') { string_client.get('string_key') }
+    x.report('meta_get 1MB STRING') { meta_client.get('meta_key') }
+    x.report('get 1MB raw sock') do
+      sock.write("get sock_key\r\n")
+      sock.readline
+      sock.read(1_000_000)
+    end
+    x.compare!
+  end
+when 'get_multi'
+  Benchmark.ips do |x|
+    x.config(warmup: 2, time: BENCH_TIME, suite: suite)
+    x.report('binary get_mutli 100 keys') { client.get_multi(pairs.keys) }
+    x.report('meta get_mutli 100 keys') { meta_client.get_multi(pairs.keys) }
+    x.report('get 100 keys raw sock') { sock_get_multi(sock, pairs) }
+    x.compare!
+  end
+when 'set_multi'
+  Benchmark.ips do |x|
+    x.config(warmup: 2, time: BENCH_TIME, suite: suite)
+    x.report('write 100 keys simple') do
+      client.quiet do
+        pairs.each do |key, value|
+          client.set(key, value, 3600, raw: true)
+        end
+      end
+    end
+    x.report('write 100 keys rawsock') do
+      count = pairs.length
+      tail = ''
+      value_bytesize = payload_fifty.bytesize
+      ttl = 3600
 
-#     pairs.each do |key, value|
-#       count -= 1
-#       tail = count.zero? ? '' : 'q'
-#       sock.write(String.new("ms #{key} #{value_bytesize} c F0 T#{ttl} MS #{tail}\r\n",
-#                             capacity: key.size + value_bytesize + 40) << value << TERMINATOR)
-#     end
-#     sock.flush
-#     sock.readline # clear the buffer
-#   end
-#   x.report('write_mutli 100 keys') { meta_client.set_multi(pairs, 3600, raw: true) }
-#   x.compare!
-# end
+      pairs.each do |key, value|
+        count -= 1
+        tail = count.zero? ? '' : 'q'
+        sock.write(String.new("ms #{key} #{value_bytesize} c F0 T#{ttl} MS #{tail}\r\n",
+                              capacity: key.size + value_bytesize + 40) << value << TERMINATOR)
+      end
+      sock.flush
+      sock.readline # clear the buffer
+    end
+    x.report('write_mutli 100 keys') { meta_client.set_multi(pairs, 3600, raw: true) }
+    x.compare!
+  end
+end

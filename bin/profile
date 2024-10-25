@@ -68,7 +68,7 @@ when 'get_multi'
   method_name = /Dalli::Client#get_multi/
 when 'get_single'
   profile = StackProf.run(mode: :wall, interval: 1_000) do
-    5_000.times do
+    25_000.times do
       keys.each_key do |key|
         meta_client.get(key)
       end
