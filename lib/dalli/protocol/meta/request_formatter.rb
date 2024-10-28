@@ -16,12 +16,13 @@ module Dalli
         # rubocop:disable Metrics/MethodLength
         # rubocop:disable Metrics/ParameterLists
         # rubocop:disable Metrics/PerceivedComplexity
-        def self.meta_get(key:, value: true, return_cas: false, ttl: nil, base64: false, quiet: false)
+        def self.meta_get(key:, value: true, return_cas: false, ttl: nil, base64: false, quiet: false, meta_flags: nil)
           cmd = "mg #{key}"
           cmd << ' v f' if value
           cmd << ' c' if return_cas
           cmd << ' b' if base64
           cmd << " T#{ttl}" if ttl
+          cmd << " #{meta_flags.join(' ')}" if meta_flags
           cmd << ' k q s' if quiet # Return the key in the response if quiet
           cmd + TERMINATOR
         end
