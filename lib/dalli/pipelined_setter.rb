@@ -20,7 +20,7 @@ module Dalli
       # Note: groups_for_keys(pairs.keys) is slow, so we avoid it.
       raise 'not yet implemented' unless @ring.servers.length == 1
 
-      @ring.servers.first.write_multi_storage_req(:set, pairs, ttl, 0, req_options)
+      @ring.servers.first.request(:write_multi_storage_req, :set, pairs, ttl, 0, req_options)
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying pipelined gets because of timeout' }

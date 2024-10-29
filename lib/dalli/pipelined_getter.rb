@@ -25,7 +25,7 @@ module Dalli
           servers = fetch_responses(servers, start_time, @ring.socket_timeout, &block) until servers.empty?
         end
       else
-        @ring.servers.first.read_multi_req(keys)
+        @ring.servers.first.request(:read_multi_req, keys)
       end
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }

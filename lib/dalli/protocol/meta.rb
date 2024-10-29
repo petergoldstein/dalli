@@ -18,6 +18,8 @@ module Dalli
         @response_processor ||= ResponseProcessor.new(@connection_manager, @value_marshaller)
       end
 
+      private
+
       # NOTE: experimental write_multi_storage_req for optimized pipelined storage
       # * only supports single server at the moment
       # * only supports set at the moment
@@ -84,8 +86,6 @@ module Dalli
       # rubocop:enable Metrics/AbcSize
       # rubocop:enable Metrics/MethodLength
       # rubocop:enable Metrics/CyclomaticComplexity
-
-      private
 
       # Retrieval Commands
       def get(key, options = nil)
