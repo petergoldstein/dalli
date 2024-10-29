@@ -91,7 +91,6 @@ describe 'Pipelined Get' do
           dc.set('c', %w[a b c])
 
           Toxiproxy[/dalli_memcached/].down do
-            # Invocation without block
             resp = dc.get_multi(%w[a b c d e f])
             expected_resp = {}
 

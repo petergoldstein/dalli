@@ -22,9 +22,9 @@ module Dalli
 
       @ring.servers.first.request(:write_multi_storage_req, :set, pairs, ttl, 0, req_options)
     rescue NetworkError => e
+      puts 'network error'
       Dalli.logger.debug { e.inspect }
-      Dalli.logger.debug { 'retrying pipelined gets because of timeout' }
-      retry
+      Dalli.logger.debug { 'bailing on pipelined set because of timeout' }
     end
   end
 end
