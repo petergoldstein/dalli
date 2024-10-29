@@ -60,8 +60,6 @@ describe 'Pipelined Get' do
           assert_empty(resp)
 
           dc.set('a', 'foo')
-          dc.set('contains space', 123)
-          dc.set('ƒ©åÍÎ', %w[a b c])
 
           # Invocation without block
           resp = dc.get_multi(keys_to_query)
@@ -76,6 +74,29 @@ describe 'Pipelined Get' do
           end
 
           assert_empty expected_resp
+        end
+      end
+
+      it 'handles network errors' do
+        toxi_memcached_persistent(p) do |dc|
+          dc.close
+          dc.flush
+
+          resp = dc.get_multi(%w[a b c d e f])
+
+          assert_empty(resp)
+
+          dc.set('a', 'foo')
+          dc.set('b', 123)
+          dc.set('c', %w[a b c])
+
+          Toxiproxy[/dalli_memcached/].down do
+            # Invocation without block
+            resp = dc.get_multi(%w[a b c d e f])
+            expected_resp = {}
+
+            assert_equal(expected_resp, resp)
+          end
         end
       end
 

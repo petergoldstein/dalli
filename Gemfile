@@ -15,6 +15,7 @@ group :development, :test do
   gem 'rubocop-rake'
   gem 'simplecov'
   gem 'stackprof', platform: :mri
+  gem 'toxiproxy'
 end
 
 group :test do

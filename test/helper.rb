@@ -12,6 +12,7 @@ ENV['SASL_CONF_PATH'] = "#{File.dirname(__FILE__)}/sasl/memcached.conf"
 require 'dalli'
 require 'logger'
 require 'securerandom'
+require 'toxiproxy'
 
 Dalli.logger = Logger.new($stdout)
 Dalli.logger.level = Logger::ERROR

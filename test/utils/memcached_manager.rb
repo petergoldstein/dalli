@@ -43,10 +43,13 @@ module MemcachedManager
   def self.client_for_port_or_socket(port_or_socket, client_options)
     is_unix = port_or_socket.to_i.zero?
     servers_arg = is_unix ? port_or_socket : ["localhost:#{port_or_socket}", "127.0.0.1:#{port_or_socket}"]
+    servers_arg = ["localhost:#{port_or_socket}"] if port_or_socket == 21_347
     Dalli::Client.new(servers_arg, client_options)
   end
 
   def self.start(port_or_socket, args)
+    return if port_or_socket == 21_347
+
     cmd_with_args, key = cmd_with_args(port_or_socket, args)
 
     @running_pids[key] ||= begin

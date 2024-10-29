@@ -25,7 +25,13 @@ module Dalli
           servers = fetch_responses(servers, start_time, @ring.socket_timeout, &block) until servers.empty?
         end
       else
-        @ring.servers.first.request(:read_multi_req, keys)
+        begin
+          @ring.servers.first.request(:read_multi_req, keys)
+        rescue NetworkError => e
+          Dalli.logger.debug { e.inspect }
+          Dalli.logger.debug { 'bailing on pipelined gets because of timeout' }
+          {}
+        end
       end
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }
