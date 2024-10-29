@@ -148,6 +148,8 @@ module Dalli
 
       def readline
         @sock.readline
+      rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
+        error_on_request!(e)
       end
 
       def read_line
@@ -184,6 +186,8 @@ module Dalli
 
       def flush
         @sock.flush
+      rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
+        error_on_request!(e)
       end
 
       def max_allowed_failures
