@@ -10,6 +10,7 @@ AllCops:
   TargetRubyVersion: 2.7
   Exclude:
     - 'bin/**/*'
+    - 'vendor/**/*'
 
 Metrics/BlockLength:
   Max: 50
