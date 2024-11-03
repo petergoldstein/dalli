@@ -44,6 +44,32 @@ describe 'operations' do
           end
         end
 
+        it 'get handles network errors' do
+          skip if p == :binary
+
+          toxi_memcached_persistent(p) do |dc|
+            dc.close
+            dc.flush
+
+            resp = dc.get_multi(%w[a b c d e f])
+
+            assert_empty(resp)
+
+            dc.set('a', 'foo')
+            dc.set('b', 123)
+            dc.set('c', %w[a b c])
+
+            keys = %w[a b c d e f]
+            Toxiproxy[/dalli_memcached/].down do
+              keys.each do |key|
+                assert_raises Dalli::RingError do
+                  dc.get(key)
+                end
+              end
+            end
+          end
+        end
+
         # This is historical, as the 'Not found' value was
         # treated as a special case at one time
         it 'allows "Not found" as value' do

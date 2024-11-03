@@ -10,6 +10,14 @@ module Dalli
       @key_manager = key_manager
     end
 
+    def optimized_for_single_server(keys)
+      @ring.servers.first.request(:read_multi_req, keys)
+    rescue NetworkError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { 'bailing on pipelined gets because of timeout' }
+      {}
+    end
+
     ##
     # Yields, one at a time, keys and their values+attributes.
     #
@@ -25,21 +33,15 @@ module Dalli
           servers = fetch_responses(servers, start_time, @ring.socket_timeout, &block) until servers.empty?
         end
       else
-        begin
-          @ring.servers.first.request(:read_multi_req, keys)
-        rescue NetworkError => e
-          Dalli.logger.debug { e.inspect }
-          Dalli.logger.debug { 'bailing on pipelined gets because of timeout' }
-          {}
-        end
+        optimized_for_single_server(keys)
       end
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying pipelined gets because of timeout' }
       retry
     end
-
     # rubocop:enable Metrics/AbcSize
+
     def setup_requests(keys)
       groups = groups_for_keys(keys)
       make_getkq_requests(groups)

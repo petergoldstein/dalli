@@ -61,7 +61,7 @@ module Memcached
                            }])
       end
       @toxy_configured ||= true
-      memcached_persistent(protocol, 21_347, args, client_options, &block)
+      memcached_persistent(protocol, MemcachedManager::TOXIPROXY_MEMCACHED_PORT, args, client_options, &block)
     end
     # rubocop:enable Metrics/ParameterLists
 
