@@ -69,8 +69,8 @@ module Dalli
     # Gat (get and touch) fetch an item and simultaneously update its expiration time.
     #
     # If a value is not found, then +nil+ is returned.
-    def gat(key, ttl = nil)
-      perform(:gat, key, ttl_or_default(ttl))
+    def gat(key, ttl = nil, req_options = nil)
+      perform(:gat, key, ttl_or_default(ttl), req_options)
     end
 
     ##

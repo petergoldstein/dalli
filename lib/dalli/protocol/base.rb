@@ -197,6 +197,12 @@ module Dalli
         connected?
       end
 
+      def meta_flag_options(opts)
+        return nil unless opts.is_a?(Hash)
+
+        opts[:meta_flags]
+      end
+
       def cache_nils?(opts)
         return false unless opts.is_a?(Hash)
 
