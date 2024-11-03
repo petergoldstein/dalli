@@ -13,5 +13,7 @@ jobs:
       with:
         ruby-version: 2.6
         bundler-cache: true # 'bundle install' and cache
+    - name : update bundler
+      run: gem update --system
     - name: Run RuboCop
       run: bundle exec rubocop --parallel
