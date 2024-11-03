@@ -94,7 +94,7 @@ describe 'operations' do
             end
           end
         end
-        
+
         it 'returns nil on a miss with meta flags' do
           memcached_persistent(p) do |dc|
             skip 'not supported' if p == :binary
