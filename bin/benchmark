@@ -3,9 +3,9 @@
 
 # This helps benchmark current performance of Dalli
 # as well as compare performance of optimizated and non-optimized calls like multi-set vs set
+#
 # run with:
 # bundle exec bin/benchmark
-
 require 'bundler/inline'
 require 'json'
 
@@ -43,7 +43,9 @@ string_client = Dalli::Client.new('localhost', serializer: StringSerializer, com
 sock = TCPSocket.new('127.0.0.1', '11211', connect_timeout: 1)
 sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
 sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true)
-# sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVBUF, options[:rcvbuf]) if options[:rcvbuf]
+# Benchmarks didn't see any performance gains from increasing the SO_RCVBUF buffer size
+# sock.setsockopt(Socket::SOL_SOCKET, ::Socket::SO_RCVBUF, 1024 * 1024 * 8)
+# Benchamrks did see an improvement in performance when increasing the SO_SNDBUF buffer size
 sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, 1024 * 1024 * 8)
 
 payload = 'B' * 1_000_000
@@ -97,10 +99,6 @@ class GCSuite
 end
 suite = GCSuite.new
 
-# rubocop:disable Metrics/MethodLength
-# rubocop:disable Metrics/AbcSize
-# rubocop:disable Metrics/CyclomaticComplexity
-# rubocop:disable Metrics/PerceivedComplexity
 def sock_get_multi(sock, pairs)
   count = pairs.length
   pairs.each_key do |key|
@@ -125,10 +123,6 @@ def sock_get_multi(sock, pairs)
   end
   results
 end
-# rubocop:enable Metrics/AbcSize
-# rubocop:enable Metrics/MethodLength
-# rubocop:enable Metrics/CyclomaticComplexity
-# rubocop:enable Metrics/PerceivedComplexity
 
 case BENCH_JOB
 when 'set'

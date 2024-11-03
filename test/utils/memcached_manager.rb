@@ -85,11 +85,11 @@ module MemcachedManager
   def self.parse_port_or_socket(port)
     return "-p #{port}", port.to_i unless port.to_i.zero?
 
-    # unix socket, ignore if it doesn't exist
+    # unix socket
     begin
       File.delete(port)
-    rescue StandardError
-      Errno::ENOENT
+    rescue Errno::ENOENT
+      # Ignore errors
     end
     ["-s #{port}", port]
   end

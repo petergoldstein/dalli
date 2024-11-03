@@ -11,8 +11,8 @@ module Dalli
     end
 
     ##
-    # Yields, one at a time, keys and their values+attributes.
-    #
+    # Writes multiple keys and values to the server.
+    ##
     def process(pairs, ttl, req_options = nil)
       return if pairs.empty?
 
@@ -22,7 +22,6 @@ module Dalli
 
       @ring.servers.first.request(:write_multi_storage_req, :set, pairs, ttl, 0, req_options)
     rescue NetworkError => e
-      puts 'network error'
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'bailing on pipelined set because of timeout' }
     end

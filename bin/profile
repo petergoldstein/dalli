@@ -1,11 +1,11 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# This helps benchmark current performance of Dalli
-# as well as compare performance of optimizated and non-optimized calls like multi-set vs set
+# This helps profile specific call paths in Dalli
+# finding and fixing performance issues in these profiles should result in improvements in the dalli benchmarks
+#
 # run with:
 # RUBY_YJIT_ENABLE=1 bundle exec bin/profile
-
 require 'bundler/inline'
 require 'json'
 
