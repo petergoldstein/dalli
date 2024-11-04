@@ -205,7 +205,7 @@ module Dalli
     alias multi quiet
 
     ##
-    # set multiple keys efficiently in pipelined queit mode.  Returns nil.
+    # set multiple keys efficiently in pipelined quiet mode.  Returns nil.
     def set_multi(pairs, ttl, req_options = nil)
       return if pairs.empty?
 
