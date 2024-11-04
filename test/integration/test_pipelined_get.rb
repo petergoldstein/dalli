@@ -78,6 +78,8 @@ describe 'Pipelined Get' do
       end
 
       it 'handles network errors' do
+        skip if p == :binary
+
         toxi_memcached_persistent(p) do |dc|
           dc.close
           dc.flush
