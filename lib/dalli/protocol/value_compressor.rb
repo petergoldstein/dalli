@@ -47,7 +47,7 @@ module Dalli
       end
 
       def retrieve(value, bitflags)
-        compressed = (bitflags & FLAG_COMPRESSED) != 0
+        compressed = bitflags.anybits?(FLAG_COMPRESSED)
         compressed ? compressor.decompress(value) : value
 
       # TODO: We likely want to move this rescue into the Dalli::Compressor / Dalli::GzipCompressor

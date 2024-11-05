@@ -51,6 +51,26 @@ module Memcached
     end
     # rubocop:enable Metrics/ParameterLists
 
+    ###
+    # Launches a persistent memcached process that is proxied through Toxiproxy
+    # to test network errors.
+    # uses port 21347 for the Toxiproxy proxy port and the specified port_or_socket
+    # for the memcached process.
+    ###
+    # rubocop:disable Metrics/ParameterLists
+    def toxi_memcached_persistent(protocol = :binary, port_or_socket = 21_345, args = '', client_options = {}, &block)
+      unless @toxy_configured
+        Toxiproxy.populate([{
+                             name: 'dalli_memcached',
+                             listen: "localhost:#{MemcachedManager::TOXIPROXY_MEMCACHED_PORT}",
+                             upstream: "localhost:#{port_or_socket}"
+                           }])
+      end
+      @toxy_configured ||= true
+      memcached_persistent(protocol, MemcachedManager::TOXIPROXY_MEMCACHED_PORT, args, client_options, &block)
+    end
+    # rubocop:enable Metrics/ParameterLists
+
     # Launches a persistent memcached process, configured to use SSL
     def memcached_ssl_persistent(protocol = :binary, port_or_socket = rand(21_397..21_896), &block)
       memcached_persistent(protocol,

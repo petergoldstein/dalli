@@ -34,7 +34,7 @@ module Dalli
       end
 
       def retrieve(value, bitflags)
-        serialized = (bitflags & FLAG_SERIALIZED) != 0
+        serialized = bitflags.anybits?(FLAG_SERIALIZED)
         if serialized
           begin
             serializer.load(value)

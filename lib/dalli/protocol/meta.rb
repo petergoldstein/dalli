@@ -18,10 +18,61 @@ module Dalli
         @response_processor ||= ResponseProcessor.new(@connection_manager, @value_marshaller)
       end
 
-      # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
-
       private
 
+      # NOTE: experimental write_multi_storage_req for optimized pipelined storage
+      # * only supports single server
+      # * only supports set at the moment
+      # * doesn't support cas at the moment
+      # rubocop:disable Metrics/MethodLength
+      def write_multi_storage_req(_mode, pairs, ttl = nil, _cas = nil, options = {})
+        ttl = TtlSanitizer.sanitize(ttl) if ttl
+        count = pairs.length
+        tail = ''
+
+        pairs.each do |key, raw_value|
+          count -= 1
+          (value, bitflags) = @value_marshaller.store(key, raw_value, options)
+          encoded_key, _base64 = KeyRegularizer.encode(key)
+          value_bytesize = value.bytesize
+          # if last pair of hash, add TERMINATOR
+          tail = count.zero? ? '' : 'q'
+
+          # NOTE: The most efficient way to build the command
+          # * avoid making new strings capacity is set to the max possible size of the command
+          # * socket write each piece indepentantly to avoid extra allocation
+          # * first chunk uses interpolated values to avoid extra allocation, but << for larger 'value' strings
+          # * avoids using the request formatter pattern for single inline builder
+          @connection_manager.write("ms #{encoded_key} #{value_bytesize} c F#{bitflags} T#{ttl} MS #{tail}\r\n")
+          @connection_manager.write(value)
+          @connection_manager.write(TERMINATOR)
+        end
+        response_processor.meta_set_with_cas
+      end
+      # rubocop:enable Metrics/MethodLength
+
+      # rubocop:disable Metrics/MethodLength
+      def read_multi_req(keys)
+        keys.each do |key|
+          @connection_manager.write("mg #{key} v f k q\r\n")
+        end
+        @connection_manager.write("mn\r\n")
+        @connection_manager.flush
+        # read all the memcached responses back and build a hash of key value pairs
+        results = {}
+        while (line = @connection_manager.readline.chomp) != ''
+          break if line.start_with?('MN')
+          next unless line.start_with?('VA ')
+
+          _, value_length, _flags, key = line.split
+          value = @connection_manager.read_exact(value_length.to_i)
+          @connection_manager.read_exact(2) # Read trailing \r\n
+          results[key[1..]] = value
+        end
+        results
+      end
+
+      # rubocop:enable Metrics/MethodLength
       # Retrieval Commands
       def get(key, options = nil)
         encoded_key, base64 = KeyRegularizer.encode(key)

@@ -1,0 +1,102 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# This helps profile specific call paths in Dalli
+# finding and fixing performance issues in these profiles should result in improvements in the dalli benchmarks
+#
+# run with:
+# RUBY_YJIT_ENABLE=1 bundle exec bin/profile
+require 'bundler/inline'
+require 'json'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'dalli'
+  gem 'benchmark-ips'
+  gem 'stackprof'
+end
+
+require 'dalli'
+require 'benchmark/ips'
+require 'stackprof'
+
+##
+# StringSerializer is a serializer that avoids the overhead of Marshal or JSON.
+##
+class StringSerializer
+  def self.dump(value)
+    value
+  end
+
+  def self.load(value)
+    value
+  end
+end
+
+client = Dalli::Client.new('localhost', compress: false)
+meta_client = Dalli::Client.new('localhost', protocol: :meta, serializer: StringSerializer, compress: false)
+string_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
+
+payload = 'B' * 1_000_000
+client.set('key', payload)
+string_client.set('string_key', payload)
+meta_client.set('meta_key', payload)
+
+payload_fifty = 'B' * 50_000
+keys = {}
+100.times do |i|
+  keys["multi_#{i}"] = payload_fifty
+end
+
+# ensure theres is data for get calls
+client.quiet do
+  keys.each do |key, value|
+    client.set(key, value, 3600, raw: true)
+  end
+end
+
+profile_job = ENV['PROFILE_JOB'] || 'set_multi'
+method_name = ''
+
+case profile_job
+when 'get_multi'
+  profile = StackProf.run(mode: :wall, interval: 1_000) do
+    5_000.times do
+      meta_client.get_multi(keys.keys)
+    end
+  end
+  method_name = /Dalli::Client#get_multi/
+when 'get_single'
+  profile = StackProf.run(mode: :wall, interval: 1_000) do
+    25_000.times do
+      keys.each_key do |key|
+        meta_client.get(key)
+      end
+    end
+  end
+  method_name = /Dalli::Client#get/
+when 'set_single'
+  profile = StackProf.run(mode: :wall, interval: 1_000) do
+    5_000.times do
+      client.quiet do
+        keys.each do |key, value|
+          client.set(key, value, 3600, raw: true)
+        end
+      end
+    end
+  end
+  method_name = /Dalli::Client#set/
+else
+  profile = StackProf.run(mode: :wall, interval: 1_000) do
+    5_000.times do
+      meta_client.set_multi(keys, 3600, raw: true)
+    end
+  end
+  method_name = /Dalli::Client#set_multi/
+end
+
+result = StackProf::Report.new(profile)
+puts
+result.print_text
+puts "\n\n\n"
+result.print_method(method_name)

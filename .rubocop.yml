@@ -7,7 +7,10 @@ require:
 
 AllCops:
   NewCops: enable
-  TargetRubyVersion: 2.6
+  TargetRubyVersion: 2.7
+  Exclude:
+    - 'bin/**/*'
+    - 'vendor/**/*'
 
 Metrics/BlockLength:
   Max: 50

@@ -4,6 +4,7 @@
 # Utility module for spinning up memcached instances locally, and generating a corresponding
 # Dalli::Client to access the local instance.  Supports access via TCP and UNIX domain socket.
 ##
+# rubocop:disable Metrics/ModuleLength
 module MemcachedManager
   # TODO: This is all UNIX specific.  To support
   # running CI on Windows we'll need to conditionally
@@ -19,7 +20,7 @@ module MemcachedManager
   MEMCACHED_VERSION_CMD = "#{MEMCACHED_CMD} -h | head -1"
   MEMCACHED_VERSION_REGEXP = /^memcached (\d\.\d\.\d+)/.freeze
   MEMCACHED_MIN_MAJOR_VERSION = ::Dalli::MIN_SUPPORTED_MEMCACHED_VERSION
-
+  TOXIPROXY_MEMCACHED_PORT = 21_347
   @running_pids = {}
 
   def self.start_and_flush_with_retry(port_or_socket, args = '', client_options = {})
@@ -34,7 +35,7 @@ module MemcachedManager
   end
 
   def self.start_and_flush(port_or_socket, args = '', client_options = {}, flush: true)
-    MemcachedManager.start(port_or_socket, args)
+    MemcachedManager.start(port_or_socket, args) unless port_or_socket == TOXIPROXY_MEMCACHED_PORT
     dc = client_for_port_or_socket(port_or_socket, client_options)
     dc.flush_all if flush
     dc
@@ -43,12 +44,12 @@ module MemcachedManager
   def self.client_for_port_or_socket(port_or_socket, client_options)
     is_unix = port_or_socket.to_i.zero?
     servers_arg = is_unix ? port_or_socket : ["localhost:#{port_or_socket}", "127.0.0.1:#{port_or_socket}"]
+    servers_arg = ["localhost:#{port_or_socket}"] if port_or_socket == TOXIPROXY_MEMCACHED_PORT
     Dalli::Client.new(servers_arg, client_options)
   end
 
   def self.start(port_or_socket, args)
     cmd_with_args, key = cmd_with_args(port_or_socket, args)
-
     @running_pids[key] ||= begin
       pid = IO.popen(cmd_with_args).pid
       at_exit do
@@ -147,3 +148,4 @@ module MemcachedManager
     raise Errno::ENOENT, "Unable to find memcached #{MEMCACHED_MIN_MAJOR_VERSION}+ locally"
   end
 end
+# rubocop:enable Metrics/ModuleLength

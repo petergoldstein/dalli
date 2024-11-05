@@ -1,6 +1,11 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# This helps benchmark current performance of Dalli
+# as well as compare performance of optimizated and non-optimized calls like multi-set vs set
+#
+# run with:
+# bundle exec bin/benchmark
 require 'bundler/inline'
 require 'json'
 
@@ -26,16 +31,162 @@ class StringSerializer
   end
 end
 
+BENCH_TIME = (ENV['BENCH_TIME'] || 5).to_i
+BENCH_JOB  = ENV['BENCH_JOB'] || 'set_multi'
+TERMINATOR = "\r\n"
+
 client = Dalli::Client.new('localhost', compress: false)
-json_client = Dalli::Client.new('localhost', serializer: JSON, compress: false)
+meta_client = Dalli::Client.new('localhost', protocol: :meta, serializer: StringSerializer, compress: false)
 string_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
+# The raw socket implementation is used to benchmark the performance of dalli & the overhead of the various abstractions
+# in the library.
+sock = TCPSocket.new('127.0.0.1', '11211', connect_timeout: 1)
+sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
+sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true)
+# Benchmarks didn't see any performance gains from increasing the SO_RCVBUF buffer size
+# sock.setsockopt(Socket::SOL_SOCKET, ::Socket::SO_RCVBUF, 1024 * 1024 * 8)
+# Benchamrks did see an improvement in performance when increasing the SO_SNDBUF buffer size
+sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, 1024 * 1024 * 8)
 
 payload = 'B' * 1_000_000
+
+# ensure the clients are all connected and working
 client.set('key', payload)
-json_client.set('json_key', payload)
 string_client.set('string_key', payload)
-Benchmark.ips do |x|
-  x.report('get 1MB MARSHAL') { client.get('key') }
-  x.report('get 1MB JSON') { json_client.get('json_key') }
-  x.report('get 1MB STRING') { string_client.get('string_key') }
+meta_client.set('meta_key', payload)
+sock.write("set sock_key 0 3600 1000000\r\n")
+sock.write(payload)
+sock.write("\r\n")
+sock.flush
+sock.readline # clear the buffer
+
+# ensure we have basic data for the benchmarks and get calls
+payload_fifty = 'B' * 50_000
+pairs = {}
+100.times do |i|
+  pairs["multi_#{i}"] = payload_fifty
+end
+client.quiet do
+  pairs.each do |key, value|
+    client.set(key, value, 3600, raw: true)
+  end
+end
+
+###
+# GC Suite
+# benchmark without GC skewing things
+###
+class GCSuite
+  def warming(*)
+    run_gc
+  end
+
+  def running(*)
+    run_gc
+  end
+
+  def warmup_stats(*); end
+
+  def add_report(*); end
+
+  private
+
+  def run_gc
+    GC.enable
+    GC.start
+    GC.disable
+  end
+end
+suite = GCSuite.new
+
+def sock_get_multi(sock, pairs)
+  count = pairs.length
+  pairs.each_key do |key|
+    count -= 1
+    tail = count.zero? ? '' : 'q'
+    sock.write("mg #{key} v f k #{tail}\r\n")
+  end
+  sock.flush
+  # read all the memcached responses back and build a hash of key value pairs
+  results = {}
+  last_result = false
+  while (line = sock.readline.chomp) != ''
+    last_result = true if line.start_with?('EN ')
+    next unless line.start_with?('VA ') || last_result
+
+    _, value_length, _flags, key = line.split
+    value = sock.read(value_length.to_i)
+    sock.read(2) # Read trailing \r\n
+    results[key[1..]] = value
+    break if results.size == pairs.size
+    break if last_result
+  end
+  results
+end
+
+case BENCH_JOB
+when 'set'
+  Benchmark.ips do |x|
+    x.config(warmup: 2, time: BENCH_TIME, suite: suite)
+    x.report('set 1MB MARSHAL') { client.set('key', payload) }
+    x.report('set 1MB STRING') { string_client.set('string_key', payload) }
+    x.report('meta_set 1MB STRING') { meta_client.set('meta_key', payload) }
+    x.report('set 1MB raw sock') do
+      sock.write("ms sock_key 1000000 c F0 T3600 MS \r\n")
+      sock.write(payload)
+      sock.write("\r\n")
+      sock.flush
+      sock.readline # clear the buffer
+    end
+    x.compare!
+  end
+when 'get'
+  Benchmark.ips do |x|
+    x.config(warmup: 2, time: BENCH_TIME, suite: suite)
+    x.report('get 1MB MARSHAL') { client.get('key') }
+    x.report('get 1MB STRING') { string_client.get('string_key') }
+    x.report('meta_get 1MB STRING') { meta_client.get('meta_key') }
+    x.report('get 1MB raw sock') do
+      sock.write("get sock_key\r\n")
+      sock.readline
+      sock.read(1_000_000)
+    end
+    x.compare!
+  end
+when 'get_multi'
+  Benchmark.ips do |x|
+    x.config(warmup: 2, time: BENCH_TIME, suite: suite)
+    x.report('binary get_mutli 100 keys') { client.get_multi(pairs.keys) }
+    x.report('meta get_mutli 100 keys') { meta_client.get_multi(pairs.keys) }
+    x.report('get 100 keys raw sock') { sock_get_multi(sock, pairs) }
+    x.compare!
+  end
+when 'set_multi'
+  Benchmark.ips do |x|
+    x.config(warmup: 2, time: BENCH_TIME, suite: suite)
+    x.report('write 100 keys simple') do
+      client.quiet do
+        pairs.each do |key, value|
+          client.set(key, value, 3600, raw: true)
+        end
+      end
+    end
+    x.report('write 100 keys rawsock') do
+      count = pairs.length
+      tail = ''
+      value_bytesize = payload_fifty.bytesize
+      ttl = 3600
+
+      pairs.each do |key, value|
+        count -= 1
+        tail = count.zero? ? '' : 'q'
+        sock.write(String.new("ms #{key} #{value_bytesize} c F0 T#{ttl} MS #{tail}\r\n",
+                              capacity: key.size + value_bytesize + 40) << value << TERMINATOR)
+      end
+      sock.flush
+      sock.readline # clear the buffer
+    end
+    x.report('write_mutli 100 keys') { meta_client.set_multi(pairs, 3600, raw: true) }
+    x.compare!
+  end
 end
