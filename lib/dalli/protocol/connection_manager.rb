@@ -198,13 +198,17 @@ module Dalli
 
       def error_on_request!(err_or_string)
         log_warn_message(err_or_string)
-        @fail_count += 1
 
-        if timeout_error?(err_or_string)
-          close
-          raise err_or_string  # Re-raise the original error
-        else
+        @fail_count += 1
+        if @fail_count >= max_allowed_failures
           down!
+        elsif timeout_error?(err_or_string)
+          close
+          raise err_or_string # Re-raise the original error
+        else
+          # Closes the existing socket, setting up for a reconnect
+          # on next request
+          reconnect!('Socket operation failed, retrying...')
         end
       end
 

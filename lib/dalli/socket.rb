@@ -37,21 +37,17 @@ module Dalli
       WAIT_RCS = %i[wait_writable wait_readable].freeze
 
       def append_to_buffer?(result)
-        if result == :wait_readable && !wait_readable(options[:socket_timeout])
-          raise Dalli::NetworkError, "Read operation timed out: #{logged_options.inspect}"
-        end
-
-        if result == :wait_writable && !wait_writable(options[:socket_timeout])
-          raise Dalli::NetworkError, "Write operation timed out: #{logged_options.inspect}"
-        end
-
+        raise Timeout::Error, "IO timeout: #{logged_options.inspect}" if nonblock_timed_out?(result)
         raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}" unless result
 
         !WAIT_RCS.include?(result)
       end
 
       def nonblock_timed_out?(result)
-        false # Let append_to_buffer? handle the timeout errors
+        return true if result == :wait_readable && !wait_readable(options[:socket_timeout])
+
+        # TODO: Do we actually need this?  Looks to be only used in read_nonblock
+        result == :wait_writable && !wait_writable(options[:socket_timeout])
       end
 
       FILTERED_OUT_OPTIONS = %i[username password].freeze
@@ -102,6 +98,12 @@ module Dalli
       end
 
       def self.create_socket_with_timeout(host, port, options)
+        # Check that TCPSocket#initialize was not overwritten by resolv-replace gem
+        # (part of ruby standard library since 3.0.0, should be removed in 3.4.0),
+        # as it does not handle keyword arguments correctly.
+        # To check this we are using the fact that resolv-replace
+        # aliases TCPSocket#initialize method to #original_resolv_initialize.
+        # https://github.com/ruby/resolv-replace/blob/v0.1.1/lib/resolv-replace.rb#L21
         if RUBY_VERSION >= '3.0' &&
            !::TCPSocket.private_instance_methods.include?(:original_resolv_initialize)
           begin
@@ -116,8 +118,6 @@ module Dalli
             yield(sock)
           end
         end
-      rescue Timeout::Error
-        raise Dalli::NetworkError, "Connection timed out: #{host}:#{port}"
       end
 
       def self.init_socket_options(sock, options)
@@ -130,10 +130,8 @@ module Dalli
 
         if sock.respond_to?(:timeout=)
           # Ruby 3.0+ - use IO#timeout
-          puts "here..."
           sock.timeout = options[:socket_timeout]
         else
-          # Legacy timeout implementation for older Ruby versions
           seconds, fractional = options[:socket_timeout].divmod(1)
           microseconds = fractional * 1_000_000
           timeval = [seconds, microseconds].pack('l_2')
