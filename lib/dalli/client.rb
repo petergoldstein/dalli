@@ -433,17 +433,25 @@ module Dalli
     def perform(*all_args)
       return yield if block_given?
 
-      op, key, *args = all_args
+      retries = 0
+      begin
+        op, key, *args = all_args
 
-      key = key.to_s
-      key = @key_manager.validate_key(key)
+        key = key.to_s
+        key = @key_manager.validate_key(key)
 
-      server = ring.server_for_key(key)
-      server.request(op, key, *args)
-    rescue NetworkError => e
-      Dalli.logger.debug { e.inspect }
-      Dalli.logger.debug { 'retrying request with new server' }
-      retry
+        server = ring.server_for_key(key)
+        server.request(op, key, *args)
+      rescue NetworkError => e
+        retries += 1
+        if retries <= (@options[:retry_count] || 1)
+          Dalli.logger.debug { "#{e.inspect} - Retry #{retries}" }
+          retry
+        else
+          Dalli.logger.debug { "#{e.inspect} - Max retries (#{retries-1}) exceeded" }
+          raise
+        end
+      end
     end
 
     def normalize_options(opts)

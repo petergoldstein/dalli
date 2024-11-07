@@ -182,6 +182,8 @@ module Dalli
       # of the get_multi operation
       def read_nonblock
         @sock.read_available
+      rescue SystemCallError, *TIMEOUT_ERRORS => e
+        error_on_request!(e)
       end
 
       def flush
@@ -196,14 +198,13 @@ module Dalli
 
       def error_on_request!(err_or_string)
         log_warn_message(err_or_string)
-
         @fail_count += 1
-        if @fail_count >= max_allowed_failures
-          down!
+
+        if timeout_error?(err_or_string)
+          close
+          raise err_or_string  # Re-raise the original error
         else
-          # Closes the existing socket, setting up for a reconnect
-          # on next request
-          reconnect!('Socket operation failed, retrying...')
+          down!
         end
       end
 
@@ -267,6 +268,13 @@ module Dalli
 
         time = Time.now - @down_at
         Dalli.logger.warn { format('%<name>s is back (downtime was %<time>.3f seconds)', name: name, time: time) }
+      end
+
+      private
+
+      def timeout_error?(err)
+        err.is_a?(IO::TimeoutError) ||
+          err.is_a?(Timeout::Error)
       end
     end
   end
