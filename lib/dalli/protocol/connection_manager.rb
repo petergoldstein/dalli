@@ -202,9 +202,6 @@ module Dalli
         @fail_count += 1
         if @fail_count >= max_allowed_failures
           down!
-        elsif timeout_error?(err_or_string)
-          close
-          raise err_or_string # Re-raise the original error
         else
           # Closes the existing socket, setting up for a reconnect
           # on next request
@@ -272,13 +269,6 @@ module Dalli
 
         time = Time.now - @down_at
         Dalli.logger.warn { format('%<name>s is back (downtime was %<time>.3f seconds)', name: name, time: time) }
-      end
-
-      private
-
-      def timeout_error?(err)
-        err.is_a?(IO::TimeoutError) ||
-          err.is_a?(Timeout::Error)
       end
     end
   end

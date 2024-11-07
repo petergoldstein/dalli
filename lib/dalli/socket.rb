@@ -106,12 +106,8 @@ module Dalli
         # https://github.com/ruby/resolv-replace/blob/v0.1.1/lib/resolv-replace.rb#L21
         if RUBY_VERSION >= '3.0' &&
            !::TCPSocket.private_instance_methods.include?(:original_resolv_initialize)
-          begin
-            sock = new(host, port, connect_timeout: options[:socket_timeout])
-            yield(sock)
-          rescue IO::TimeoutError
-            raise Dalli::NetworkError, "Connection timed out: #{host}:#{port}"
-          end
+          sock = new(host, port, connect_timeout: options[:socket_timeout])
+          yield(sock)
         else
           Timeout.timeout(options[:socket_timeout]) do
             sock = new(host, port)
@@ -129,7 +125,6 @@ module Dalli
         return unless options[:socket_timeout]
 
         if sock.respond_to?(:timeout=)
-          # Ruby 3.0+ - use IO#timeout
           sock.timeout = options[:socket_timeout]
         else
           seconds, fractional = options[:socket_timeout].divmod(1)
