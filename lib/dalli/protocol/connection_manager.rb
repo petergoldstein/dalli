@@ -182,8 +182,6 @@ module Dalli
       # of the get_multi operation
       def read_nonblock
         @sock.read_available
-      rescue SystemCallError, *TIMEOUT_ERRORS => e
-        error_on_request!(e)
       end
 
       def flush

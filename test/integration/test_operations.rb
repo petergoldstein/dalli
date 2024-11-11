@@ -69,6 +69,32 @@ describe 'operations' do
           end
         end
 
+        it 'get handles socket timeouts errors' do
+          skip if p == :binary
+
+          toxi_memcached_persistent(p, 21_345, '', { socket_timeout: 1 }) do |dc|
+            dc.close
+            dc.flush
+
+            resp = dc.get_multi(%w[a b c d e f])
+
+            assert_empty(resp)
+
+            dc.set('a', 'foo')
+            dc.set('b', 123)
+            dc.set('c', %w[a b c])
+
+            keys = %w[a b c d e f]
+            Toxiproxy[/dalli_memcached/].downstream(:latency, latency: 1250).apply do
+              keys.each do |key|
+                assert_raises Dalli::RingError do
+                  dc.get(key)
+                end
+              end
+            end
+          end
+        end
+
         it 'get handles network errors' do
           skip if p == :binary
 
