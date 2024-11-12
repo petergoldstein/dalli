@@ -4,6 +4,12 @@ require_relative '../lib/dalli'
 
 puts "creating client"
 client = Dalli::Client.new('localhost:11211', protocol: :meta, compress: false)
-puts "SET_RESULT: #{client.set("foo", "b" * 100000, 0, raw: true)}"
+puts "SET_RESULT: #{client.set("foo", "b" * 1000, 0, raw: true)}"
 puts "GET_RESULT: #{client.get("foo")[0..15]}"
 puts "GET_RESULT_AGAIN: #{client.get("foo")[0..15]}"
+
+while true
+  client.get("foo")
+end
+
+puts "DONE"

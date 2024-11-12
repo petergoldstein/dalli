@@ -37,6 +37,7 @@ module Dalli
         @request_in_progress = false
         @sock = nil
         @pid = nil
+        @buffered_reader = nil
 
         reset_down_info
       end
@@ -53,6 +54,7 @@ module Dalli
         Dalli.logger.debug { "Dalli::Server#connect #{name}" }
 
         @sock = memcached_socket
+        @buffered_reader = BufferedReader.new(@sock)
         @pid = PIDCache.pid
         @request_in_progress = false
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError, SocketError => e
@@ -118,6 +120,7 @@ module Dalli
           nil
         end
         @sock = nil
+        @buffered_reader = nil
         @pid = nil
         abort_request!
       end
@@ -147,13 +150,13 @@ module Dalli
       end
 
       def readline
-        @sock.readline
+        @buffered_reader.read_line
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
         error_on_request!(e)
       end
 
       def read_line
-        data = @sock.read_available
+        data = @buffered_reader.read_line
         error_on_request!('EOF in read_line') if data.nil?
         data
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
@@ -161,13 +164,13 @@ module Dalli
       end
 
       def read_exact(count)
-        @sock.read(count)
+        @buffered_reader.read_exact(count)
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
         error_on_request!(e)
       end
 
       def read(count)
-        @sock.readfull(count)
+        @buffered_reader.read_exact(count)
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
         error_on_request!(e)
       end
@@ -180,7 +183,7 @@ module Dalli
 
       # Non-blocking read.  Here to support the operation
       # of the get_multi operation
-      def read_nonblock()
+      def read_nonblock
         @sock.read_available
       end
 

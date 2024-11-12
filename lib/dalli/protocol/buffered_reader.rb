@@ -42,8 +42,8 @@ module Dalli
           fill_buffer(true, needed)
         end
 
-        str = @buffer.byteslice(@offset, size)
-        @offset += size + TERMINATOR_SIZE
+        str = @buffer.byteslice(@offset, size - TERMINATOR_SIZE)
+        @offset += size
         str.force_encoding(Encoding::UTF_8)
       end
 
