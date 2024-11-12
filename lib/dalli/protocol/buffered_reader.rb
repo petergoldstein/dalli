@@ -19,8 +19,8 @@ module Dalli
         @io = io
         @buffer = +''
         @offset = 0
-        @chunk_size = 8196
-        @timeout = 10000 # ms
+        @chunk_size = 1024 * 8
+        @timeout = 100 # ms
       end
 
       # Reads line from io and the buffer, value does not include the terminator
