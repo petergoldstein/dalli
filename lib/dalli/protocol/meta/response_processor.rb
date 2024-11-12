@@ -25,9 +25,11 @@ module Dalli
         def initialize(io_source, value_marshaller)
           @io_source = io_source
           @value_marshaller = value_marshaller
+          @buffered_reader = Dalli::Protocol::BufferedReader.new(io_source.sock)
         end
 
         def meta_get_with_value(cache_nils: false)
+          @buffered_reader = Dalli::Protocol::BufferedReader.new(@io_source.sock)
           tokens = error_on_unexpected!([VA, EN, HD])
           return cache_nils ? ::Dalli::NOT_FOUND : nil if tokens.first == EN
           return true unless tokens.first == VA
@@ -179,7 +181,10 @@ module Dalli
 
         def error_on_unexpected!(expected_codes)
           tokens = next_line_to_tokens
-          raise Dalli::DalliError, "Response error: #{tokens.first}" unless expected_codes.include?(tokens.first)
+          unless expected_codes.include?(tokens.first)
+            raise Dalli::DalliError, "Response error: #{tokens.first}"
+          end
+          # raise Dalli::DalliError, "Response error: #{tokens.first}" unless expected_codes.include?(tokens.first)
 
           tokens
         end
@@ -231,7 +236,7 @@ module Dalli
         end
 
         def read_line
-          @io_source.read_line&.chomp!(TERMINATOR)
+          @buffered_reader.read_line
         end
 
         def next_line_to_tokens
@@ -240,7 +245,7 @@ module Dalli
         end
 
         def read_data(data_size)
-          @io_source.read(data_size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+          @buffered_reader.read_exact(data_size)
         end
       end
     end

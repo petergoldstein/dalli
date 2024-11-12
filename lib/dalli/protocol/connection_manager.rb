@@ -153,7 +153,7 @@ module Dalli
       end
 
       def read_line
-        data = @sock.gets("\r\n")
+        data = @sock.read_available
         error_on_request!('EOF in read_line') if data.nil?
         data
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
@@ -180,7 +180,7 @@ module Dalli
 
       # Non-blocking read.  Here to support the operation
       # of the get_multi operation
-      def read_nonblock
+      def read_nonblock()
         @sock.read_available
       end
 
