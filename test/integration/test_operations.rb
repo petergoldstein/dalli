@@ -85,7 +85,7 @@ describe 'operations' do
             dc.set('c', %w[a b c])
 
             keys = %w[a b c d e f]
-            Toxiproxy[/dalli_memcached/].downstream(:latency, latency: 1250).apply do
+            Toxiproxy[/dalli_memcached/].downstream(:latency, latency: 2000).apply do
               keys.each do |key|
                 assert_raises Dalli::RingError do
                   dc.get(key)
