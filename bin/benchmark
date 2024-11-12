@@ -48,6 +48,7 @@ sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true)
 # Benchamrks did see an improvement in performance when increasing the SO_SNDBUF buffer size
 sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, 1024 * 1024 * 8)
 
+TERMINATOR = "\r\n"
 payload = 'B' * 1_000_000
 
 # ensure the clients are all connected and working
@@ -56,7 +57,7 @@ string_client.set('string_key', payload)
 meta_client.set('meta_key', payload)
 sock.write("set sock_key 0 3600 1000000\r\n")
 sock.write(payload)
-sock.write("\r\n")
+sock.write(TERMINATOR)
 sock.flush
 sock.readline # clear the buffer
 
@@ -110,14 +111,13 @@ def sock_get_multi(sock, pairs)
   # read all the memcached responses back and build a hash of key value pairs
   results = {}
   last_result = false
-  while (line = sock.readline.chomp) != ''
+  while (line = sock.readline.chomp!(TERMINATOR)) != ''
     last_result = true if line.start_with?('EN ')
     next unless line.start_with?('VA ') || last_result
 
     _, value_length, _flags, key = line.split
-    value = sock.read(value_length.to_i)
-    sock.read(2) # Read trailing \r\n
-    results[key[1..]] = value
+    value = sock.read(value_length.to_i + TERMINATOR.length)
+    results[key[1..]] = value.chomp!(0..-TERMINATOR.length)
     break if results.size == pairs.size
     break if last_result
   end
@@ -184,7 +184,7 @@ when 'set_multi'
                               capacity: key.size + value_bytesize + 40) << value << TERMINATOR)
       end
       sock.flush
-      sock.readline # clear the buffer
+      sock.gets(TERMINATOR) # clear the buffer
     end
     x.report('write_mutli 100 keys') { meta_client.set_multi(pairs, 3600, raw: true) }
     x.compare!

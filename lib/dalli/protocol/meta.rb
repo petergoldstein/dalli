@@ -60,14 +60,13 @@ module Dalli
         @connection_manager.flush
         # read all the memcached responses back and build a hash of key value pairs
         results = {}
-        while (line = @connection_manager.readline.chomp) != ''
+        while (line = @connection_manager.readline.chomp!(TERMINATOR)) != ''
           break if line.start_with?('MN')
           next unless line.start_with?('VA ')
 
           _, value_length, _flags, key = line.split
-          value = @connection_manager.read_exact(value_length.to_i)
-          @connection_manager.read_exact(2) # Read trailing \r\n
-          results[key[1..]] = value
+          value = @connection_manager.read_exact(value_length.to_i + TERMINATOR.length)
+          results[key[1..]] = value.chomp!(TERMINATOR)
         end
         results
       end
