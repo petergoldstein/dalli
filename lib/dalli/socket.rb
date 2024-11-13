@@ -114,6 +114,8 @@ module Dalli
         end
       end
 
+      # rubocop:disable Metrics/MethodLength
+      # rubocop:disable Metrics/AbcSize
       def self.init_socket_options(sock, options)
         sock.setsockopt(::Socket::IPPROTO_TCP, ::Socket::TCP_NODELAY, true)
         sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_KEEPALIVE, true) if options[:keepalive]
@@ -122,13 +124,19 @@ module Dalli
 
         return unless options[:socket_timeout]
 
-        seconds, fractional = options[:socket_timeout].divmod(1)
-        microseconds = fractional * 1_000_000
-        timeval = [seconds, microseconds].pack('l_2')
+        if sock.respond_to?(:timeout=)
+          sock.timeout = options[:socket_timeout]
+        else
+          seconds, fractional = options[:socket_timeout].divmod(1)
+          microseconds = fractional * 1_000_000
+          timeval = [seconds, microseconds].pack('l_2')
 
-        sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO, timeval)
-        sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDTIMEO, timeval)
+          sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO, timeval)
+          sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDTIMEO, timeval)
+        end
       end
+      # rubocop:enable Metrics/MethodLength
+      # rubocop:enable Metrics/AbcSize
 
       def self.wrapping_ssl_socket(tcp_socket, host, ssl_context)
         ssl_socket = Dalli::Socket::SSLSocket.new(tcp_socket, ssl_context)
