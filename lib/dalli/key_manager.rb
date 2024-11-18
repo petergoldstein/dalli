@@ -70,6 +70,12 @@ module Dalli
       key.sub(namespace_regexp, '')
     end
 
+    def key_values_without_namespace(key_values)
+      return key_values if namespace.nil?
+
+      key_values.transform_keys! { |key| key_without_namespace(key) }
+    end
+
     def digest_class
       @digest_class ||= @key_options[:digest_class]
     end
