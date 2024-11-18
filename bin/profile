@@ -34,7 +34,7 @@ class StringSerializer
 end
 
 client = Dalli::Client.new('localhost', compress: false)
-meta_client = Dalli::Client.new('localhost', protocol: :meta, serializer: StringSerializer, compress: false)
+meta_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
 string_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
 
 payload = 'B' * 1_000_000
