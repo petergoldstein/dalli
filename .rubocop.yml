@@ -7,7 +7,7 @@ require:
 
 AllCops:
   NewCops: enable
-  TargetRubyVersion: 2.7
+  TargetRubyVersion: 3.2
   Exclude:
     - 'bin/**/*'
     - 'vendor/**/*'
