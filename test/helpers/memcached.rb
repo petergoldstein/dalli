@@ -58,16 +58,29 @@ module Memcached
     # for the memcached process.
     ###
     # rubocop:disable Metrics/ParameterLists
-    def toxi_memcached_persistent(protocol = :binary, port_or_socket = 21_345, args = '', client_options = {}, &)
+    def toxi_memcached_persistent(protocol = :binary, port = MemcachedManager::TOXIPROXY_UPSTREAM_PORT, args = '', client_options = {}, &)
+      raise "Toxiproxy does not support unix sockets" if port.to_i.zero?
+
       unless @toxy_configured
         Toxiproxy.populate([{
                              name: 'dalli_memcached',
                              listen: "localhost:#{MemcachedManager::TOXIPROXY_MEMCACHED_PORT}",
-                             upstream: "localhost:#{port_or_socket}"
+                             upstream: "localhost:#{port}"
                            }])
       end
       @toxy_configured ||= true
-      memcached_persistent(protocol, MemcachedManager::TOXIPROXY_MEMCACHED_PORT, args, client_options, &)
+      memcached_persistent(protocol, port, args, client_options) do |dc, _|
+        dc.close # We don't need the client to talk directly to memcached
+      end
+      dc = Dalli::Client.new(
+        "localhost:#{MemcachedManager::TOXIPROXY_MEMCACHED_PORT}",
+        client_options.merge(protocol: protocol)
+      )
+      if block_given?
+        yield dc, port
+      else
+        dc
+      end
     end
     # rubocop:enable Metrics/ParameterLists
 
