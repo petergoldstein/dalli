@@ -102,15 +102,14 @@ module Dalli
         # To check this we are using the fact that resolv-replace
         # aliases TCPSocket#initialize method to #original_resolv_initialize.
         # https://github.com/ruby/resolv-replace/blob/v0.1.1/lib/resolv-replace.rb#L21
-        if RUBY_VERSION >= '3.0' &&
-           !::TCPSocket.private_instance_methods.include?(:original_resolv_initialize)
-          sock = new(host, port, connect_timeout: options[:socket_timeout])
-          yield(sock)
-        else
+        if ::TCPSocket.private_instance_methods.include?(:original_resolv_initialize)
           Timeout.timeout(options[:socket_timeout]) do
             sock = new(host, port)
             yield(sock)
           end
+        else
+          sock = new(host, port, connect_timeout: options[:socket_timeout])
+          yield(sock)
         end
       end
 
