@@ -67,7 +67,7 @@ describe 'operations' do
     end
 
     it 'get handles socket timeouts errors' do
-      toxi_memcached_persistent(21_345, '', { socket_timeout: 1 }) do |dc|
+      toxi_memcached_persistent(MemcachedManager::TOXIPROXY_UPSTREAM_PORT, '', { socket_timeout: 1 }) do |dc|
         dc.close
         dc.flush
 
