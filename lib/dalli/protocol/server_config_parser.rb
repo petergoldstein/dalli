@@ -16,7 +16,7 @@ module Dalli
       # can limit character set to LDH + '.'.  Hex digit section
       # is there to support IPv6 addresses, which need to be specified with
       # a bounding []
-      SERVER_CONFIG_REGEXP = /\A(\[([\h:]+)\]|[^:]+)(?::(\d+))?(?::(\d+))?\z/.freeze
+      SERVER_CONFIG_REGEXP = /\A(\[([\h:]+)\]|[^:]+)(?::(\d+))?(?::(\d+))?\z/
 
       DEFAULT_PORT = 11_211
       DEFAULT_WEIGHT = 1

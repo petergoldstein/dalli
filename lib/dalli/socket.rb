@@ -50,7 +50,7 @@ module Dalli
 
       FILTERED_OUT_OPTIONS = %i[username password].freeze
       def logged_options
-        options.reject { |k, _| FILTERED_OUT_OPTIONS.include? k }
+        options.except(*FILTERED_OUT_OPTIONS)
       end
     end
 

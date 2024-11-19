@@ -175,8 +175,8 @@ module Rack
         raise e
       end
 
-      def with_dalli_client(result_on_error = nil, &block)
-        @data.with(&block)
+      def with_dalli_client(result_on_error = nil, &)
+        @data.with(&)
       rescue ::Dalli::DalliError, Errno::ECONNREFUSED
         raise if $ERROR_INFO.message.include?('undefined class')
 

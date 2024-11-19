@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'digest/md5'
-require 'set'
 
 # rubocop:disable Metrics/ClassLength
 # encoding: ascii
@@ -162,8 +161,8 @@ module Dalli
     # - nil if the key did not exist.
     # - false if the value was changed by someone else.
     # - true if the value was successfully updated.
-    def cas(key, ttl = nil, req_options = nil, &block)
-      cas_core(key, false, ttl, req_options, &block)
+    def cas(key, ttl = nil, req_options = nil, &)
+      cas_core(key, false, ttl, req_options, &)
     end
 
     ##
@@ -173,8 +172,8 @@ module Dalli
     # Returns:
     # - false if the value was changed by someone else.
     # - true if the value was successfully updated.
-    def cas!(key, ttl = nil, req_options = nil, &block)
-      cas_core(key, true, ttl, req_options, &block)
+    def cas!(key, ttl = nil, req_options = nil, &)
+      cas_core(key, true, ttl, req_options, &)
     end
 
     ##
