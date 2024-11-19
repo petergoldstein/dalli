@@ -92,16 +92,6 @@ module Memcached
       MemcachedManager.stop(port_or_socket)
     end
 
-    # Launches a persistent memcached process, configured to use SASL authentication
-    def memcached_sasl_persistent(port_or_socket = 21_398, &)
-      memcached_persistent(port_or_socket, '-S', sasl_credentials, &)
-    end
-
-    # The SASL credentials used for the test SASL server
-    def sasl_credentials
-      { username: 'testuser', password: 'testtest' }
-    end
-
     private
 
     def fork_mock_process(prc, meth, meth_args)

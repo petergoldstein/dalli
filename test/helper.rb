@@ -7,8 +7,6 @@ require 'minitest/pride'
 require 'minitest/autorun'
 require_relative 'helpers/memcached'
 
-ENV['SASL_CONF_PATH'] = "#{File.dirname(__FILE__)}/sasl/memcached.conf"
-
 require 'dalli'
 require 'logger'
 require 'securerandom'

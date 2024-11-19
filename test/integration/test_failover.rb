@@ -24,51 +24,122 @@ describe 'failover' do
       end
     end
 
-    it 'handle them gracefully in get_multi' do
-      port1 = 32_971
-      port2 = 34_312
-      memcached_persistent(port1) do |_first_dc, first_port|
-        memcached(port2) do |_second_dc, second_port|
-          dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
-          dc.set 'a', 'a1'
-          result = dc.get_multi ['a']
+    describe 'assuming some bad servers' do
+      it 'silently reconnect if server hiccups' do
+        server_port = 30_124
+        memcached_persistent(server_port) do |dc, port|
+          dc.set 'foo', 'bar'
+          foo = dc.get 'foo'
 
-          assert_equal({ 'a' => 'a1' }, result)
+          assert_equal('bar', foo)
 
-          memcached_kill(first_port)
+          memcached_kill(port)
+          memcached_persistent(port) do
+            foo = dc.get 'foo'
 
-          result = dc.get_multi ['a']
+            assert_nil foo
 
-          assert_equal({ 'a' => 'a1' }, result)
+            memcached_kill(port)
+          end
         end
       end
-    end
 
-    it 'handle graceful failover in get_multi' do
-      port1 = 34_541
-      port2 = 33_044
-      memcached_persistent(port1) do |_first_dc, first_port|
-        memcached_persistent(port2) do |_second_dc, second_port|
-          dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
-          dc.set 'foo', 'foo1'
-          dc.set 'bar', 'bar1'
-          result = dc.get_multi %w[foo bar]
+      it 'reconnects if server idles the connection' do
+        port1 = 32_112
+        port2 = 37_887
 
-          assert_equal({ 'foo' => 'foo1', 'bar' => 'bar1' }, result)
+        memcached(port1, '-o idle_timeout=1') do |_, first_port|
+          memcached(port2, '-o idle_timeout=1') do |_, second_port|
+            dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
+            dc.set 'foo', 'bar'
+            dc.set 'foo2', 'bar2'
+            foo = dc.get_multi 'foo', 'foo2'
 
-          memcached_kill(first_port)
+            assert_equal({ 'foo' => 'bar', 'foo2' => 'bar2' }, foo)
 
-          dc.set 'foo', 'foo1'
-          dc.set 'bar', 'bar1'
-          result = dc.get_multi %w[foo bar]
+            # wait for socket to expire and get cleaned up
+            sleep 5
 
-          assert_equal({ 'foo' => 'foo1', 'bar' => 'bar1' }, result)
+            foo = dc.get_multi 'foo', 'foo2'
 
-          memcached_kill(second_port)
+            assert_equal({ 'foo' => 'bar', 'foo2' => 'bar2' }, foo)
+          end
+        end
+      end
 
-          result = dc.get_multi %w[foo bar]
+      it 'handle graceful failover' do
+        port1 = 31_777
+        port2 = 32_113
+        memcached_persistent(port1) do |_first_dc, first_port|
+          memcached_persistent(port2) do |_second_dc, second_port|
+            dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
+            dc.set 'foo', 'bar'
+            foo = dc.get 'foo'
 
-          assert_empty(result)
+            assert_equal('bar', foo)
+
+            memcached_kill(first_port)
+
+            dc.set 'foo', 'bar'
+            foo = dc.get 'foo'
+
+            assert_equal('bar', foo)
+
+            memcached_kill(second_port)
+
+            assert_raises Dalli::RingError, message: 'No server available' do
+              dc.set 'foo', 'bar'
+            end
+          end
+        end
+      end
+
+      it 'handle them gracefully in get_multi' do
+        port1 = 32_971
+        port2 = 34_312
+        memcached_persistent(port1) do |_first_dc, first_port|
+          memcached(port2) do |_second_dc, second_port|
+            dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
+            dc.set 'a', 'a1'
+            result = dc.get_multi ['a']
+
+            assert_equal({ 'a' => 'a1' }, result)
+
+            memcached_kill(first_port)
+
+            result = dc.get_multi ['a']
+
+            assert_equal({ 'a' => 'a1' }, result)
+          end
+        end
+      end
+
+      it 'handle graceful failover in get_multi' do
+        port1 = 34_541
+        port2 = 33_044
+        memcached_persistent(port1) do |_first_dc, first_port|
+          memcached_persistent(port2) do |_second_dc, second_port|
+            dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
+            dc.set 'foo', 'foo1'
+            dc.set 'bar', 'bar1'
+            result = dc.get_multi %w[foo bar]
+
+            assert_equal({ 'foo' => 'foo1', 'bar' => 'bar1' }, result)
+
+            memcached_kill(first_port)
+
+            dc.set 'foo', 'foo1'
+            dc.set 'bar', 'bar1'
+            result = dc.get_multi %w[foo bar]
+
+            assert_equal({ 'foo' => 'foo1', 'bar' => 'bar1' }, result)
+
+            memcached_kill(second_port)
+
+            result = dc.get_multi %w[foo bar]
+
+            assert_empty(result)
+          end
         end
       end
     end

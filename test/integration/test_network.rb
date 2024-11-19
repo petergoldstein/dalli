@@ -11,66 +11,66 @@ describe 'Network' do
       end
     end
 
-    # describe 'with a fake server' do
-    #   it 'handle connection reset' do
-    #     memcached_mock(lambda(&:close)) do
-    #       dc = Dalli::Client.new('localhost:19123')
-    #       assert_raises Dalli::RingError, message: 'No server available' do
-    #         dc.get('abc')
-    #       end
-    #     end
-    #   end
+    describe 'with a fake server' do
+      it 'handle connection reset' do
+        memcached_mock(lambda(&:close)) do
+          dc = Dalli::Client.new('localhost:19123')
+          assert_raises Dalli::RingError, message: 'No server available' do
+            dc.get('abc')
+          end
+        end
+      end
 
-    #   it 'handle connection reset with unix socket' do
-    #     socket_path = MemcachedMock::UNIX_SOCKET_PATH
-    #     memcached_mock(lambda(&:close), :start_unix, socket_path) do
-    #       dc = Dalli::Client.new(socket_path)
-    #       assert_raises Dalli::RingError, message: 'No server available' do
-    #         dc.get('abc')
-    #       end
-    #     end
-    #   end
+      it 'handle connection reset with unix socket' do
+        socket_path = MemcachedMock::UNIX_SOCKET_PATH
+        memcached_mock(lambda(&:close), :start_unix, socket_path) do
+          dc = Dalli::Client.new(socket_path)
+          assert_raises Dalli::RingError, message: 'No server available' do
+            dc.get('abc')
+          end
+        end
+      end
 
-    #   it 'handle malformed response' do
-    #     memcached_mock(->(sock) { sock.write('123') }) do
-    #       dc = Dalli::Client.new('localhost:19123')
-    #       assert_raises Dalli::RingError, message: 'No server available' do
-    #         dc.get('abc')
-    #       end
-    #     end
-    #   end
+      it 'handle malformed response' do
+        memcached_mock(->(sock) { sock.write('123') }) do
+          dc = Dalli::Client.new('localhost:19123')
+          assert_raises Dalli::RingError, message: 'No server available' do
+            dc.get('abc')
+          end
+        end
+      end
 
-    #   it 'handle socket timeouts' do
-    #     dc = Dalli::Client.new('localhost:19123', socket_timeout: 0)
-    #     assert_raises Dalli::RingError, message: 'No server available' do
-    #       dc.get('abc')
-    #     end
-    #   end
+      it 'handle socket timeouts' do
+        dc = Dalli::Client.new('localhost:19123', socket_timeout: 0)
+        assert_raises Dalli::RingError, message: 'No server available' do
+          dc.get('abc')
+        end
+      end
 
-    #   it 'handle connect timeouts' do
-    #     memcached_mock(lambda { |sock|
-    #       sleep(0.6)
-    #       sock.close
-    #     }, :delayed_start) do
-    #       dc = Dalli::Client.new('localhost:19123')
-    #       assert_raises Dalli::RingError, message: 'No server available' do
-    #         dc.get('abc')
-    #       end
-    #     end
-    #   end
+      it 'handle connect timeouts' do
+        memcached_mock(lambda { |sock|
+          sleep(0.6)
+          sock.close
+        }, :delayed_start) do
+          dc = Dalli::Client.new('localhost:19123')
+          assert_raises Dalli::RingError, message: 'No server available' do
+            dc.get('abc')
+          end
+        end
+      end
 
-    #   it 'handle read timeouts' do
-    #     memcached_mock(lambda { |sock|
-    #       sleep(0.6)
-    #       sock.write('giraffe')
-    #     }) do
-    #       dc = Dalli::Client.new('localhost:19123')
-    #       assert_raises Dalli::RingError, message: 'No server available' do
-    #         dc.get('abc')
-    #       end
-    #     end
-    #   end
-    # end
+      it 'handle read timeouts' do
+        memcached_mock(lambda { |sock|
+          sleep(0.6)
+          sock.write('giraffe')
+        }) do
+          dc = Dalli::Client.new('localhost:19123')
+          assert_raises Dalli::RingError, message: 'No server available' do
+            dc.get('abc')
+          end
+        end
+      end
+    end
 
     it 'opens a standard TCP connection when ssl_context is not configured' do
       memcached_persistent do |dc|
