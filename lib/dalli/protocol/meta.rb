@@ -49,6 +49,7 @@ module Dalli
         response_processor.meta_set_with_cas
       end
 
+      # rubocop:disable Metrics/AbcSize
       def read_multi_req(keys)
         keys.each do |key|
           @connection_manager.write("mg #{key} v f k q\r\n")
@@ -61,12 +62,15 @@ module Dalli
           break if line.start_with?('MN')
           next unless line.start_with?('VA ')
 
-          _, value_length, _flags, key = line.split
-          value = @connection_manager.read_exact(value_length.to_i + TERMINATOR.length)
-          results[key[1..]] = value.chomp!(TERMINATOR)
+          # VA value_length flags key
+          tokens = line.split
+          value = @connection_manager.read_exact(tokens[1].to_i + TERMINATOR.length)
+          results[tokens[3][1..]] =
+            @value_marshaller.retrieve(value.chomp!(TERMINATOR), @response_processor.bitflags_from_tokens(tokens))
         end
         results
       end
+      # rubocop:enable Metrics/AbcSize
 
       # Retrieval Commands
       def get(key, options = nil)
