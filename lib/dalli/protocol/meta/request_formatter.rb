@@ -13,7 +13,6 @@ module Dalli
         # and introducing an intermediate object seems like overkill.
         #
         # rubocop:disable Metrics/CyclomaticComplexity
-        # rubocop:disable Metrics/MethodLength
         # rubocop:disable Metrics/ParameterLists
         # rubocop:disable Metrics/PerceivedComplexity
         def self.meta_get(key:, value: true, return_cas: false, ttl: nil, base64: false, quiet: false, meta_flags: nil)
@@ -63,7 +62,6 @@ module Dalli
           cmd + TERMINATOR
         end
         # rubocop:enable Metrics/CyclomaticComplexity
-        # rubocop:enable Metrics/MethodLength
         # rubocop:enable Metrics/ParameterLists
         # rubocop:enable Metrics/PerceivedComplexity
 
@@ -88,7 +86,6 @@ module Dalli
           cmd + TERMINATOR
         end
 
-        # rubocop:disable Metrics/MethodLength
         def self.mode_to_token(mode)
           case mode
           when :add
@@ -103,7 +100,6 @@ module Dalli
             'S'
           end
         end
-        # rubocop:enable Metrics/MethodLength
 
         def self.cas_string(cas)
           cas = parse_to_64_bit_int(cas, nil)

@@ -49,7 +49,7 @@ module MemcachedManager
   end
 
   def self.start(port_or_socket, args)
-    raise "Do not re-use toxiproxy port for memcached" if port_or_socket == TOXIPROXY_MEMCACHED_PORT
+    raise 'Do not re-use toxiproxy port for memcached' if port_or_socket == TOXIPROXY_MEMCACHED_PORT
 
     cmd_with_args, key = cmd_with_args(port_or_socket, args)
     @running_pids[key] ||= begin

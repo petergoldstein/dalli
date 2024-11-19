@@ -58,8 +58,14 @@ module Memcached
     # for the memcached process.
     ###
     # rubocop:disable Metrics/ParameterLists
-    def toxi_memcached_persistent(protocol = :binary, port = MemcachedManager::TOXIPROXY_UPSTREAM_PORT, args = '', client_options = {}, &)
-      raise "Toxiproxy does not support unix sockets" if port.to_i.zero?
+    def toxi_memcached_persistent(
+      protocol = :binary,
+      port = MemcachedManager::TOXIPROXY_UPSTREAM_PORT,
+      args = '',
+      client_options = {},
+      &
+    )
+      raise 'Toxiproxy does not support unix sockets' if port.to_i.zero?
 
       unless @toxy_configured
         Toxiproxy.populate([{
@@ -76,11 +82,7 @@ module Memcached
         "localhost:#{MemcachedManager::TOXIPROXY_MEMCACHED_PORT}",
         client_options.merge(protocol: protocol)
       )
-      if block_given?
-        yield dc, port
-      else
-        dc
-      end
+      yield dc, port
     end
     # rubocop:enable Metrics/ParameterLists
 
