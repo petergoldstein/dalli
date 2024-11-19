@@ -5,28 +5,24 @@ require_relative '../helper'
 describe 'failover' do
   MemcachedManager.supported_protocols.each do |p|
     describe "using the #{p} protocol" do
-      # Timeouts on JRuby work differently and aren't firing, meaning we're
-      # not testing the condition
-      unless defined? JRUBY_VERSION
-        describe 'timeouts' do
-          it 'not lead to corrupt sockets' do
-            memcached_persistent(p) do |dc|
-              value = { test: '123' }
-              begin
-                Timeout.timeout 0.01 do
-                  start_time = Time.now
-                  10_000.times do
-                    dc.set('test_123', value)
-                  end
-
-                  flunk("Did not timeout in #{Time.now - start_time}")
+      describe 'timeouts' do
+        it 'not lead to corrupt sockets' do
+          memcached_persistent(p) do |dc|
+            value = { test: '123' }
+            begin
+              Timeout.timeout 0.01 do
+                start_time = Time.now
+                10_000.times do
+                  dc.set('test_123', value)
                 end
-              rescue Timeout::Error
-                # Ignore expected timeout
-              end
 
-              assert_equal(value, dc.get('test_123'))
+                flunk("Did not timeout in #{Time.now - start_time}")
+              end
+            rescue Timeout::Error
+              # Ignore expected timeout
             end
+
+            assert_equal(value, dc.get('test_123'))
           end
         end
       end
