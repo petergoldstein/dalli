@@ -4,7 +4,6 @@
 # Utility module for spinning up memcached instances locally, and generating a corresponding
 # Dalli::Client to access the local instance.  Supports access via TCP and UNIX domain socket.
 ##
-# rubocop:disable Metrics/ModuleLength
 module MemcachedManager
   # TODO: This is all UNIX specific.  To support
   # running CI on Windows we'll need to conditionally
@@ -108,16 +107,8 @@ module MemcachedManager
   end
 
   MIN_META_VERSION = '1.6'
-  def self.supported_protocols
-    return [] unless version
-
-    version > MIN_META_VERSION ? %i[binary meta] : %i[binary]
-  end
-
   META_DELETE_CAS_FIX_PATCH_VERSION = '13'
-  def self.supports_delete_cas?(protocol)
-    return true unless protocol == :meta
-
+  def self.supports_delete_cas?
     return false unless version > MIN_META_VERSION
 
     minor_patch_delimiter = version.index('.', 2)
@@ -150,4 +141,3 @@ module MemcachedManager
     raise Errno::ENOENT, "Unable to find memcached #{MEMCACHED_MIN_MAJOR_VERSION}+ locally"
   end
 end
-# rubocop:enable Metrics/ModuleLength

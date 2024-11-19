@@ -6,7 +6,7 @@ module Dalli
   # Make Dalli threadsafe by using a lock around all
   # public server methods.
   #
-  # Dalli::Protocol::Binary.extend(Dalli::Threadsafe)
+  # Dalli::Protocol::Meta.extend(Dalli::Threadsafe)
   #
   module Threadsafe
     def self.extended(obj)

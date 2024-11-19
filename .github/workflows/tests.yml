@@ -13,7 +13,7 @@ jobs:
           - head
           - '3.3'
           - '3.2'
-        memcached-version: ['1.5.22', '1.6.23']
+        memcached-version: ['1.6.23']
 
     steps:
     - uses: actions/checkout@v4

@@ -35,8 +35,7 @@ BENCH_TIME = (ENV['BENCH_TIME'] || 5).to_i
 BENCH_JOB  = ENV['BENCH_JOB'] || 'set_multi'
 TERMINATOR = "\r\n"
 
-client = Dalli::Client.new('localhost', compress: false)
-meta_client = Dalli::Client.new('localhost', protocol: :meta, serializer: StringSerializer, compress: false)
+client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
 string_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
 # The raw socket implementation is used to benchmark the performance of dalli & the overhead of the various abstractions
 # in the library.
@@ -54,7 +53,6 @@ payload = 'B' * 1_000_000
 # ensure the clients are all connected and working
 client.set('key', payload)
 string_client.set('string_key', payload)
-meta_client.set('meta_key', payload)
 sock.write("set sock_key 0 3600 1000000\r\n")
 sock.write(payload)
 sock.write(TERMINATOR)
@@ -130,7 +128,6 @@ when 'set'
     x.config(warmup: 2, time: BENCH_TIME, suite: suite)
     x.report('set 1MB MARSHAL') { client.set('key', payload) }
     x.report('set 1MB STRING') { string_client.set('string_key', payload) }
-    x.report('meta_set 1MB STRING') { meta_client.set('meta_key', payload) }
     x.report('set 1MB raw sock') do
       sock.write("ms sock_key 1000000 c F0 T3600 MS \r\n")
       sock.write(payload)
@@ -145,7 +142,6 @@ when 'get'
     x.config(warmup: 2, time: BENCH_TIME, suite: suite)
     x.report('get 1MB MARSHAL') { client.get('key') }
     x.report('get 1MB STRING') { string_client.get('string_key') }
-    x.report('meta_get 1MB STRING') { meta_client.get('meta_key') }
     x.report('get 1MB raw sock') do
       sock.write("get sock_key\r\n")
       sock.readline
@@ -156,8 +152,7 @@ when 'get'
 when 'get_multi'
   Benchmark.ips do |x|
     x.config(warmup: 2, time: BENCH_TIME, suite: suite)
-    x.report('binary get_mutli 100 keys') { client.get_multi(pairs.keys) }
-    x.report('meta get_mutli 100 keys') { meta_client.get_multi(pairs.keys) }
+    x.report('get 100 keys') { client.get_multi(pairs.keys) }
     x.report('get 100 keys raw sock') { sock_get_multi(sock, pairs) }
     x.compare!
   end
@@ -186,7 +181,7 @@ when 'set_multi'
       sock.flush
       sock.gets(TERMINATOR) # clear the buffer
     end
-    x.report('write_mutli 100 keys') { meta_client.set_multi(pairs, 3600, raw: true) }
+    x.report('write_mutli 100 keys') { client.set_multi(pairs, 3600, raw: true) }
     x.compare!
   end
 end

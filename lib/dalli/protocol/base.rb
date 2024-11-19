@@ -7,7 +7,7 @@ require 'timeout'
 module Dalli
   module Protocol
     ##
-    # Base class for a single Memcached server, containing logic common to all
+    # Base class for a single Memcached client, containing logic common to all
     # protocols.  Contains logic for managing connection state to the server and value
     # handling.
     ##

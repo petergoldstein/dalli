@@ -5,6 +5,7 @@ Unreleased
 ==========
 
 - Fix cannot read response data included terminator `\r\n` when use meta protocol (matsubara0507)
+- Remove binary protocol support (grcooper)
 
 3.2.8
 ==========

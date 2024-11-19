@@ -2,7 +2,6 @@
 
 require 'digest/md5'
 
-# rubocop:disable Metrics/ClassLength
 # encoding: ascii
 module Dalli
   ##
@@ -43,8 +42,6 @@ module Dalli
     #                 #fetch operations.
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method,
     #                   useful for injecting a FIPS compliant hash object.
-    # - :protocol - one of either :binary or :meta, defaulting to :binary.  This sets the protocol that Dalli uses
-    #               to communicate with memcached.
     #
     def initialize(servers = nil, options = {})
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
@@ -95,7 +92,6 @@ module Dalli
     # Fetch multiple keys efficiently.
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
-    # rubocop:disable Metrics/AbcSize
     def get_multi(*keys)
       keys.flatten!
       keys.compact!
@@ -104,7 +100,7 @@ module Dalli
 
       if block_given?
         pipelined_getter.process(keys) { |k, data| yield k, data.first }
-      elsif @options[:protocol]&.to_s == 'meta' && @ring.servers.size == 1
+      elsif @ring.servers.size == 1
         pipelined_getter.process(keys)
       else
         {}.tap do |hash|
@@ -112,7 +108,6 @@ module Dalli
         end
       end
     end
-    # rubocop:enable Metrics/AbcSize
 
     ##
     # Fetch multiple keys efficiently, including available metadata such as CAS.
@@ -405,16 +400,7 @@ module Dalli
     end
 
     def ring
-      @ring ||= Dalli::Ring.new(@normalized_servers, protocol_implementation, @options)
-    end
-
-    def protocol_implementation
-      @protocol_implementation ||= case @options[:protocol]&.to_s
-                                   when 'meta'
-                                     Dalli::Protocol::Meta
-                                   else
-                                     Dalli::Protocol::Binary
-                                   end
+      @ring ||= Dalli::Ring.new(@normalized_servers, @options)
     end
 
     ##
@@ -459,5 +445,3 @@ module Dalli
     end
   end
 end
-# rubocop:enable Metrics/ClassLength
-#
