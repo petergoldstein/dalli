@@ -95,7 +95,6 @@ module Dalli
     # Fetch multiple keys efficiently.
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
-    # rubocop:disable Metrics/MethodLength
     # rubocop:disable Metrics/AbcSize
     def get_multi(*keys)
       keys.flatten!
@@ -113,7 +112,6 @@ module Dalli
         end
       end
     end
-    # rubocop:enable Metrics/MethodLength
     # rubocop:enable Metrics/AbcSize
 
     ##

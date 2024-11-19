@@ -24,7 +24,6 @@ module Dalli
       # * only supports single server
       # * only supports set at the moment
       # * doesn't support cas at the moment
-      # rubocop:disable Metrics/MethodLength
       def write_multi_storage_req(_mode, pairs, ttl = nil, _cas = nil, options = {})
         ttl = TtlSanitizer.sanitize(ttl) if ttl
         count = pairs.length
@@ -49,9 +48,7 @@ module Dalli
         end
         response_processor.meta_set_with_cas
       end
-      # rubocop:enable Metrics/MethodLength
 
-      # rubocop:disable Metrics/MethodLength
       def read_multi_req(keys)
         keys.each do |key|
           @connection_manager.write("mg #{key} v f k q\r\n")
@@ -71,7 +68,6 @@ module Dalli
         results
       end
 
-      # rubocop:enable Metrics/MethodLength
       # Retrieval Commands
       def get(key, options = nil)
         encoded_key, base64 = KeyRegularizer.encode(key)
