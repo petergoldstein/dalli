@@ -70,11 +70,7 @@ module Dalli
           when String
             if buffer_is_empty
               @offset = start
-              buffer_is_empty = false
               @buffer.force_encoding(ENCODING) if @buffer.encoding != ENCODING
-            else
-              @buffer << bytes.force_encoding(ENCODING)
-            end
             remaining -= bytes.bytesize
 
             return if !force_size || remaining <= 0
