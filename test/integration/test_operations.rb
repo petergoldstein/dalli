@@ -23,6 +23,21 @@ describe 'operations' do
           end
         end
 
+        it 'return the value that include TERMINATOR on a hit' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            val1 = "12345#{Dalli::Protocol::Meta::TERMINATOR}67890"
+            dc.set('a', val1)
+            val2 = dc.get('a')
+
+            assert_equal val1, val2
+
+            assert op_addset_succeeds(dc.set('a', nil))
+            assert_nil dc.get('a')
+          end
+        end
+
         it 'returns nil on a miss' do
           memcached_persistent(p) do |dc|
             assert_nil dc.get('notexist')
