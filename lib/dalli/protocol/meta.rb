@@ -26,27 +26,26 @@ module Dalli
       # * doesn't support cas at the moment
       def write_multi_storage_req(_mode, pairs, ttl = nil, _cas = nil, options = {})
         ttl = TtlSanitizer.sanitize(ttl) if ttl
-        count = pairs.length
-        tail = ''
 
         pairs.each do |key, raw_value|
-          count -= 1
           (value, bitflags) = @value_marshaller.store(key, raw_value, options)
           encoded_key, _base64 = KeyRegularizer.encode(key)
           value_bytesize = value.bytesize
           # if last pair of hash, add TERMINATOR
-          tail = count.zero? ? '' : 'q'
 
           # NOTE: The most efficient way to build the command
           # * avoid making new strings capacity is set to the max possible size of the command
           # * socket write each piece indepentantly to avoid extra allocation
           # * first chunk uses interpolated values to avoid extra allocation, but << for larger 'value' strings
           # * avoids using the request formatter pattern for single inline builder
-          @connection_manager.write("ms #{encoded_key} #{value_bytesize} c F#{bitflags} T#{ttl} MS #{tail}\r\n")
+          @connection_manager.write("ms #{encoded_key} #{value_bytesize} c F#{bitflags} T#{ttl} MS q\r\n")
           @connection_manager.write(value)
           @connection_manager.write(TERMINATOR)
         end
-        response_processor.meta_set_with_cas
+        write_noop
+        @connection_manager.flush
+
+        response_processor.consume_all_responses_until_mn
       end
 
       # rubocop:disable Metrics/AbcSize
