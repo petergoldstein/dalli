@@ -1,9 +1,11 @@
 # frozen_string_literal: true
 
+require 'tempfile'
 ##
 # Utility module for spinning up memcached instances locally, and generating a corresponding
 # Dalli::Client to access the local instance.  Supports access via TCP and UNIX domain socket.
 ##
+# rubocop:disable Metrics/ModuleLength
 module MemcachedManager
   # TODO: This is all UNIX specific.  To support
   # running CI on Windows we'll need to conditionally
@@ -21,6 +23,9 @@ module MemcachedManager
   MEMCACHED_MIN_MAJOR_VERSION = ::Dalli::MIN_SUPPORTED_MEMCACHED_VERSION
   TOXIPROXY_MEMCACHED_PORT = 21_347
   TOXIPROXY_UPSTREAM_PORT = 21_348
+  UNIX_SOCKET_PATH = (f = Tempfile.new('dalli_test')
+                      f.close
+                      f.path)
   @running_pids = {}
 
   def self.start_and_flush_with_retry(port_or_socket, args = '', client_options = {})
@@ -116,7 +121,6 @@ module MemcachedManager
     return true if minor_version > MIN_META_VERSION
 
     patch_version = version[minor_patch_delimiter + 1..]
-
     patch_version >= META_DELETE_CAS_FIX_PATCH_VERSION
   end
 
@@ -141,3 +145,4 @@ module MemcachedManager
     raise Errno::ENOENT, "Unable to find memcached #{MEMCACHED_MIN_MAJOR_VERSION}+ locally"
   end
 end
+# rubocop:enable Metrics/ModuleLength

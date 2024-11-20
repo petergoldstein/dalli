@@ -3,29 +3,9 @@
 require 'socket'
 require_relative '../utils/certificate_generator'
 require_relative '../utils/memcached_manager'
-require_relative '../utils/memcached_mock'
 
 module Memcached
   module Helper
-    # Forks the current process and starts a new mock Memcached server on
-    # port 22122.
-    #
-    #     memcached_mock(lambda {|sock| socket.write('123') }) do
-    #       assert_equal "PONG", Dalli::Client.new('localhost:22122').get('abc')
-    #     end
-    #
-    def memcached_mock(prc, meth = :start, meth_args = [])
-      return unless supports_fork?
-
-      begin
-        pid = fork_mock_process(prc, meth, meth_args)
-        sleep 0.3 # Give time for the socket to start listening.
-        yield
-      ensure
-        kill_process(pid)
-      end
-    end
-
     # Launches a memcached process with the specified arguments.  Takes
     # a block to which an initialized Dalli::Client and the port_or_socket
     # is passed.
@@ -92,24 +72,7 @@ module Memcached
       MemcachedManager.stop(port_or_socket)
     end
 
-    # Launches a persistent memcached process, configured to use SASL authentication
-    def memcached_sasl_persistent(port_or_socket = 21_398, &)
-      memcached_persistent(port_or_socket, '-S', sasl_credentials, &)
-    end
-
-    # The SASL credentials used for the test SASL server
-    def sasl_credentials
-      { username: 'testuser', password: 'testtest' }
-    end
-
     private
-
-    def fork_mock_process(prc, meth, meth_args)
-      fork do
-        trap('TERM') { exit }
-        MemcachedMock.send(meth, *meth_args) { |*args| prc.call(*args) }
-      end
-    end
 
     def kill_process(pid)
       return unless pid

@@ -11,110 +11,88 @@ describe 'Network' do
       end
     end
 
-    # describe 'with a fake server' do
-    #   it 'handle connection reset' do
-    #     memcached_mock(lambda(&:close)) do
-    #       dc = Dalli::Client.new('localhost:19123')
-    #       assert_raises Dalli::RingError, message: 'No server available' do
-    #         dc.get('abc')
-    #       end
-    #     end
-    #   end
-
-    #   it 'handle connection reset with unix socket' do
-    #     socket_path = MemcachedMock::UNIX_SOCKET_PATH
-    #     memcached_mock(lambda(&:close), :start_unix, socket_path) do
-    #       dc = Dalli::Client.new(socket_path)
-    #       assert_raises Dalli::RingError, message: 'No server available' do
-    #         dc.get('abc')
-    #       end
-    #     end
-    #   end
-
-    #   it 'handle malformed response' do
-    #     memcached_mock(->(sock) { sock.write('123') }) do
-    #       dc = Dalli::Client.new('localhost:19123')
-    #       assert_raises Dalli::RingError, message: 'No server available' do
-    #         dc.get('abc')
-    #       end
-    #     end
-    #   end
-
-    #   it 'handle socket timeouts' do
-    #     dc = Dalli::Client.new('localhost:19123', socket_timeout: 0)
-    #     assert_raises Dalli::RingError, message: 'No server available' do
-    #       dc.get('abc')
-    #     end
-    #   end
-
-    #   it 'handle connect timeouts' do
-    #     memcached_mock(lambda { |sock|
-    #       sleep(0.6)
-    #       sock.close
-    #     }, :delayed_start) do
-    #       dc = Dalli::Client.new('localhost:19123')
-    #       assert_raises Dalli::RingError, message: 'No server available' do
-    #         dc.get('abc')
-    #       end
-    #     end
-    #   end
-
-    #   it 'handle read timeouts' do
-    #     memcached_mock(lambda { |sock|
-    #       sleep(0.6)
-    #       sock.write('giraffe')
-    #     }) do
-    #       dc = Dalli::Client.new('localhost:19123')
-    #       assert_raises Dalli::RingError, message: 'No server available' do
-    #         dc.get('abc')
-    #       end
-    #     end
-    #   end
-    # end
-
-    it 'opens a standard TCP connection when ssl_context is not configured' do
-      memcached_persistent do |dc|
-        server = dc.send(:ring).servers.first
-        sock = Dalli::Socket::TCP.open(server.hostname, server.port, server.options)
-
-        assert_instance_of Dalli::Socket::TCP, sock
-
-        dc.set('abc', 123)
-
-        assert_equal(123, dc.get('abc'))
+    it 'handle connection reset' do
+      toxi_memcached_persistent do |dc|
+        Toxiproxy[/dalli_memcached/].down do
+          assert_raises Dalli::RingError, message: 'No server available' do
+            dc.get('abc')
+          end
+        end
       end
     end
 
-    it 'opens a SSL TCP connection when there is an SSL context set' do
-      memcached_ssl_persistent do |dc|
-        server = dc.send(:ring).servers.first
-        sock = Dalli::Socket::TCP.open(server.hostname, server.port, server.options)
+    it 'handles socket timeouts' do
+      toxi_memcached_persistent(MemcachedManager::TOXIPROXY_UPSTREAM_PORT, '', { socket_timeout: 1 }) do |dc|
+        dc.close
+        dc.flush
 
-        assert_instance_of Dalli::Socket::SSLSocket, sock
+        dc.set('foo', 'bar')
 
-        dc.set('abc', 123)
+        assert_equal('bar', dc.get('foo'))
 
-        assert_equal(123, dc.get('abc'))
-
-        # Confirm that pipelined get works, since this depends on attributes on
-        # the socket
-        assert_equal({ 'abc' => 123 }, dc.get_multi(['abc']))
+        Toxiproxy[/dalli_memcached/].downstream(:latency, latency: 2000).apply do
+          assert_raises Dalli::RingError, message: 'No server available' do
+            dc.get('abc')
+          end
+        end
       end
     end
 
-    it 'allow TCP connections to be configured for keepalive' do
-      memcached_persistent do |_, port|
-        dc = Dalli::Client.new("localhost:#{port}", keepalive: true)
-        dc.set(:a, 1)
-        ring = dc.send(:ring)
-        server = ring.servers.first
-        socket = server.sock
+    it 'handle connect timeouts' do
+      toxi_memcached_persistent(MemcachedManager::TOXIPROXY_UPSTREAM_PORT, '', { socket_timeout: 1 }) do |dc|
+        dc.close
 
-        optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE)
-        optval = optval.unpack 'i'
-
-        refute_equal(optval[0], 0)
+        Toxiproxy[/dalli_memcached/].downstream(:latency, latency: 2000).apply do
+          assert_raises Dalli::RingError, message: 'No server available' do
+            dc.get('abc')
+          end
+        end
       end
+    end
+  end
+
+  it 'opens a standard TCP connection when ssl_context is not configured' do
+    memcached_persistent do |dc|
+      server = dc.send(:ring).servers.first
+      sock = Dalli::Socket::TCP.open(server.hostname, server.port, server.options)
+
+      assert_instance_of Dalli::Socket::TCP, sock
+
+      dc.set('abc', 123)
+
+      assert_equal(123, dc.get('abc'))
+    end
+  end
+
+  it 'opens a SSL TCP connection when there is an SSL context set' do
+    memcached_ssl_persistent do |dc|
+      server = dc.send(:ring).servers.first
+      sock = Dalli::Socket::TCP.open(server.hostname, server.port, server.options)
+
+      assert_instance_of Dalli::Socket::SSLSocket, sock
+
+      dc.set('abc', 123)
+
+      assert_equal(123, dc.get('abc'))
+
+      # Confirm that pipelined get works, since this depends on attributes on
+      # the socket
+      assert_equal({ 'abc' => 123 }, dc.get_multi(['abc']))
+    end
+  end
+
+  it 'allow TCP connections to be configured for keepalive' do
+    memcached_persistent do |_, port|
+      dc = Dalli::Client.new("localhost:#{port}", keepalive: true)
+      dc.set(:a, 1)
+      ring = dc.send(:ring)
+      server = ring.servers.first
+      socket = server.sock
+
+      optval = socket.getsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE)
+      optval = optval.unpack 'i'
+
+      refute_equal(optval[0], 0)
     end
   end
 
@@ -297,7 +275,7 @@ describe 'Network' do
   end
 
   it 'passes a simple smoke test on unix socket' do
-    memcached_persistent(MemcachedMock::UNIX_SOCKET_PATH) do |dc, path|
+    memcached_persistent(MemcachedManager::UNIX_SOCKET_PATH) do |dc, path|
       resp = dc.flush
 
       refute_nil resp
