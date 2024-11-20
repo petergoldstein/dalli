@@ -335,4 +335,12 @@ describe 'Network' do
       dc.close
     end
   end
+
+  it 'handles reading data from a socket that is larger than the buffer chunk size' do
+    memcached_persistent do |dc|
+      dc.set('foo', 'b' * (Dalli::Protocol::BufferedIO::DEFAULT_CHUNK_SIZE + 100))
+
+      assert_equal 'b' * (Dalli::Protocol::BufferedIO::DEFAULT_CHUNK_SIZE + 100), dc.get('foo')
+    end
+  end
 end
