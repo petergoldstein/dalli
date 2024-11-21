@@ -36,7 +36,7 @@ BENCH_JOB  = ENV['BENCH_JOB'] || 'set_multi'
 TERMINATOR = "\r\n"
 
 client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
-multi_client = Dalli::Client.new(['localhost:112111','localhost:11222'], serializer: StringSerializer, compress: false)
+multi_client = Dalli::Client.new('localhost:112111,localhost:11222', serializer: StringSerializer, compress: false)
 string_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
 # The raw socket implementation is used to benchmark the performance of dalli & the overhead of the various abstractions
 # in the library.

@@ -8,6 +8,7 @@ module Dalli
   # Dalli::Client is the main class which developers will use to interact with
   # Memcached.
   ##
+  # rubocop:disable Metrics/ClassLength
   class Client
     ##
     # Dalli::Client is the main class which developers will use to interact with
@@ -453,3 +454,4 @@ module Dalli
     end
   end
 end
+# rubocop:enable Metrics/ClassLength
