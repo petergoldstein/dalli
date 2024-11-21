@@ -201,7 +201,15 @@ module Dalli
     def set_multi(pairs, ttl, req_options = nil)
       return if pairs.empty?
 
-      pipelined_setter.process(pairs, ttl, req_options)
+      if ring.servers.length == 1
+        pipelined_setter.process(pairs, ttl, req_options)
+      else
+        quiet do
+          pairs.each do |key, value|
+            set(key, value, ttl, req_options)
+          end
+        end
+      end
       nil
     end
 

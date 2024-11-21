@@ -36,6 +36,7 @@ BENCH_JOB  = ENV['BENCH_JOB'] || 'set_multi'
 TERMINATOR = "\r\n"
 
 client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
+multi_client = Dalli::Client.new(['localhost:112111','localhost:11222'], serializer: StringSerializer, compress: false)
 string_client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
 # The raw socket implementation is used to benchmark the performance of dalli & the overhead of the various abstractions
 # in the library.
@@ -165,6 +166,9 @@ when 'set_multi'
           client.set(key, value, 3600, raw: true)
         end
       end
+    end
+    x.report('multi client set_multi 100') do
+      multi_client.set_multi(pairs, 3600, raw: true)
     end
     x.report('write 100 keys rawsock') do
       count = pairs.length
