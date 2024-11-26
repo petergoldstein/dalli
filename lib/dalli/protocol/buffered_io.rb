@@ -47,6 +47,31 @@ module Dalli
         str.force_encoding(Encoding::UTF_8)
       end
 
+      def write(str)
+        remaining = str.bytesize
+        current_timeout = @timeout.to_f
+
+        loop do
+          start_time = Time.now
+          bytes = @io.write_nonblock(str, exception: false)
+
+          case bytes
+          when Integer
+            remaining -= bytes
+            return if remaining <= 0
+
+            str = str.byteslice(bytes..-1)
+          when :wait_writable
+            raise Timeout::Error unless @io.wait_writable(current_timeout)
+          else
+            raise SystemCallError, 'Unhandled write_nonblock return value'
+          end
+
+          current_timeout -= (Time.now - start_time)
+          raise Timeout::Error if current_timeout <= 0
+        end
+      end
+
       private
 
       # rubocop:disable Metrics/AbcSize

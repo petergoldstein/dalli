@@ -166,7 +166,7 @@ module Dalli
       end
 
       def write(bytes)
-        @sock.write(bytes)
+        @buffered_io.write(bytes)
       rescue SystemCallError, *TIMEOUT_ERRORS => e
         error_on_request!(e)
       end
