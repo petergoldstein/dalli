@@ -67,7 +67,7 @@ module Dalli
                   end
 
           case bytes
-          when Integer, String
+          when String
             if buffer_is_empty
               @offset = start
               buffer_is_empty = false
