@@ -58,10 +58,8 @@ module Dalli
         buffer_size = @buffer.bytesize
         start = @offset - buffer_size
         buffer_is_empty = start >= 0
-        current_timeout = @timeout.to_f
 
         loop do
-          start_time = Time.now
           bytes = if buffer_is_empty
                     @io.read_nonblock([remaining, @chunk_size].max, @buffer, exception: false)
                   else
@@ -83,15 +81,12 @@ module Dalli
           when :wait_readable
             @offset -= buffer_size if buffer_is_empty && @buffer.empty?
 
-            raise Timeout::Error unless @io.wait_readable(current_timeout)
+            raise Timeout::Error unless @io.wait_readable(@timeout)
           when nil
             raise EOFError
           else
             raise SystemCallError, 'Unhandled read_nonblock return value'
           end
-
-          current_timeout -= (Time.now - start_time)
-          raise Timeout::Error if current_timeout <= 0
         end
       end
       # rubocop:enable Metrics/AbcSize
