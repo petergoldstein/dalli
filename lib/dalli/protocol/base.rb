@@ -42,7 +42,7 @@ module Dalli
         rescue Dalli::MarshalError => e
           log_marshal_err(args.first, e)
           raise
-        rescue Dalli::DalliError
+        rescue Dalli::DalliError, Dalli::ServerError
           raise
         rescue StandardError => e
           log_unexpected_err(e)
