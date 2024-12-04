@@ -21,6 +21,7 @@ module Dalli
         STAT = 'STAT'
         VA = 'VA'
         VERSION = 'VERSION'
+        SERVER_ERROR = 'SERVER_ERROR'
 
         def initialize(io_source, value_marshaller)
           @io_source = io_source
@@ -179,9 +180,12 @@ module Dalli
 
         def error_on_unexpected!(expected_codes)
           tokens = next_line_to_tokens
-          raise Dalli::DalliError, "Response error: #{tokens.first}" unless expected_codes.include?(tokens.first)
 
-          tokens
+          return tokens if expected_codes.include?(tokens.first)
+
+          raise Dalli::ServerError if tokens.first == SERVER_ERROR
+
+          raise Dalli::DalliError, "Response error: #{tokens.first}"
         end
 
         def meta_flags_from_tokens(tokens)
