@@ -68,6 +68,7 @@ module Dalli
         # option and always refer to that when explicitly set (non-nil), otherwise
         # use the client default specified by `raw_by_default?`
         return !raw_by_default? unless req_options && !req_options[:raw].nil?
+
         !req_options[:raw]
       end
 
