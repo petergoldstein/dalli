@@ -23,7 +23,9 @@ module Dalli
         # amount of time to sleep between retries when a failure occurs
         socket_failure_delay: 0.1,
         # Set keepalive
-        keepalive: true
+        keepalive: true,
+        # chunk size for buffered io
+        chunk_size: 1024 * 4
       }.freeze
 
       attr_accessor :hostname, :port, :socket_type, :options
@@ -37,6 +39,7 @@ module Dalli
         @request_in_progress = false
         @sock = nil
         @pid = nil
+        @buffered_io = nil
 
         reset_down_info
       end
@@ -53,6 +56,7 @@ module Dalli
         Dalli.logger.debug { "Dalli::Server#connect #{name}" }
 
         @sock = memcached_socket
+        @buffered_io = BufferedIO.new(@sock, options[:chunk_size], options[:socket_timeout])
         @pid = PIDCache.pid
         @request_in_progress = false
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError, SocketError => e
@@ -118,6 +122,7 @@ module Dalli
           nil
         end
         @sock = nil
+        @buffered_io = nil
         @pid = nil
         abort_request!
       end
@@ -146,28 +151,16 @@ module Dalli
         @request_in_progress = false
       end
 
-      def readline
-        @sock.readline
-      rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
-        error_on_request!(e)
-      end
-
       def read_line
-        data = @sock.gets("\r\n")
+        data = @buffered_io.read_line
         error_on_request!('EOF in read_line') if data.nil?
         data
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
         error_on_request!(e)
       end
 
-      def read_exact(count)
-        @sock.read(count)
-      rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
-        error_on_request!(e)
-      end
-
       def read(count)
-        @sock.readfull(count)
+        @buffered_io.read(count)
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
         error_on_request!(e)
       end
