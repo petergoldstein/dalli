@@ -19,7 +19,7 @@ module Dalli
 
       OPTIONS = DEFAULTS.keys.freeze
 
-      def_delegators :@value_serializer, :serializer
+      def_delegators :@value_serializer, :serializer, :raw_by_default?
       def_delegators :@value_compressor, :compressor, :compression_min_size, :compress_by_default?
 
       def initialize(client_options)

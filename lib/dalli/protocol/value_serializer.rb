@@ -10,6 +10,7 @@ module Dalli
     ##
     class ValueSerializer
       DEFAULTS = {
+        raw: false,
         serializer: Marshal
       }.freeze
 
@@ -27,7 +28,7 @@ module Dalli
       end
 
       def store(value, req_options, bitflags)
-        do_serialize = !(req_options && req_options[:raw])
+        do_serialize = serialize_value?(req_options)
         store_value = do_serialize ? serialize_value(value) : value.to_s
         bitflags |= FLAG_SERIALIZED if do_serialize
         [store_value, bitflags]
@@ -60,6 +61,18 @@ module Dalli
         exc = Dalli::MarshalError.new(e.message)
         exc.set_backtrace e.backtrace
         raise exc
+      end
+
+      def serialize_value?(req_options)
+        # When deciding when serialization is required, check the request-level
+        # option and always refer to that when explicitly set (non-nil), otherwise
+        # use the client default specified by `raw_by_default?`
+        return !raw_by_default? unless req_options && !req_options[:raw].nil?
+        !req_options[:raw]
+      end
+
+      def raw_by_default?
+        @serialization_options[:raw]
       end
     end
   end

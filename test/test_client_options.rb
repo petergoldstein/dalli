@@ -4,9 +4,10 @@ require_relative 'helper'
 
 describe 'Dalli client options' do
   it 'not warn about valid options' do
-    dc = Dalli::Client.new('foo', compress: true)
+    dc = Dalli::Client.new('foo', compress: true, raw: true)
     # Rails.logger.expects :warn
     assert_operator dc.instance_variable_get(:@options), :[], :compress
+    assert_operator dc.instance_variable_get(:@options), :[], :raw
   end
 
   describe 'servers configuration' do

@@ -24,6 +24,22 @@ describe Dalli::Protocol::ValueSerializer do
         end
       end
     end
+
+    describe 'raw_by_default?' do
+      describe 'when the raw option is unspecified' do
+        let(:options) { {} }
+        it 'defaults to serialize' do
+          assert_equal subject.raw_by_default?, false
+        end
+      end
+
+      describe 'when the raw option is toggle on' do
+        let(:options) { { raw: true } }
+        it 'defaults to not serialize' do
+          assert_equal subject.raw_by_default?, true
+        end
+      end
+    end
   end
 
   describe 'store' do
@@ -35,54 +51,98 @@ describe Dalli::Protocol::ValueSerializer do
     let(:vs_options) { { serializer: serializer } }
     let(:raw_value) { Object.new }
 
-    describe 'when the request options are nil' do
-      let(:req_options) { nil }
+    describe 'when raw is not default' do
+      describe 'when the request options are nil' do
+        let(:req_options) { nil }
 
-      it 'serializes the value' do
-        serializer.expect :dump, serialized_dummy, [raw_value]
-        val, newbitflags = vs.store(raw_value, req_options, bitflags)
+        it 'serializes the value' do
+          serializer.expect :dump, serialized_dummy, [raw_value]
+          val, newbitflags = vs.store(raw_value, req_options, bitflags)
 
-        assert_equal val, serialized_dummy
-        assert_equal newbitflags, (bitflags | 0x1)
-        serializer.verify
+          assert_equal val, serialized_dummy
+          assert_equal newbitflags, (bitflags | 0x1)
+          serializer.verify
+        end
+      end
+
+      describe 'when the request options do not specify a value for the :raw key' do
+        let(:req_options) { { other: SecureRandom.hex(4) } }
+
+        it 'serializes the value' do
+          serializer.expect :dump, serialized_dummy, [raw_value]
+          val, newbitflags = vs.store(raw_value, req_options, bitflags)
+
+          assert_equal val, serialized_dummy
+          assert_equal newbitflags, (bitflags | 0x1)
+          serializer.verify
+        end
+      end
+
+      describe 'when the request options value for the :raw key is false' do
+        let(:req_options) { { raw: false } }
+
+        it 'serializes the value' do
+          serializer.expect :dump, serialized_dummy, [raw_value]
+          val, newbitflags = vs.store(raw_value, req_options, bitflags)
+
+          assert_equal val, serialized_dummy
+          assert_equal newbitflags, (bitflags | 0x1)
+          serializer.verify
+        end
+      end
+
+      describe 'when the request options value for the :raw key is true' do
+        let(:req_options) { { raw: true } }
+
+        it 'does not call the serializer and just converts the input value to a string' do
+          val, newbitflags = vs.store(raw_value, req_options, bitflags)
+
+          assert_equal val, raw_value.to_s
+          assert_equal newbitflags, bitflags
+          serializer.verify
+        end
       end
     end
 
-    describe 'when the request options do not specify a value for the :raw key' do
-      let(:req_options) { { other: SecureRandom.hex(4) } }
+    describe 'when raw is default' do
+      let(:vs) { Dalli::Protocol::ValueSerializer.new(vs_options) }
+      let(:vs_options) { { serializer: serializer, raw: true } }
 
-      it 'serializes the value' do
-        serializer.expect :dump, serialized_dummy, [raw_value]
-        val, newbitflags = vs.store(raw_value, req_options, bitflags)
+      describe 'when the request options do not specify a value for the :raw key' do
+        let(:req_options) { { other: SecureRandom.hex(4) } }
 
-        assert_equal val, serialized_dummy
-        assert_equal newbitflags, (bitflags | 0x1)
-        serializer.verify
+        it 'uses string conversion as a default' do
+          val, newbitflags = vs.store(raw_value, req_options, bitflags)
+
+          assert_equal raw_value.to_s, val
+          assert_equal newbitflags, bitflags
+          serializer.verify
+        end
       end
-    end
 
-    describe 'when the request options value for the :raw key is false' do
-      let(:req_options) { { raw: false } }
+      describe 'when the request options value for the :raw key is false' do
+        let(:req_options) { { raw: false } }
 
-      it 'serializes the value' do
-        serializer.expect :dump, serialized_dummy, [raw_value]
-        val, newbitflags = vs.store(raw_value, req_options, bitflags)
+        it 'serializes the value' do
+          serializer.expect :dump, serialized_dummy, [raw_value]
+          val, newbitflags = vs.store(raw_value, req_options, bitflags)
 
-        assert_equal val, serialized_dummy
-        assert_equal newbitflags, (bitflags | 0x1)
-        serializer.verify
+          assert_equal val, serialized_dummy
+          assert_equal newbitflags, (bitflags | 0x1)
+          serializer.verify
+        end
       end
-    end
 
-    describe 'when the request options value for the :raw key is true' do
-      let(:req_options) { { raw: true } }
+      describe 'when the request options value for the :raw key is true' do
+        let(:req_options) { { raw: true } }
 
-      it 'does not call the serializer and just converts the input value to a string' do
-        val, newbitflags = vs.store(raw_value, req_options, bitflags)
+        it 'does not call the serializer and just converts the input value to a string' do
+          val, newbitflags = vs.store(raw_value, req_options, bitflags)
 
-        assert_equal val, raw_value.to_s
-        assert_equal newbitflags, bitflags
-        serializer.verify
+          assert_equal val, raw_value.to_s
+          assert_equal newbitflags, bitflags
+          serializer.verify
+        end
       end
     end
 
