@@ -47,6 +47,26 @@ module Dalli
         str.force_encoding(Encoding::UTF_8)
       end
 
+      def write(str)
+        remaining = str.bytesize
+
+        loop do
+          bytes = @io.write_nonblock(str, exception: false)
+
+          case bytes
+          when Integer
+            remaining -= bytes
+            return if remaining <= 0
+
+            str = str.byteslice(bytes..-1)
+          when :wait_writable
+            raise Timeout::Error unless @io.wait_writable(@timeout)
+          else
+            raise SystemCallError, 'Unhandled write_nonblock return value'
+          end
+        end
+      end
+
       private
 
       # rubocop:disable Metrics/AbcSize
@@ -70,7 +90,6 @@ module Dalli
           when String
             if buffer_is_empty
               @offset = start
-              buffer_is_empty = false
               @buffer.force_encoding(ENCODING) if @buffer.encoding != ENCODING
             else
               @buffer << bytes.force_encoding(ENCODING)

@@ -118,4 +118,12 @@ describe 'BufferedIO' do
       end
     end
   end
+
+  describe 'write' do
+    it 'writes the exact number of bytes to the socket' do
+      @buffered_io.write('test')
+
+      assert_equal('test', @socket.string)
+    end
+  end
 end
