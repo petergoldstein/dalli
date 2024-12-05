@@ -6,6 +6,7 @@ Unreleased
 
 - Fix cannot read response data included terminator `\r\n` when use meta protocol (matsubara0507)
 - Remove binary protocol support (grcooper)
+- Add support for `raw` client option (nherson)
 
 3.2.8
 ==========

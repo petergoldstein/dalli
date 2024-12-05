@@ -35,6 +35,8 @@ module Dalli
     #                 to 0 or forever.
     # - :compress - if true Dalli will compress values larger than compression_min_size bytes before sending them
     #               to memcached.  Default: true.
+    # - :raw - if true Dalli will not attempt to serialize values, which can be overridden by explicitly passing
+    #          `:raw => false` as a request option when writing data. Default: false.
     # - :compression_min_size - the minimum size (in bytes) for which Dalli will compress values sent to Memcached.
     #                           Defaults to 4K.
     # - :serializer - defaults to Marshal
