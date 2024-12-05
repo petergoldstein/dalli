@@ -24,24 +24,6 @@ describe Dalli::Protocol::ValueSerializer do
         end
       end
     end
-
-    describe 'raw_by_default?' do
-      describe 'when the raw option is unspecified' do
-        let(:options) { {} }
-
-        it 'defaults to serialize' do
-          refute_predicate subject, :raw_by_default?
-        end
-      end
-
-      describe 'when the raw option is toggle on' do
-        let(:options) { { raw: true } }
-
-        it 'defaults to not serialize' do
-          assert_predicate subject, :raw_by_default?
-        end
-      end
-    end
   end
 
   describe 'store' do

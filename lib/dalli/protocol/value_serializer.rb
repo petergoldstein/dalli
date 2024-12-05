@@ -63,10 +63,10 @@ module Dalli
         raise exc
       end
 
+      private
+
+      # Defaults to client-level option, unless a request-level override is provided
       def serialize_value?(req_options)
-        # When deciding when serialization is required, check the request-level
-        # option and always refer to that when explicitly set (non-nil), otherwise
-        # use the client default specified by `raw_by_default?`
         return !raw_by_default? unless req_options && !req_options[:raw].nil?
 
         !req_options[:raw]
