@@ -16,8 +16,7 @@ module Dalli
 
       attr_accessor :weight, :options
 
-      def_delegators :@value_marshaller, :serializer, :compressor, :compression_min_size,
-                     :compress_by_default?
+      def_delegators :@value_marshaller, :serializer, :compressor, :compression_min_size, :compress_by_default?
       def_delegators :@connection_manager, :name, :sock, :hostname, :port, :close, :connected?, :socket_timeout,
                      :socket_type, :up!, :down!, :write, :reconnect_down_server?, :raise_down_error
 
