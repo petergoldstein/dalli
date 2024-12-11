@@ -212,7 +212,6 @@ module Dalli
       end
 
       def log_warn_message(err_or_string)
-        detail = err_or_string.is_a?(String) ? err_or_string : "#{err_or_string.class}: #{err_or_string.message}"
         Dalli.logger.warn do
           detail = err_or_string.is_a?(String) ? err_or_string : "#{err_or_string.class}: #{err_or_string.message}"
           "#{name} failed (count: #{@fail_count}) #{detail}"
