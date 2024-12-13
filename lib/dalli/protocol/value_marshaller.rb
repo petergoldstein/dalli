@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'forwardable'
-require 'debug'
 
 module Dalli
   module Protocol
