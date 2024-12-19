@@ -5,6 +5,7 @@ Unreleased
 ==========
 
 - Fix cannot read response data included terminator `\r\n` when use meta protocol (matsubara0507)
+- Do not block on get_multi with a large number of keys (marvinthepa)
 
 3.2.8
 ==========

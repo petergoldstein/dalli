@@ -170,6 +170,10 @@ module Dalli
         raise Dalli::DalliError, 'Authentication not supported for the meta protocol.'
       end
 
+      def request_header_size
+        17
+      end
+
       require_relative 'meta/key_regularizer'
       require_relative 'meta/request_formatter'
       require_relative 'meta/response_processor'

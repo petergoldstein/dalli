@@ -172,6 +172,10 @@ module Dalli
         @sock.read_available
       end
 
+      def write_nonblock(bytes)
+        @sock.write_nonblock(bytes, exception: false)
+      end
+
       def max_allowed_failures
         @max_allowed_failures ||= @options[:socket_max_failures] || 2
       end
@@ -248,6 +252,13 @@ module Dalli
 
         time = Time.now - @down_at
         Dalli.logger.warn { format('%<name>s is back (downtime was %<time>.3f seconds)', name: name, time: time) }
+      end
+
+      def chunk_size
+        @chunk_size ||=
+          options[:chunk_size] ||
+          @sock&.getsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDBUF)&.int ||
+          32_768
       end
     end
   end
