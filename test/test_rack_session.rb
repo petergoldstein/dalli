@@ -153,7 +153,7 @@ describe Rack::Session::Dalli do
     res = Rack::MockRequest.new(rsd)
                            .get('/', 'HTTP_COOKIE' => bad_cookie)
 
-    assert_equal ({ 'counter' => 1 }).to_s, res.body
+    assert_equal res.body, { 'counter' => 1 }.to_s
     cookie = res['Set-Cookie'][session_match]
 
     refute_match(/#{bad_cookie}/, cookie)
@@ -252,7 +252,7 @@ describe Rack::Session::Dalli do
     res1 = req.get('/')
     session = (cookie = res1['Set-Cookie'])[session_match]
 
-    assert_equal ({ 'counter' => 1 }).to_s, res1.body
+    assert_equal res1.body, { 'counter' => 1 }.to_s
 
     res2 = rreq.get('/', 'HTTP_COOKIE' => cookie)
     new_cookie = res2['Set-Cookie']
