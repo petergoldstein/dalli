@@ -114,7 +114,7 @@ describe Rack::Session::Dalli do
     res = Rack::MockRequest.new(rsd).get('/')
 
     assert_includes res['Set-Cookie'], "#{session_key}="
-    assert_equal ({ 'counter' => 1 }).to_s, res.body
+    assert_equal res.body, { 'counter' => 1 }.to_s
   end
 
   it 'determines session from a cookie' do
@@ -123,8 +123,8 @@ describe Rack::Session::Dalli do
     res = req.get('/')
     cookie = res['Set-Cookie']
 
-    assert_equal ({ 'counter' => 2 }).to_s, req.get('/', 'HTTP_COOKIE' => cookie).body
-    assert_equal ({ 'counter' => 3 }).to_s, req.get('/', 'HTTP_COOKIE' => cookie).body
+    assert_equal req.get('/', 'HTTP_COOKIE' => cookie).body, { 'counter' => 2 }.to_s
+    assert_equal req.get('/', 'HTTP_COOKIE' => cookie).body, { 'counter' => 3 }.to_s
   end
 
   it 'determines session only from a cookie by default' do
@@ -133,8 +133,8 @@ describe Rack::Session::Dalli do
     res = req.get('/')
     sid = res['Set-Cookie'][session_match, 1]
 
-    assert_equal ({ 'counter' => 1 }).to_s, req.get("/?rack.session=#{sid}").body
-    assert_equal ({ 'counter' => 1 }).to_s, req.get("/?rack.session=#{sid}").body
+    assert_equal req.get("/?rack.session=#{sid}").body, { 'counter' => 1 }.to_s
+    assert_equal req.get("/?rack.session=#{sid}").body, { 'counter' => 1 }.to_s
   end
 
   it 'determines session from params' do
@@ -143,8 +143,8 @@ describe Rack::Session::Dalli do
     res = req.get('/')
     sid = res['Set-Cookie'][session_match, 1]
 
-    assert_equal ({ 'counter' => 2 }).to_s, req.get("/?rack.session=#{sid}").body
-    assert_equal ({ 'counter' => 3 }).to_s, req.get("/?rack.session=#{sid}").body
+    assert_equal req.get("/?rack.session=#{sid}").body, { 'counter' => 2 }.to_s
+    assert_equal req.get("/?rack.session=#{sid}").body, { 'counter' => 3 }.to_s
   end
 
   it 'survives nonexistant cookies' do
@@ -208,17 +208,17 @@ describe Rack::Session::Dalli do
     res0 = req.get('/')
     cookie = res0['Set-Cookie'][session_match]
 
-    assert_equal ({ 'counter' => 1 }).to_s, res0.body
+    assert_equal res0.body, { 'counter' => 1 }.to_s
 
     res1 = req.get('/', 'HTTP_COOKIE' => cookie)
 
     assert_nil res1['Set-Cookie']
-    assert_equal ({ 'counter' => 2 }).to_s, res1.body
+    assert_equal res1.body, { 'counter' => 2 }.to_s
 
     res2 = req.get('/', 'HTTP_COOKIE' => cookie)
 
     assert_nil res2['Set-Cookie']
-    assert_equal ({ 'counter' => 3 }).to_s, res2.body
+    assert_equal res2.body, { 'counter' => 3 }.to_s
   end
 
   it 'deletes cookies with :drop option' do
@@ -230,17 +230,17 @@ describe Rack::Session::Dalli do
     res1 = req.get('/')
     session = (cookie = res1['Set-Cookie'])[session_match]
 
-    assert_equal ({ 'counter' => 1 }).to_s, res1.body
+    assert_equal res1.body, { 'counter' => 1 }.to_s
 
     res2 = dreq.get('/', 'HTTP_COOKIE' => cookie)
 
     assert_nil res2['Set-Cookie']
-    assert_equal ({ 'counter' => 2 }).to_s, res2.body
+    assert_equal res2.body, { 'counter' => 2 }.to_s
 
     res3 = req.get('/', 'HTTP_COOKIE' => cookie)
 
     refute_equal session, res3['Set-Cookie'][session_match]
-    assert_equal ({ 'counter' => 1 }).to_s, res3.body
+    assert_equal res3.body, { 'counter' => 1 }.to_s
   end
 
   it 'provides new session id with :renew option' do
@@ -259,16 +259,16 @@ describe Rack::Session::Dalli do
     new_session = new_cookie[session_match]
 
     refute_equal session, new_session
-    assert_equal ({ 'counter' => 2 }).to_s, res2.body
+    assert_equal res2.body, { 'counter' => 2 }.to_s
 
     res3 = req.get('/', 'HTTP_COOKIE' => new_cookie)
 
-    assert_equal ({ 'counter' => 3 }).to_s, res3.body
+    assert_equal res3.body, { 'counter' => 3 }.to_s
 
     # Old cookie was deleted
     res4 = req.get('/', 'HTTP_COOKIE' => cookie)
 
-    assert_equal ({ 'counter' => 1 }).to_s, res4.body
+    assert_equal res4.body, { 'counter' => 1 }.to_s
   end
 
   it 'omits cookie with :defer option but still updates the state' do
@@ -281,15 +281,15 @@ describe Rack::Session::Dalli do
     res0 = dreq.get('/')
 
     assert_nil res0['Set-Cookie']
-    assert_equal ({ 'counter' => 1 }).to_s, res0.body
+    assert_equal res0.body, { 'counter' => 1 }.to_s
 
     res0 = creq.get('/')
     res1 = dreq.get('/', 'HTTP_COOKIE' => res0['Set-Cookie'])
 
-    assert_equal ({ 'counter' => 2 }).to_s, res1.body
+    assert_equal res1.body, { 'counter' => 2 }.to_s
     res2 = dreq.get('/', 'HTTP_COOKIE' => res0['Set-Cookie'])
 
-    assert_equal ({ 'counter' => 3 }).to_s, res2.body
+    assert_equal res2.body, { 'counter' => 3 }.to_s
   end
 
   it 'omits cookie and state update with :skip option' do
@@ -302,15 +302,15 @@ describe Rack::Session::Dalli do
     res0 = sreq.get('/')
 
     assert_nil res0['Set-Cookie']
-    assert_equal ({ 'counter' => 1 }).to_s, res0.body
+    assert_equal res0.body, { 'counter' => 1 }.to_s
 
     res0 = creq.get('/')
     res1 = sreq.get('/', 'HTTP_COOKIE' => res0['Set-Cookie'])
 
-    assert_equal ({ 'counter' => 2 }).to_s, res1.body
+    assert_equal res1.body, { 'counter' => 2 }.to_s
     res2 = sreq.get('/', 'HTTP_COOKIE' => res0['Set-Cookie'])
 
-    assert_equal ({ 'counter' => 2 }).to_s, res2.body
+    assert_equal res2.body, { 'counter' => 2 }.to_s
   end
 
   it 'updates deep hashes correctly' do
