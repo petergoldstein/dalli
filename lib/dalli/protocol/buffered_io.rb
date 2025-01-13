@@ -34,7 +34,7 @@ module Dalli
         terminator_index += TERMINATOR_SIZE
         line = @buffer.byteslice(@offset, terminator_index - @offset)
         @offset = terminator_index
-        line.force_encoding(Encoding::UTF_8)
+        line
       end
 
       # Reads the exact number of bytes from the buffer
@@ -44,7 +44,7 @@ module Dalli
 
         str = @buffer.byteslice(@offset, size)
         @offset += size
-        str.force_encoding(Encoding::UTF_8)
+        str
       end
 
       def write(str)
