@@ -12,6 +12,7 @@ module Dalli
     # Manages the socket connection to the server, including ensuring liveness
     # and retries.
     ##
+    # rubocop:disable Metrics/ClassLength
     class ConnectionManager
       DEFAULTS = {
         # seconds between trying to contact a remote server
@@ -151,8 +152,14 @@ module Dalli
         @request_in_progress = false
       end
 
+      def readline
+        @sock.readline
+      rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
+        error_on_request!(e)
+      end
+
       def read_line
-        data = @buffered_io.read_line
+        data = @sock.gets("\r\n")
         error_on_request!('EOF in read_line') if data.nil?
         data
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
@@ -160,13 +167,19 @@ module Dalli
       end
 
       def read(count)
-        @buffered_io.read(count)
+        @sock.readfull(count)
+      rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
+        error_on_request!(e)
+      end
+
+      def read_exact(count)
+        @sock.read(count)
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
         error_on_request!(e)
       end
 
       def write(bytes)
-        @buffered_io.write(bytes)
+        @sock.write(bytes)
       rescue SystemCallError, *TIMEOUT_ERRORS => e
         error_on_request!(e)
       end
@@ -263,4 +276,5 @@ module Dalli
       end
     end
   end
+  # rubocop:enable Metrics/ClassLength
 end

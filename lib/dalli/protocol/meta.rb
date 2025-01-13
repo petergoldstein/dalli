@@ -57,13 +57,13 @@ module Dalli
         @connection_manager.flush
         # read all the memcached responses back and build a hash of key value pairs
         results = {}
-        while (line = @connection_manager.read_line.chomp!(TERMINATOR)) != ''
+        while (line = @connection_manager.readline.chomp!(TERMINATOR)) != ''
           break if line.start_with?('MN')
           next unless line.start_with?('VA ')
 
           # VA value_length flags key
           tokens = line.split
-          value = @connection_manager.read(tokens[1].to_i + TERMINATOR.length)
+          value = @connection_manager.read_exact(tokens[1].to_i + TERMINATOR.length)
           results[tokens[3][1..]] =
             @value_marshaller.retrieve(value.chomp!(TERMINATOR), @response_processor.bitflags_from_tokens(tokens))
         end

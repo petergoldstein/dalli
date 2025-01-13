@@ -15,6 +15,16 @@ module Dalli
     module InstanceMethods
       WAIT_RCS = %i[wait_writable wait_readable].freeze
 
+      def readfull(count)
+        value = String.new(capacity: count + 1)
+        loop do
+          result = read_nonblock(count - value.bytesize, exception: false)
+          value << result if append_to_buffer?(result)
+          break if value.bytesize == count
+        end
+        value
+      end
+
       def read_available
         value = +''
         loop do
@@ -30,6 +40,17 @@ module Dalli
       FILTERED_OUT_OPTIONS = %i[username password].freeze
       def logged_options
         options.except(*FILTERED_OUT_OPTIONS)
+      end
+
+      def append_to_buffer?(result)
+        raise Timeout::Error, "IO timeout: #{logged_options.inspect}" if read_nonblock_timed_out?(result)
+        raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}" unless result
+
+        !WAIT_RCS.include?(result)
+      end
+
+      def read_nonblock_timed_out?(result)
+        result == :wait_readable && !wait_readable(options[:socket_timeout])
       end
     end
 
