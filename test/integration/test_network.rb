@@ -361,4 +361,19 @@ describe 'Network' do
       end
     end
   end
+
+  if MemcachedManager.supported_protocols.include?(:meta)
+    describe 'ServerError' do
+      it 'is raised when Memcached response with a SERVER_ERROR' do
+        memcached_mock(->(sock) { sock.write("SERVER_ERROR foo bar\r\n") }) do
+          dc = Dalli::Client.new('localhost:19123', protocol: :meta)
+          err = assert_raises Dalli::ServerError do
+            dc.get('abc')
+          end
+
+          assert_equal 'SERVER_ERROR foo bar', err.message
+        end
+      end
+    end
+  end
 end
