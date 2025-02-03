@@ -74,6 +74,24 @@ describe 'Network' do
           end
         end
 
+        it 'handles operation timeouts' do
+          next if p == :binary
+
+          memcached_mock(lambda { |sock|
+            # handle initial version call
+            sock.gets
+            sock.write("VERSION 1.6.0\r\n")
+
+            sleep(0.3)
+          }) do
+            dc = Dalli::Client.new('localhost:19123', socket_timeout: 0.1, protocol: p, socket_max_failures: 0,
+                                                      socket_failure_delay: 0.0, down_retry_delay: 0.0)
+            assert_raises Dalli::RingError, message: 'No server available' do
+              dc.get('abc')
+            end
+          end
+        end
+
         it 'opens a standard TCP connection when ssl_context is not configured' do
           memcached_persistent(p) do |dc|
             server = dc.send(:ring).servers.first
