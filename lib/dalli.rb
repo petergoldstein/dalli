@@ -27,6 +27,9 @@ module Dalli
   # operation is not permitted in a multi block
   class NotPermittedMultiOpError < DalliError; end
 
+  # raised when Memcached response with a SERVER_ERROR
+  class ServerError < DalliError; end
+
   # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.
   class NilObject; end # rubocop:disable Lint/EmptyClass
   NOT_FOUND = NilObject.new
