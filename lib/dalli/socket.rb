@@ -12,16 +12,7 @@ module Dalli
     # Common methods for all socket implementations.
     ##
     module InstanceMethods
-      def readfull(count)
-        value = String.new(capacity: count + 1)
-        loop do
-          result = read_nonblock(count - value.bytesize, exception: false)
-          value << result if append_to_buffer?(result)
-          break if value.bytesize == count
-        end
-        value
-      end
-
+      WAIT_RCS = %i[wait_writable wait_readable].freeze
       def read_available
         value = +''
         loop do
@@ -32,22 +23,6 @@ module Dalli
           value << result
         end
         value
-      end
-
-      WAIT_RCS = %i[wait_writable wait_readable].freeze
-
-      def append_to_buffer?(result)
-        raise Timeout::Error, "IO timeout: #{logged_options.inspect}" if nonblock_timed_out?(result)
-        raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}" unless result
-
-        !WAIT_RCS.include?(result)
-      end
-
-      def nonblock_timed_out?(result)
-        return true if result == :wait_readable && !wait_readable(options[:socket_timeout])
-
-        # TODO: Do we actually need this?  Looks to be only used in read_nonblock
-        result == :wait_writable && !wait_writable(options[:socket_timeout])
       end
 
       FILTERED_OUT_OPTIONS = %i[username password].freeze
