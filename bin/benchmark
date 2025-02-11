@@ -45,8 +45,8 @@ TERMINATOR = "\r\n"
 puts "yjit: #{RubyVM::YJIT.enabled?}"
 
 client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false, raw: true)
-multi_client = Dalli::Client.new('localhost:11211,localhost:11222', serializer: StringSerializer, compress: false,
-                                                                    raw: true)
+# multi_client = Dalli::Client.new('localhost:11211,localhost:11222', serializer: StringSerializer, compress: false,
+#                                                                    raw: true)
 
 # The raw socket implementation is used to benchmark the performance of dalli & the overhead of the various abstractions
 # in the library.
@@ -208,9 +208,10 @@ if %w[all set_multi].include?(bench_target)
         end
       end
     end
-    x.report('multi client set_multi 100') do
-      multi_client.set_multi(pairs, 3600, raw: true)
-    end
+    # TODO: uncomment this once we add PR adding set_multi
+    # x.report('multi client set_multi 100') do
+    #   multi_client.set_multi(pairs, 3600, raw: true)
+    # end
     x.report('write 100 keys rawsock') do
       count = pairs.length
       tail = ''
@@ -226,7 +227,7 @@ if %w[all set_multi].include?(bench_target)
       sock.flush
       sock.gets(TERMINATOR) # clear the buffer
     end
-    x.report('write_mutli 100 keys') { client.set_multi(pairs, 3600, raw: true) }
+    # x.report('write_mutli 100 keys') { client.set_multi(pairs, 3600, raw: true) }
     x.compare!
   end
 end

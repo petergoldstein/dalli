@@ -174,7 +174,13 @@ end
 if %w[all set_multi].include?(bench_target)
   Vernier.profile(out: 'client_set_multi_profile.json') do
     start_time = Time.now
-    client.set_multi(pairs, 3600, raw: true) while Time.now - start_time < bench_time
+    # until we port over set_multi, compare the simple loop
+    # client.set_multi(pairs, 3600, raw: true) while Time.now - start_time < bench_time
+    while Time.now - start_time < bench_time
+      pairs.each do |key, value|
+        client.set(key, value, 3600, raw: true)
+      end
+    end
   end
 
   Vernier.profile(out: 'socket_set_multi_profile.json') do
