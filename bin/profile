@@ -34,15 +34,13 @@ class StringSerializer
 end
 
 dalli_url = ENV['BENCH_CACHE_URL'] || '127.0.0.1:11211'
-
-ENV['BENCH_CACHE_URL'].gsub('unix://', '') if dalli_url.include?('unix')
 bench_target = ENV['BENCH_TARGET'] || 'get'
 bench_time = (ENV['BENCH_TIME'] || 10).to_i
 bench_payload_size = (ENV['BENCH_PAYLOAD_SIZE'] || 700_000).to_i
 TERMINATOR = "\r\n"
 puts "yjit: #{RubyVM::YJIT.enabled?}"
 
-client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
+client = Dalli::Client.new(dalli_url, serializer: StringSerializer, compress: false)
 
 # The raw socket implementation is used to benchmark the performance of dalli & the overhead of the various abstractions
 # in the library.
@@ -52,7 +50,7 @@ sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true)
 # Benchmarks didn't see any performance gains from increasing the SO_RCVBUF buffer size
 # sock.setsockopt(Socket::SOL_SOCKET, ::Socket::SO_RCVBUF, 1024 * 1024 * 8)
 # Benchamrks did see an improvement in performance when increasing the SO_SNDBUF buffer size
-sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, 1024 * 1024 * 8)
+# sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, 1024 * 1024 * 8)
 
 payload = 'B' * bench_payload_size
 dalli_key = 'dalli_key'
@@ -65,7 +63,7 @@ sock.flush
 sock.readline # clear the buffer
 
 # ensure we have basic data for the benchmarks and get calls
-payload_smaller = 'B' * 50_000
+payload_smaller = 'B' * (bench_payload_size / 10)
 pairs = {}
 100.times do |i|
   pairs["multi_#{i}"] = payload_smaller
@@ -128,15 +126,20 @@ end
 if %w[all get].include?(bench_target)
   Vernier.profile(out: 'client_get_profile.json') do
     start_time = Time.now
-    client.get(dalli_key) while Time.now - start_time < bench_time
+    while Time.now - start_time < bench_time
+      result = client.get(dalli_key)
+      raise 'mismatch' unless result == payload
+    end
   end
 
   Vernier.profile(out: 'socket_get_profile.json') do
     start_time = Time.now
     while Time.now - start_time < bench_time
-      sock.write("get sock_key\r\n")
+      sock.write("mg sock_key v\r\n")
       sock.readline
-      sock.read(payload.bytesize)
+      result = sock.read(payload.bytesize)
+      sock.read(TERMINATOR.bytesize)
+      raise 'mismatch' unless result == payload
     end
   end
 end
@@ -162,12 +165,18 @@ end
 if %w[all get_multi].include?(bench_target)
   Vernier.profile(out: 'client_get_multi_profile.json') do
     start_time = Time.now
-    client.get_multi(pairs.keys) while Time.now - start_time < bench_time
+    while Time.now - start_time < bench_time
+      result = client.get_multi(pairs.keys)
+      raise 'mismatch' unless result == pairs
+    end
   end
 
   Vernier.profile(out: 'socket_get_multi_profile.json') do
     start_time = Time.now
-    sock_get_multi(sock, pairs) while Time.now - start_time < bench_time
+    while Time.now - start_time < bench_time
+      result = sock_get_multi(sock, pairs)
+      raise 'mismatch' unless result == pairs
+    end
   end
 end
 
