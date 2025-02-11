@@ -1,0 +1,177 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# This helps profile specific call paths in Dalli
+# finding and fixing performance issues in these profiles should result in improvements in the dalli benchmarks
+#
+# run with:
+# RUBY_YJIT_ENABLE=1 bundle exec bin/profile
+require 'bundler/inline'
+require 'json'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'benchmark-ips'
+  gem 'vernier'
+  gem 'logger'
+end
+
+require_relative '../lib/dalli'
+require 'benchmark/ips'
+require 'vernier'
+
+##
+# StringSerializer is a serializer that avoids the overhead of Marshal or JSON.
+##
+class StringSerializer
+  def self.dump(value)
+    value
+  end
+
+  def self.load(value)
+    value
+  end
+end
+
+dalli_url = ENV['BENCH_CACHE_URL'] || "127.0.0.1:11211"
+
+if dalli_url.include?('unix')
+  ENV['BENCH_CACHE_URL'].gsub('unix://','')
+end
+bench_target = ENV['BENCH_TARGET'] || 'get'
+bench_time = (ENV['BENCH_TIME'] || 10).to_i
+bench_payload_size = (ENV['BENCH_PAYLOAD_SIZE'] || 700_000).to_i
+TERMINATOR = "\r\n"
+puts "yjit: #{RubyVM::YJIT.enabled?}"
+
+client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false)
+
+# The raw socket implementation is used to benchmark the performance of dalli & the overhead of the various abstractions
+# in the library.
+sock = TCPSocket.new('127.0.0.1', '11211', connect_timeout: 1)
+sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
+sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true)
+# Benchmarks didn't see any performance gains from increasing the SO_RCVBUF buffer size
+# sock.setsockopt(Socket::SOL_SOCKET, ::Socket::SO_RCVBUF, 1024 * 1024 * 8)
+# Benchamrks did see an improvement in performance when increasing the SO_SNDBUF buffer size
+sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, 1024 * 1024 * 8)
+
+payload = 'B' * bench_payload_size
+dalli_key = 'dalli_key'
+# ensure the clients are all connected and working
+client.set(dalli_key, payload)
+sock.write("set sock_key 0 3600 #{payload.bytesize}\r\n")
+sock.write(payload)
+sock.write(TERMINATOR)
+sock.flush
+sock.readline # clear the buffer
+
+# ensure we have basic data for the benchmarks and get calls
+payload_smaller = 'B' * 50_000
+pairs = {}
+100.times do |i|
+  pairs["multi_#{i}"] = payload_smaller
+end
+client.quiet do
+  pairs.each do |key, value|
+    client.set(key, value, 3600, raw: true)
+  end
+end
+
+def sock_get_multi(sock, pairs)
+  count = pairs.length
+  pairs.each_key do |key|
+    count -= 1
+    tail = count.zero? ? '' : 'q'
+    sock.write("mg #{key} v f k #{tail}\r\n")
+  end
+  sock.flush
+  # read all the memcached responses back and build a hash of key value pairs
+  results = {}
+  last_result = false
+  while (line = sock.readline.chomp!(TERMINATOR)) != ''
+    last_result = true if line.start_with?('EN ')
+    next unless line.start_with?('VA ') || last_result
+
+    _, value_length, _flags, key = line.split
+    results[key[1..]] = sock.read(value_length.to_i)
+    sock.read(TERMINATOR.length)
+    break if results.size == pairs.size
+    break if last_result
+  end
+  results
+end
+
+def sock_set_multi(sock, pairs)
+  count = pairs.length
+  tail = ''
+  ttl = 3600
+
+  pairs.each do |key, value|
+    count -= 1
+    tail = count.zero? ? '' : 'q'
+    sock.write(String.new("ms #{key} #{value.bytesize} c F0 T#{ttl} MS #{tail}\r\n", capacity: key.size + value.bytesize + 40))
+    sock.write(value)
+    sock.write(TERMINATOR)
+  end
+  sock.flush
+  sock.gets(TERMINATOR) # clear the buffer
+end
+
+if %w[all get].include?(bench_target)
+  Vernier.profile(out: 'client_get_profile.json') do
+    start_time = Time.now
+    client.get(dalli_key) while Time.now - start_time < bench_time
+  end
+
+  Vernier.profile(out: 'socket_get_profile.json') do
+    start_time = Time.now
+    while Time.now - start_time < bench_time do
+      sock.write("get sock_key\r\n")
+      sock.readline
+      sock.read(payload.bytesize)
+    end
+  end
+end
+
+if %w[all set].include?(bench_target)
+  Vernier.profile(out: 'client_set_profile.json') do
+    start_time = Time.now
+    client.set(dalli_key, payload, 3600, raw: true) while Time.now - start_time < bench_time
+  end
+
+  Vernier.profile(out: 'socket_set_profile.json') do
+    start_time = Time.now
+    while Time.now - start_time < bench_time
+      sock.write("ms sock_key #{payload.bytesize} T3600 MS\r\n")
+      sock.write(payload)
+      sock.write("\r\n")
+      sock.flush
+      sock.readline # clear the buffer
+    end
+  end
+end
+
+if %w[all get_multi].include?(bench_target)
+  Vernier.profile(out: 'client_get_multi_profile.json') do
+    start_time = Time.now
+    client.get_multi(pairs.keys) while Time.now - start_time < bench_time
+  end
+
+  Vernier.profile(out: 'socket_get_multi_profile.json') do
+    start_time = Time.now
+    sock_get_multi(sock, pairs) while Time.now - start_time < bench_time
+  end
+end
+
+if %w[all set_multi].include?(bench_target)
+  Vernier.profile(out: 'client_set_multi_profile.json') do
+    start_time = Time.now
+    client.set_multi(pairs, 3600, raw: true) while Time.now - start_time < bench_time
+  end
+
+  Vernier.profile(out: 'socket_set_multi_profile.json') do
+    start_time = Time.now
+    sock_set_multi(sock, pairs) while Time.now - start_time < bench_time
+  end
+end

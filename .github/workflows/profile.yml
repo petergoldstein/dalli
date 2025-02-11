@@ -1,0 +1,38 @@
+name: Profiles
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Memcached 1.6.23
+      working-directory: scripts
+      env:
+        MEMCACHED_VERSION: 1.6.23
+      run: |
+        chmod +x ./install_memcached.sh
+        ./install_memcached.sh
+        memcached -d
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: 3.4
+        bundler-cache: true # 'bundle install' and cache
+    - name: Run Profiles
+      run: RUBY_YJIT_ENABLE=1 BENCH_TARGET=all bundle exec bin/profile
+    - name: Upload profile results
+      uses: actions/upload-artifact@v4
+      with:
+        name: profile-results
+        path: |
+          client_get_profile.json
+          socket_get_profile.json
+          client_set_profile.json
+          socket_set_profile.json
+          client_get_multi_profile.json
+          socket_get_multi_profile.json
+          client_set_multi_profile.json
+          socket_set_multi_profile.json
