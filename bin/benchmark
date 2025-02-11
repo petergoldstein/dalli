@@ -33,11 +33,9 @@ class StringSerializer
   end
 end
 
-dalli_url = ENV['BENCH_CACHE_URL'] || "127.0.0.1:11211"
+dalli_url = ENV['BENCH_CACHE_URL'] || '127.0.0.1:11211'
 
-if dalli_url.include?('unix')
-  ENV['BENCH_CACHE_URL'].gsub('unix://','')
-end
+ENV['BENCH_CACHE_URL'].gsub('unix://', '') if dalli_url.include?('unix')
 bench_target = ENV['BENCH_TARGET'] || 'set'
 bench_time = (ENV['BENCH_TIME'] || 10).to_i
 bench_warmup = (ENV['BENCH_WARMUP'] || 3).to_i
@@ -47,7 +45,8 @@ TERMINATOR = "\r\n"
 puts "yjit: #{RubyVM::YJIT.enabled?}"
 
 client = Dalli::Client.new('localhost', serializer: StringSerializer, compress: false, raw: true)
-multi_client = Dalli::Client.new('localhost:11211,localhost:11222', serializer: StringSerializer, compress: false, raw: true)
+multi_client = Dalli::Client.new('localhost:11211,localhost:11222', serializer: StringSerializer, compress: false,
+                                                                    raw: true)
 
 # The raw socket implementation is used to benchmark the performance of dalli & the overhead of the various abstractions
 # in the library.
@@ -106,6 +105,10 @@ class GCSuite
 end
 suite = GCSuite.new
 
+# rubocop:disable Metrics/MethodLength
+# rubocop:disable Metrics/PerceivedComplexity
+# rubocop:disable Metrics/AbcSize
+# rubocop:disable Metrics/CyclomaticComplexity
 def sock_get_multi(sock, pairs)
   count = pairs.length
   pairs.each_key do |key|
@@ -129,13 +132,16 @@ def sock_get_multi(sock, pairs)
   end
   results
 end
-
+# rubocop:enable Metrics/MethodLength
+# rubocop:enable Metrics/PerceivedComplexity
+# rubocop:enable Metrics/AbcSize
+# rubocop:enable Metrics/CyclomaticComplexity
 
 if %w[all set].include?(bench_target)
   Benchmark.ips do |x|
     x.config(warmup: bench_warmup, time: bench_time, suite: suite)
     x.report('client set') { client.set('key', payload) }
-    #x.report('multi client set') { multi_client.set('string_key', payload) }
+    # x.report('multi client set') { multi_client.set('string_key', payload) }
     x.report('raw sock set') do
       sock.write("ms sock_key #{payload.bytesize} T3600 MS\r\n")
       sock.write(payload)
@@ -169,10 +175,10 @@ if %w[all get].include?(bench_target)
           begin
             value << sock.read_nonblock(count - value.bytesize)
           rescue Errno::EAGAIN
-            IO.select([sock])
+            sock.wait_readable
             retry
           rescue EOFError
-            puts "EOFError"
+            puts 'EOFError'
             break
           end
           break if value.bytesize == count
