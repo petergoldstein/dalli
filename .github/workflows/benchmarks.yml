@@ -1,0 +1,26 @@
+name: Benchmarks
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Memcached 1.6.23
+      working-directory: scripts
+      env:
+        MEMCACHED_VERSION: 1.6.23
+      run: |
+        chmod +x ./install_memcached.sh
+        ./install_memcached.sh
+        memcached -d
+        memcached -d -p 11222
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: 3.2
+        bundler-cache: true # 'bundle install' and cache
+    - name: Run Benchmarks
+      run: RUBY_YJIT_ENABLE=1 BENCH_TARGET=all bundle exec bin/benchmark
