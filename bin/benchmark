@@ -43,6 +43,7 @@ TERMINATOR = "\r\n"
 puts "yjit: #{RubyVM::YJIT.enabled?}"
 
 client = Dalli::Client.new(dalli_url, serializer: StringSerializer, compress: false, raw: true)
+meta_client = Dalli::Client.new(dalli_url, protocol: :meta, serializer: StringSerializer, compress: false, raw: true)
 multi_client = Dalli::Client.new('localhost:11211,localhost:11222', serializer: StringSerializer, compress: false,
                                                                     raw: true)
 
@@ -58,6 +59,7 @@ sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true)
 
 # ensure the clients are all connected and working
 client.set('key', payload)
+meta_client.set('meta_key', payload)
 multi_client.set('multi_key', payload)
 sock.write("set sock_key 0 3600 #{payload.bytesize}\r\n")
 sock.write(payload)
@@ -150,6 +152,7 @@ if %w[all set].include?(bench_target)
   Benchmark.ips do |x|
     x.config(warmup: bench_warmup, time: bench_time, suite: suite)
     x.report('client set') { client.set('key', payload) }
+    x.report('meta client set') { meta_client.set('meta_key', payload) }
     # x.report('multi client set') { multi_client.set('string_key', payload) }
     x.report('raw sock set') do
       sock.write("ms sock_key #{payload.bytesize} T3600 MS\r\n")
@@ -168,6 +171,10 @@ if %w[all get].include?(bench_target)
     x.config(warmup: bench_warmup, time: bench_time, suite: suite)
     x.report('get dalli') do
       result = client.get('key')
+      raise 'mismatch' unless result == payload
+    end
+    x.report('get meta client') do
+      result = meta_client.get('meta_key')
       raise 'mismatch' unless result == payload
     end
     # NOTE: while this is the fastest it is not thread safe and is blocking vs IO sharing friendly
@@ -212,6 +219,10 @@ if %w[all get_multi].include?(bench_target)
       result = client.get_multi(pairs.keys)
       raise 'mismatch' unless result == pairs
     end
+    x.report('get 100 keys meta client') do
+      result = meta_client.get_multi(pairs.keys)
+      raise 'mismatch' unless result == pairs
+    end
     x.report('get 100 keys raw sock') do
       result = sock_get_multi(sock, pairs)
       raise 'mismatch' unless result == pairs
@@ -227,6 +238,13 @@ if %w[all set_multi].include?(bench_target)
       client.quiet do
         pairs.each do |key, value|
           client.set(key, value, 3600, raw: true)
+        end
+      end
+    end
+    x.report('write 100 keys meta client') do
+      meta_client.quiet do
+        pairs.each do |key, value|
+          meta_client.set(key, value, 3600, raw: true)
         end
       end
     end

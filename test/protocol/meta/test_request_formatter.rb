@@ -41,61 +41,61 @@ describe Dalli::Protocol::Meta::RequestFormatter do
     let(:ttl) { rand(500..999) }
 
     it 'returns the default (treat as a set, no CAS check) when just passed key, datalen, and bitflags' do
-      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS\r\n#{val}\r\n",
+      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags)
     end
 
     it 'supports the add mode' do
-      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} ME\r\n#{val}\r\n",
+      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} ME\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags,
                                                                     mode: :add)
     end
 
     it 'supports the replace mode' do
-      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MR\r\n#{val}\r\n",
+      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MR\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags,
                                                                     mode: :replace)
     end
 
     it 'passes a TTL if one is provided' do
-      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} T#{ttl} MS\r\n#{val}\r\n",
+      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} T#{ttl} MS\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, ttl: ttl, bitflags: bitflags)
     end
 
     it 'omits the CAS flag on append' do
-      assert_equal "ms #{key} #{val.bytesize} MA\r\n#{val}\r\n",
+      assert_equal "ms #{key} #{val.bytesize} MA\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, mode: :append)
     end
 
     it 'omits the CAS flag on prepend' do
-      assert_equal "ms #{key} #{val.bytesize} MP\r\n#{val}\r\n",
+      assert_equal "ms #{key} #{val.bytesize} MP\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, mode: :prepend)
     end
 
     it 'passes a CAS if one is provided' do
-      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} C#{cas} MS\r\n#{val}\r\n",
+      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} C#{cas} MS\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags, cas: cas)
     end
 
     it 'excludes CAS if set to 0' do
-      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS\r\n#{val}\r\n",
+      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags, cas: 0)
     end
 
     it 'excludes non-numeric CAS values' do
-      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS\r\n#{val}\r\n",
+      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags,
                                                                     cas: "\nset importantkey 1 1000 8\ninjected")
     end
 
     it 'sets the quiet mode if configured' do
-      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS q\r\n#{val}\r\n",
+      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS q\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags,
                                                                     quiet: true)
     end
 
     it 'sets the base64 mode if configured' do
-      assert_equal "ms #{key} #{val.bytesize} c b F#{bitflags} MS\r\n#{val}\r\n",
+      assert_equal "ms #{key} #{val.bytesize} c b F#{bitflags} MS\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags,
                                                                     base64: true)
     end

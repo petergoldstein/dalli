@@ -13,7 +13,6 @@ module Dalli
         # and introducing an intermediate object seems like overkill.
         #
         # rubocop:disable Metrics/CyclomaticComplexity
-        # rubocop:disable Metrics/MethodLength
         # rubocop:disable Metrics/ParameterLists
         # rubocop:disable Metrics/PerceivedComplexity
         def self.meta_get(key:, value: true, return_cas: false, ttl: nil, base64: false, quiet: false)
@@ -36,8 +35,6 @@ module Dalli
           cmd << " M#{mode_to_token(mode)}"
           cmd << ' q' if quiet
           cmd << TERMINATOR
-          cmd << value
-          cmd + TERMINATOR
         end
 
         def self.meta_delete(key:, cas: nil, ttl: nil, base64: false, quiet: false)
@@ -62,7 +59,6 @@ module Dalli
           cmd + TERMINATOR
         end
         # rubocop:enable Metrics/CyclomaticComplexity
-        # rubocop:enable Metrics/MethodLength
         # rubocop:enable Metrics/ParameterLists
         # rubocop:enable Metrics/PerceivedComplexity
 
