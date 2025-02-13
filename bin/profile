@@ -7,7 +7,6 @@
 # run with:
 # RUBY_YJIT_ENABLE=1 bundle exec bin/profile
 require 'bundler/inline'
-require 'json'
 
 gemfile do
   source 'https://rubygems.org'
@@ -16,14 +15,15 @@ gemfile do
   gem 'logger'
 end
 
-require_relative '../lib/dalli'
+require 'json'
 require 'benchmark/ips'
 require 'vernier'
+require_relative '../lib/dalli'
 
 ##
-# StringSerializer is a serializer that avoids the overhead of Marshal or JSON.
+# NoopSerializer is a serializer that avoids the overhead of Marshal or JSON.
 ##
-class StringSerializer
+class NoopSerializer
   def self.dump(value)
     value
   end
@@ -34,14 +34,14 @@ class StringSerializer
 end
 
 dalli_url = ENV['BENCH_CACHE_URL'] || '127.0.0.1:11211'
-bench_target = ENV['BENCH_TARGET'] || 'get'
-bench_time = (ENV['BENCH_TIME'] || 10).to_i
+bench_target = ENV['BENCH_TARGET'] || 'all'
+bench_time = (ENV['BENCH_TIME'] || 8).to_i
 bench_payload_size = (ENV['BENCH_PAYLOAD_SIZE'] || 700_000).to_i
 TERMINATOR = "\r\n"
 puts "yjit: #{RubyVM::YJIT.enabled?}"
 
-client = Dalli::Client.new(dalli_url, serializer: StringSerializer, compress: false)
-meta_client = Dalli::Client.new(dalli_url, protocol: :meta, serializer: StringSerializer, compress: false, raw: true)
+client = Dalli::Client.new(dalli_url, serializer: NoopSerializer, compress: false)
+meta_client = Dalli::Client.new(dalli_url, protocol: :meta, serializer: NoopSerializer, compress: false, raw: true)
 
 # The raw socket implementation is used to benchmark the performance of dalli & the overhead of the various abstractions
 # in the library.
@@ -50,7 +50,7 @@ sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
 sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true)
 # Benchmarks didn't see any performance gains from increasing the SO_RCVBUF buffer size
 # sock.setsockopt(Socket::SOL_SOCKET, ::Socket::SO_RCVBUF, 1024 * 1024 * 8)
-# Benchamrks did see an improvement in performance when increasing the SO_SNDBUF buffer size
+# Benchmarks did see an improvement in performance when increasing the SO_SNDBUF buffer size
 # sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, 1024 * 1024 * 8)
 
 payload = 'B' * bench_payload_size
