@@ -23,6 +23,9 @@ jobs:
         bundler-cache: true # 'bundle install' and cache
     - name: Run Profiles
       run: RUBY_YJIT_ENABLE=1 BENCH_TARGET=all bundle exec bin/profile
+    # NOTE: to pull profile results, visit https://github.com/petergoldstein/dalli/actions/workflows/profile.yml
+    # click to view the run you are interested in (ex https://github.com/petergoldstein/dalli/actions/runs/13296952241)
+    # in the artifacts section, download the profile results
     - name: Upload profile results
       uses: actions/upload-artifact@v4
       with:
@@ -36,3 +39,7 @@ jobs:
           socket_get_multi_profile.json
           client_set_multi_profile.json
           socket_set_multi_profile.json
+          meta_client_get_multi_profile.json
+          meta_client_get_profile.json
+          meta_client_set_multi_profile.json
+          meta_client_set_profile.json

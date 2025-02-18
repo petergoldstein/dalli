@@ -85,6 +85,8 @@ module Dalli
                                         bitflags: bitflags, cas: cas,
                                         ttl: ttl, mode: mode, quiet: quiet?, base64: base64)
         write(req)
+        write(value)
+        write(TERMINATOR)
       end
       # rubocop:enable Metrics/ParameterLists
 
@@ -105,6 +107,8 @@ module Dalli
         req = RequestFormatter.meta_set(key: encoded_key, value: value, base64: base64,
                                         cas: cas, ttl: ttl, mode: mode, quiet: quiet?)
         write(req)
+        write(value)
+        write(TERMINATOR)
       end
       # rubocop:enable Metrics/ParameterLists
 
