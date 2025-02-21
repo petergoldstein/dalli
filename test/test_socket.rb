@@ -58,7 +58,7 @@ describe 'Dalli::Socket::TCP' do
 
   describe '.create_socket_with_timeout' do
     it 'yields a socket when connection succeeds' do
-      memcached(:meta, rand(21_500..21_600)) do |_, port|
+      memcached(:meta, port_or_socket: rand(21_500..21_600)) do |_, port|
         socket_yielded = false
 
         Dalli::Socket::TCP.create_socket_with_timeout('127.0.0.1', port, socket_timeout: 5) do |sock|

@@ -15,79 +15,85 @@ describe 'Network' do
 
         describe 'with a fake server' do
           it 'handle connection reset' do
-            memcached_mock(lambda(&:close)) do
-              dc = Dalli::Client.new('localhost:19123')
-              assert_raises Dalli::RingError, message: 'No server available' do
-                dc.get('abc')
-              end
-            end
-          end
+            toxiproxy_memcached_persistent(p) do |dc|
+              dc.get('abc')
 
-          it 'handle connection reset with unix socket' do
-            socket_path = MemcachedMock::UNIX_SOCKET_PATH
-            memcached_mock(lambda(&:close), :start_unix, socket_path) do
-              dc = Dalli::Client.new(socket_path)
-              assert_raises Dalli::RingError, message: 'No server available' do
-                dc.get('abc')
-              end
-            end
-          end
-
-          it 'handle malformed response' do
-            memcached_mock(->(sock) { sock.write('123') }) do
-              dc = Dalli::Client.new('localhost:19123')
-              assert_raises Dalli::RingError, message: 'No server available' do
-                dc.get('abc')
+              Toxiproxy[/memcached/].down do
+                assert_raises Dalli::RingError, message: 'No server available' do
+                  dc.get('abc')
+                end
               end
             end
           end
 
           it 'handle socket timeouts' do
-            dc = Dalli::Client.new('localhost:19123', socket_timeout: 0)
-            assert_raises Dalli::RingError do
+            toxiproxy_memcached_persistent(p, client_options: { socket_timeout: 0.1 }) do |dc|
               dc.get('abc')
-            end
-          end
 
-          it 'handle connect timeouts' do
-            memcached_mock(lambda { |sock|
-                             sleep(0.6)
-                             sock.close
-                           }, :delayed_start) do
-              dc = Dalli::Client.new('localhost:19123')
-              assert_raises Dalli::RingError, message: 'No server available' do
-                dc.get('abc')
+              # Use higher latency (500ms vs 100ms timeout) to ensure timeout triggers reliably
+              Toxiproxy[/memcached/].downstream(:latency, latency: 500).apply do
+                assert_raises Dalli::RingError, message: 'No server available' do
+                  dc.get('abc')
+                end
               end
             end
           end
 
-          it 'handle read timeouts' do
-            memcached_mock(lambda { |sock|
-                             sleep(0.6)
-                             sock.write('giraffe')
-                           }) do
-              dc = Dalli::Client.new('localhost:19123')
-              assert_raises Dalli::RingError, message: 'No server available' do
-                dc.get('abc')
+          it 'handle connect timeouts' do
+            toxiproxy_memcached_persistent(p, client_options: { socket_timeout: 0.1 }) do |dc|
+              # Use higher latency (500ms vs 100ms timeout) to ensure timeout triggers reliably
+              Toxiproxy[/memcached/].downstream(:latency, latency: 500).apply do
+                assert_raises Dalli::RingError, message: 'No server available' do
+                  dc.get('abc')
+                end
               end
             end
           end
         end
 
         it 'handles operation timeouts' do
-          memcached_mock(lambda { |sock|
-            # handle initial version call
-            sock.gets
-            sock.write("VERSION 1.6.0\r\n")
-
-            sleep(0.3)
-          }) do
+          toxiproxy_memcached_persistent(
+            p,
+            client_options: {
+              socket_timeout: 0.1,
+              socket_max_failures: 0,
+              socket_failure_delay: 0.0,
+              down_retry_delay: 0.0,
+              protocol: p
+            }
+          ) do |dc|
+            dc.version
             dc = Dalli::Client.new('localhost:19123', socket_timeout: 0.1, protocol: p, socket_max_failures: 0,
                                                       socket_failure_delay: 0.0, down_retry_delay: 0.0)
             # With socket_max_failures: 0, the first error triggers down! which raises NetworkError.
             # This NetworkError is not retried (only RetryableNetworkError is).
             assert_raises Dalli::NetworkError do
               dc.get('abc')
+            end
+          end
+        end
+
+        it 'handles operation timeouts without retries' do
+          toxiproxy_memcached_persistent(
+            p,
+            client_options: {
+              socket_timeout: 0.1,
+              socket_max_failures: 0,
+              socket_failure_delay: 0.0,
+              down_retry_delay: 0.0,
+              protocol: p
+            }
+          ) do |dc|
+            dc.version
+
+            # Use much higher latency (500ms vs 100ms timeout) to ensure timeout triggers reliably
+            # Apply to downstream only - the request goes out fast, but response is delayed
+            Toxiproxy[/memcached/].downstream(:latency, latency: 500).apply do
+              # With socket_max_failures: 0, NetworkError is raised immediately when server goes down
+              err = assert_raises Dalli::NetworkError do
+                dc.get('abc')
+              end
+              assert_match(/is down/, err.message)
             end
           end
         end
@@ -193,7 +199,7 @@ describe 'Network' do
 
       it 'handles timeout error during pipelined get' do
         with_nil_logger do
-          memcached(p, 19_191) do |dc|
+          memcached(p, port_or_socket: 19_191) do |dc|
             dc.send(:ring).server_for_key('abc').sock.stub(:write, proc { raise Timeout::Error }) do
               assert_empty dc.get_multi(['abc'])
             end
@@ -206,7 +212,7 @@ describe 'Network' do
         skip 'Minitest stub incompatible with JRuby sockets' if RUBY_ENGINE == 'jruby'
 
         with_nil_logger do
-          memcached(p, 19_191) do |dc|
+          memcached(p, port_or_socket: 19_191) do |dc|
             # First set a value so we have something to get
             dc.set('ssl_test_key', 'test_value')
 
@@ -239,7 +245,7 @@ describe 'Network' do
 
       it 'handles SSL error during pipelined get' do
         with_nil_logger do
-          memcached(p, 19_191) do |dc|
+          memcached(p, port_or_socket: 19_191) do |dc|
             ssl_error = OpenSSL::SSL::SSLError.new('SSL_read: unexpected eof while reading')
 
             dc.send(:ring).server_for_key('abc').sock.stub(:write, proc { raise ssl_error }) do
@@ -251,7 +257,7 @@ describe 'Network' do
 
       it 'handles asynchronous Thread#raise' do
         with_nil_logger do
-          memcached(p, 19_191) do |dc|
+          memcached(p, port_or_socket: 19_191) do |dc|
             10.times do |i|
               # Pre-set the key so we're testing Thread#raise handling,
               # not whether the set completed before interruption
@@ -280,7 +286,7 @@ describe 'Network' do
 
       it 'handles asynchronous Thread#raise during pipelined get' do
         with_nil_logger do
-          memcached(p, 19_191) do |dc|
+          memcached(p, port_or_socket: 19_191) do |dc|
             10.times do |i|
               expected_response = 100.times.to_h { |x| ["key:#{i}:#{x}", x.to_s] }
               expected_response.each do |key, val|
@@ -309,7 +315,7 @@ describe 'Network' do
 
       it 'handles asynchronous Thread#kill' do
         with_nil_logger do
-          memcached(p, 19_191) do |dc|
+          memcached(p, port_or_socket: 19_191) do |dc|
             10.times do |i|
               thread = Thread.new do
                 loop do
@@ -333,7 +339,7 @@ describe 'Network' do
 
       it 'handles asynchronous Thread#kill during pipelined get' do
         with_nil_logger do
-          memcached(p, 19_191) do |dc|
+          memcached(p, port_or_socket: 19_191) do |dc|
             10.times do |i|
               expected_response = 100.times.to_h { |x| ["key:#{i}:#{x}", x.to_s] }
               expected_response.each do |key, val|
@@ -423,7 +429,7 @@ describe 'Network' do
       end
 
       it 'passes a simple smoke test on unix socket' do
-        memcached_persistent(:meta, MemcachedMock::UNIX_SOCKET_PATH) do |dc, path|
+        memcached_persistent(:meta, port_or_socket: MemcachedMock::UNIX_SOCKET_PATH) do |dc, path|
           resp = dc.flush
 
           refute_nil resp

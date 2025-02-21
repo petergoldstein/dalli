@@ -7,7 +7,7 @@ describe 'Serializer configuration' do
   MemcachedManager.supported_protocols.each do |p|
     describe "using the #{p} protocol" do
       it 'defaults to Marshal' do
-        memcached(p, 29_198) do |dc|
+        memcached(p, port_or_socket: 29_198) do |dc|
           dc.set 1, 2
 
           assert_equal Marshal, dc.instance_variable_get(:@ring).servers.first.serializer
@@ -15,7 +15,7 @@ describe 'Serializer configuration' do
       end
 
       it 'skips the serializer for simple strings when string_fastpath is enabled' do
-        memcached(p, 29_198) do |_dc, port|
+        memcached(p, port_or_socket: 29_198) do |_dc, port|
           memcache = Dalli::Client.new("127.0.0.1:#{port}", string_fastpath: true)
           string = 'héllø'
           memcache.set 'utf-8', string
@@ -49,13 +49,13 @@ describe 'Serializer configuration' do
       end
 
       it 'supports a custom serializer' do
-        memcached(p, 29_198) do |_dc, port|
+        memcached(p, port_or_socket: 29_198) do |_dc, port|
           memcache = Dalli::Client.new("127.0.0.1:#{port}", serializer: JSON)
           memcache.set 1, 2
           begin
             assert_equal JSON, memcache.instance_variable_get(:@ring).servers.first.serializer
 
-            memcached(p, 21_956) do |newdc|
+            memcached(p, port_or_socket: 21_956) do |newdc|
               assert newdc.set('json_test', { 'foo' => 'bar' })
               assert_equal({ 'foo' => 'bar' }, newdc.get('json_test'))
             end
@@ -64,7 +64,7 @@ describe 'Serializer configuration' do
       end
 
       it 'supports no serialization' do
-        memcached(p, 29_198) do |_dc, port|
+        memcached(p, port_or_socket: 29_198) do |_dc, port|
           memcache = Dalli::Client.new("127.0.0.1:#{port}", raw: true)
 
           with_nil_logger do
@@ -76,7 +76,7 @@ describe 'Serializer configuration' do
 
           memcache.set '1', '2'
 
-          memcached(p, 21_956, '', { raw: true }) do |newdc|
+          memcached(p, port_or_socket: 21_956, cli_args: '', client_options: { raw: true }) do |newdc|
             assert newdc.set('json_test', 'json_test_value')
 
             value = newdc.get('json_test')

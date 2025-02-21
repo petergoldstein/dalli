@@ -4,6 +4,7 @@ require 'socket'
 require_relative '../utils/certificate_generator'
 require_relative '../utils/memcached_manager'
 require_relative '../utils/memcached_mock'
+require_relative '../utils/toxiproxy_manager'
 
 module Memcached
   module Helper
@@ -32,12 +33,13 @@ module Memcached
     #
     # port_or_socket - If numeric or numeric string, treated as a TCP port
     #                  on localhost.  If not, treated as a UNIX domain socket
-    # args - Command line args passed to the memcached invocation
+    # cli_args - Command line args passed to the memcached invocation
     # client_options - Options passed to the Dalli::Client on initialization
     # terminate_process - whether to terminate the memcached process on
     #                     exiting the block
-    def memcached(protocol, port_or_socket, args = '', client_options = {}, terminate_process: true)
-      dc = MemcachedManager.start_and_flush_with_retry(port_or_socket, args, client_options.merge(protocol: protocol))
+    def memcached(protocol, port_or_socket:, cli_args: '', client_options: {}, terminate_process: true)
+      dc = MemcachedManager.start_and_flush_with_retry(port_or_socket, cli_args,
+                                                       client_options.merge(protocol: protocol))
       yield dc, port_or_socket if block_given?
       memcached_kill(port_or_socket) if terminate_process
     end
@@ -45,18 +47,49 @@ module Memcached
     # Launches a memcached process using the memcached method in this module,
     # but sets terminate_process to false ensuring that the process persists
     # past execution of the block argument.
-    # rubocop:disable Metrics/ParameterLists
-    def memcached_persistent(protocol = :meta, port_or_socket = 21_345, args = '', client_options = {}, &)
-      memcached(protocol, port_or_socket, args, client_options, terminate_process: false, &)
+    def memcached_persistent(protocol = :meta, port_or_socket: 21_345, cli_args: '', client_options: {}, &)
+      memcached(protocol,
+                port_or_socket: port_or_socket,
+                cli_args: cli_args,
+                client_options: client_options,
+                terminate_process: false,
+                &)
     end
-    # rubocop:enable Metrics/ParameterLists
+
+    ###
+    # Launches a persistent memcached process that is proxied through Toxiproxy
+    # to test network errors.
+    # Uses port 21_345 by default for the Toxiproxy port and the specified
+    # port_or_socket for the memcached process.
+    ###
+    def toxiproxy_memcached_persistent(
+      protocol = :meta,
+      upstream_port: ToxiproxyManager::TOXIPROXY_UPSTREAM_PORT,
+      listen_port: ToxiproxyManager::TOXIPROXY_MEMCACHED_PORT,
+      cli_args: '',
+      client_options: {}
+    )
+      raise 'Toxiproxy does not support unix sockets' if listen_port.to_i.zero? || upstream_port.to_i.zero?
+
+      unless @toxy_configured
+        Toxiproxy.populate([{ name: 'memcached', listen: "localhost:#{listen_port}",
+                              upstream: "localhost:#{upstream_port}" }])
+        @toxy_configured = true
+      end
+      memcached_persistent(protocol, port_or_socket: upstream_port, cli_args: cli_args,
+                                     client_options: client_options) do |dc, _|
+        dc.close # We don't need the client to talk directly to memcached
+      end
+      dc = Dalli::Client.new("localhost:#{listen_port}", client_options.merge(protocol: protocol))
+      yield dc, listen_port
+    end
 
     # Launches a persistent memcached process, configured to use SSL
-    def memcached_ssl_persistent(protocol = :meta, port_or_socket = rand(21_397..21_896), &)
+    def memcached_ssl_persistent(protocol = :meta, port_or_socket: rand(21_397..21_896), &)
       memcached_persistent(protocol,
-                           port_or_socket,
-                           CertificateGenerator.ssl_args,
-                           { ssl_context: CertificateGenerator.ssl_context },
+                           port_or_socket: port_or_socket,
+                           cli_args: CertificateGenerator.ssl_args,
+                           client_options: { ssl_context: CertificateGenerator.ssl_context },
                            &)
     end
 

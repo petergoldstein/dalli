@@ -37,7 +37,7 @@ describe 'performance' do
 
   it 'runs benchmarks' do
     protocol = :meta
-    memcached(protocol, @port) do
+    memcached(protocol, port_or_socket: @port) do
       profile do
         Benchmark.bm(37) do |x|
           n = 2500

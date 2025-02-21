@@ -17,7 +17,7 @@ describe 'gem compatibility' do
   GEM_COMPATIBILITY_TEST_GEMS.each do |gem_name, require_path|
     describe "with #{gem_name} gem" do
       it 'can perform basic operations after gem is required' do
-        memcached(:meta, rand(21_397..21_896)) do |_, port|
+        memcached(:meta, port_or_socket: rand(21_397..21_896)) do |_, port|
           run_compatibility_test(gem_name, require_path, port)
         end
       end

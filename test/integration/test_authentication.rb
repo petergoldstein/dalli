@@ -11,7 +11,7 @@ describe 'authentication options' do
     end
 
     begin
-      memcached_persistent(:meta, 21_345, '') do |_dc, port|
+      memcached_persistent(:meta, port_or_socket: 21_345, cli_args: '', client_options: { username: 'user' }) do |_dc, port|
         # Create client with auth options that should trigger warnings
         client = Dalli::Client.new("localhost:#{port}", username: 'user', password: 'pass')
         client.flush

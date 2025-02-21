@@ -32,6 +32,8 @@ jobs:
       run: |
         chmod +x ./install_memcached.sh
         ./install_memcached.sh
+    - name: Install and start Toxiproxy
+      run: ./bin/start-toxiproxy
     - name: Set up Ruby ${{ matrix.ruby-version }}
       uses: ruby/setup-ruby@v1
       with:

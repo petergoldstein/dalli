@@ -31,7 +31,7 @@ describe 'Ring' do
       end
 
       it "return the server when it's alive" do
-        memcached(:meta, 19_191) do |mc|
+        memcached(:meta, port_or_socket: 19_191) do |mc|
           ring = mc.send(:ring)
 
           assert_equal ring.servers.first.port, ring.server_for_key('test').port
@@ -49,7 +49,7 @@ describe 'Ring' do
       end
 
       it 'return an alive server when at least one is alive' do
-        memcached(:meta, 19_191) do |mc|
+        memcached(:meta, port_or_socket: 19_191) do |mc|
           ring = mc.send(:ring)
 
           assert_predicate ring.server_for_key('test'), :alive?
@@ -58,13 +58,13 @@ describe 'Ring' do
     end
 
     it 'detect when a dead server is up again' do
-      memcached(:meta, 19_997) do
+      memcached(:meta, port_or_socket: 19_997) do
         down_retry_delay = 0.5
         dc = Dalli::Client.new(['localhost:19997', 'localhost:19998'], down_retry_delay: down_retry_delay)
 
         assert_equal 1, dc.stats.values.compact.count
 
-        memcached(:meta, 19_998) do
+        memcached(:meta, port_or_socket: 19_998) do
           assert_equal 2, dc.stats.values.compact.count
         end
       end
