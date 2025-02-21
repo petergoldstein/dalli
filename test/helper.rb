@@ -18,12 +18,14 @@ require 'minitest/pride'
 require 'minitest/autorun'
 require 'minitest/mock'
 require_relative 'helpers/memcached'
+require_relative 'utils/toxiproxy_manager'
 
 ENV['SASL_CONF_PATH'] = "#{File.dirname(__FILE__)}/sasl/memcached.conf"
 
 require 'dalli'
 require 'logger'
 require 'securerandom'
+require 'toxiproxy'
 
 Dalli.logger = Logger.new($stdout)
 Dalli.logger.level = Logger::ERROR
@@ -34,6 +36,9 @@ raise StandardError, 'No supported version of memcached could be found.' unless 
 
 # Generate self-signed certs for SSL once per suite run.
 CertificateGenerator.generate
+
+# Start toxiproxy server for network failure testing
+ToxiproxyManager.start
 
 module Minitest
   class Spec

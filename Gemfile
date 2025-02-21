@@ -23,6 +23,7 @@ group :development, :test do
   gem 'rubocop-performance'
   gem 'rubocop-rake'
   gem 'simplecov'
+  gem 'toxiproxy'
 end
 
 group :test do
