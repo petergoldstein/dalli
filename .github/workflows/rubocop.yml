@@ -14,4 +14,4 @@ jobs:
         ruby-version: ruby
         bundler-cache: true # 'bundle install' and cache
     - name: Run RuboCop
-      run: bundle exec rubocop --parallel
+      run: bundle exec rubocop --parallel --color
