@@ -30,7 +30,7 @@ module Dalli
 
     def initialize(client_options)
       @key_options =
-        DEFAULTS.merge(client_options.select { |k, _| OPTIONS.include?(k) })
+        DEFAULTS.merge(client_options.slice(*OPTIONS))
       validate_digest_class_option(@key_options)
 
       @namespace = namespace_from_options

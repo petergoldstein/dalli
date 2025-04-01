@@ -35,7 +35,7 @@ module Dalli
         end
 
         @compression_options =
-          DEFAULTS.merge(client_options.select { |k, _| OPTIONS.include?(k) })
+          DEFAULTS.merge(client_options.slice(*OPTIONS))
       end
 
       def store(value, req_options, bitflags)
@@ -47,7 +47,7 @@ module Dalli
       end
 
       def retrieve(value, bitflags)
-        compressed = (bitflags & FLAG_COMPRESSED) != 0
+        compressed = bitflags.anybits?(FLAG_COMPRESSED)
         compressed ? compressor.decompress(value) : value
 
       # TODO: We likely want to move this rescue into the Dalli::Compressor / Dalli::GzipCompressor

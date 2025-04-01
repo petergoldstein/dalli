@@ -154,6 +154,8 @@ module Dalli
       private
 
       ALLOWED_QUIET_OPS = %i[add replace set delete incr decr append prepend flush noop].freeze
+      private_constant :ALLOWED_QUIET_OPS
+
       def verify_allowed_quiet!(opkey)
         return if ALLOWED_QUIET_OPS.include?(opkey)
 
