@@ -27,7 +27,7 @@ module Dalli
         @value_compressor = ValueCompressor.new(client_options)
 
         @marshal_options =
-          DEFAULTS.merge(client_options.select { |k, _| OPTIONS.include?(k) })
+          DEFAULTS.merge(client_options.slice(*OPTIONS))
       end
 
       def store(key, value, options = nil)

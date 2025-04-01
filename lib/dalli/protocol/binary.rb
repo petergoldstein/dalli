@@ -119,6 +119,7 @@ module Dalli
       # if the key doesn't already exist, rather than
       # setting the initial value
       NOT_FOUND_EXPIRY = 0xFFFFFFFF
+      private_constant :NOT_FOUND_EXPIRY
 
       def decr_incr(opkey, key, count, ttl, initial)
         expiry = initial ? TtlSanitizer.sanitize(ttl) : NOT_FOUND_EXPIRY
