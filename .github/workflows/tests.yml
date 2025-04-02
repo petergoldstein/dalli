@@ -22,6 +22,7 @@ jobs:
           - jruby-9.4
         memcached-version: ['1.5.22', '1.6.34']
 
+    name: "Ruby ${{ matrix.ruby-version }} / Memcached ${{ matrix.memcached-version }}"
     steps:
     - uses: actions/checkout@v4
     - name: Install Memcached ${{ matrix.memcached-version }}
