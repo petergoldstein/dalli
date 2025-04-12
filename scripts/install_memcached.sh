@@ -1,7 +1,8 @@
 #!/bin/bash
 
-version=$MEMCACHED_VERSION
+set -euo pipefail
 
+version=$MEMCACHED_VERSION
 
 sudo apt-get -y remove memcached
 sudo apt-get install libevent-dev libsasl2-dev sasl2-bin
@@ -12,6 +13,12 @@ echo Installing Memcached version ${version}
 wget https://memcached.org/files/memcached-${version}.tar.gz
 tar -zxvf memcached-${version}.tar.gz
 cd memcached-${version}
+
+# Manual patch so 1.5 will compile
+if [[ -f "../memcached_${version}.patch" ]]; then
+  patch -p1 < "../memcached_${version}.patch"
+fi
+
 ./configure --enable-sasl --enable-tls
 make
 sudo mv memcached /usr/local/bin/
