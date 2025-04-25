@@ -100,13 +100,13 @@ module Dalli
 
       def confirm_ready!
         close if request_in_progress?
-        close_on_fork if fork_detected?
+        reconnect_on_fork if fork_detected?
       end
 
       def confirm_in_progress!
         raise '[Dalli] No request in progress. This may be a bug in Dalli.' unless request_in_progress?
 
-        close_on_fork if fork_detected?
+        reconnect_on_fork if fork_detected?
       end
 
       def close
@@ -218,13 +218,12 @@ module Dalli
         end
       end
 
-      def close_on_fork
+      def reconnect_on_fork
         message = 'Fork detected, re-connecting child process...'
         Dalli.logger.info { message }
-        # Close socket on a fork, setting us up for reconnect
-        # on next request.
+        # Close socket on a fork and reconnect immediately
         close
-        raise Dalli::NetworkError, message
+        establish_connection
       end
 
       def fork_detected?
