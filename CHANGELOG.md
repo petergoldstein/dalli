@@ -9,6 +9,7 @@ Unreleased
 - Support SERVER_ERROR response from Memcached as per the [memcached spec](https://github.com/memcached/memcached/blob/e43364402195c8e822bb8f88755a60ab8bbed62a/doc/protocol.txt#L172) (grcooper)
 - Update Socket timeout handling to use Socket#timeout= when available (nickamorim)
 - Serializer: reraise all .load errors as UnmarshalError (olleolleolle)
+- Reconnect gracefully when a fork is detected instead of crashing (PatrickTulskie)
 
 3.2.8
 ==========
