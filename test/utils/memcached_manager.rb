@@ -19,6 +19,8 @@ module MemcachedManager
   MEMCACHED_VERSION_CMD = "#{MEMCACHED_CMD} -h | head -1"
   MEMCACHED_VERSION_REGEXP = /^memcached (\d\.\d\.\d+)/.freeze
   MEMCACHED_MIN_MAJOR_VERSION = ::Dalli::MIN_SUPPORTED_MEMCACHED_VERSION
+  TOXIPROXY_MEMCACHED_PORT = 21_347
+  TOXIPROXY_UPSTREAM_PORT = 21_348
 
   @running_pids = {}
 
