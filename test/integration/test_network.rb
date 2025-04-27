@@ -140,7 +140,7 @@ describe 'Network' do
 
       it 'handles timeout error during pipelined get' do
         with_nil_logger do
-          memcached(p, 19_191) do |dc|
+          memcached(p, find_available_port) do |dc|
             dc.send(:ring).server_for_key('abc').sock.stub(:write, proc { raise Timeout::Error }) do
               assert_empty dc.get_multi(['abc'])
             end
@@ -150,7 +150,7 @@ describe 'Network' do
 
       it 'handles asynchronous Thread#raise' do
         with_nil_logger do
-          memcached(p, 19_191) do |dc|
+          memcached(p, find_available_port) do |dc|
             10.times do |i|
               thread = Thread.new do
                 loop do
@@ -174,7 +174,7 @@ describe 'Network' do
 
       it 'handles asynchronous Thread#raise during pipelined get' do
         with_nil_logger do
-          memcached(p, 19_191) do |dc|
+          memcached(p, find_available_port) do |dc|
             10.times do |i|
               expected_response = 100.times.to_h { |x| ["key:#{i}:#{x}", x.to_s] }
               expected_response.each do |key, val|
@@ -203,7 +203,7 @@ describe 'Network' do
 
       it 'handles asynchronous Thread#kill' do
         with_nil_logger do
-          memcached(p, 19_191) do |dc|
+          memcached(p, find_available_port) do |dc|
             10.times do |i|
               thread = Thread.new do
                 loop do
@@ -227,7 +227,7 @@ describe 'Network' do
 
       it 'handles asynchronous Thread#kill during pipelined get' do
         with_nil_logger do
-          memcached(p, 19_191) do |dc|
+          memcached(p, find_available_port) do |dc|
             10.times do |i|
               expected_response = 100.times.to_h { |x| ["key:#{i}:#{x}", x.to_s] }
               expected_response.each do |key, val|
