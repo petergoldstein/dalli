@@ -4,6 +4,7 @@ Dalli Changelog
 Unreleased
 ==========
 
+- Fix session recovery after deletion (stengineering0)
 - Fix cannot read response data included terminator `\r\n` when use meta protocol (matsubara0507)
 - Support SERVER_ERROR response from Memcached as per the [memcached spec](https://github.com/memcached/memcached/blob/e43364402195c8e822bb8f88755a60ab8bbed62a/doc/protocol.txt#L172) (grcooper)
 - Update Socket timeout handling to use Socket#timeout= when available (nickamorim)
