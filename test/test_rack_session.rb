@@ -51,6 +51,25 @@ describe Rack::Session::Dalli do
                      incrementor_proc.call(env)
                    end)
   end
+  let(:user_id_session) do
+    Rack::Lint.new(proc do |env|
+                     session = env['rack.session']
+
+                     case env['PATH_INFO']
+                     when '/login'
+                       session[:user_id] = 1
+                     when '/logout'
+                       raise 'User not logged in' if session[:user_id].nil?
+
+                       session.delete(:user_id)
+                       session.options[:renew] = true
+                     when '/slow'
+                       Fiber.yield
+                     end
+
+                     Rack::Response.new(session.inspect).to_a
+                   end)
+  end
   let(:incrementor) { Rack::Lint.new(incrementor_proc) }
 
   it 'faults on no connection' do
@@ -345,5 +364,38 @@ describe Rack::Session::Dalli do
     assert_equal h.to_s, ses1.to_s
 
     refute_equal ses0, ses1
+  end
+
+  it "doesn't allow session id to be reused" do
+    rsd = Rack::Session::Dalli.new(user_id_session)
+
+    login_response = Rack::MockRequest.new(rsd).get('/login')
+    login_cookie = login_response['Set-Cookie']
+
+    slow_request = Fiber.new do
+      Rack::MockRequest.new(rsd).get('/slow', 'HTTP_COOKIE' => login_cookie)
+    end
+    slow_request.resume
+
+    # Check that the session is valid:
+    response = Rack::MockRequest.new(rsd).get('/', 'HTTP_COOKIE' => login_cookie)
+
+    assert_equal response.body, { 'user_id' => 1 }.to_s
+
+    logout_response = Rack::MockRequest.new(rsd).get('/logout', 'HTTP_COOKIE' => login_cookie)
+    logout_cookie = logout_response['Set-Cookie']
+
+    # Check that the session id is different after logout:
+    refute_equal login_cookie[session_match], logout_cookie[session_match]
+
+    slow_response = slow_request.resume
+
+    assert_equal 401, slow_response.status
+    assert_equal 'Wrong session ID', slow_response.body
+
+    # Check that the cookie can't be reused:
+    response = Rack::MockRequest.new(rsd).get('/', 'HTTP_COOKIE' => login_cookie)
+
+    assert_equal '{}', response.body
   end
 end
