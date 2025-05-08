@@ -9,6 +9,10 @@ module Rack
   module Session
     # Rack::Session::Dalli provides memcached based session management.
     class Dalli < Abstract::PersistedSecure
+      class MissingSessionError < StandardError; end
+
+      RACK_SESSION_PERSISTED = 'rack.session.persisted'
+
       attr_reader :data
 
       # Don't freeze this until we fix the specs/implementation
@@ -70,23 +74,40 @@ module Rack
         @data = build_data_source(options)
       end
 
-      def find_session(_req, sid)
+      def call(...)
+        super
+      rescue MissingSessionError
+        [401, {}, ['Wrong session ID']]
+      end
+
+      def find_session(req, sid)
         with_dalli_client([nil, {}]) do |dc|
           existing_session = existing_session_for_sid(dc, sid)
-          return [sid, existing_session] unless existing_session.nil?
+          if existing_session.nil?
+            sid = create_sid_with_empty_session(dc)
+            existing_session = {}
+          end
 
-          [create_sid_with_empty_session(dc), {}]
+          update_session_persisted_data(req, { id: sid })
+          return [sid, existing_session]
         end
       end
 
-      def write_session(_req, sid, session, options)
+      def write_session(req, sid, session, options)
         return false unless sid
 
         key = memcached_key_from_sid(sid)
         return false unless key
 
         with_dalli_client(false) do |dc|
-          dc.set(memcached_key_from_sid(sid), session, ttl(options[:expire_after]))
+          persisted = session_persisted_data(req)
+          if persisted && persisted[:id] == sid # That means that we update the existing session
+            # Override the session only if it still exists in the store!
+            raise MissingSessionError unless dc.replace(memcached_key_from_sid(sid), session, ttl(options[:expire_after]))
+          else
+            dc.set(memcached_key_from_sid(sid), session, ttl(options[:expire_after]))
+          end
+
           sid
         end
       end
@@ -189,6 +210,14 @@ module Rack
 
       def ttl(expire_after)
         expire_after.nil? ? 0 : expire_after + 1
+      end
+
+      def session_persisted_data(req)
+        req.get_header RACK_SESSION_PERSISTED
+      end
+
+      def update_session_persisted_data(req, data)
+        req.set_header RACK_SESSION_PERSISTED, data
       end
     end
   end
