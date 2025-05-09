@@ -18,6 +18,7 @@ module Dalli
       # https://www.hjp.at/zettel/m/memcached_flags.rxml
       # Looks like most clients use bit 0 to indicate native language serialization
       FLAG_SERIALIZED = 0x1
+      FLAG_UTF8 = 0x2
 
       attr_accessor :serialization_options
 
@@ -28,6 +29,20 @@ module Dalli
 
       def store(value, req_options, bitflags)
         do_serialize = !(req_options && req_options[:raw])
+
+        # If the value is a simple string, going through serialization is costly
+        # for no benefit other than preserving encoding.
+        # Assuming most strings are either UTF-8 or BINARY we can just store
+        # that information in the bitflags.
+        if req_options && req_options[:string_fastpath] && value.class == ::String
+          case value.encoding
+          when Encoding::BINARY
+            return [value, bitflags]
+          when Encoding::UTF_8
+            return [value, bitflags | FLAG_UTF8]
+          end
+        end
+
         store_value = do_serialize ? serialize_value(value) : value.to_s
         bitflags |= FLAG_SERIALIZED if do_serialize
         [store_value, bitflags]
@@ -41,6 +56,8 @@ module Dalli
           rescue StandardError
             raise UnmarshalError, 'Unable to unmarshal value'
           end
+        elsif (bitflags & FLAG_UTF8) != 0
+          value.force_encoding(Encoding::UTF_8)
         else
           value
         end
