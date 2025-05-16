@@ -83,7 +83,6 @@ module Dalli
           cmd + TERMINATOR
         end
 
-        # rubocop:disable Metrics/MethodLength
         def self.mode_to_token(mode)
           case mode
           when :add
@@ -98,7 +97,6 @@ module Dalli
             'S'
           end
         end
-        # rubocop:enable Metrics/MethodLength
 
         def self.cas_string(cas)
           cas = parse_to_64_bit_int(cas, nil)
