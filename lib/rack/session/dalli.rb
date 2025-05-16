@@ -9,6 +9,10 @@ module Rack
   module Session
     # Rack::Session::Dalli provides memcached based session management.
     class Dalli < Abstract::PersistedSecure
+      class MissingSessionError < StandardError; end
+
+      RACK_SESSION_PERSISTED = 'rack.session.persisted'
+
       attr_reader :data
 
       # Don't freeze this until we fix the specs/implementation
@@ -70,23 +74,37 @@ module Rack
         @data = build_data_source(options)
       end
 
-      def find_session(_req, sid)
+      def call(*_args)
+        super
+      rescue MissingSessionError
+        [401, {}, ['Wrong session ID']]
+      end
+
+      def find_session(req, sid)
         with_dalli_client([nil, {}]) do |dc|
           existing_session = existing_session_for_sid(dc, sid)
-          return [sid, existing_session] unless existing_session.nil?
+          if existing_session.nil?
+            sid = create_sid_with_empty_session(dc)
+            existing_session = {}
+          end
 
-          [create_sid_with_empty_session(dc), {}]
+          update_session_persisted_data(req, { id: sid })
+          return [sid, existing_session]
         end
       end
 
-      def write_session(_req, sid, session, options)
+      def write_session(req, sid, session, options)
         return false unless sid
 
         key = memcached_key_from_sid(sid)
         return false unless key
 
         with_dalli_client(false) do |dc|
-          dc.set(memcached_key_from_sid(sid), session, ttl(options[:expire_after]))
+          write_session_safely!(
+            dc, sid, session_persisted_data(req),
+            write_args: [memcached_key_from_sid(sid), session, ttl(options[:expire_after])]
+          )
+
           sid
         end
       end
@@ -145,6 +163,15 @@ module Rack
         end
       end
 
+      def write_session_safely!(dalli_client, sid, persisted_data, write_args:)
+        if persisted_data && persisted_data[:id] == sid # That means that we update the existing session
+          # Override the session only if it still exists in the store!
+          raise MissingSessionError unless dalli_client.replace(*write_args)
+        else
+          dalli_client.set(*write_args)
+        end
+      end
+
       def extract_dalli_options(options)
         raise 'Rack::Session::Dalli no longer supports the :cache option.' if options[:cache]
 
@@ -189,6 +216,14 @@ module Rack
 
       def ttl(expire_after)
         expire_after.nil? ? 0 : expire_after + 1
+      end
+
+      def session_persisted_data(req)
+        req.get_header RACK_SESSION_PERSISTED
+      end
+
+      def update_session_persisted_data(req, data)
+        req.set_header RACK_SESSION_PERSISTED, data
       end
     end
   end
