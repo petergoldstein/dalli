@@ -20,3 +20,6 @@ Metrics/MethodLength:
 Style/Documentation:
   Exclude:
     - 'test/**/*'
+
+Metrics/MethodLength:
+  Max: 20
