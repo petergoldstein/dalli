@@ -56,7 +56,7 @@ module Dalli
           rescue StandardError
             raise UnmarshalError, 'Unable to unmarshal value'
           end
-        elsif (bitflags & FLAG_UTF8) != 0
+        elsif bitflags.anybits?(FLAG_UTF8)
           value.force_encoding(Encoding::UTF_8)
         else
           value
