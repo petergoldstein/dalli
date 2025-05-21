@@ -12,9 +12,9 @@ describe 'concurrent behavior' do
 
           cache.set('f', 'zzz')
 
-          assert op_cas_succeeds((cache.cas('f') do |value|
+          assert op_cas_succeeds(cache.cas('f') do |value|
             value << 'z'
-          end))
+          end)
           assert_equal 'zzzz', cache.get('f')
 
           # Have a bunch of threads perform a bunch of operations at the same time.
