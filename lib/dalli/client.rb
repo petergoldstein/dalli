@@ -45,6 +45,8 @@ module Dalli
     #                   useful for injecting a FIPS compliant hash object.
     # - :protocol - one of either :binary or :meta, defaulting to :binary.  This sets the protocol that Dalli uses
     #               to communicate with memcached.
+    # - :host_to_name_map - a hash mapping "host:port" to a name. Useful for providing more descriptive names or
+    #                       tuning the ring-continuum e.g. { 'localhost:11211' => 'local' }
     #
     def initialize(servers = nil, options = {})
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
