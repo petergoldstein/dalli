@@ -139,7 +139,7 @@ module Rack
           ::Dalli::Client.new(server_configurations, client_options)
         else
           ensure_connection_pool_added!
-          ConnectionPool.new(pool_options) do
+          ConnectionPool.new(**pool_options) do
             ::Dalli::Client.new(server_configurations, client_options.merge(threadsafe: false))
           end
         end
