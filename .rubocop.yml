@@ -20,3 +20,6 @@ Metrics/MethodLength:
 Style/Documentation:
   Exclude:
     - 'test/**/*'
+
+Naming/PredicateMethod:
+  Enabled: false
