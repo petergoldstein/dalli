@@ -102,9 +102,13 @@ class GCSuite
     run_gc
   end
 
-  def warmup_stats(*); end
+  def warmup_stats(*)
+    GC.enable
+  end
 
-  def add_report(*); end
+  def add_report(*)
+    GC.enable
+  end
 
   private
 
