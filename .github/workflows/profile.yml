@@ -27,7 +27,7 @@ jobs:
     # click to view the run you are interested in (ex https://github.com/petergoldstein/dalli/actions/runs/13296952241)
     # in the artifacts section, download the profile results
     - name: Upload profile results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: profile-results
         path: |
