@@ -24,7 +24,7 @@ jobs:
 
     name: "Ruby ${{ matrix.ruby-version }} / Memcached ${{ matrix.memcached-version }}"
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Install Memcached ${{ matrix.memcached-version }}
       working-directory: scripts
       env:
