@@ -25,15 +25,6 @@ module Dalli
       FLAG_COMPRESSED = 0x2
 
       def initialize(client_options)
-        # Support the deprecated compression option, but don't allow it to override
-        # an explicit compress
-        # Remove this with 4.0
-        if client_options.key?(:compression) && !client_options.key?(:compress)
-          Dalli.logger.warn "DEPRECATED: Dalli's :compression option is now just 'compress: true'.  " \
-                            'Please update your configuration.'
-          client_options[:compress] = client_options.delete(:compression)
-        end
-
         @compression_options =
           DEFAULTS.merge(client_options.slice(*OPTIONS))
       end

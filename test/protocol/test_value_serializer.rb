@@ -3,6 +3,75 @@
 require_relative '../helper'
 
 describe Dalli::Protocol::ValueSerializer do
+  describe 'marshal security warning' do
+    before do
+      # Reset the class variable before each test
+      # rubocop:disable Style/ClassVars
+      Dalli::Protocol::ValueSerializer.class_variable_set(:@@marshal_warning_logged, false)
+      # rubocop:enable Style/ClassVars
+    end
+
+    it 'logs a warning when using default Marshal serializer' do
+      warning_logged = false
+      logger_mock = Minitest::Mock.new
+      logger_mock.expect(:warn, nil) do |msg|
+        warning_logged = true if msg.include?('SECURITY WARNING')
+        true
+      end
+
+      Dalli.stub(:logger, logger_mock) do
+        Dalli::Protocol::ValueSerializer.new({})
+      end
+
+      assert warning_logged, 'Expected security warning to be logged'
+    end
+
+    it 'only logs the warning once per process' do
+      warn_count = 0
+      logger_mock = Object.new
+      logger_mock.define_singleton_method(:warn) do |msg|
+        warn_count += 1 if msg.include?('SECURITY WARNING')
+      end
+
+      Dalli.stub(:logger, logger_mock) do
+        Dalli::Protocol::ValueSerializer.new({})
+        Dalli::Protocol::ValueSerializer.new({})
+        Dalli::Protocol::ValueSerializer.new({})
+      end
+
+      assert_equal 1, warn_count, 'Expected warning to be logged only once'
+    end
+
+    it 'does not log warning when custom serializer is specified' do
+      warning_logged = false
+      logger_mock = Object.new
+      logger_mock.define_singleton_method(:warn) do |msg|
+        warning_logged = true if msg.include?('SECURITY WARNING')
+      end
+
+      custom_serializer = Object.new
+      Dalli.stub(:logger, logger_mock) do
+        Dalli::Protocol::ValueSerializer.new({ serializer: custom_serializer })
+      end
+
+      refute warning_logged, 'Expected no security warning when custom serializer specified'
+    end
+
+    it 'does not log warning when silence_marshal_warning is true' do
+      warning_logged = false
+      logger_mock = Object.new
+      logger_mock.define_singleton_method(:warn) do |msg|
+        warning_logged = true if msg.include?('SECURITY WARNING')
+      end
+
+      Dalli.stub(:logger, logger_mock) do
+        Dalli::Protocol::ValueSerializer.new({ silence_marshal_warning: true })
+      end
+
+      refute warning_logged, 'Expected no security warning when silence_marshal_warning is true'
+    end
+  end
+
   describe 'options' do
     subject { Dalli::Protocol::ValueSerializer.new(options) }
 

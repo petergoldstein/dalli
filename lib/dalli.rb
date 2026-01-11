@@ -4,8 +4,6 @@
 # Namespace for all Dalli code.
 ##
 module Dalli
-  autoload :Server, 'dalli/server'
-
   # generic error
   class DalliError < RuntimeError; end
 

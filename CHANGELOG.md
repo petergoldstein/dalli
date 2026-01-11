@@ -1,15 +1,30 @@
 Dalli Changelog
 =====================
 
-Unreleased
+4.0.0
 ==========
 
+BREAKING CHANGES:
+
+- Require Ruby 3.1+ (dropped support for Ruby 2.6, 2.7, and 3.0)
+- Removed `Dalli::Server` deprecated alias - use `Dalli::Protocol::Binary` instead
+- Removed `:compression` option - use `:compress` instead
+- Removed `close_on_fork` method - use `reconnect_on_fork` instead
+
+Other changes:
+
+- Add security warning when using default Marshal serializer (silence with `silence_marshal_warning: true`)
+- Add defense-in-depth input validation for stats command arguments
+- Add `string_fastpath` option to skip serialization for simple strings (byroot)
+- Meta protocol set performance improvement (danmayer)
+- Fix connection_pool 3.0 compatibility for Rack session store
 - Fix session recovery after deletion (stengineering0)
 - Fix cannot read response data included terminator `\r\n` when use meta protocol (matsubara0507)
 - Support SERVER_ERROR response from Memcached as per the [memcached spec](https://github.com/memcached/memcached/blob/e43364402195c8e822bb8f88755a60ab8bbed62a/doc/protocol.txt#L172) (grcooper)
 - Update Socket timeout handling to use Socket#timeout= when available (nickamorim)
 - Serializer: reraise all .load errors as UnmarshalError (olleolleolle)
 - Reconnect gracefully when a fork is detected instead of crashing (PatrickTulskie)
+- Update CI to test against memcached 1.6.40
 
 3.2.8
 ==========

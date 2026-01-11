@@ -226,17 +226,6 @@ module Dalli
         establish_connection
       end
 
-      def close_on_fork
-        Dalli.logger.warn 'DEPRECATED: close_on_fork is deprecated and will be removed in a future version. ' \
-                          'Use reconnect_on_fork instead.'
-        message = 'Fork detected, re-connecting child process...'
-        Dalli.logger.info { message }
-        # Close socket on a fork, setting us up for reconnect
-        # on next request.
-        close
-        raise Dalli::NetworkError, message
-      end
-
       def fork_detected?
         @pid && @pid != PIDCache.pid
       end

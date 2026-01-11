@@ -77,7 +77,7 @@ module Dalli
     def namespace_regexp
       return /\A#{Regexp.escape(evaluate_namespace)}:/ if namespace.is_a?(Proc)
 
-      @namespace_regexp ||= /\A#{Regexp.escape(namespace)}:/.freeze unless namespace.nil?
+      @namespace_regexp ||= /\A#{Regexp.escape(namespace)}:/ unless namespace.nil?
     end
 
     def validate_digest_class_option(opts)
