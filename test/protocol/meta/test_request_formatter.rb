@@ -214,6 +214,48 @@ describe Dalli::Protocol::Meta::RequestFormatter do
     end
   end
 
+  describe 'stats' do
+    it 'returns the expected string with no arguments' do
+      assert_equal "stats\r\n", Dalli::Protocol::Meta::RequestFormatter.stats
+    end
+
+    it 'returns the expected string with nil argument' do
+      assert_equal "stats\r\n", Dalli::Protocol::Meta::RequestFormatter.stats(nil)
+    end
+
+    it 'returns the expected string with empty string argument' do
+      assert_equal "stats\r\n", Dalli::Protocol::Meta::RequestFormatter.stats('')
+    end
+
+    it 'accepts items argument' do
+      assert_equal "stats items\r\n", Dalli::Protocol::Meta::RequestFormatter.stats('items')
+    end
+
+    it 'accepts slabs argument' do
+      assert_equal "stats slabs\r\n", Dalli::Protocol::Meta::RequestFormatter.stats('slabs')
+    end
+
+    it 'accepts settings argument' do
+      assert_equal "stats settings\r\n", Dalli::Protocol::Meta::RequestFormatter.stats('settings')
+    end
+
+    it 'accepts reset argument' do
+      assert_equal "stats reset\r\n", Dalli::Protocol::Meta::RequestFormatter.stats('reset')
+    end
+
+    it 'raises ArgumentError for invalid arguments' do
+      assert_raises(ArgumentError) do
+        Dalli::Protocol::Meta::RequestFormatter.stats('invalid')
+      end
+    end
+
+    it 'raises ArgumentError for injection attempts' do
+      assert_raises(ArgumentError) do
+        Dalli::Protocol::Meta::RequestFormatter.stats("\nset key 0 0 5\nvalue")
+      end
+    end
+  end
+
   describe 'flush' do
     it 'returns the expected string with no arguments' do
       assert_equal "flush_all\r\n", Dalli::Protocol::Meta::RequestFormatter.flush

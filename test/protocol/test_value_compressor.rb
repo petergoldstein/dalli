@@ -13,14 +13,6 @@ describe Dalli::Protocol::ValueCompressor do
         it 'defaults to true' do
           assert_predicate subject, :compress_by_default?
         end
-
-        describe 'when the deprecated compression option is used' do
-          let(:options) { { compression: false } }
-
-          it 'overrides the default' do
-            refute_predicate subject, :compress_by_default?
-          end
-        end
       end
 
       describe 'when the compress option is explicitly true' do
@@ -29,14 +21,6 @@ describe Dalli::Protocol::ValueCompressor do
         it 'is true' do
           assert_predicate subject, :compress_by_default?
         end
-
-        describe 'when the deprecated compression option is used' do
-          let(:options) { { compress: true, compression: false } }
-
-          it 'does not override the explicit compress options' do
-            assert_predicate subject, :compress_by_default?
-          end
-        end
       end
 
       describe 'when the compress option is explicitly false' do
@@ -44,14 +28,6 @@ describe Dalli::Protocol::ValueCompressor do
 
         it 'is false' do
           refute_predicate subject, :compress_by_default?
-        end
-
-        describe 'when the deprecated compression option is used' do
-          let(:options) { { compress: false, compression: true } }
-
-          it 'does not override the explicit compress options' do
-            refute_predicate subject, :compress_by_default?
-          end
         end
       end
     end

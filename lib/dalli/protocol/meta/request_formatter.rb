@@ -77,9 +77,13 @@ module Dalli
           cmd + TERMINATOR
         end
 
+        ALLOWED_STATS_ARGS = [nil, '', 'items', 'slabs', 'settings', 'reset'].freeze
+
         def self.stats(arg = nil)
+          raise ArgumentError, "Invalid stats argument: #{arg.inspect}" unless ALLOWED_STATS_ARGS.include?(arg)
+
           cmd = +'stats'
-          cmd << " #{arg}" if arg
+          cmd << " #{arg}" if arg && !arg.empty?
           cmd + TERMINATOR
         end
 

@@ -4,11 +4,11 @@ require 'ruby-prof'
 require_relative 'helper'
 require 'benchmark'
 
-def profile(&block)
+def profile(&)
   return yield unless ENV['PROFILE']
 
   prof = RubyProf::Profile.new
-  result = prof.profile(&block)
+  result = prof.profile(&)
   rep = RubyProf::GraphHtmlPrinter.new(result)
   file = File.new('profile.html', 'w')
   rep.print(file)

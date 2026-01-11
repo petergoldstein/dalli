@@ -10,7 +10,7 @@ module Dalli
       # memcached supports the use of base64 hashes for keys containing
       # whitespace or non-ASCII characters, provided the 'b' flag is included in the request.
       class KeyRegularizer
-        WHITESPACE = /\s/.freeze
+        WHITESPACE = /\s/
 
         def self.encode(key)
           return [key, false] if key.ascii_only? && !WHITESPACE.match(key)

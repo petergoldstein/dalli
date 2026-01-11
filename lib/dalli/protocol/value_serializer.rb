@@ -20,11 +20,15 @@ module Dalli
       FLAG_SERIALIZED = 0x1
       FLAG_UTF8 = 0x2
 
+      # Class variable to track whether the Marshal warning has been logged
+      @@marshal_warning_logged = false # rubocop:disable Style/ClassVars
+
       attr_accessor :serialization_options
 
       def initialize(protocol_options)
         @serialization_options =
           DEFAULTS.merge(protocol_options.slice(*OPTIONS))
+        warn_if_marshal_default(protocol_options) unless protocol_options[:silence_marshal_warning]
       end
 
       def store(value, req_options, bitflags)
@@ -77,6 +81,19 @@ module Dalli
         exc = Dalli::MarshalError.new(e.message)
         exc.set_backtrace e.backtrace
         raise exc
+      end
+
+      private
+
+      def warn_if_marshal_default(protocol_options)
+        return if protocol_options.key?(:serializer)
+        return if @@marshal_warning_logged
+
+        Dalli.logger.warn 'SECURITY WARNING: Dalli is using Marshal for serialization. ' \
+                          'Marshal can execute arbitrary code during deserialization. ' \
+                          'If your memcached server could be compromised, consider using ' \
+                          'a safer serializer like JSON: Dalli::Client.new(servers, serializer: JSON)'
+        @@marshal_warning_logged = true # rubocop:disable Style/ClassVars
       end
     end
   end
