@@ -5,6 +5,7 @@ source 'https://rubygems.org'
 gemspec
 
 group :development, :test do
+  gem 'benchmark'
   gem 'cgi'
   gem 'connection_pool'
   gem 'debug' unless RUBY_PLATFORM == 'java'

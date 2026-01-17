@@ -189,13 +189,13 @@ describe Rack::Session::Dalli do
   end
 
   it 'sets an expiration on new sessions' do
-    rsd = Rack::Session::Dalli.new(incrementor, expire_after: 3)
+    rsd = Rack::Session::Dalli.new(incrementor, expire_after: 1)
     res = Rack::MockRequest.new(rsd).get('/')
 
     assert_includes res.body, { 'counter' => 1 }.to_s
     cookie = res['Set-Cookie']
     puts 'Sleeping to expire session' if $DEBUG
-    sleep 4
+    sleep 2
     res = Rack::MockRequest.new(rsd).get('/', 'HTTP_COOKIE' => cookie)
 
     refute_equal cookie, res['Set-Cookie']
@@ -203,7 +203,7 @@ describe Rack::Session::Dalli do
   end
 
   it 'maintains freshness of existing sessions' do
-    rsd = Rack::Session::Dalli.new(incrementor, expire_after: 3)
+    rsd = Rack::Session::Dalli.new(incrementor, expire_after: 1)
     res = Rack::MockRequest.new(rsd).get('/')
 
     assert_includes res.body, { 'counter' => 1 }.to_s
@@ -213,7 +213,7 @@ describe Rack::Session::Dalli do
     assert_equal cookie, res['Set-Cookie']
     assert_includes res.body, { 'counter' => 2 }.to_s
     puts 'Sleeping to expire session' if $DEBUG
-    sleep 4
+    sleep 2
     res = Rack::MockRequest.new(rsd).get('/', 'HTTP_COOKIE' => cookie)
 
     refute_equal cookie, res['Set-Cookie']

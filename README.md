@@ -14,6 +14,32 @@ Dalli supports:
 
 The name is a variant of Salvador Dali for his famous painting [The Persistence of Memory](http://en.wikipedia.org/wiki/The_Persistence_of_Memory).
 
+## Requirements
+
+* Ruby 3.1 or later
+* memcached 1.4 or later (1.6+ recommended for meta protocol support)
+
+## Protocol Options
+
+Dalli supports two protocols for communicating with memcached:
+
+* `:binary` (default) - Works with all memcached versions, supports SASL authentication
+* `:meta` - Requires memcached 1.6+, better performance for some operations, no authentication support
+
+```ruby
+Dalli::Client.new('localhost:11211', protocol: :meta)
+```
+
+## Security Note
+
+By default, Dalli uses Ruby's Marshal for serialization. Deserializing untrusted data with Marshal can lead to remote code execution. If you cache user-controlled data, consider using a safer serializer:
+
+```ruby
+Dalli::Client.new('localhost:11211', serializer: JSON)
+```
+
+See the [4.0-Upgrade.md](4.0-Upgrade.md) guide for more information.
+
 ![Persistence of Memory](https://upload.wikimedia.org/wikipedia/en/d/dd/The_Persistence_of_Memory.jpg)
 
 
