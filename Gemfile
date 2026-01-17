@@ -9,8 +9,12 @@ group :development, :test do
   gem 'cgi'
   gem 'connection_pool'
   gem 'debug' unless RUBY_PLATFORM == 'java'
-  gem 'minitest', '~> 6'
-  gem 'minitest-mock'
+  if RUBY_VERSION >= '3.2'
+    gem 'minitest', '~> 6'
+    gem 'minitest-mock'
+  else
+    gem 'minitest', '~> 5'
+  end
   gem 'rack', '~> 3'
   gem 'rack-session'
   gem 'rake', '~> 13.0'
