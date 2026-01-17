@@ -5,6 +5,7 @@ require 'bundler/setup'
 # SimpleCov.start
 require 'minitest/pride'
 require 'minitest/autorun'
+require 'minitest/mock'
 require_relative 'helpers/memcached'
 
 ENV['SASL_CONF_PATH'] = "#{File.dirname(__FILE__)}/sasl/memcached.conf"
