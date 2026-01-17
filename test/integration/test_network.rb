@@ -136,6 +136,36 @@ describe 'Network' do
             refute_equal(optval[0], 0)
           end
         end
+
+        it 'fails when SSL client connects to non-SSL server' do
+          memcached_persistent(p) do |_, port|
+            ssl_context = OpenSSL::SSL::SSLContext.new
+            ssl_context.verify_mode = OpenSSL::SSL::VERIFY_NONE
+
+            dc = Dalli::Client.new("localhost:#{port}", ssl_context: ssl_context)
+
+            # SSL handshake fails when connecting to a non-SSL server
+            assert_raises OpenSSL::SSL::SSLError do
+              dc.get('abc')
+            end
+          end
+        end
+
+        it 'fails when SSL verification fails due to untrusted certificate' do
+          memcached_ssl_persistent(p) do |_, port|
+            # Create SSL context that does not trust the test CA
+            strict_ssl_context = OpenSSL::SSL::SSLContext.new
+            strict_ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER
+            # Don't set ca_file, so the self-signed cert won't be trusted
+
+            dc = Dalli::Client.new("localhost:#{port}", ssl_context: strict_ssl_context)
+
+            # SSL verification fails due to untrusted certificate
+            assert_raises OpenSSL::SSL::SSLError do
+              dc.get('abc')
+            end
+          end
+        end
       end
 
       it 'handles timeout error during pipelined get' do

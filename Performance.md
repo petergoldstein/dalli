@@ -1,8 +1,9 @@
 Performance
 ====================
 
+> **Note:** This document contains historical benchmark data from 2012. The `kgio` gem is no longer supported or needed in modern Ruby versions. For current benchmarks, run `bundle exec rake bench` locally.
+
 Caching is all about performance, so I carefully track Dalli performance to ensure no regressions.
-You can optionally use kgio to give Dalli a 10-20% performance boost: `gem install kgio`.
 
 Note I've added some benchmarks over time to Dalli that the other libraries don't necessarily have.
 

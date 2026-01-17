@@ -1,6 +1,6 @@
 fix: false               # default: false
 parallel: true          # default: false
-ruby_version: 2.5.1     # default: RUBY_VERSION
+ruby_version: 3.1       # default: RUBY_VERSION
 default_ignores: false  # default: true
 
 ignore:                 # default: []

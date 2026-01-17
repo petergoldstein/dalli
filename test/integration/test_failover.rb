@@ -65,7 +65,8 @@ describe 'failover' do
               assert_equal({ 'foo' => 'bar', 'foo2' => 'bar2' }, foo)
 
               # wait for socket to expire and get cleaned up
-              sleep 5
+              # idle_timeout is 1 second, so 1.5 seconds should be sufficient
+              sleep 1.5
 
               foo = dc.get_multi 'foo', 'foo2'
 
