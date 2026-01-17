@@ -21,5 +21,8 @@ Style/Documentation:
   Exclude:
     - 'test/**/*'
 
-Naming/PredicateName:
+Naming/PredicateMethod:
+  Enabled: false
+
+Naming/PredicatePrefix:
   Enabled: false
