@@ -150,19 +150,19 @@ module Dalli
         data = @sock.gets("\r\n")
         error_on_request!('EOF in read_line') if data.nil?
         data
-      rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
+      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
         error_on_request!(e)
       end
 
       def read(count)
         @sock.readfull(count)
-      rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
+      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
         error_on_request!(e)
       end
 
       def write(bytes)
         @sock.write(bytes)
-      rescue SystemCallError, *TIMEOUT_ERRORS => e
+      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS => e
         error_on_request!(e)
       end
 
