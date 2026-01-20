@@ -178,6 +178,53 @@ describe 'Network' do
         end
       end
 
+      it 'handles SSL error during read operations' do
+        with_nil_logger do
+          memcached(p, 19_191) do |dc|
+            # First set a value so we have something to get
+            dc.set('ssl_test_key', 'test_value')
+
+            server = dc.send(:ring).server_for_key('ssl_test_key')
+
+            # Stub error_on_request! to verify SSLError triggers error handling
+            # This confirms the SSL error is caught by the rescue clause
+            error_handled = false
+            original_error_on_request = server.instance_variable_get(:@connection_manager).method(:error_on_request!)
+
+            server.instance_variable_get(:@connection_manager).define_singleton_method(:error_on_request!) do |err|
+              error_handled = true if err.is_a?(OpenSSL::SSL::SSLError)
+              original_error_on_request.call(err)
+            end
+
+            ssl_error = OpenSSL::SSL::SSLError.new('SSL_read: unexpected eof while reading')
+
+            # Binary protocol uses readfull for reading, meta protocol uses gets
+            stub_method = p == :binary ? :readfull : :gets
+            server.sock.stub(stub_method, proc { raise ssl_error }) do
+              # The operation will retry with a new connection and may succeed
+              # What matters is the SSLError is caught, not propagated
+              dc.get('ssl_test_key')
+            rescue Dalli::NetworkError
+              # Expected if retries exhausted
+            end
+
+            assert error_handled, 'SSLError should trigger error_on_request!'
+          end
+        end
+      end
+
+      it 'handles SSL error during pipelined get' do
+        with_nil_logger do
+          memcached(p, 19_191) do |dc|
+            ssl_error = OpenSSL::SSL::SSLError.new('SSL_read: unexpected eof while reading')
+
+            dc.send(:ring).server_for_key('abc').sock.stub(:write, proc { raise ssl_error }) do
+              assert_empty dc.get_multi(['abc'])
+            end
+          end
+        end
+      end
+
       it 'handles asynchronous Thread#raise' do
         with_nil_logger do
           memcached(p, 19_191) do |dc|
