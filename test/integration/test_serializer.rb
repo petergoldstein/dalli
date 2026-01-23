@@ -62,6 +62,30 @@ describe 'Serializer configuration' do
           end
         end
       end
+
+      it 'supports no serialization' do
+        memcached(p, 29_198) do |_dc, port|
+          memcache = Dalli::Client.new("127.0.0.1:#{port}", raw: true)
+
+          with_nil_logger do
+            error = assert_raises(Dalli::MarshalError) do
+              memcache.set '1', 2
+            end
+            assert_match 'Integer', error.message
+          end
+
+          memcache.set '1', '2'
+
+          memcached(p, 21_956, '', { raw: true }) do |newdc|
+            assert newdc.set('json_test', 'json_test_value')
+
+            value = newdc.get('json_test')
+
+            assert_equal('json_test_value', value)
+            assert_equal Encoding::BINARY, value.encoding
+          end
+        end
+      end
     end
   end
 end

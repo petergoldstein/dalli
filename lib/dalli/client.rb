@@ -41,6 +41,7 @@ module Dalli
     # - :compressor - defaults to Dalli::Compressor, a Zlib-based implementation
     # - :cache_nils - defaults to false, if true Dalli will not treat cached nil values as 'not found' for
     #                 #fetch operations.
+    # - :raw        - If set, disables serialization and compression, only string values are supported.
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method,
     #                   useful for injecting a FIPS compliant hash object.
     # - :protocol - one of either :binary or :meta, defaulting to :binary.  This sets the protocol that Dalli uses
