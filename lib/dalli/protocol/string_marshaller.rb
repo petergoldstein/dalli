@@ -3,29 +3,27 @@
 module Dalli
   module Protocol
     ##
-    # Dalli::Protocol::ValueMarshaller compartmentalizes the logic for marshalling
-    # and unmarshalling unstructured data (values) to Memcached.  It also enforces
-    # limits on the maximum size of marshalled data.
+    # Dalli::Protocol::StringMarshaller is a pass-through marshaller for use with
+    # the :raw client option. It bypasses serialization and compression entirely,
+    # expecting values to already be strings (e.g., pre-serialized by Rails'
+    # ActiveSupport::Cache). It still enforces the maximum value size limit.
     ##
     class StringMarshaller
-      DEFAULT_MAX_BYTES = 1024 * 1024
       DEFAULTS = {
         # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
         value_max_bytes: 1024 * 1024
       }.freeze
 
-      OPTIONS = DEFAULTS.keys.freeze
-
       attr_reader :value_max_bytes
 
       def initialize(client_options)
         @value_max_bytes = client_options.fetch(:value_max_bytes) do
-          ValueMarshaller::DEFAULTS.fetch(:value_max_bytes)
+          DEFAULTS.fetch(:value_max_bytes)
         end.to_i
       end
 
       def store(key, value, _options = nil)
-        raise MarshalError, "Dalli in :raw mode only support strings, got: #{value.class}" unless value.is_a?(String)
+        raise MarshalError, "Dalli in :raw mode only supports strings, got: #{value.class}" unless value.is_a?(String)
 
         error_if_over_max_value_bytes(key, value)
         [value, 0]
@@ -34,6 +32,27 @@ module Dalli
       def retrieve(value, _flags)
         value
       end
+
+      # Interface compatibility methods - these return nil since
+      # StringMarshaller bypasses serialization and compression entirely.
+
+      def serializer
+        nil
+      end
+
+      def compressor
+        nil
+      end
+
+      def compression_min_size
+        nil
+      end
+
+      def compress_by_default?
+        false
+      end
+
+      private
 
       def error_if_over_max_value_bytes(key, value)
         return if value.bytesize <= value_max_bytes
