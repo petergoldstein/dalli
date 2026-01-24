@@ -98,6 +98,51 @@ module Dalli
     end
 
     ##
+    # Get value with extended metadata using the meta protocol.
+    #
+    # IMPORTANT: This method requires memcached 1.6+ and the meta protocol (protocol: :meta).
+    # It will raise an error if used with the binary protocol.
+    #
+    # @param key [String] the cache key
+    # @param options [Hash] options controlling what metadata to return
+    #   - :return_cas [Boolean] return the CAS value (default: true)
+    #   - :return_hit_status [Boolean] return whether item was previously accessed
+    #   - :return_last_access [Boolean] return seconds since last access
+    #   - :skip_lru_bump [Boolean] don't bump LRU or update access stats
+    #
+    # @return [Hash] containing:
+    #   - :value - the cached value (or nil on miss)
+    #   - :cas - the CAS value
+    #   - :hit_before - true/false if previously accessed (only if return_hit_status: true)
+    #   - :last_access - seconds since last access (only if return_last_access: true)
+    #
+    # @example Get with hit status
+    #   result = client.get_with_metadata('key', return_hit_status: true)
+    #   # => { value: "data", cas: 123, hit_before: true }
+    #
+    # @example Get with all metadata without affecting LRU
+    #   result = client.get_with_metadata('key',
+    #     return_hit_status: true,
+    #     return_last_access: true,
+    #     skip_lru_bump: true
+    #   )
+    #   # => { value: "data", cas: 123, hit_before: true, last_access: 42 }
+    #
+    def get_with_metadata(key, options = {})
+      raise_unless_meta_protocol!
+
+      key = key.to_s
+      key = @key_manager.validate_key(key)
+
+      server = ring.server_for_key(key)
+      server.request(:meta_get, key, options)
+    rescue NetworkError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { 'retrying get_with_metadata with new server' }
+      retry
+    end
+
+    ##
     # Fetch multiple keys efficiently.
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
@@ -192,7 +237,7 @@ module Dalli
       key = @key_manager.validate_key(key)
 
       server = ring.server_for_key(key)
-      result = server.request(:get_with_recache, key, {
+      result = server.request(:meta_get, key, {
                                 vivify_ttl: lock_ttl,
                                 recache_ttl: recache_threshold
                               })

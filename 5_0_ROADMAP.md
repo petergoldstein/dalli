@@ -89,7 +89,7 @@ Added support for thundering herd protection flags:
 |------|---------|----------|
 | `I` | Mark stale instead of deleting | Graceful invalidation |
 
-**Future flags (not yet implemented):**
+**Metadata flags - implemented:**
 | Flag | Purpose | Use Case |
 |------|---------|----------|
 | `h` | Return hit status (0/1) | Metrics/debugging |
@@ -100,7 +100,36 @@ Added support for thundering herd protection flags:
 - `lib/dalli/protocol/meta/request_formatter.rb`
 - `lib/dalli/protocol/meta/response_processor.rb`
 
-### 5. Thundering Herd Protection (`fetch_with_lock`)
+### 5. `get_with_metadata` and Metadata Flags
+**Status:** ✅ COMPLETE
+
+New client-level method for advanced cache operations:
+
+```ruby
+# Get value with metadata
+result = client.get_with_metadata('key')
+# => { value: "data", cas: 123, won_recache: false, stale: false, lost_recache: false }
+
+# Get with hit status
+result = client.get_with_metadata('key', return_hit_status: true)
+# => { ..., hit_before: false }  # First access
+
+# Get with last access time
+result = client.get_with_metadata('key', return_last_access: true)
+# => { ..., last_access: 42 }  # Seconds since last access
+
+# Skip LRU bump (read without affecting eviction order)
+result = client.get_with_metadata('key', skip_lru_bump: true)
+
+# Combined with thundering herd protection
+result = client.get_with_metadata('key', vivify_ttl: 30, recache_ttl: 60)
+```
+
+**Files:**
+- `lib/dalli/client.rb`
+- `lib/dalli/protocol/meta.rb`
+
+### 6. Thundering Herd Protection (`fetch_with_lock`)
 **Reference:** Shopify/dalli#46
 
 New method that uses meta protocol's `N` and `R` flags:
@@ -258,9 +287,9 @@ lib/dalli/protocol/
 | `k` | ✅ | ✅ | Return key |
 | `q` | ✅ | ✅ | Quiet mode |
 | `s` | ✅ | ✅ | Return size |
-| `h` | ❌ | ❌ | Hit status (future) |
-| `l` | ❌ | ❌ | Last access time (future) |
-| `u` | ❌ | ❌ | Skip LRU bump (future) |
+| `h` | ❌ | ✅ | Hit status |
+| `l` | ❌ | ✅ | Last access time |
+| `u` | ❌ | ✅ | Skip LRU bump |
 | `N` | ❌ | ✅ | Vivify on miss |
 | `R` | ❌ | ✅ | Recache threshold |
 
