@@ -1,6 +1,12 @@
 Dalli Changelog
 =====================
 
+4.0.1
+==========
+
+- Add `:raw` client option to skip serialization entirely, returning raw byte strings
+- Handle `OpenSSL::SSL::SSLError` in connection manager
+
 4.0.0
 ==========
 
