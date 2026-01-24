@@ -58,9 +58,12 @@ end
 require_relative 'dalli/version'
 
 require_relative 'dalli/compressor'
+require_relative 'dalli/protocol_deprecations'
 require_relative 'dalli/client'
 require_relative 'dalli/key_manager'
 require_relative 'dalli/pipelined_getter'
+require_relative 'dalli/pipelined_setter'
+require_relative 'dalli/pipelined_deleter'
 require_relative 'dalli/ring'
 require_relative 'dalli/protocol'
 require_relative 'dalli/protocol/base'

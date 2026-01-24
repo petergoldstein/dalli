@@ -389,6 +389,121 @@ describe 'operations' do
           end
         end
       end
+
+      describe 'set_multi' do
+        it 'sets multiple key-value pairs' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            hash = { 'key1' => 'value1', 'key2' => 'value2', 'key3' => 'value3' }
+            dc.set_multi(hash)
+
+            assert_equal 'value1', dc.get('key1')
+            assert_equal 'value2', dc.get('key2')
+            assert_equal 'value3', dc.get('key3')
+          end
+        end
+
+        it 'accepts a TTL parameter' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            hash = { 'ttl_key1' => 'value1', 'ttl_key2' => 'value2' }
+            dc.set_multi(hash, 300)
+
+            assert_equal 'value1', dc.get('ttl_key1')
+            assert_equal 'value2', dc.get('ttl_key2')
+          end
+        end
+
+        it 'handles empty hash gracefully' do
+          memcached_persistent(p) do |dc|
+            # Should not raise
+            dc.set_multi({})
+          end
+        end
+
+        it 'works with complex values' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            complex_hash = {
+              'complex1' => { nested: 'hash', count: 42 },
+              'complex2' => [1, 2, 3, 'four'],
+              'complex3' => 'simple string'
+            }
+            dc.set_multi(complex_hash)
+
+            assert_equal({ nested: 'hash', count: 42 }, dc.get('complex1'))
+            assert_equal([1, 2, 3, 'four'], dc.get('complex2'))
+            assert_equal('simple string', dc.get('complex3'))
+          end
+        end
+
+        it 'works with raw option' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            hash = { 'raw_key1' => 'raw_value1', 'raw_key2' => 'raw_value2' }
+            dc.set_multi(hash, 300, raw: true)
+
+            assert_equal 'raw_value1', dc.get('raw_key1', raw: true)
+            assert_equal 'raw_value2', dc.get('raw_key2', raw: true)
+          end
+        end
+      end
+
+      describe 'delete_multi' do
+        it 'deletes multiple keys' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            dc.set('del_key1', 'value1')
+            dc.set('del_key2', 'value2')
+            dc.set('del_key3', 'value3')
+
+            assert_equal 'value1', dc.get('del_key1')
+            assert_equal 'value2', dc.get('del_key2')
+            assert_equal 'value3', dc.get('del_key3')
+
+            dc.delete_multi(%w[del_key1 del_key2 del_key3])
+
+            assert_nil dc.get('del_key1')
+            assert_nil dc.get('del_key2')
+            assert_nil dc.get('del_key3')
+          end
+        end
+
+        it 'handles empty array gracefully' do
+          memcached_persistent(p) do |dc|
+            # Should not raise
+            dc.delete_multi([])
+          end
+        end
+
+        it 'handles non-existent keys gracefully' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            # Should not raise when deleting keys that do not exist
+            dc.delete_multi(%w[nonexistent1 nonexistent2])
+          end
+        end
+
+        it 'deletes only specified keys' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            dc.set('keep_key', 'keep_value')
+            dc.set('delete_key', 'delete_value')
+
+            dc.delete_multi(['delete_key'])
+
+            assert_equal 'keep_value', dc.get('keep_key')
+            assert_nil dc.get('delete_key')
+          end
+        end
+      end
     end
   end
 end

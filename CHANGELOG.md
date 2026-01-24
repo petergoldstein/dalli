@@ -1,6 +1,26 @@
 Dalli Changelog
 =====================
 
+4.2.0
+==========
+
+New Features:
+
+- Add `set_multi` for efficient bulk set operations using pipelined requests
+- Add `delete_multi` for efficient bulk delete operations using pipelined requests
+- Add `fetch_with_lock` for thundering herd protection using meta protocol's vivify/recache flags (requires memcached 1.6+)
+- Add thundering herd protection support to meta protocol (requires memcached 1.6+):
+  - `N` (vivify) flag for creating stubs on cache miss
+  - `R` (recache) flag for winning recache race when TTL is below threshold
+  - Response flags `W` (won recache), `X` (stale), `Z` (lost race)
+  - `get_with_recache` low-level method for advanced thundering herd scenarios
+  - `delete_stale` method for marking items as stale instead of deleting
+
+Deprecations:
+
+- Binary protocol is deprecated and will be removed in Dalli 5.0. Use `protocol: :meta` instead (requires memcached 1.6+)
+- SASL authentication is deprecated and will be removed in Dalli 5.0. Consider using network-level security or memcached's TLS support
+
 4.0.1
 ==========
 

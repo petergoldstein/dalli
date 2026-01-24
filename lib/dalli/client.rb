@@ -56,6 +56,7 @@ module Dalli
       @options = normalize_options(options)
       @key_manager = ::Dalli::KeyManager.new(@options)
       @ring = nil
+      emit_deprecation_warnings
     end
 
     #
@@ -150,6 +151,69 @@ module Dalli
     end
 
     ##
+    # Fetch the value with thundering herd protection using the meta protocol's
+    # N (vivify) and R (recache) flags.
+    #
+    # This method prevents multiple clients from simultaneously regenerating the same
+    # cache entry (the "thundering herd" problem). Only one client wins the right to
+    # regenerate; other clients receive the stale value (if available) or wait.
+    #
+    # IMPORTANT: This method requires memcached 1.6+ and the meta protocol (protocol: :meta).
+    # It will raise an error if used with the binary protocol.
+    #
+    # @param key [String] the cache key
+    # @param ttl [Integer] time-to-live for the cached value in seconds
+    # @param lock_ttl [Integer] how long the lock/stub lives (default: 30 seconds)
+    #   This is the maximum time other clients will return stale data while
+    #   waiting for regeneration. Should be longer than your expected regeneration time.
+    # @param recache_threshold [Integer, nil] if set, win the recache race when the
+    #   item's remaining TTL is below this threshold. Useful for proactive recaching.
+    # @param req_options [Hash] options passed to set operations (e.g., raw: true)
+    #
+    # @yield Block to regenerate the value (only called if this client won the race)
+    # @return [Object] the cached value (may be stale if another client is regenerating)
+    #
+    # @example Basic usage
+    #   client.fetch_with_lock('expensive_key', ttl: 300, lock_ttl: 30) do
+    #     expensive_database_query
+    #   end
+    #
+    # @example With proactive recaching (recache before expiry)
+    #   client.fetch_with_lock('key', ttl: 300, lock_ttl: 30, recache_threshold: 60) do
+    #     expensive_operation
+    #   end
+    #
+    def fetch_with_lock(key, ttl: nil, lock_ttl: 30, recache_threshold: nil, req_options: nil)
+      raise ArgumentError, 'Block is required for fetch_with_lock' unless block_given?
+
+      raise_unless_meta_protocol!
+
+      key = key.to_s
+      key = @key_manager.validate_key(key)
+
+      server = ring.server_for_key(key)
+      result = server.request(:get_with_recache, key, {
+                                vivify_ttl: lock_ttl,
+                                recache_ttl: recache_threshold
+                              })
+
+      if result[:won_recache]
+        # This client won the race - regenerate the value
+        new_val = yield
+        set(key, new_val, ttl_or_default(ttl), req_options)
+        new_val
+      else
+        # Another client is regenerating, or value exists and isn't stale
+        # Return the existing value
+        result[:value]
+      end
+    rescue NetworkError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { 'retrying fetch_with_lock with new server' }
+      retry
+    end
+
+    ##
     # compare and swap values using optimistic locking.
     # Fetch the existing value for key.
     # If it exists, yield the value to the block.
@@ -207,6 +271,24 @@ module Dalli
     end
 
     ##
+    # Set multiple keys and values efficiently using pipelining.
+    # This method is more efficient than calling set() in a loop because
+    # it batches requests by server and uses quiet mode.
+    #
+    # @param hash [Hash] key-value pairs to set
+    # @param ttl [Integer] time-to-live in seconds (optional, uses default if not provided)
+    # @param req_options [Hash] options passed to each set operation
+    # @return [void]
+    #
+    # Example:
+    #   client.set_multi({ 'key1' => 'value1', 'key2' => 'value2' }, 300)
+    def set_multi(hash, ttl = nil, req_options = nil)
+      return if hash.empty?
+
+      pipelined_setter.process(hash, ttl_or_default(ttl), req_options)
+    end
+
+    ##
     # Set the key-value pair, verifying existing CAS.
     # Returns the resulting CAS value if succeeded, and falsy otherwise.
     def set_cas(key, value, cas, ttl = nil, req_options = nil)
@@ -243,6 +325,22 @@ module Dalli
 
     def delete(key)
       delete_cas(key, 0)
+    end
+
+    ##
+    # Delete multiple keys efficiently using pipelining.
+    # This method is more efficient than calling delete() in a loop because
+    # it batches requests by server and uses quiet mode.
+    #
+    # @param keys [Array<String>] keys to delete
+    # @return [void]
+    #
+    # Example:
+    #   client.delete_multi(['key1', 'key2', 'key3'])
+    def delete_multi(keys)
+      return if keys.empty?
+
+      pipelined_deleter.process(keys)
     end
 
     ##
@@ -445,5 +543,23 @@ module Dalli
     def pipelined_getter
       PipelinedGetter.new(ring, @key_manager)
     end
+
+    def pipelined_setter
+      PipelinedSetter.new(ring, @key_manager)
+    end
+
+    def pipelined_deleter
+      PipelinedDeleter.new(ring, @key_manager)
+    end
+
+    def raise_unless_meta_protocol!
+      return if protocol_implementation == Dalli::Protocol::Meta
+
+      raise Dalli::DalliError,
+            'This operation requires the meta protocol (memcached 1.6+). ' \
+            'Use protocol: :meta when creating the client.'
+    end
+
+    include ProtocolDeprecations
   end
 end
