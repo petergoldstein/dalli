@@ -66,31 +66,35 @@ Currently users must use `quiet { }` blocks for pipelined sets, which is awkward
 client.delete_multi(['key1', 'key2', 'key3'])
 ```
 
-### 4. Expanded Meta Protocol Flags
+### 4. Thundering Herd Meta Protocol Flags
 **Reference:** memcached protocol.txt, Shopify/dalli#46
 
-Add support for currently unsupported meta flags:
+Added support for thundering herd protection flags:
 
-**For `mg` (get):**
+**For `mg` (get) - implemented:**
 | Flag | Purpose | Use Case |
 |------|---------|----------|
-| `h` | Return hit status (0/1) | Metrics/debugging |
-| `l` | Seconds since last access | Cache analytics |
-| `u` | Skip LRU bump | Read without affecting eviction |
 | `N(ttl)` | Create stub on miss | Thundering herd protection |
 | `R(ttl)` | Win recache if TTL below threshold | Thundering herd protection |
 
-**Response flags to parse:**
+**Response flags parsed:**
 | Flag | Purpose |
 |------|---------|
 | `W` | Client won recache rights |
 | `X` | Item marked stale |
 | `Z` | Another client already won recache |
 
-**For `md` (delete):**
+**For `md` (delete) - implemented:**
 | Flag | Purpose | Use Case |
 |------|---------|----------|
 | `I` | Mark stale instead of deleting | Graceful invalidation |
+
+**Future flags (not yet implemented):**
+| Flag | Purpose | Use Case |
+|------|---------|----------|
+| `h` | Return hit status (0/1) | Metrics/debugging |
+| `l` | Seconds since last access | Cache analytics |
+| `u` | Skip LRU bump | Read without affecting eviction |
 
 **Files:**
 - `lib/dalli/protocol/meta/request_formatter.rb`
@@ -254,9 +258,9 @@ lib/dalli/protocol/
 | `k` | ✅ | ✅ | Return key |
 | `q` | ✅ | ✅ | Quiet mode |
 | `s` | ✅ | ✅ | Return size |
-| `h` | ❌ | ✅ | Hit status |
-| `l` | ❌ | ✅ | Last access time |
-| `u` | ❌ | ✅ | Skip LRU bump |
+| `h` | ❌ | ❌ | Hit status (future) |
+| `l` | ❌ | ❌ | Last access time (future) |
+| `u` | ❌ | ❌ | Skip LRU bump (future) |
 | `N` | ❌ | ✅ | Vivify on miss |
 | `R` | ❌ | ✅ | Recache threshold |
 
