@@ -324,6 +324,8 @@ lib/dalli/protocol/
 3. ✅ `delete_multi` implementation
 4. ✅ Thundering herd flags (N, R, W, X, Z)
 5. ✅ `fetch_with_lock` method
+6. ✅ Metadata flags (h, l, u)
+7. ✅ `get_with_metadata` method
 
 ### Phase 2: v4.2.0 (Performance)
 6. Buffered I/O improvements
