@@ -18,7 +18,7 @@ describe 'thundering herd protection' do
 
           # Get an existing key - should not have any recache flags
           server = dc.send(:ring).server_for_key('existing_key')
-          result = server.request(:get_with_recache, 'existing_key')
+          result = server.request(:meta_get, 'existing_key')
 
           assert_equal 'existing_value', result[:value]
           assert_predicate result[:cas], :positive?
@@ -33,7 +33,7 @@ describe 'thundering herd protection' do
           dc.flush
 
           server = dc.send(:ring).server_for_key('nonexistent_key')
-          result = server.request(:get_with_recache, 'nonexistent_key')
+          result = server.request(:meta_get, 'nonexistent_key')
 
           assert_nil result[:value]
           refute result[:won_recache]
@@ -48,7 +48,7 @@ describe 'thundering herd protection' do
 
           server = dc.send(:ring).server_for_key('vivify_key')
           # Request with vivify_ttl - on miss, creates stub and returns W flag
-          result = server.request(:get_with_recache, 'vivify_key', { vivify_ttl: 30 })
+          result = server.request(:meta_get, 'vivify_key', { vivify_ttl: 30 })
 
           # The first client should win the recache race on a miss
           assert result[:won_recache], 'First client should win recache on miss with N flag'
@@ -64,12 +64,12 @@ describe 'thundering herd protection' do
           server = dc.send(:ring).server_for_key('race_key')
 
           # First client vivifies the key
-          result1 = server.request(:get_with_recache, 'race_key', { vivify_ttl: 30 })
+          result1 = server.request(:meta_get, 'race_key', { vivify_ttl: 30 })
 
           assert result1[:won_recache], 'First client should win'
 
           # Second client should see stale and lost the race
-          server.request(:get_with_recache, 'race_key', { vivify_ttl: 30 })
+          server.request(:meta_get, 'race_key', { vivify_ttl: 30 })
           # NOTE: On the second request, the stub already exists
           # Behavior depends on memcached version and exact timing
           # The key point is that only one client wins
@@ -136,6 +136,177 @@ describe 'thundering herd protection' do
         )
 
         assert_includes req, ' I'
+      end
+
+      it 'formats meta_get with h (hit status) flag' do
+        req = Dalli::Protocol::Meta::RequestFormatter.meta_get(
+          key: 'test_key',
+          return_hit_status: true
+        )
+
+        assert_includes req, ' h'
+      end
+
+      it 'formats meta_get with l (last access) flag' do
+        req = Dalli::Protocol::Meta::RequestFormatter.meta_get(
+          key: 'test_key',
+          return_last_access: true
+        )
+
+        assert_includes req, ' l'
+      end
+
+      it 'formats meta_get with u (skip LRU bump) flag' do
+        req = Dalli::Protocol::Meta::RequestFormatter.meta_get(
+          key: 'test_key',
+          skip_lru_bump: true
+        )
+
+        assert_includes req, ' u'
+      end
+
+      it 'formats meta_get with all metadata flags combined' do
+        req = Dalli::Protocol::Meta::RequestFormatter.meta_get(
+          key: 'test_key',
+          vivify_ttl: 30,
+          recache_ttl: 60,
+          return_hit_status: true,
+          return_last_access: true,
+          skip_lru_bump: true
+        )
+
+        assert_includes req, 'N30'
+        assert_includes req, 'R60'
+        assert_includes req, ' h'
+        assert_includes req, ' l'
+        assert_includes req, ' u'
+      end
+    end
+
+    describe 'get_with_metadata' do
+      it 'returns value and metadata for existing key' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+          dc.set('metadata_key', 'metadata_value', 300)
+
+          result = dc.get_with_metadata('metadata_key')
+
+          assert_equal 'metadata_value', result[:value]
+          assert_predicate result[:cas], :positive?
+          refute result[:won_recache]
+          refute result[:stale]
+          refute result[:lost_recache]
+        end
+      end
+
+      it 'returns nil value for non-existent key' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+
+          result = dc.get_with_metadata('nonexistent_key')
+
+          assert_nil result[:value]
+          refute result[:won_recache]
+        end
+      end
+
+      it 'supports vivify_ttl option for thundering herd protection' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+
+          # First request should win the recache race
+          result = dc.get_with_metadata('vivify_key', vivify_ttl: 30)
+
+          assert result[:won_recache], 'First client should win recache on miss with vivify_ttl'
+        end
+      end
+
+      it 'supports recache_ttl option for early recache' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+          # Set with a very short TTL
+          dc.set('recache_key', 'recache_value', 5)
+
+          # Request with recache_ttl higher than remaining TTL should win recache
+          result = dc.get_with_metadata('recache_key', recache_ttl: 10)
+
+          # Either we win recache (TTL was below threshold) or the value is returned
+          assert_equal 'recache_value', result[:value]
+        end
+      end
+
+      it 'returns hit status when requested' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+          dc.set('hit_key', 'hit_value', 300)
+
+          # First access - should show not previously hit
+          result1 = dc.get_with_metadata('hit_key', return_hit_status: true)
+
+          assert_equal 'hit_value', result1[:value]
+          refute_nil result1[:hit_before]
+          refute result1[:hit_before], 'First access should show not previously hit'
+
+          # Second access - should show previously hit
+          result2 = dc.get_with_metadata('hit_key', return_hit_status: true)
+
+          assert result2[:hit_before], 'Second access should show previously hit'
+        end
+      end
+
+      it 'returns last access time when requested' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+          dc.set('access_key', 'access_value', 300)
+
+          # First get to establish access time
+          dc.get('access_key')
+
+          # Small delay to ensure measurable time difference
+          sleep 1
+
+          # Get with last access time
+          result = dc.get_with_metadata('access_key', return_last_access: true)
+
+          assert_equal 'access_value', result[:value]
+          refute_nil result[:last_access]
+          assert_predicate result[:last_access], :positive?, 'Last access time should be positive'
+        end
+      end
+
+      it 'supports skip_lru_bump option' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+          dc.set('lru_key', 'lru_value', 300)
+
+          # Get with skip_lru_bump - should not update hit status
+          result = dc.get_with_metadata('lru_key', skip_lru_bump: true, return_hit_status: true)
+
+          assert_equal 'lru_value', result[:value]
+          # With skip_lru_bump, the hit status should remain as first access
+          refute result[:hit_before], 'skip_lru_bump should not update hit status'
+        end
+      end
+
+      it 'does not include optional metadata fields when not requested' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+          dc.set('simple_key', 'simple_value', 300)
+
+          result = dc.get_with_metadata('simple_key')
+
+          assert_equal 'simple_value', result[:value]
+          refute result.key?(:hit_before), 'Should not include hit_before when not requested'
+          refute result.key?(:last_access), 'Should not include last_access when not requested'
+        end
+      end
+
+      it 'raises error when used with binary protocol' do
+        memcached_persistent(:binary) do |dc|
+          assert_raises(Dalli::DalliError) do
+            dc.get_with_metadata('key')
+          end
+        end
       end
     end
 

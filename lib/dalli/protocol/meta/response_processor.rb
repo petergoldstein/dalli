@@ -51,32 +51,39 @@ module Dalli
           tokens.first == EN ? nil : true
         end
 
-        # Returns a hash with:
+        # Returns a hash with all requested metadata:
         # - :value - the cached value (or nil if miss)
-        # - :cas - the CAS value
+        # - :cas - the CAS value (if return_cas was requested)
         # - :won_recache - true if client won the right to recache (W flag)
         # - :stale - true if the item is stale (X flag)
         # - :lost_recache - true if another client is already recaching (Z flag)
+        # - :hit_before - true/false if item was previously accessed (h flag, if requested)
+        # - :last_access - seconds since last access (l flag, if requested)
         #
-        # Used for thundering herd protection with N (vivify) and R (recache) flags.
-        def meta_get_with_recache_status(cache_nils: false)
+        # Used by meta_get for comprehensive metadata retrieval.
+        # Supports thundering herd protection (N/R flags) and metadata flags (h/l/u).
+        def meta_get_with_metadata(cache_nils: false, return_hit_status: false, return_last_access: false)
           tokens = error_on_unexpected!([VA, EN, HD])
+          result = build_metadata_result(tokens)
+          result[:hit_before] = hit_status_from_tokens(tokens) if return_hit_status
+          result[:last_access] = last_access_from_tokens(tokens) if return_last_access
+          result[:value] = parse_value_from_tokens(tokens, cache_nils)
+          result
+        end
 
-          result = {
-            value: nil,
-            cas: cas_from_tokens(tokens),
-            won_recache: tokens.include?('W'),
-            stale: tokens.include?('X'),
+        def build_metadata_result(tokens)
+          {
+            value: nil, cas: cas_from_tokens(tokens),
+            won_recache: tokens.include?('W'), stale: tokens.include?('X'),
             lost_recache: tokens.include?('Z')
           }
+        end
 
-          if tokens.first == EN
-            result[:value] = cache_nils ? ::Dalli::NOT_FOUND : nil
-          elsif tokens.first == VA
-            result[:value] = @value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens))
-          end
+        def parse_value_from_tokens(tokens, cache_nils)
+          return cache_nils ? ::Dalli::NOT_FOUND : nil if tokens.first == EN
+          return unless tokens.first == VA
 
-          result
+          @value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens))
         end
 
         def meta_set_with_cas
@@ -216,6 +223,21 @@ module Dalli
           encoded_key = value_from_tokens(tokens, 'k')
           base64_encoded = tokens.any?('b')
           KeyRegularizer.decode(encoded_key, base64_encoded)
+        end
+
+        # Returns true if item was previously hit, false if first access, nil if not requested
+        # The h flag returns h0 (first access) or h1 (previously accessed)
+        def hit_status_from_tokens(tokens)
+          hit_token = tokens.find { |t| t.start_with?('h') && t.length == 2 }
+          return nil unless hit_token
+
+          hit_token[1] == '1'
+        end
+
+        # Returns seconds since last access, or nil if not requested
+        # The l flag returns l<seconds>
+        def last_access_from_tokens(tokens)
+          value_from_tokens(tokens, 'l')&.to_i
         end
 
         def body_len_from_tokens(tokens)

@@ -13,8 +13,13 @@ New Features:
   - `N` (vivify) flag for creating stubs on cache miss
   - `R` (recache) flag for winning recache race when TTL is below threshold
   - Response flags `W` (won recache), `X` (stale), `Z` (lost race)
-  - `get_with_recache` low-level method for advanced thundering herd scenarios
   - `delete_stale` method for marking items as stale instead of deleting
+- Add `get_with_metadata` for advanced cache operations with metadata retrieval (requires memcached 1.6+):
+  - Returns hash with `:value`, `:cas`, `:won_recache`, `:stale`, `:lost_recache`
+  - Optional `:return_hit_status` returns `:hit_before` (true/false for previous access)
+  - Optional `:return_last_access` returns `:last_access` (seconds since last access)
+  - Optional `:skip_lru_bump` prevents LRU update on access
+  - Optional `:vivify_ttl` and `:recache_ttl` for thundering herd protection
 
 Deprecations:
 

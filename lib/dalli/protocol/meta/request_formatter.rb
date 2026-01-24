@@ -16,18 +16,28 @@ module Dalli
         # rubocop:disable Metrics/ParameterLists
         # rubocop:disable Metrics/PerceivedComplexity
         #
-        # Thundering herd protection flags:
+        # Meta get flags:
+        #
+        # Thundering herd protection:
         # - vivify_ttl (N flag): On miss, create a stub item and return W flag. The TTL
         #   specifies how long the stub lives. Other clients see X (stale) and Z (lost race).
         # - recache_ttl (R flag): If item's remaining TTL is below this threshold, return W
         #   flag to indicate this client should recache. Other clients get Z (lost race).
         #
-        # Response flags for thundering herd (parsed by response processor):
+        # Metadata flags:
+        # - return_hit_status (h flag): Return whether item has been hit before (0 or 1)
+        # - return_last_access (l flag): Return seconds since item was last accessed
+        # - skip_lru_bump (u flag): Don't bump item in LRU, don't update hit status or last access
+        #
+        # Response flags (parsed by response processor):
         # - W: Client won the right to recache this item
         # - X: Item is stale (another client is regenerating)
         # - Z: Client lost the recache race (another client is already regenerating)
+        # - h0/h1: Hit status (0 = first access, 1 = previously accessed)
+        # - l<N>: Seconds since last access
         def self.meta_get(key:, value: true, return_cas: false, ttl: nil, base64: false, quiet: false,
-                          vivify_ttl: nil, recache_ttl: nil)
+                          vivify_ttl: nil, recache_ttl: nil,
+                          return_hit_status: false, return_last_access: false, skip_lru_bump: false)
           cmd = "mg #{key}"
           cmd << ' v f' if value
           cmd << ' c' if return_cas
@@ -36,6 +46,9 @@ module Dalli
           cmd << ' k q s' if quiet # Return the key in the response if quiet
           cmd << " N#{vivify_ttl}" if vivify_ttl # Thundering herd: vivify on miss
           cmd << " R#{recache_ttl}" if recache_ttl # Thundering herd: win recache if TTL below threshold
+          cmd << ' h' if return_hit_status # Return hit status (0 or 1)
+          cmd << ' l' if return_last_access # Return seconds since last access
+          cmd << ' u' if skip_lru_bump # Don't bump LRU or update access stats
           cmd + TERMINATOR
         end
 

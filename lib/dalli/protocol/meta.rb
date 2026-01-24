@@ -60,30 +60,43 @@ module Dalli
         response_processor.meta_get_with_value_and_cas
       end
 
-      # Get with thundering herd protection using N (vivify) and R (recache) flags.
+      # Comprehensive meta get with support for all metadata flags.
       # @note Requires memcached 1.6+ (meta protocol feature)
       #
+      # This is the full-featured get method that supports:
+      # - Thundering herd protection (vivify_ttl, recache_ttl)
+      # - Item metadata (hit_status, last_access)
+      # - LRU control (skip_lru_bump)
+      #
       # @param key [String] the key to retrieve
-      # @param recache_options [Hash] options for thundering herd protection
-      #   - :vivify_ttl [Integer] creates a stub on miss with this TTL
-      #   - :recache_ttl [Integer] wins recache race if remaining TTL is below this
+      # @param options [Hash] options controlling what metadata to return
+      #   - :vivify_ttl [Integer] creates a stub on miss with this TTL (N flag)
+      #   - :recache_ttl [Integer] wins recache race if remaining TTL is below this (R flag)
+      #   - :return_hit_status [Boolean] return whether item was previously accessed (h flag)
+      #   - :return_last_access [Boolean] return seconds since last access (l flag)
+      #   - :skip_lru_bump [Boolean] don't bump LRU or update access stats (u flag)
       #   - :cache_nils [Boolean] whether to cache nil values
-      # @return [Hash] containing :value, :cas, :won_recache, :stale, :lost_recache
-      def get_with_recache(key, recache_options = {})
-        vivify_ttl = recache_options[:vivify_ttl]
-        recache_ttl = recache_options[:recache_ttl]
-
+      # @return [Hash] containing:
+      #   - :value - the cached value (or nil on miss)
+      #   - :cas - the CAS value
+      #   - :won_recache - true if client won recache race (W flag)
+      #   - :stale - true if item is stale (X flag)
+      #   - :lost_recache - true if another client is recaching (Z flag)
+      #   - :hit_before - true/false if previously accessed (only if return_hit_status: true)
+      #   - :last_access - seconds since last access (only if return_last_access: true)
+      def meta_get(key, options = {})
         encoded_key, base64 = KeyRegularizer.encode(key)
         req = RequestFormatter.meta_get(
-          key: encoded_key,
-          value: true,
-          return_cas: true,
-          base64: base64,
-          vivify_ttl: vivify_ttl,
-          recache_ttl: recache_ttl
+          key: encoded_key, value: true, return_cas: true, base64: base64,
+          vivify_ttl: options[:vivify_ttl], recache_ttl: options[:recache_ttl],
+          return_hit_status: options[:return_hit_status],
+          return_last_access: options[:return_last_access], skip_lru_bump: options[:skip_lru_bump]
         )
         write(req)
-        response_processor.meta_get_with_recache_status(cache_nils: cache_nils?(recache_options))
+        response_processor.meta_get_with_metadata(
+          cache_nils: cache_nils?(options), return_hit_status: options[:return_hit_status],
+          return_last_access: options[:return_last_access]
+        )
       end
 
       # Delete with stale invalidation instead of actual deletion.
