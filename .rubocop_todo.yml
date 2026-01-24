@@ -9,16 +9,17 @@
 # Offense count: 1
 # Configuration parameters: AllowedMethods, AllowedPatterns, CountRepeatedAttributes.
 Metrics/AbcSize:
-  Max: 19
+  Max: 20
 
 # Offense count: 9
 # Configuration parameters: CountComments, CountAsOne.
 Metrics/ClassLength:
-  Max: 191
+  Max: 235
 
 # Offense count: 4
 # Configuration parameters: CountComments, CountAsOne, AllowedMethods, AllowedPatterns.
 Metrics/MethodLength:
+  Max: 20
   Exclude:
     - 'lib/dalli/pipelined_getter.rb'
     - 'lib/dalli/protocol/base.rb'

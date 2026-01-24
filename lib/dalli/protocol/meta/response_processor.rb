@@ -51,6 +51,34 @@ module Dalli
           tokens.first == EN ? nil : true
         end
 
+        # Returns a hash with:
+        # - :value - the cached value (or nil if miss)
+        # - :cas - the CAS value
+        # - :won_recache - true if client won the right to recache (W flag)
+        # - :stale - true if the item is stale (X flag)
+        # - :lost_recache - true if another client is already recaching (Z flag)
+        #
+        # Used for thundering herd protection with N (vivify) and R (recache) flags.
+        def meta_get_with_recache_status(cache_nils: false)
+          tokens = error_on_unexpected!([VA, EN, HD])
+
+          result = {
+            value: nil,
+            cas: cas_from_tokens(tokens),
+            won_recache: tokens.include?('W'),
+            stale: tokens.include?('X'),
+            lost_recache: tokens.include?('Z')
+          }
+
+          if tokens.first == EN
+            result[:value] = cache_nils ? ::Dalli::NOT_FOUND : nil
+          elsif tokens.first == VA
+            result[:value] = @value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens))
+          end
+
+          result
+        end
+
         def meta_set_with_cas
           tokens = error_on_unexpected!([HD, NS, NF, EX])
           return false unless tokens.first == HD

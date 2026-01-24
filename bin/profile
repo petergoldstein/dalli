@@ -76,7 +76,6 @@ client.quiet do
   end
 end
 
-# rubocop:disable Metrics/MethodLength
 # rubocop:disable Metrics/PerceivedComplexity
 # rubocop:disable Metrics/AbcSize
 # rubocop:disable Metrics/CyclomaticComplexity
@@ -123,8 +122,6 @@ def sock_set_multi(sock, pairs)
   sock.flush
   sock.gets(TERMINATOR) # clear the buffer
 end
-# rubocop:enable Metrics/MethodLength
-
 if %w[all get].include?(bench_target)
   Vernier.profile(out: 'client_get_profile.json') do
     start_time = Time.now

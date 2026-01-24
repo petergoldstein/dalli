@@ -60,10 +60,56 @@ module Dalli
         response_processor.meta_get_with_value_and_cas
       end
 
+      # Get with thundering herd protection using N (vivify) and R (recache) flags.
+      # @note Requires memcached 1.6+ (meta protocol feature)
+      #
+      # @param key [String] the key to retrieve
+      # @param recache_options [Hash] options for thundering herd protection
+      #   - :vivify_ttl [Integer] creates a stub on miss with this TTL
+      #   - :recache_ttl [Integer] wins recache race if remaining TTL is below this
+      #   - :cache_nils [Boolean] whether to cache nil values
+      # @return [Hash] containing :value, :cas, :won_recache, :stale, :lost_recache
+      def get_with_recache(key, recache_options = {})
+        vivify_ttl = recache_options[:vivify_ttl]
+        recache_ttl = recache_options[:recache_ttl]
+
+        encoded_key, base64 = KeyRegularizer.encode(key)
+        req = RequestFormatter.meta_get(
+          key: encoded_key,
+          value: true,
+          return_cas: true,
+          base64: base64,
+          vivify_ttl: vivify_ttl,
+          recache_ttl: recache_ttl
+        )
+        write(req)
+        response_processor.meta_get_with_recache_status(cache_nils: cache_nils?(recache_options))
+      end
+
+      # Delete with stale invalidation instead of actual deletion.
+      # Used with thundering herd protection to mark items as stale rather than removing them.
+      # @note Requires memcached 1.6+ (meta protocol feature)
+      #
+      # @param key [String] the key to invalidate
+      # @param cas [Integer] optional CAS value for compare-and-swap
+      # @return [Boolean] true if successful
+      def delete_stale(key, cas = nil)
+        encoded_key, base64 = KeyRegularizer.encode(key)
+        req = RequestFormatter.meta_delete(key: encoded_key, cas: cas, base64: base64, stale: true)
+        write(req)
+        response_processor.meta_delete
+      end
+
       # Storage Commands
       def set(key, value, ttl, cas, options)
         write_storage_req(:set, key, value, ttl, cas, options)
         response_processor.meta_set_with_cas unless quiet?
+      end
+
+      # Pipelined set - writes a quiet set request without reading response.
+      # Used by PipelinedSetter for bulk operations.
+      def pipelined_set(key, value, ttl, options)
+        write_storage_req(:set, key, value, ttl, nil, options, quiet: true)
       end
 
       def add(key, value, ttl, options)
@@ -77,13 +123,13 @@ module Dalli
       end
 
       # rubocop:disable Metrics/ParameterLists
-      def write_storage_req(mode, key, raw_value, ttl = nil, cas = nil, options = {})
+      def write_storage_req(mode, key, raw_value, ttl = nil, cas = nil, options = {}, quiet: quiet?)
         (value, bitflags) = @value_marshaller.store(key, raw_value, options)
         ttl = TtlSanitizer.sanitize(ttl) if ttl
         encoded_key, base64 = KeyRegularizer.encode(key)
         req = RequestFormatter.meta_set(key: encoded_key, value: value,
                                         bitflags: bitflags, cas: cas,
-                                        ttl: ttl, mode: mode, quiet: quiet?, base64: base64)
+                                        ttl: ttl, mode: mode, quiet: quiet, base64: base64)
         write(req)
         write(value)
         write(TERMINATOR)
@@ -119,6 +165,14 @@ module Dalli
                                            base64: base64, quiet: quiet?)
         write(req)
         response_processor.meta_delete unless quiet?
+      end
+
+      # Pipelined delete - writes a quiet delete request without reading response.
+      # Used by PipelinedDeleter for bulk operations.
+      def pipelined_delete(key)
+        encoded_key, base64 = KeyRegularizer.encode(key)
+        req = RequestFormatter.meta_delete(key: encoded_key, base64: base64, quiet: true)
+        write(req)
       end
 
       # Arithmetic Commands

@@ -56,6 +56,12 @@ module Dalli
         storage_req(opkey, key, value, ttl, cas, options)
       end
 
+      # Pipelined set - writes a quiet set request without reading response.
+      # Used by PipelinedSetter for bulk operations.
+      def pipelined_set(key, value, ttl, options)
+        storage_req(:setq, key, value, ttl, 0, options)
+      end
+
       def add(key, value, ttl, options)
         opkey = quiet? ? :addq : :add
         storage_req(opkey, key, value, ttl, 0, options)
@@ -100,6 +106,13 @@ module Dalli
         req = RequestFormatter.standard_request(opkey: opkey, key: key, cas: cas)
         write(req)
         response_processor.delete unless quiet?
+      end
+
+      # Pipelined delete - writes a quiet delete request without reading response.
+      # Used by PipelinedDeleter for bulk operations.
+      def pipelined_delete(key)
+        req = RequestFormatter.standard_request(opkey: :deleteq, key: key, cas: 0)
+        write(req)
       end
 
       # Arithmetic Commands

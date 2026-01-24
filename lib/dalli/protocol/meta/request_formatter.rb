@@ -15,13 +15,27 @@ module Dalli
         # rubocop:disable Metrics/CyclomaticComplexity
         # rubocop:disable Metrics/ParameterLists
         # rubocop:disable Metrics/PerceivedComplexity
-        def self.meta_get(key:, value: true, return_cas: false, ttl: nil, base64: false, quiet: false)
+        #
+        # Thundering herd protection flags:
+        # - vivify_ttl (N flag): On miss, create a stub item and return W flag. The TTL
+        #   specifies how long the stub lives. Other clients see X (stale) and Z (lost race).
+        # - recache_ttl (R flag): If item's remaining TTL is below this threshold, return W
+        #   flag to indicate this client should recache. Other clients get Z (lost race).
+        #
+        # Response flags for thundering herd (parsed by response processor):
+        # - W: Client won the right to recache this item
+        # - X: Item is stale (another client is regenerating)
+        # - Z: Client lost the recache race (another client is already regenerating)
+        def self.meta_get(key:, value: true, return_cas: false, ttl: nil, base64: false, quiet: false,
+                          vivify_ttl: nil, recache_ttl: nil)
           cmd = "mg #{key}"
           cmd << ' v f' if value
           cmd << ' c' if return_cas
           cmd << ' b' if base64
           cmd << " T#{ttl}" if ttl
           cmd << ' k q s' if quiet # Return the key in the response if quiet
+          cmd << " N#{vivify_ttl}" if vivify_ttl # Thundering herd: vivify on miss
+          cmd << " R#{recache_ttl}" if recache_ttl # Thundering herd: win recache if TTL below threshold
           cmd + TERMINATOR
         end
 
@@ -37,11 +51,15 @@ module Dalli
           cmd << TERMINATOR
         end
 
-        def self.meta_delete(key:, cas: nil, ttl: nil, base64: false, quiet: false)
+        # Thundering herd protection flag:
+        # - stale (I flag): Instead of deleting the item, mark it as stale. Other clients
+        #   using N/R flags will see the X flag and know the item is being regenerated.
+        def self.meta_delete(key:, cas: nil, ttl: nil, base64: false, quiet: false, stale: false)
           cmd = "md #{key}"
           cmd << ' b' if base64
           cmd << cas_string(cas)
           cmd << " T#{ttl}" if ttl
+          cmd << ' I' if stale # Mark stale instead of deleting
           cmd << ' q' if quiet
           cmd + TERMINATOR
         end
