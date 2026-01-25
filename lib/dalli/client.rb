@@ -134,8 +134,10 @@ module Dalli
       key = key.to_s
       key = @key_manager.validate_key(key)
 
-      server = ring.server_for_key(key)
-      server.request(:meta_get, key, options)
+      Instrumentation.trace('get_with_metadata', { 'db.operation' => 'get_with_metadata' }) do
+        server = ring.server_for_key(key)
+        server.request(:meta_get, key, options)
+      end
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying get_with_metadata with new server' }
@@ -152,11 +154,13 @@ module Dalli
 
       return {} if keys.empty?
 
-      if block_given?
-        pipelined_getter.process(keys) { |k, data| yield k, data.first }
-      else
-        {}.tap do |hash|
-          pipelined_getter.process(keys) { |k, data| hash[k] = data.first }
+      Instrumentation.trace('get_multi', { 'db.operation' => 'get_multi' }) do
+        if block_given?
+          pipelined_getter.process(keys) { |k, data| yield k, data.first }
+        else
+          {}.tap do |hash|
+            pipelined_getter.process(keys) { |k, data| hash[k] = data.first }
+          end
         end
       end
     end
@@ -228,7 +232,7 @@ module Dalli
     #     expensive_operation
     #   end
     #
-    def fetch_with_lock(key, ttl: nil, lock_ttl: 30, recache_threshold: nil, req_options: nil)
+    def fetch_with_lock(key, ttl: nil, lock_ttl: 30, recache_threshold: nil, req_options: nil, &block)
       raise ArgumentError, 'Block is required for fetch_with_lock' unless block_given?
 
       raise_unless_meta_protocol!
@@ -236,21 +240,8 @@ module Dalli
       key = key.to_s
       key = @key_manager.validate_key(key)
 
-      server = ring.server_for_key(key)
-      result = server.request(:meta_get, key, {
-                                vivify_ttl: lock_ttl,
-                                recache_ttl: recache_threshold
-                              })
-
-      if result[:won_recache]
-        # This client won the race - regenerate the value
-        new_val = yield
-        set(key, new_val, ttl_or_default(ttl), req_options)
-        new_val
-      else
-        # Another client is regenerating, or value exists and isn't stale
-        # Return the existing value
-        result[:value]
+      Instrumentation.trace('fetch_with_lock', { 'db.operation' => 'fetch_with_lock' }) do
+        fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options, &block)
       end
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }
@@ -330,7 +321,9 @@ module Dalli
     def set_multi(hash, ttl = nil, req_options = nil)
       return if hash.empty?
 
-      pipelined_setter.process(hash, ttl_or_default(ttl), req_options)
+      Instrumentation.trace('set_multi', { 'db.operation' => 'set_multi' }) do
+        pipelined_setter.process(hash, ttl_or_default(ttl), req_options)
+      end
     end
 
     ##
@@ -385,7 +378,9 @@ module Dalli
     def delete_multi(keys)
       return if keys.empty?
 
-      pipelined_deleter.process(keys)
+      Instrumentation.trace('delete_multi', { 'db.operation' => 'delete_multi' }) do
+        pipelined_deleter.process(keys)
+      end
     end
 
     ##
@@ -529,6 +524,17 @@ module Dalli
       perform(:set, key, newvalue, ttl_or_default(ttl), cas, req_options)
     end
 
+    def fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options)
+      server = ring.server_for_key(key)
+      result = server.request(:meta_get, key, { vivify_ttl: lock_ttl, recache_ttl: recache_threshold })
+
+      return result[:value] unless result[:won_recache]
+
+      new_val = yield
+      set(key, new_val, ttl_or_default(ttl), req_options)
+      new_val
+    end
+
     ##
     # Uses the argument TTL or the client-wide default.  Ensures
     # that the value is an integer
@@ -570,8 +576,10 @@ module Dalli
       key = key.to_s
       key = @key_manager.validate_key(key)
 
-      server = ring.server_for_key(key)
-      server.request(op, key, *args)
+      Instrumentation.trace(op.to_s, { 'db.operation' => op.to_s }) do
+        server = ring.server_for_key(key)
+        server.request(op, key, *args)
+      end
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying request with new server' }

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'set'
+
 module Dalli
   ##
   # Contains logic for the pipelined gets implemented by the client.
@@ -57,7 +59,7 @@ module Dalli
     # our set, sending the noop to terminate the set of queries.
     ##
     def finish_queries(servers)
-      deleted = []
+      deleted = Set.new
 
       servers.each do |server|
         next unless server.connected?
@@ -67,7 +69,7 @@ module Dalli
         rescue Dalli::NetworkError
           raise
         rescue Dalli::DalliError
-          deleted.append(server)
+          deleted << server
         end
       end
 
@@ -94,7 +96,7 @@ module Dalli
 
     def fetch_responses(servers, start_time, timeout, &block)
       # Remove any servers which are not connected
-      servers.delete_if { |s| !s.connected? }
+      servers.select!(&:connected?)
       return [] if servers.empty?
 
       time_left = remaining_time(start_time, timeout)
