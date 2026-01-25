@@ -238,8 +238,8 @@ For the common case of a single memcached server with raw mode enabled, a simpli
 
 | Issue | Description | Priority | Status |
 |-------|-------------|----------|--------|
-| #1034 | struct timeval architecture-dependent packing | High | Likely Fixed |
-| #776/#941 | get_multi hangs with large key counts | Medium | Needs Design |
+| #1034 | struct timeval architecture-dependent packing | High | Affects Ruby 3.1 only |
+| #776/#941 | get_multi hangs with large key counts | Medium | Ready for Implementation |
 | #1022 | Empty string with `cache_nils: false` + `raw: true` | Medium | Needs Rails Input |
 | #1019 | Make NAMESPACE_SEPARATOR configurable | Low | Easy Fix |
 | #805 | Migration path for instrument_errors | Low | Likely Resolved |
@@ -247,25 +247,62 @@ For the common case of a single memcached server with raw mode enabled, a simpli
 
 #### Issue #1034: struct timeval Architecture-Dependent Packing
 
-**Status:** Likely already fixed by PR #1025
+**Status:** Affects Ruby 3.1 users on non-x86_64 architectures only
 
-**Background:** The `struct timeval` used for `SO_RCVTIMEO`/`SO_SNDTIMEO` socket options has architecture-dependent sizes. The previous code used `'l_2'` pack format which doesn't work on all architectures (e.g., 64-bit time_t with 32-bit long on ARM).
+**Background:** The `struct timeval` used for `SO_RCVTIMEO`/`SO_SNDTIMEO` socket options has architecture-dependent sizes. The code uses `'l_2'` pack format which doesn't work on all architectures (e.g., 64-bit time_t with 32-bit long on ARM).
 
-**Current State:** PR #1025 (merged in v4.0.0) changed timeout handling to use Ruby 3.0+'s `IO#timeout=` when available, falling back to `setsockopt` only on older Ruby versions. Since Ruby 3.0+ is the common case now, most users won't hit this.
+**Current State:**
+- PR #1025 (merged in v4.0.0) uses `IO#timeout=` when available, bypassing `setsockopt` entirely
+- **However**, `IO#timeout=` was introduced in **Ruby 3.2** (not 3.0 as previously thought)
+- Dalli currently supports **Ruby 3.1+**, so Ruby 3.1 users fall through to the buggy `setsockopt` path
+- This affects Ruby 3.1 users on non-standard architectures (ARM, certain 32-bit systems)
 
-**Remaining Work:**
-- Verify if the fallback path (Ruby < 3.0) still needs fixing
-- Consider adopting @lnussbaum's patch for the fallback path which detects the correct format via `getsockopt`:
-  ```ruby
-  timeval_formats = ['q l_', 'l l_', 'q l_ x4']
-  expected_length = sock.getsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO).data.length
-  timeval_format = timeval_formats.find { |fmt| [0, 0].pack(fmt).length == expected_length }
-  ```
-- Alternatively, drop support for Ruby < 3.0 in v5.0 and remove the fallback entirely
+**Options for v4.3.0:**
+
+| Option | Implementation | Trade-off |
+|--------|---------------|-----------|
+| **A. Fix fallback** | Adopt @lnussbaum's detection approach | Adds complexity, fixes edge case |
+| **B. Document limitation** | Add note to README | No code change, Ruby 3.1 + exotic arch users have broken timeouts |
+| **C. Bump min Ruby to 3.2** | Remove fallback code entirely | Breaking change, drops Ruby 3.1 support |
+
+**Recommended approach:**
+- For v4.3.0: Option A (fix the fallback) - small code change, maintains Ruby 3.1 support
+- For v5.0.0: Option C (bump to Ruby 3.2+) - simplifies code, Ruby 3.1 EOL is March 2025
+
+**Implementation for Option A:**
+
+File: `lib/dalli/socket.rb`, method `configure_timeout`:
+
+```ruby
+def self.configure_timeout(sock, options)
+  return unless options[:socket_timeout]
+
+  if sock.respond_to?(:timeout=)
+    # Ruby 3.2+ - use IO#timeout for reliable timeout handling
+    sock.timeout = options[:socket_timeout]
+  else
+    # Ruby 3.1 fallback - detect correct timeval format for this architecture
+    seconds, fractional = options[:socket_timeout].divmod(1)
+    microseconds = (fractional * 1_000_000).to_i
+
+    # struct timeval varies by architecture: (time_t, suseconds_t)
+    # Detect correct format by comparing with getsockopt result
+    timeval_formats = ['q l_', 'l l_', 'q l_ x4']
+    expected_length = sock.getsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO).data.length
+    timeval_format = timeval_formats.find { |fmt| [0, 0].pack(fmt).length == expected_length }
+
+    raise Dalli::DalliError, 'Unable to determine timeval format for socket timeout' unless timeval_format
+
+    timeval = [seconds, microseconds].pack(timeval_format)
+    sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO, timeval)
+    sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDTIMEO, timeval)
+  end
+end
+```
 
 #### Issue #776 / #941: get_multi Hangs with Large Key Counts
 
-**Status:** Needs design work - these are duplicates of the same underlying issue
+**Status:** Ready for implementation - leverages v4.2.0 buffered I/O infrastructure
 
 **Background:** When `get_multi` is called with a large number of keys (60k+), the operation hangs. This occurs because:
 1. Dalli sends all `getkq` (quiet get) requests before reading responses
@@ -274,21 +311,110 @@ For the common case of a single memcached server with raw mode enabled, a simpli
 
 **Workaround:** Users can increase `sndbuf` and `rcvbuf` socket options, or batch keys externally (e.g., 500k key batches).
 
-**Proposed Solution (from @petergoldstein in #776):**
-Interleave reading and writing for large key sets:
-1. Group keys by server
-2. For each server:
-   a. Break keys into chunks (e.g., 10k)
-   b. After each chunk, call read on ResponseBuffer to drain socket
-   c. Send noop after all chunks
-   d. Process remaining results
-3. Wait on sockets for incomplete servers
+**Implementation Plan:**
+
+The v4.2.0 buffered I/O changes (`socket.sync = false`, explicit `flush` calls, `ConnectionManager#flush`) provide the infrastructure needed to implement interleaved reading/writing.
+
+**Current flow in `PipelinedGetter`:**
+```
+make_getkq_requests() → sends ALL requests to ALL servers
+finish_queries()      → sends noop to each server
+fetch_responses()     → reads ALL responses
+```
+
+**Proposed interleaved flow:**
+```
+make_getkq_requests() → for each server:
+                          for each chunk of CHUNK_SIZE keys:
+                            send pipelined_get requests
+                            flush socket buffer
+                            drain_available_responses() if large batch
+finish_queries()      → sends noop to each server
+fetch_responses()     → reads remaining responses
+```
+
+**Files to modify:**
+- `lib/dalli/pipelined_getter.rb` - Main implementation
+
+**Key changes:**
+
+1. Add chunk size constant:
+   ```ruby
+   INTERLEAVE_THRESHOLD = 10_000  # Only interleave for large batches
+   CHUNK_SIZE = 10_000
+   ```
+
+2. Modify `make_getkq_requests`:
+   ```ruby
+   def make_getkq_requests(groups)
+     groups.each do |server, keys_for_server|
+       if keys_for_server.size <= INTERLEAVE_THRESHOLD
+         # Small batch - send all at once (existing behavior)
+         server.request(:pipelined_get, keys_for_server)
+       else
+         # Large batch - interleave sends and reads
+         keys_for_server.each_slice(CHUNK_SIZE) do |chunk|
+           server.request(:pipelined_get, chunk)
+           server.connection_manager.flush
+           drain_available_responses(server)
+         end
+       end
+     rescue DalliError, NetworkError => e
+       # existing error handling
+     end
+   end
+   ```
+
+3. Add response draining method:
+   ```ruby
+   def drain_available_responses(server)
+     # Non-blocking read of any available responses
+     # Store partial results for later processing
+     server.pipeline_next_responses.each_pair do |key, value_list|
+       @partial_results[key] = value_list
+     end
+   rescue IO::WaitReadable
+     # No data available yet - that's fine
+   end
+   ```
+
+4. Track partial results:
+   ```ruby
+   def initialize(ring, key_manager)
+     @ring = ring
+     @key_manager = key_manager
+     @partial_results = {}  # NEW: track responses received during send phase
+   end
+   ```
+
+5. Merge partial results in `process_server`:
+   ```ruby
+   def process_server(server)
+     # First yield any partial results collected during interleaved send
+     @partial_results.each_pair do |key, value_list|
+       yield @key_manager.key_without_namespace(key), value_list
+     end
+     @partial_results.clear
+
+     # Then process remaining responses
+     server.pipeline_next_responses.each_pair do |key, value_list|
+       yield @key_manager.key_without_namespace(key), value_list
+     end
+     server.pipeline_complete?
+   end
+   ```
+
+**Testing strategy:**
+- Add test with 100k+ keys to verify no deadlock
+- Verify small batches (<10k) behavior unchanged
+- Benchmark to ensure no performance regression for normal use cases
+- Test with multiple servers to verify per-server interleaving works
 
 **Considerations:**
-- Only affects large key sets - small operations unchanged
-- Timeout handling becomes more complex with batching
-- Ring abstraction may need adjustment for per-server batching
-- Binary protocol is deprecated, so focus implementation on meta protocol only
+- Only affects large key sets - small operations use existing fast path
+- Meta protocol only (binary protocol deprecated)
+- Timeout handling: existing timeout logic in `fetch_responses` still applies
+- Memory: partial results are stored in Ruby hash during send phase
 
 #### Issue #1022: Empty String with `cache_nils: false` + `raw: true`
 
