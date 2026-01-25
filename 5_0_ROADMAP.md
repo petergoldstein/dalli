@@ -480,9 +480,51 @@ fetch_responses()     → reads remaining responses
 **Action:** Keep issue open but deprioritize. If more reports come in or reporter responds with details, investigate then.
 
 ### 10. Testing & CI Improvements
-- Add TruffleRuby to CI (#988)
+
+#### TruffleRuby Support (#988)
+
+**Strategy:** Add TruffleRuby to CI as a **non-blocking** job (allow failures). The goal is to surface incompatibilities early, not to block PRs.
+
+**Rationale:**
+- TruffleRuby compatibility is valuable for users who need it
+- However, incompatibilities should be reported to the TruffleRuby team to address
+- @nirvdrum has offered to be a point of contact for TruffleRuby issues
+
+**Implementation:**
+1. Add TruffleRuby to the test matrix in `.github/workflows/tests.yml`
+2. Use `continue-on-error: true` for TruffleRuby jobs
+3. When failures occur:
+   - Document the incompatibility in a GitHub issue
+   - Report to TruffleRuby team (tag @nirvdrum or @eregon)
+   - Track resolution status
+
+**Example workflow configuration:**
+```yaml
+matrix:
+  ruby-version: ['3.1', '3.2', '3.3', '3.4', '4.0', 'head', 'truffleruby', 'jruby-10']
+  include:
+    - ruby-version: truffleruby
+      continue-on-error: true  # Non-blocking
+```
+
+#### Benchmark CI Improvements
+
+**Current State:** ✅ Benchmarks already run on every push/PR via `.github/workflows/benchmarks.yml`
+- Tests: set, get, get_multi, set_multi operations
+- Compares: binary client vs meta client vs raw socket
+- Runs on Ruby 4.0 with YJIT enabled
+
+**Potential Improvements:**
+1. **Update `set_multi` benchmark** - The benchmark script has a TODO to enable the `set_multi` test now that we've implemented the feature
+2. **Store benchmark artifacts** - Save results for historical comparison
+3. **Add regression detection** - Compare results against a baseline, warn if performance degrades significantly
+4. **Multi-Ruby benchmarks** - Run on multiple Ruby versions to track performance across interpreters
+
+**Priority:** Low - current setup is functional, improvements are nice-to-have
+
+#### Other Testing Improvements
 - Increase test coverage for meta protocol edge cases
-- Add benchmarks to CI (from Shopify's work)
+- Add tests for large key count scenarios (for #776/#941 fix)
 
 ---
 
