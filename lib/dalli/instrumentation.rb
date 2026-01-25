@@ -24,15 +24,22 @@ module Dalli
 
       # Wraps a block with a span if instrumentation is enabled.
       # Returns the block result regardless of whether tracing is enabled.
+      # Records exceptions on the span if they occur.
       #
       # @param name [String] the span name (e.g., 'get', 'set', 'get_multi')
       # @param attributes [Hash] additional span attributes
       # @yield the operation to trace
       # @return the result of the block
-      def trace(name, attributes = {}, &)
+      def trace(name, attributes = {})
         return yield unless enabled?
 
-        tracer.in_span(name, attributes: DEFAULT_ATTRIBUTES.merge(attributes), kind: :client, &)
+        tracer.in_span(name, attributes: DEFAULT_ATTRIBUTES.merge(attributes), kind: :client) do |span|
+          yield
+        rescue StandardError => e
+          span.record_exception(e)
+          span.status = OpenTelemetry::Trace::Status.error(e.message)
+          raise
+        end
       end
     end
   end
