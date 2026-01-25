@@ -56,6 +56,7 @@ module Dalli
 end
 
 require_relative 'dalli/version'
+require_relative 'dalli/instrumentation'
 
 require_relative 'dalli/compressor'
 require_relative 'dalli/protocol_deprecations'

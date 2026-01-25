@@ -53,6 +53,7 @@ module Dalli
         Dalli.logger.debug { "Dalli::Server#connect #{name}" }
 
         @sock = memcached_socket
+        @sock.sync = false # Enable buffered I/O for better performance
         @pid = PIDCache.pid
         @request_in_progress = false
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError, SocketError => e
@@ -162,6 +163,12 @@ module Dalli
 
       def write(bytes)
         @sock.write(bytes)
+      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS => e
+        error_on_request!(e)
+      end
+
+      def flush
+        @sock.flush
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS => e
         error_on_request!(e)
       end
