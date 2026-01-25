@@ -1,6 +1,21 @@
 Dalli Changelog
 =====================
 
+4.2.0
+==========
+
+Performance:
+
+- Buffered I/O: Use `socket.sync = false` with explicit flush to reduce syscalls for pipelined operations
+- get_multi optimizations: Use Set for O(1) server tracking lookups
+
+New Features:
+
+- OpenTelemetry tracing support: Automatically instruments operations when OpenTelemetry SDK is present
+  - Zero overhead when OpenTelemetry is not loaded
+  - Traces `get`, `set`, `delete`, `get_multi`, `set_multi`, `delete_multi`, `get_with_metadata`, and `fetch_with_lock`
+  - Spans include `db.system: memcached` and `db.operation` attributes
+
 4.1.0
 ==========
 

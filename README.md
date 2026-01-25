@@ -11,6 +11,7 @@ Dalli supports:
 * Thread-safe operation (either through use of a connection pool, or by using the Dalli client in threadsafe mode)
 * SSL/TLS connections to memcached
 * SASL authentication
+* OpenTelemetry distributed tracing (automatic when SDK is present)
 
 The name is a variant of Salvador Dali for his famous painting [The Persistence of Memory](http://en.wikipedia.org/wiki/The_Persistence_of_Memory).
 
