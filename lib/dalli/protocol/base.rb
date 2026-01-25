@@ -23,8 +23,15 @@ module Dalli
       def initialize(attribs, client_options = {})
         hostname, port, socket_type, @weight, user_creds = ServerConfigParser.parse(attribs)
         @options = client_options.merge(user_creds)
-        @value_marshaller = client_options[:raw] ? StringMarshaller.new(@options) : ValueMarshaller.new(@options)
+        @raw_mode = client_options[:raw]
+        @value_marshaller = @raw_mode ? StringMarshaller.new(@options) : ValueMarshaller.new(@options)
         @connection_manager = ConnectionManager.new(hostname, port, socket_type, @options)
+      end
+
+      # Returns true if client is in raw mode (no serialization/compression).
+      # In raw mode, we can skip requesting bitflags from the server.
+      def raw_mode?
+        @raw_mode
       end
 
       # Chokepoint method for error handling and ensuring liveness

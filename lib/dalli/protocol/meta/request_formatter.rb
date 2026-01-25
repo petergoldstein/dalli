@@ -37,9 +37,12 @@ module Dalli
         # - l<N>: Seconds since last access
         def self.meta_get(key:, value: true, return_cas: false, ttl: nil, base64: false, quiet: false,
                           vivify_ttl: nil, recache_ttl: nil,
-                          return_hit_status: false, return_last_access: false, skip_lru_bump: false)
+                          return_hit_status: false, return_last_access: false, skip_lru_bump: false,
+                          skip_flags: false)
           cmd = "mg #{key}"
-          cmd << ' v f' if value
+          # In raw mode (skip_flags: true), we don't request bitflags since they're not used.
+          # This saves 2 bytes per request and skips parsing on response.
+          cmd << (skip_flags ? ' v' : ' v f') if value
           cmd << ' c' if return_cas
           cmd << ' b' if base64
           cmd << " T#{ttl}" if ttl

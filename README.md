@@ -56,13 +56,30 @@ When OpenTelemetry is loaded, Dalli creates spans for:
 - Multi-key operations: `get_multi`, `set_multi`, `delete_multi`
 - Advanced operations: `get_with_metadata`, `fetch_with_lock`
 
-Each span includes:
+### Span Attributes
+
+All spans include:
 - `db.system`: `memcached`
 - `db.operation`: The operation name (e.g., `get`, `set_multi`)
 
-Exceptions are automatically recorded on spans with error status.
+Single-key operations also include:
+- `server.address`: The memcached server that handled the request (e.g., `localhost:11211`)
 
-When OpenTelemetry is not present, there is zero overhead - the tracing code is bypassed entirely.
+Multi-key operations include cache efficiency metrics:
+- `db.memcached.key_count`: Number of keys in the request
+- `db.memcached.hit_count`: Number of keys found (for `get_multi`)
+- `db.memcached.miss_count`: Number of keys not found (for `get_multi`)
+
+### Error Handling
+
+Exceptions are automatically recorded on spans with error status. When an operation fails:
+1. The exception is recorded on the span via `span.record_exception(e)`
+2. The span status is set to error with the exception message
+3. The exception is re-raised to the caller
+
+### Zero Overhead
+
+When OpenTelemetry is not present, there is zero overhead - the tracing code checks once at startup and bypasses all instrumentation logic entirely when the SDK is not loaded.
 
 ![Persistence of Memory](https://upload.wikimedia.org/wikipedia/en/d/dd/The_Persistence_of_Memory.jpg)
 
