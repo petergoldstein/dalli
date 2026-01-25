@@ -41,6 +41,29 @@ Dalli::Client.new('localhost:11211', serializer: JSON)
 
 See the [4.0-Upgrade.md](4.0-Upgrade.md) guide for more information.
 
+## OpenTelemetry Tracing
+
+Dalli automatically instruments operations with [OpenTelemetry](https://opentelemetry.io/) when the SDK is present. No configuration is required - just add the OpenTelemetry gems to your application:
+
+```ruby
+# Gemfile
+gem 'opentelemetry-sdk'
+gem 'opentelemetry-exporter-otlp' # or your preferred exporter
+```
+
+When OpenTelemetry is loaded, Dalli creates spans for:
+- Single key operations: `get`, `set`, `delete`, `add`, `replace`, `incr`, `decr`, etc.
+- Multi-key operations: `get_multi`, `set_multi`, `delete_multi`
+- Advanced operations: `get_with_metadata`, `fetch_with_lock`
+
+Each span includes:
+- `db.system`: `memcached`
+- `db.operation`: The operation name (e.g., `get`, `set_multi`)
+
+Exceptions are automatically recorded on spans with error status.
+
+When OpenTelemetry is not present, there is zero overhead - the tracing code is bypassed entirely.
+
 ![Persistence of Memory](https://upload.wikimedia.org/wikipedia/en/d/dd/The_Persistence_of_Memory.jpg)
 
 

@@ -15,6 +15,7 @@ New Features:
   - Zero overhead when OpenTelemetry is not loaded
   - Traces `get`, `set`, `delete`, `get_multi`, `set_multi`, `delete_multi`, `get_with_metadata`, and `fetch_with_lock`
   - Spans include `db.system: memcached` and `db.operation` attributes
+  - Exceptions are automatically recorded on spans with error status
 
 4.1.0
 ==========
