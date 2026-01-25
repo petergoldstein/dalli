@@ -236,14 +236,122 @@ For the common case of a single memcached server with raw mode enabled, a simpli
 
 ### 9. GitHub Issues to Address
 
-| Issue | Description | Priority |
-|-------|-------------|----------|
-| #1039 | "No request in progress" after Ruby 3.4.2 | High |
-| #1034 | struct timeval architecture-dependent packing | Medium |
-| #1022 | Empty string with `cache_nils: false` + `raw: true` | Medium |
-| #1019 | Make NAMESPACE_SEPARATOR configurable | Low |
-| #941 | Hanging on read_multi with large key counts | Medium |
-| #776 | send_multiget hangs with >1.7MB of keys | Medium |
+| Issue | Description | Priority | Status |
+|-------|-------------|----------|--------|
+| #1034 | struct timeval architecture-dependent packing | High | Likely Fixed |
+| #776/#941 | get_multi hangs with large key counts | Medium | Needs Design |
+| #1022 | Empty string with `cache_nils: false` + `raw: true` | Medium | Needs Rails Input |
+| #1019 | Make NAMESPACE_SEPARATOR configurable | Low | Easy Fix |
+| #805 | Migration path for instrument_errors | Low | Likely Resolved |
+| #1039 | "No request in progress" after Ruby 3.4.2 | Low | Insufficient Info |
+
+#### Issue #1034: struct timeval Architecture-Dependent Packing
+
+**Status:** Likely already fixed by PR #1025
+
+**Background:** The `struct timeval` used for `SO_RCVTIMEO`/`SO_SNDTIMEO` socket options has architecture-dependent sizes. The previous code used `'l_2'` pack format which doesn't work on all architectures (e.g., 64-bit time_t with 32-bit long on ARM).
+
+**Current State:** PR #1025 (merged in v4.0.0) changed timeout handling to use Ruby 3.0+'s `IO#timeout=` when available, falling back to `setsockopt` only on older Ruby versions. Since Ruby 3.0+ is the common case now, most users won't hit this.
+
+**Remaining Work:**
+- Verify if the fallback path (Ruby < 3.0) still needs fixing
+- Consider adopting @lnussbaum's patch for the fallback path which detects the correct format via `getsockopt`:
+  ```ruby
+  timeval_formats = ['q l_', 'l l_', 'q l_ x4']
+  expected_length = sock.getsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO).data.length
+  timeval_format = timeval_formats.find { |fmt| [0, 0].pack(fmt).length == expected_length }
+  ```
+- Alternatively, drop support for Ruby < 3.0 in v5.0 and remove the fallback entirely
+
+#### Issue #776 / #941: get_multi Hangs with Large Key Counts
+
+**Status:** Needs design work - these are duplicates of the same underlying issue
+
+**Background:** When `get_multi` is called with a large number of keys (60k+), the operation hangs. This occurs because:
+1. Dalli sends all `getkq` (quiet get) requests before reading responses
+2. Memcached doesn't actually wait for the final `noop` before responding - it buffers responses and sends them once an internal buffer fills
+3. If Dalli's send buffer fills before all requests are sent, and memcached's response buffer fills, both sides deadlock waiting on each other
+
+**Workaround:** Users can increase `sndbuf` and `rcvbuf` socket options, or batch keys externally (e.g., 500k key batches).
+
+**Proposed Solution (from @petergoldstein in #776):**
+Interleave reading and writing for large key sets:
+1. Group keys by server
+2. For each server:
+   a. Break keys into chunks (e.g., 10k)
+   b. After each chunk, call read on ResponseBuffer to drain socket
+   c. Send noop after all chunks
+   d. Process remaining results
+3. Wait on sockets for incomplete servers
+
+**Considerations:**
+- Only affects large key sets - small operations unchanged
+- Timeout handling becomes more complex with batching
+- Ring abstraction may need adjustment for per-server batching
+- Binary protocol is deprecated, so focus implementation on meta protocol only
+
+#### Issue #1022: Empty String with `cache_nils: false` + `raw: true`
+
+**Status:** Needs Rails team input before implementing
+
+**Background:** When storing `nil` with `raw: true`, Dalli converts it to an empty string `""`. This is problematic because:
+- `cache_nils: true` + `raw: true` → stores `""`, returns `""` (not `nil`)
+- `cache_nils: false` + `raw: true` → stores `""`, returns `""` (should error or not cache)
+
+**Proposed Behavior (from @nickamorim):**
+- `raw: true` + `cache_nils: true` → Store a sentinel value, return `nil` on get
+- `raw: true` + `cache_nils: false` → Raise `ArgumentError`
+
+**Alternative (from @grcooper):**
+- `raw: true` should only accept strings - any non-string (including `nil`) should raise `ArgumentError`
+- This is a stricter interpretation: raw mode means "I know what I'm doing with strings"
+
+**Blocked On:** Need @byroot's input on Rails MemCacheStore behavior:
+- Does Rails pass `nil` values to Dalli with `raw: true`?
+- What does `StringMarshaller` do with `nil`?
+- What behavior does Rails expect?
+
+**Action:** Comment on issue requesting Rails team clarification before implementing.
+
+#### Issue #1019: Make NAMESPACE_SEPARATOR Configurable
+
+**Status:** Low priority, easy fix
+
+**Background:** The namespace separator is hardcoded as `:`. Some users want to customize this.
+
+**Implementation:**
+- Add `namespace_separator` option to client
+- Default to `:` for backwards compatibility
+- Validate that separator contains only allowed characters (alphanumeric, common punctuation)
+- Must not contain characters that would break memcached protocol (spaces, newlines, etc.)
+
+**Allowed Characters:** Should match memcached key restrictions - printable ASCII except space and control characters. Recommend restricting to: `A-Za-z0-9_\-:.`
+
+#### Issue #805: Migration Path for instrument_errors
+
+**Status:** Likely resolved by OpenTelemetry support
+
+**Background:** The old `DalliStore` (removed in favor of Rails' `MemCacheStore`) had an `instrument_errors` parameter that generated `ActiveSupport::Notifications` events on errors.
+
+**Current State:**
+- Dalli 4.2.0 now has OpenTelemetry support with automatic error recording on spans
+- Rails 8.0+ improved error handling in `MemCacheStore` - errors are now rescued and reported to `Rails.error`
+- The combination of OTel spans + Rails.error may provide equivalent or better observability
+
+**Action:**
+- Document the migration path in README: use OpenTelemetry for error visibility
+- Verify Rails 8.0+ `MemCacheStore` error handling is sufficient
+- Close issue with documentation update if OTel + Rails.error covers the use case
+
+#### Issue #1039: "No request in progress" after Ruby 3.4.2
+
+**Status:** Insufficient information, no other reports
+
+**Background:** Single user report of "No request in progress" error after upgrading to Ruby 3.4.2. No reproduction steps or additional context provided.
+
+**Current State:** @petergoldstein asked for more information; no response from reporter. No other users have reported this issue.
+
+**Action:** Keep issue open but deprioritize. If more reports come in or reporter responds with details, investigate then.
 
 ### 10. Testing & CI Improvements
 - Add TruffleRuby to CI (#988)
