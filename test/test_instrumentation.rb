@@ -10,7 +10,7 @@ module MockOpenTelemetry
 
     def initialize(name, attributes:, kind:)
       @name = name
-      @attributes = attributes
+      @attributes = attributes.dup
       @kind = kind
       @recorded_exceptions = []
       @status = nil
@@ -18,6 +18,10 @@ module MockOpenTelemetry
 
     def record_exception(exception)
       @recorded_exceptions << exception
+    end
+
+    def set_attribute(key, value)
+      @attributes[key] = value
     end
   end
 
@@ -203,6 +207,78 @@ describe Dalli::Instrumentation do
 
       assert_equal 'memcached', span.attributes['db.system']
       assert_equal 'value', span.attributes['custom.attr']
+    end
+  end
+
+  describe '.trace_with_result with mock OpenTelemetry' do
+    before do
+      clear_tracer_cache
+      @mock_tracer = MockOpenTelemetry::MockTracer.new
+      @mock_provider = MockOpenTelemetry::MockTracerProvider.new(@mock_tracer)
+
+      Object.const_set(:OpenTelemetry, Module.new) unless defined?(OpenTelemetry)
+      mock_provider = @mock_provider
+      OpenTelemetry.define_singleton_method(:tracer_provider) { mock_provider }
+
+      unless defined?(OpenTelemetry::Trace::Status)
+        OpenTelemetry.const_set(:Trace, Module.new)
+        OpenTelemetry::Trace.const_set(:Status, MockOpenTelemetry::MockStatus)
+      end
+    end
+
+    after do
+      clear_tracer_cache
+      Object.send(:remove_const, :OpenTelemetry) if defined?(OpenTelemetry)
+    end
+
+    it 'yields the span to the block' do
+      yielded_span = nil
+      Dalli::Instrumentation.trace_with_result('get_multi', {}) do |span|
+        yielded_span = span
+        'result'
+      end
+
+      assert_equal @mock_tracer.spans.first, yielded_span
+    end
+
+    it 'allows setting attributes on the span after execution' do
+      Dalli::Instrumentation.trace_with_result('get_multi', { 'db.operation' => 'get_multi' }) do |span|
+        span.set_attribute('db.memcached.hit_count', 5)
+        span.set_attribute('db.memcached.miss_count', 2)
+        'result'
+      end
+
+      span = @mock_tracer.spans.first
+
+      assert_equal 5, span.attributes['db.memcached.hit_count']
+      assert_equal 2, span.attributes['db.memcached.miss_count']
+    end
+
+    it 'yields nil when tracing is disabled' do
+      clear_tracer_cache
+      Object.send(:remove_const, :OpenTelemetry)
+
+      yielded_value = :not_set
+      result = Dalli::Instrumentation.trace_with_result('get_multi', {}) do |span|
+        yielded_value = span
+        'result'
+      end
+
+      assert_nil yielded_value
+      assert_equal 'result', result
+    end
+
+    it 'records exceptions on the span' do
+      assert_raises(RuntimeError) do
+        Dalli::Instrumentation.trace_with_result('get_multi', {}) do |_span|
+          raise 'test error'
+        end
+      end
+
+      span = @mock_tracer.spans.first
+
+      assert_equal 1, span.recorded_exceptions.size
+      assert_equal :error, span.status.code
     end
   end
 end

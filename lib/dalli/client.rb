@@ -148,22 +148,19 @@ module Dalli
     # Fetch multiple keys efficiently.
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
+    # rubocop:disable Style/ExplicitBlockArgument
     def get_multi(*keys)
       keys.flatten!
       keys.compact!
-
       return {} if keys.empty?
 
-      Instrumentation.trace('get_multi', { 'db.operation' => 'get_multi' }) do
-        if block_given?
-          pipelined_getter.process(keys) { |k, data| yield k, data.first }
-        else
-          {}.tap do |hash|
-            pipelined_getter.process(keys) { |k, data| hash[k] = data.first }
-          end
-        end
+      if block_given?
+        get_multi_yielding(keys) { |k, v| yield k, v }
+      else
+        get_multi_hash(keys)
       end
     end
+    # rubocop:enable Style/ExplicitBlockArgument
 
     ##
     # Fetch multiple keys efficiently, including available metadata such as CAS.
@@ -321,7 +318,10 @@ module Dalli
     def set_multi(hash, ttl = nil, req_options = nil)
       return if hash.empty?
 
-      Instrumentation.trace('set_multi', { 'db.operation' => 'set_multi' }) do
+      Instrumentation.trace('set_multi', {
+                              'db.operation' => 'set_multi',
+                              'db.memcached.key_count' => hash.size
+                            }) do
         pipelined_setter.process(hash, ttl_or_default(ttl), req_options)
       end
     end
@@ -378,7 +378,10 @@ module Dalli
     def delete_multi(keys)
       return if keys.empty?
 
-      Instrumentation.trace('delete_multi', { 'db.operation' => 'delete_multi' }) do
+      Instrumentation.trace('delete_multi', {
+                              'db.operation' => 'delete_multi',
+                              'db.memcached.key_count' => keys.size
+                            }) do
         pipelined_deleter.process(keys)
       end
     end
@@ -512,6 +515,42 @@ module Dalli
 
     private
 
+    # Records hit/miss metrics on a span for cache observability.
+    # @param span [OpenTelemetry::Trace::Span, nil] the span to record on
+    # @param key_count [Integer] total keys requested
+    # @param hit_count [Integer] keys found in cache
+    def record_hit_miss_metrics(span, key_count, hit_count)
+      return unless span
+
+      span.set_attribute('db.memcached.hit_count', hit_count)
+      span.set_attribute('db.memcached.miss_count', key_count - hit_count)
+    end
+
+    def get_multi_yielding(keys)
+      Instrumentation.trace_with_result('get_multi', get_multi_attributes(keys)) do |span|
+        hit_count = 0
+        pipelined_getter.process(keys) do |k, data|
+          hit_count += 1
+          yield k, data.first
+        end
+        record_hit_miss_metrics(span, keys.size, hit_count)
+        nil
+      end
+    end
+
+    def get_multi_hash(keys)
+      Instrumentation.trace_with_result('get_multi', get_multi_attributes(keys)) do |span|
+        {}.tap do |hash|
+          pipelined_getter.process(keys) { |k, data| hash[k] = data.first }
+          record_hit_miss_metrics(span, keys.size, hash.size)
+        end
+      end
+    end
+
+    def get_multi_attributes(keys)
+      { 'db.operation' => 'get_multi', 'db.memcached.key_count' => keys.size }
+    end
+
     def check_positive!(amt)
       raise ArgumentError, "Positive values only: #{amt}" if amt.negative?
     end
@@ -576,8 +615,11 @@ module Dalli
       key = key.to_s
       key = @key_manager.validate_key(key)
 
-      Instrumentation.trace(op.to_s, { 'db.operation' => op.to_s }) do
-        server = ring.server_for_key(key)
+      server = ring.server_for_key(key)
+      Instrumentation.trace(op.to_s, {
+                              'db.operation' => op.to_s,
+                              'server.address' => server.name
+                            }) do
         server.request(op, key, *args)
       end
     rescue NetworkError => e

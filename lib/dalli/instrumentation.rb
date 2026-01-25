@@ -41,6 +41,25 @@ module Dalli
           raise
         end
       end
+
+      # Like trace, but yields the span to allow adding attributes after the operation.
+      # This is useful for operations like get_multi where we want to record hit/miss counts.
+      #
+      # @param name [String] the span name
+      # @param attributes [Hash] initial span attributes
+      # @yield [span] the span object (or nil if tracing disabled)
+      # @return the result of the block
+      def trace_with_result(name, attributes = {})
+        return yield(nil) unless enabled?
+
+        tracer.in_span(name, attributes: DEFAULT_ATTRIBUTES.merge(attributes), kind: :client) do |span|
+          yield(span)
+        rescue StandardError => e
+          span.record_exception(e)
+          span.status = OpenTelemetry::Trace::Status.error(e.message)
+          raise
+        end
+      end
     end
   end
 end

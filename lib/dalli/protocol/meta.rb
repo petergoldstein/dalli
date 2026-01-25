@@ -25,7 +25,9 @@ module Dalli
       # Retrieval Commands
       def get(key, options = nil)
         encoded_key, base64 = KeyRegularizer.encode(key)
-        req = RequestFormatter.meta_get(key: encoded_key, base64: base64)
+        # Skip bitflags in raw mode - saves 2 bytes per request and skips parsing
+        skip_flags = raw_mode? || (options && options[:raw])
+        req = RequestFormatter.meta_get(key: encoded_key, base64: base64, skip_flags: skip_flags)
         write(req)
         @connection_manager.flush
         response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
@@ -33,13 +35,16 @@ module Dalli
 
       def quiet_get_request(key)
         encoded_key, base64 = KeyRegularizer.encode(key)
-        RequestFormatter.meta_get(key: encoded_key, return_cas: true, base64: base64, quiet: true)
+        # Skip bitflags in raw mode - saves 2 bytes per request and skips parsing
+        RequestFormatter.meta_get(key: encoded_key, return_cas: true, base64: base64, quiet: true,
+                                  skip_flags: raw_mode?)
       end
 
       def gat(key, ttl, options = nil)
         ttl = TtlSanitizer.sanitize(ttl)
         encoded_key, base64 = KeyRegularizer.encode(key)
-        req = RequestFormatter.meta_get(key: encoded_key, ttl: ttl, base64: base64)
+        skip_flags = raw_mode? || (options && options[:raw])
+        req = RequestFormatter.meta_get(key: encoded_key, ttl: ttl, base64: base64, skip_flags: skip_flags)
         write(req)
         @connection_manager.flush
         response_processor.meta_get_with_value(cache_nils: cache_nils?(options))

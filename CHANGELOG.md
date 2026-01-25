@@ -8,6 +8,7 @@ Performance:
 
 - Buffered I/O: Use `socket.sync = false` with explicit flush to reduce syscalls for pipelined operations
 - get_multi optimizations: Use Set for O(1) server tracking lookups
+- Raw mode optimization: Skip bitflags request in meta protocol when in raw mode (saves 2 bytes per request)
 
 New Features:
 
@@ -15,6 +16,9 @@ New Features:
   - Zero overhead when OpenTelemetry is not loaded
   - Traces `get`, `set`, `delete`, `get_multi`, `set_multi`, `delete_multi`, `get_with_metadata`, and `fetch_with_lock`
   - Spans include `db.system: memcached` and `db.operation` attributes
+  - Single-key operations include `server.address` attribute
+  - Multi-key operations include `db.memcached.key_count` attribute
+  - `get_multi` spans include `db.memcached.hit_count` and `db.memcached.miss_count` for cache efficiency metrics
   - Exceptions are automatically recorded on spans with error status
 
 4.1.0
