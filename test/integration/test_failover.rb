@@ -5,9 +5,9 @@ require_relative '../helper'
 describe 'failover' do
   MemcachedManager.supported_protocols.each do |p|
     describe "using the #{p} protocol" do
-      # Timeouts on JRuby work differently and aren't firing, meaning we're
-      # not testing the condition
-      unless defined? JRUBY_VERSION
+      # Timeout.timeout/Thread#raise is brittle and only seems to work reliably enough on CRuby.
+      # On JRuby and TruffleRuby 33 this test fails transiently and can cause other tests to break.
+      if RUBY_ENGINE == 'ruby'
         describe 'timeouts' do
           it 'not lead to corrupt sockets' do
             memcached_persistent(p) do |dc|
