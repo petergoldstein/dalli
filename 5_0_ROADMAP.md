@@ -594,6 +594,56 @@ lib/dalli/protocol/
 └── value_serializer.rb
 ```
 
+### 15. Replace `readfull` with `IO#read`
+**Reference:** PR #1026 (grcooper)
+
+Replace the manual `readfull` loop with Ruby's built-in `IO#read` method for ~7% performance improvement on read operations.
+
+**Why deferred to v5.0:**
+- `IO#read` relies on `IO#timeout=` for proper timeout handling
+- `IO#timeout=` was introduced in **Ruby 3.2** (not available in Ruby 3.1)
+- JRuby has different IO implementation that doesn't support `IO#timeout=`
+- Ruby 3.1 and JRuby hang indefinitely when using `IO#read` without timeout support
+
+**v5.0 enables this because:**
+- Minimum Ruby version will be 3.2+ (has `IO#timeout=`)
+- JRuby support will be dropped (or will need to maintain `readfull` fallback for JRuby)
+
+**Implementation:**
+
+File: `lib/dalli/protocol/connection_manager.rb`
+```ruby
+# Change from:
+def read(count)
+  @sock.readfull(count)
+rescue ...
+end
+
+# Change to:
+def read(count)
+  @sock.read(count)
+rescue ...
+end
+```
+
+File: `lib/dalli/socket.rb`
+- Remove `readfull` method entirely (no longer needed)
+- Remove `append_to_buffer?` method (only used by `readfull`)
+- Remove `nonblock_timed_out?` method (only used by `readfull`)
+
+**JRuby consideration:**
+If JRuby support is retained in v5.0, keep `readfull` as a fallback:
+```ruby
+def read(count)
+  if RUBY_ENGINE == 'jruby'
+    @sock.readfull(count)
+  else
+    @sock.read(count)
+  end
+rescue ...
+end
+```
+
 ---
 
 ## Meta Protocol Flags: Current vs Planned Support
