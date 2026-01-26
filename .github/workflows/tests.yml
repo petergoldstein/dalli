@@ -17,6 +17,7 @@ jobs:
           - '3.2'
           - '3.1'
           - jruby-10
+          - truffleruby
         memcached-version: ['1.5.22', '1.6.40']
 
     name: "Ruby ${{ matrix.ruby-version }} / Memcached ${{ matrix.memcached-version }}"
