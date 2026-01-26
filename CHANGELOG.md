@@ -9,6 +9,7 @@ Performance:
 - Buffered I/O: Use `socket.sync = false` with explicit flush to reduce syscalls for pipelined operations
 - get_multi optimizations: Use Set for O(1) server tracking lookups
 - Raw mode optimization: Skip bitflags request in meta protocol when in raw mode (saves 2 bytes per request)
+- Use Ruby's built-in `IO#read` instead of manual `readfull` loop for improved performance on read operations (grcooper)
 
 New Features:
 
