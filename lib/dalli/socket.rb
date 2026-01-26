@@ -12,13 +12,7 @@ module Dalli
     # Common methods for all socket implementations.
     ##
     module InstanceMethods
-      READFULL_DEPRECATION_MESSAGE = <<~MSG.chomp
-        [DEPRECATION] Dalli::Socket#readfull is deprecated and will be removed in Dalli 5.0. \
-        Use IO#read instead, which handles non-blocking reads automatically in Ruby 3.1+.
-      MSG
-
       def readfull(count)
-        warn READFULL_DEPRECATION_MESSAGE
         value = String.new(capacity: count + 1)
         loop do
           result = read_nonblock(count - value.bytesize, exception: false)
