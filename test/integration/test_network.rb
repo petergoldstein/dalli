@@ -198,8 +198,8 @@ describe 'Network' do
 
             ssl_error = OpenSSL::SSL::SSLError.new('SSL_read: unexpected eof while reading')
 
-            # Binary protocol uses read for reading, meta protocol uses gets
-            stub_method = p == :binary ? :read : :gets
+            # Binary protocol uses readfull for reading, meta protocol uses gets
+            stub_method = p == :binary ? :readfull : :gets
             server.sock.stub(stub_method, proc { raise ssl_error }) do
               # The operation will retry with a new connection and may succeed
               # What matters is the SSLError is caught, not propagated

@@ -9,7 +9,6 @@ Performance:
 - Buffered I/O: Use `socket.sync = false` with explicit flush to reduce syscalls for pipelined operations
 - get_multi optimizations: Use Set for O(1) server tracking lookups
 - Raw mode optimization: Skip bitflags request in meta protocol when in raw mode (saves 2 bytes per request)
-- Use Ruby's built-in `IO#read` instead of manual `readfull` loop for improved performance on read operations (grcooper)
 
 New Features:
 
@@ -21,10 +20,6 @@ New Features:
   - Multi-key operations include `db.memcached.key_count` attribute
   - `get_multi` spans include `db.memcached.hit_count` and `db.memcached.miss_count` for cache efficiency metrics
   - Exceptions are automatically recorded on spans with error status
-
-Deprecations:
-
-- `Dalli::Socket#readfull` is deprecated and will be removed in Dalli 5.0. Use `IO#read` instead.
 
 4.1.0
 ==========
