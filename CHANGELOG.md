@@ -22,6 +22,10 @@ New Features:
   - `get_multi` spans include `db.memcached.hit_count` and `db.memcached.miss_count` for cache efficiency metrics
   - Exceptions are automatically recorded on spans with error status
 
+Deprecations:
+
+- `Dalli::Socket#readfull` is deprecated and will be removed in Dalli 5.0. Use `IO#read` instead.
+
 4.1.0
 ==========
 
