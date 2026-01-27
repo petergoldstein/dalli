@@ -138,14 +138,35 @@ module Dalli
         return unless options[:socket_timeout]
 
         if sock.respond_to?(:timeout=)
+          # Ruby 3.2+ has IO#timeout for reliable cross-platform timeout handling
           sock.timeout = options[:socket_timeout]
         else
+          # Ruby 3.1 fallback using socket options
+          # struct timeval has architecture-dependent sizes (time_t, suseconds_t)
           seconds, fractional = options[:socket_timeout].divmod(1)
-          timeval = [seconds, fractional * 1_000_000].pack('l_2')
+          microseconds = (fractional * 1_000_000).to_i
+          timeval = pack_timeval(sock, seconds, microseconds)
 
           sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO, timeval)
           sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDTIMEO, timeval)
         end
+      end
+
+      # Common pack formats for struct timeval across architectures
+      TIMEVAL_PACK_FORMATS = %w[l_l_ q_l_ q_q_].freeze
+      TIMEVAL_TEST_VALUES = [0, 0].freeze
+
+      # Detect and cache the correct pack format for struct timeval on this platform.
+      # Different architectures have different sizes for time_t and suseconds_t.
+      def self.timeval_pack_format(sock)
+        @timeval_pack_format ||= begin
+          expected_size = sock.getsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO).data.bytesize
+          TIMEVAL_PACK_FORMATS.find { |fmt| TIMEVAL_TEST_VALUES.pack(fmt).bytesize == expected_size } || 'l_l_'
+        end
+      end
+
+      def self.pack_timeval(sock, seconds, microseconds)
+        [seconds, microseconds].pack(timeval_pack_format(sock))
       end
 
       def self.wrapping_ssl_socket(tcp_socket, host, ssl_context)

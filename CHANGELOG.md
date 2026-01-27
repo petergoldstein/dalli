@@ -1,6 +1,22 @@
 Dalli Changelog
 =====================
 
+4.3.0
+==========
+
+New Features:
+
+- Add `namespace_separator` option to customize the separator between namespace and key (#1019)
+  - Default is `:` for backward compatibility
+  - Must be a single non-alphanumeric character (e.g., `:`, `/`, `|`, `.`)
+  - Example: `Dalli::Client.new(servers, namespace: 'myapp', namespace_separator: '/')`
+
+Bug Fixes:
+
+- Fix architecture-dependent struct timeval packing for socket timeouts (#1034)
+  - Detects correct pack format for time_t and suseconds_t on each platform
+  - Fixes timeout issues on architectures with 64-bit time_t
+
 4.2.0
 ==========
 
