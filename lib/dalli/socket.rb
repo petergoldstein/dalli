@@ -107,7 +107,7 @@ module Dalli
         # aliases TCPSocket#initialize method to #original_resolv_initialize.
         # https://github.com/ruby/resolv-replace/blob/v0.1.1/lib/resolv-replace.rb#L21
         if RUBY_VERSION >= '3.0' &&
-           !::TCPSocket.private_instance_methods.include?(:original_resolv_initialize)
+           !::TCPSocket.private_method_defined?(:original_resolv_initialize)
           sock = new(host, port, connect_timeout: options[:socket_timeout])
           yield(sock)
         else
