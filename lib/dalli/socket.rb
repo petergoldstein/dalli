@@ -107,7 +107,7 @@ module Dalli
         # aliases TCPSocket#initialize method to #original_resolv_initialize.
         # https://github.com/ruby/resolv-replace/blob/v0.1.1/lib/resolv-replace.rb#L21
         if RUBY_VERSION >= '3.0' &&
-           !::TCPSocket.private_instance_methods.include?(:original_resolv_initialize)
+           !::TCPSocket.private_method_defined?(:original_resolv_initialize)
           sock = new(host, port, connect_timeout: options[:socket_timeout])
           yield(sock)
         else
@@ -138,14 +138,38 @@ module Dalli
         return unless options[:socket_timeout]
 
         if sock.respond_to?(:timeout=)
+          # Ruby 3.2+ has IO#timeout for reliable cross-platform timeout handling
           sock.timeout = options[:socket_timeout]
         else
+          # Ruby 3.1 fallback using socket options
+          # struct timeval has architecture-dependent sizes (time_t, suseconds_t)
           seconds, fractional = options[:socket_timeout].divmod(1)
-          timeval = [seconds, fractional * 1_000_000].pack('l_2')
+          microseconds = (fractional * 1_000_000).to_i
+          timeval = pack_timeval(sock, seconds, microseconds)
 
           sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO, timeval)
           sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDTIMEO, timeval)
         end
+      end
+
+      # Pack formats for struct timeval across architectures.
+      # Uses fixed-size formats for JRuby compatibility (JRuby doesn't support _ modifier on q).
+      # - ll: 8 bytes (32-bit time_t, 32-bit suseconds_t)
+      # - qq: 16 bytes (64-bit time_t, 64-bit suseconds_t or padded 32-bit)
+      TIMEVAL_PACK_FORMATS = %w[ll qq].freeze
+      TIMEVAL_TEST_VALUES = [0, 0].freeze
+
+      # Detect and cache the correct pack format for struct timeval on this platform.
+      # Different architectures have different sizes for time_t and suseconds_t.
+      def self.timeval_pack_format(sock)
+        @timeval_pack_format ||= begin
+          expected_size = sock.getsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO).data.bytesize
+          TIMEVAL_PACK_FORMATS.find { |fmt| TIMEVAL_TEST_VALUES.pack(fmt).bytesize == expected_size } || 'll'
+        end
+      end
+
+      def self.pack_timeval(sock, seconds, microseconds)
+        [seconds, microseconds].pack(timeval_pack_format(sock))
       end
 
       def self.wrapping_ssl_socket(tcp_socket, host, ssl_context)
