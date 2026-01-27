@@ -152,8 +152,11 @@ module Dalli
         end
       end
 
-      # Common pack formats for struct timeval across architectures
-      TIMEVAL_PACK_FORMATS = %w[l_l_ q_l_ q_q_].freeze
+      # Pack formats for struct timeval across architectures.
+      # Uses fixed-size formats for JRuby compatibility (JRuby doesn't support _ modifier on q).
+      # - ll: 8 bytes (32-bit time_t, 32-bit suseconds_t)
+      # - qq: 16 bytes (64-bit time_t, 64-bit suseconds_t or padded 32-bit)
+      TIMEVAL_PACK_FORMATS = %w[ll qq].freeze
       TIMEVAL_TEST_VALUES = [0, 0].freeze
 
       # Detect and cache the correct pack format for struct timeval on this platform.
@@ -161,7 +164,7 @@ module Dalli
       def self.timeval_pack_format(sock)
         @timeval_pack_format ||= begin
           expected_size = sock.getsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO).data.bytesize
-          TIMEVAL_PACK_FORMATS.find { |fmt| TIMEVAL_TEST_VALUES.pack(fmt).bytesize == expected_size } || 'l_l_'
+          TIMEVAL_PACK_FORMATS.find { |fmt| TIMEVAL_TEST_VALUES.pack(fmt).bytesize == expected_size } || 'll'
         end
       end
 
