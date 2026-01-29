@@ -102,6 +102,43 @@ describe 'Pipelined Get' do
           end
         end
       end
+
+      describe 'pipelined_get_interleaved' do
+        it 'works with chunked requests' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            # Set some keys
+            10.times { |i| dc.set("key#{i}", "value#{i}") }
+
+            # Use get_multi with a lower interleave threshold to test the interleaved path
+            # We'll temporarily modify the threshold constant
+            original_threshold = Dalli::PipelinedGetter::INTERLEAVE_THRESHOLD
+            original_chunk = Dalli::PipelinedGetter::CHUNK_SIZE
+            begin
+              Dalli::PipelinedGetter.send(:remove_const, :INTERLEAVE_THRESHOLD)
+              Dalli::PipelinedGetter.send(:remove_const, :CHUNK_SIZE)
+              Dalli::PipelinedGetter.const_set(:INTERLEAVE_THRESHOLD, 3)
+              Dalli::PipelinedGetter.const_set(:CHUNK_SIZE, 3)
+
+              # Now get_multi should use interleaved mode for 10 keys
+              keys = Array.new(10) { |i| "key#{i}" }
+              result = dc.get_multi(keys)
+
+              # Verify we got all keys back
+              assert_equal 10, result.size
+              10.times do |i|
+                assert_equal "value#{i}", result["key#{i}"]
+              end
+            ensure
+              Dalli::PipelinedGetter.send(:remove_const, :INTERLEAVE_THRESHOLD)
+              Dalli::PipelinedGetter.send(:remove_const, :CHUNK_SIZE)
+              Dalli::PipelinedGetter.const_set(:INTERLEAVE_THRESHOLD, original_threshold)
+              Dalli::PipelinedGetter.const_set(:CHUNK_SIZE, original_chunk)
+            end
+          end
+        end
+      end
     end
   end
 end

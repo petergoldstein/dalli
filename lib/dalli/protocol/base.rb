@@ -42,8 +42,8 @@ module Dalli
           @connection_manager.start_request!
           response = send(opkey, *args)
 
-          # pipelined_get emit query but doesn't read the response(s)
-          @connection_manager.finish_request! unless opkey == :pipelined_get
+          # pipelined_get/pipelined_get_interleaved emit query but don't read the response(s)
+          @connection_manager.finish_request! unless %i[pipelined_get pipelined_get_interleaved].include?(opkey)
 
           response
         rescue Dalli::MarshalError => e
@@ -81,7 +81,9 @@ module Dalli
       def pipeline_response_setup
         verify_pipelined_state(:getkq)
         write_noop
-        response_buffer.reset
+        # Use ensure_ready instead of reset to preserve any data already buffered
+        # during interleaved pipelined get draining
+        response_buffer.ensure_ready
       end
 
       # Attempt to receive and parse as many key/value pairs as possible
@@ -226,6 +228,51 @@ module Dalli
         end
         # Could send noop here instead of in pipeline_response_setup
         write(req)
+      end
+
+      # For large batches, interleave writing requests with draining responses.
+      # This prevents socket buffer deadlock when sending many keys.
+      # Populates the provided results hash with any responses drained during send.
+      def pipelined_get_interleaved(keys, chunk_size, results)
+        # Initialize the response buffer for draining during send phase
+        response_buffer.ensure_ready
+
+        keys.each_slice(chunk_size) do |chunk|
+          # Build and write this chunk of requests
+          req = +''
+          chunk.each do |key|
+            req << quiet_get_request(key)
+          end
+          write(req)
+          @connection_manager.flush
+
+          # Drain any available responses directly into results hash
+          drain_pipeline_responses(results)
+        end
+      end
+
+      # Non-blocking read and processing of any available pipeline responses.
+      # Used during interleaved pipelined gets to prevent buffer deadlock.
+      # Populates the provided results hash directly to avoid allocation overhead.
+      def drain_pipeline_responses(results)
+        return unless connected?
+
+        # Non-blocking check if socket has data available
+        return unless sock.wait_readable(0)
+
+        # Read available data without blocking
+        response_buffer.read
+
+        # Process any complete responses in the buffer
+        loop do
+          status, cas, key, value = response_buffer.process_single_getk_response
+          break if status.nil? # No complete response available
+
+          results[key] = [value, cas] unless key.nil?
+        end
+      rescue SystemCallError, Dalli::NetworkError
+        # Ignore errors during drain - they'll be handled in fetch_responses
+        nil
       end
 
       def response_buffer
