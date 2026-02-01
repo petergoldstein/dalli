@@ -55,6 +55,39 @@ describe 'operations' do
         end
       end
 
+      describe 'raw mode validation' do
+        it 'raises MarshalError when setting nil with raw: true' do
+          memcached_persistent(p) do |dc|
+            error = assert_raises Dalli::MarshalError do
+              dc.set('rawkey', nil, 0, raw: true)
+            end
+
+            assert_match(/raw mode requires string values/, error.message)
+            assert_match(/NilClass/, error.message)
+          end
+        end
+
+        it 'raises MarshalError when setting non-string with raw: true' do
+          memcached_persistent(p) do |dc|
+            error = assert_raises Dalli::MarshalError do
+              dc.set('rawkey', 123, 0, raw: true)
+            end
+
+            assert_match(/raw mode requires string values/, error.message)
+            assert_match(/Integer/, error.message)
+          end
+        end
+
+        it 'allows setting strings with raw: true' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            assert op_addset_succeeds(dc.set('rawkey', 'string_value', 0, raw: true))
+            assert_equal 'string_value', dc.get('rawkey', raw: true)
+          end
+        end
+      end
+
       describe 'gat' do
         it 'returns the value and touches on a hit' do
           memcached_persistent(p) do |dc|
@@ -265,7 +298,7 @@ describe 'operations' do
           memcached_persistent(p) do |client|
             client.flush
 
-            assert op_addset_succeeds(client.set('fakecounter', 0, 0, raw: true))
+            assert op_addset_succeeds(client.set('fakecounter', '0', 0, raw: true))
             assert_equal 1, client.incr('fakecounter', 1)
             assert_equal 2, client.incr('fakecounter', 1)
             assert_equal 3, client.incr('fakecounter', 1)

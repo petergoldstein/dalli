@@ -158,7 +158,7 @@ describe 'Quiet behavior' do
           dc.close
           dc.flush
           key = SecureRandom.hex(3)
-          value = 546
+          value = '546'
           incr = 134
           dc.set(key, value, 90, raw: true)
 
@@ -181,7 +181,7 @@ describe 'Quiet behavior' do
           dc.close
           dc.flush
           key = SecureRandom.hex(3)
-          value = 546
+          value = '546'
           incr = 134
           dc.set(key, value, 90, raw: true)
 

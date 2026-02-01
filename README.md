@@ -31,6 +31,31 @@ Dalli supports two protocols for communicating with memcached:
 Dalli::Client.new('localhost:11211', protocol: :meta)
 ```
 
+## Configuration Options
+
+### Namespace
+
+Use namespaces to partition your cache and avoid key collisions between different applications or environments:
+
+```ruby
+# All keys will be prefixed with "myapp:"
+Dalli::Client.new('localhost:11211', namespace: 'myapp')
+
+# Dynamic namespace using a Proc (evaluated on each operation)
+Dalli::Client.new('localhost:11211', namespace: -> { "tenant:#{Thread.current[:tenant_id]}" })
+```
+
+### Namespace Separator
+
+By default, the namespace and key are joined with a colon (`:`). You can customize this with the `namespace_separator` option:
+
+```ruby
+# Keys will be prefixed with "myapp/" instead of "myapp:"
+Dalli::Client.new('localhost:11211', namespace: 'myapp', namespace_separator: '/')
+```
+
+The separator must be a single non-alphanumeric character. Valid examples: `:`, `/`, `|`, `.`, `-`, `_`, `#`
+
 ## Security Note
 
 By default, Dalli uses Ruby's Marshal for serialization. Deserializing untrusted data with Marshal can lead to remote code execution. If you cache user-controlled data, consider using a safer serializer:

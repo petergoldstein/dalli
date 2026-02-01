@@ -41,6 +41,15 @@ module Dalli
         @buffer = ''.b
       end
 
+      # Ensures the buffer is initialized for reading without discarding
+      # existing data. Used by interleaved pipelined get which may have
+      # already buffered partial responses during the send phase.
+      def ensure_ready
+        return if in_progress?
+
+        @buffer = ''.b
+      end
+
       # Clear the internal response buffer
       def clear
         @buffer = nil
