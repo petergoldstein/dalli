@@ -222,6 +222,11 @@ module Dalli
       end
 
       def pipelined_get(keys)
+        # Clear buffer to remove any stale data from interrupted operations.
+        # Use clear (not reset) to keep pipeline_complete? = true, which is
+        # the expected state before pipeline_response_setup is called.
+        response_buffer.clear
+
         req = +''
         keys.each do |key|
           req << quiet_get_request(key)
