@@ -17,6 +17,16 @@ Bug Fixes:
   - Detects correct pack format for time_t and suseconds_t on each platform
   - Fixes timeout issues on architectures with 64-bit time_t
 
+- Fix get_multi hanging with large key counts (#776, #941)
+  - Add interleaved read/write for pipelined gets to prevent socket buffer deadlock
+  - For batches over 10,000 keys per server, requests are now sent in chunks
+
+- **Breaking:** Enforce string-only values in raw mode (#1022)
+  - `set(key, nil, raw: true)` now raises `MarshalError` instead of storing `""`
+  - `set(key, 123, raw: true)` now raises `MarshalError` instead of storing `"123"`
+  - This matches the behavior of client-level `raw: true` mode
+  - To store counters, use string values: `set('counter', '0', raw: true)`
+
 4.2.0
 ==========
 
