@@ -204,6 +204,9 @@ describe 'Network' do
       end
 
       it 'handles SSL error during read operations' do
+        # JRuby's socket classes don't support Minitest's stub method aliasing
+        skip 'Minitest stub incompatible with JRuby sockets' if RUBY_ENGINE == 'jruby'
+
         with_nil_logger do
           memcached(p, 19_191) do |dc|
             # First set a value so we have something to get
