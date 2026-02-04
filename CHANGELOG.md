@@ -27,6 +27,10 @@ Bug Fixes:
   - This matches the behavior of client-level `raw: true` mode
   - To store counters, use string values: `set('counter', '0', raw: true)`
 
+CI:
+
+- Add TruffleRuby to CI test matrix (#988)
+
 4.2.0
 ==========
 
