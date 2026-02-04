@@ -2,6 +2,10 @@ name: Profiles
 
 on: [push, pull_request]
 
+concurrency:
+  group: profiles-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest

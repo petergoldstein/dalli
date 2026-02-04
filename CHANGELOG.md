@@ -1,6 +1,36 @@
 Dalli Changelog
 =====================
 
+4.3.0
+==========
+
+New Features:
+
+- Add `namespace_separator` option to customize the separator between namespace and key (#1019)
+  - Default is `:` for backward compatibility
+  - Must be a single non-alphanumeric character (e.g., `:`, `/`, `|`, `.`)
+  - Example: `Dalli::Client.new(servers, namespace: 'myapp', namespace_separator: '/')`
+
+Bug Fixes:
+
+- Fix architecture-dependent struct timeval packing for socket timeouts (#1034)
+  - Detects correct pack format for time_t and suseconds_t on each platform
+  - Fixes timeout issues on architectures with 64-bit time_t
+
+- Fix get_multi hanging with large key counts (#776, #941)
+  - Add interleaved read/write for pipelined gets to prevent socket buffer deadlock
+  - For batches over 10,000 keys per server, requests are now sent in chunks
+
+- **Breaking:** Enforce string-only values in raw mode (#1022)
+  - `set(key, nil, raw: true)` now raises `MarshalError` instead of storing `""`
+  - `set(key, 123, raw: true)` now raises `MarshalError` instead of storing `"123"`
+  - This matches the behavior of client-level `raw: true` mode
+  - To store counters, use string values: `set('counter', '0', raw: true)`
+
+CI:
+
+- Add TruffleRuby to CI test matrix (#988)
+
 4.2.0
 ==========
 
