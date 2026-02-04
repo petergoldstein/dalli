@@ -10,10 +10,12 @@ describe 'Dalli::Socket::TCP' do
         Dalli::Socket::TCP.instance_variable_defined?(:@supports_connect_timeout)
     end
 
-    it 'returns true for unmodified TCPSocket on Ruby 3.0+' do
+    it 'returns true for unmodified TCPSocket on MRI Ruby 3.0+' do
       skip 'Ruby 3.0+ required' if RUBY_VERSION < '3.0'
+      skip 'MRI-specific test' if RUBY_ENGINE != 'ruby'
 
       # Assuming TCPSocket hasn't been monkey-patched in test environment
+      # TruffleRuby and JRuby have different TCPSocket#initialize signatures
       assert_predicate Dalli::Socket::TCP, :supports_connect_timeout?
     end
 
