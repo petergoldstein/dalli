@@ -31,7 +31,7 @@ module Dalli
 
     # Valid separators: non-alphanumeric, single printable ASCII characters
     # Excludes: alphanumerics, whitespace, control characters
-    VALID_NAMESPACE_SEPARATORS = /\A[^a-zA-Z0-9\s\x00-\x1F\x7F]\z/
+    VALID_NAMESPACE_SEPARATORS = /\A[^a-zA-Z0-9 \x00-\x1F\x7F]\z/
 
     def initialize(client_options)
       @key_options =
