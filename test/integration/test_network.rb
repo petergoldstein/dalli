@@ -229,6 +229,10 @@ describe 'Network' do
         with_nil_logger do
           memcached(p, 19_191) do |dc|
             10.times do |i|
+              # Pre-set the key so we're testing Thread#raise handling,
+              # not whether the set completed before interruption
+              dc.set("key:#{i}", i.to_s)
+
               thread = Thread.new do
                 loop do
                   assert_instance_of Integer, dc.set("key:#{i}", i.to_s)
@@ -243,6 +247,7 @@ describe 'Network' do
 
               refute_nil joined_thread
               refute_predicate joined_thread, :alive?
+              # Verify the connection is still usable after Thread#raise
               assert_equal i.to_s, dc.get("key:#{i}")
             end
           end
