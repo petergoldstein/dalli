@@ -2,6 +2,10 @@ name: Tests
 
 on: [push, pull_request]
 
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
