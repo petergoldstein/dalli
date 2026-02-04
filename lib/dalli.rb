@@ -28,6 +28,9 @@ module Dalli
   # raised when Memcached response with a SERVER_ERROR
   class ServerError < DalliError; end
 
+  # socket/server communication error that can be retried
+  class RetryableNetworkError < NetworkError; end
+
   # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.
   class NilObject; end # rubocop:disable Lint/EmptyClass
   NOT_FOUND = NilObject.new

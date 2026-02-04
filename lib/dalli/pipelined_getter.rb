@@ -23,7 +23,7 @@ module Dalli
         start_time = Time.now
         servers = fetch_responses(servers, start_time, @ring.socket_timeout, &block) until servers.empty?
       end
-    rescue NetworkError => e
+    rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying pipelined gets because of timeout' }
       retry
@@ -114,7 +114,7 @@ module Dalli
       servers
     rescue NetworkError
       # Abort and raise if we encountered a network error.  This triggers
-      # a retry at the top level.
+      # a retry at the top level on RetryableNetworkError.
       abort_without_timeout(servers)
       raise
     end
