@@ -44,7 +44,7 @@ describe 'Network' do
 
           it 'handle socket timeouts' do
             dc = Dalli::Client.new('localhost:19123', socket_timeout: 0)
-            assert_raises Dalli::RingError, message: 'No server available' do
+            assert_raises Dalli::RingError do
               dc.get('abc')
             end
           end
@@ -86,7 +86,9 @@ describe 'Network' do
           }) do
             dc = Dalli::Client.new('localhost:19123', socket_timeout: 0.1, protocol: p, socket_max_failures: 0,
                                                       socket_failure_delay: 0.0, down_retry_delay: 0.0)
-            assert_raises Dalli::RingError, message: 'No server available' do
+            # With socket_max_failures: 0, the first error triggers down! which raises NetworkError.
+            # This NetworkError is not retried (only RetryableNetworkError is).
+            assert_raises Dalli::NetworkError do
               dc.get('abc')
             end
           end

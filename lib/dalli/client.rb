@@ -523,9 +523,9 @@ module Dalli
       return unless span
 
       span.add_attributes({
-        'db.memcached.hit_count' => hit_count,
-        'db.memcached.miss_count' => key_count - hit_count
-      })
+                            'db.memcached.hit_count' => hit_count,
+                            'db.memcached.miss_count' => key_count - hit_count
+                          })
     end
 
     def get_multi_yielding(keys)
