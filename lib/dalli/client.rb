@@ -522,8 +522,10 @@ module Dalli
     def record_hit_miss_metrics(span, key_count, hit_count)
       return unless span
 
-      span.set_attribute('db.memcached.hit_count', hit_count)
-      span.set_attribute('db.memcached.miss_count', key_count - hit_count)
+      span.add_attributes({
+        'db.memcached.hit_count' => hit_count,
+        'db.memcached.miss_count' => key_count - hit_count
+      })
     end
 
     def get_multi_yielding(keys)
