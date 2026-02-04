@@ -622,7 +622,7 @@ module Dalli
                             }) do
         server.request(op, key, *args)
       end
-    rescue NetworkError => e
+    rescue RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying request with new server' }
       retry
