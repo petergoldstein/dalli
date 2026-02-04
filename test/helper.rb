@@ -1,5 +1,18 @@
 # frozen_string_literal: true
 
+module StrictWarnings
+  def warn(msg, ...)
+    source = caller(1, 2)
+    return if source[1].include?('lib/dalli') && msg.start_with?('[DEPRECATION]')
+
+    super
+
+    raise "#{msg}\n#{source}"
+  end
+end
+
+Warning.singleton_class.prepend(StrictWarnings)
+
 require 'bundler/setup'
 # require 'simplecov'
 # SimpleCov.start
