@@ -6,7 +6,7 @@ module Dalli
   module Protocol
     ##
     # Dalli::Protocol::ServerConfigParser parses a server string passed to
-    # a Dalli::Protocol::Binary instance into the hostname, port, weight, and
+    # a Dalli::Protocol::Meta instance into the hostname, port, weight, and
     # socket_type.
     ##
     class ServerConfigParser

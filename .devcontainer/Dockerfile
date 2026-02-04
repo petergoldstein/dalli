@@ -5,9 +5,6 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && apt-get -y install --no-install-recommends \
     build-essential \
     git \
-    libsasl2-dev \
-    libsasl2-modules \
-    sasl2-bin \
     libevent-dev \
     libmemcached-tools \
     curl \

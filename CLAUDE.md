@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Dalli is a high-performance pure Ruby client for accessing memcached servers. It supports binary and meta protocols, failover, SSL/TLS, SASL authentication, and thread-safe operation.
+Dalli is a high-performance pure Ruby client for accessing memcached servers. It supports failover, SSL/TLS, and thread-safe operation. Requires memcached 1.6+ (meta protocol).
 
 ## Common Commands
 
@@ -39,11 +39,7 @@ bundle exec rubocop -a
 
 **Dalli::Ring** (`lib/dalli/ring.rb`) - Implements consistent hashing for distributing keys across multiple servers. Uses CRC32 hashing and a configurable number of points per server (160 by default). Handles failover by trying alternate hash positions when a server is down.
 
-**Protocol Layer** (`lib/dalli/protocol/`) - Two protocol implementations:
-- `Binary` - Memcached binary protocol with SASL authentication support
-- `Meta` - Newer text-based meta protocol (memcached 1.6+), does not support authentication
-
-Both inherit from `Protocol::Base` which contains common connection management, pipelining, and value marshalling logic.
+**Protocol Layer** (`lib/dalli/protocol/`) - Uses the memcached meta protocol (requires memcached 1.6+). `Protocol::Meta` inherits from `Protocol::Base` which contains common connection management, pipelining, and value marshalling logic.
 
 **Value Pipeline** - Values flow through three stages:
 1. `ValueSerializer` - Serializes Ruby objects (default: Marshal)
@@ -60,14 +56,9 @@ By default, Dalli wraps each server connection with mutex locks (`Dalli::Threads
 
 ### Test Infrastructure
 
-Tests require a local memcached installation. The `MemcachedManager` (`test/utils/memcached_manager.rb`) spawns memcached instances on random ports for test isolation. Tests run against both binary and meta protocols where supported.
+Tests require a local memcached 1.6+ installation. The `MemcachedManager` (`test/utils/memcached_manager.rb`) spawns memcached instances on random ports for test isolation.
 
 SSL tests use self-signed certificates generated at runtime via `CertificateGenerator`.
-
-## Protocol Selection
-
-- `:binary` (default) - Works with all memcached versions, supports SASL auth
-- `:meta` - Requires memcached 1.6+, no auth support, better performance for some operations
 
 ## Development Workflow
 

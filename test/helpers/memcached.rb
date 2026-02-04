@@ -46,13 +46,13 @@ module Memcached
     # but sets terminate_process to false ensuring that the process persists
     # past execution of the block argument.
     # rubocop:disable Metrics/ParameterLists
-    def memcached_persistent(protocol = :binary, port_or_socket = 21_345, args = '', client_options = {}, &)
+    def memcached_persistent(protocol = :meta, port_or_socket = 21_345, args = '', client_options = {}, &)
       memcached(protocol, port_or_socket, args, client_options, terminate_process: false, &)
     end
     # rubocop:enable Metrics/ParameterLists
 
     # Launches a persistent memcached process, configured to use SSL
-    def memcached_ssl_persistent(protocol = :binary, port_or_socket = rand(21_397..21_896), &)
+    def memcached_ssl_persistent(protocol = :meta, port_or_socket = rand(21_397..21_896), &)
       memcached_persistent(protocol,
                            port_or_socket,
                            CertificateGenerator.ssl_args,
@@ -64,16 +64,6 @@ module Memcached
     # specified port_or_socket.
     def memcached_kill(port_or_socket)
       MemcachedManager.stop(port_or_socket)
-    end
-
-    # Launches a persistent memcached process, configured to use SASL authentication
-    def memcached_sasl_persistent(port_or_socket = 21_398, &)
-      memcached_persistent(:binary, port_or_socket, '-S', sasl_credentials, &)
-    end
-
-    # The SASL credentials used for the test SASL server
-    def sasl_credentials
-      { username: 'testuser', password: 'testtest' }
     end
 
     private

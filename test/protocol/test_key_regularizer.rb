@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative '../../helper'
+require_relative '../helper'
 
 describe Dalli::Protocol::Meta::KeyRegularizer do
   describe '.encode' do

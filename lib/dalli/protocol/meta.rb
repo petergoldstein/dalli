@@ -257,13 +257,9 @@ module Dalli
         @connection_manager.flush
       end
 
-      def authenticate_connection
-        raise Dalli::DalliError, 'Authentication not supported for the meta protocol.'
-      end
-
-      require_relative 'meta/key_regularizer'
-      require_relative 'meta/request_formatter'
-      require_relative 'meta/response_processor'
+      require_relative 'key_regularizer'
+      require_relative 'request_formatter'
+      require_relative 'response_processor'
     end
   end
 end

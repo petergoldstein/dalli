@@ -21,7 +21,8 @@ This roadmap outlines the evolution of Dalli from v4.x through v5.0, focusing on
 ### v5.0 (Breaking Changes)
 - Remove binary protocol entirely
 - Remove SASL authentication (meta protocol doesn't support it)
-- Require memcached 1.6+ (meta protocol minimum)
+- Require Ruby 3.3+ and memcached 1.6+ (meta protocol minimum)
+- Replace `readfull` with `IO#read` for ~7% read performance improvement
 - Simplify codebase structure
 
 ---
@@ -267,7 +268,7 @@ For the common case of a single memcached server with raw mode enabled, a simpli
 
 **Recommended approach:**
 - For v4.3.0: Option A (fix the fallback) - small code change, maintains Ruby 3.1 support
-- For v5.0.0: Option C (bump to Ruby 3.2+) - simplifies code, Ruby 3.1 EOL is March 2025
+- For v5.0.0: Bump to Ruby 3.3+ - simplifies code, removes need for fallback on CRuby entirely
 
 **Implementation for Option A:**
 
@@ -498,10 +499,19 @@ fetch_responses()     → reads remaining responses
    - Report to TruffleRuby team (tag @nirvdrum or @eregon)
    - Track resolution status
 
-**Example workflow configuration:**
+**Example workflow configuration (v4.x):**
 ```yaml
 matrix:
   ruby-version: ['3.1', '3.2', '3.3', '3.4', '4.0', 'head', 'truffleruby', 'jruby-10']
+  include:
+    - ruby-version: truffleruby
+      continue-on-error: true  # Non-blocking
+```
+
+**v5.0 workflow configuration:**
+```yaml
+matrix:
+  ruby-version: ['3.3', '3.4', '4.0', 'head', 'truffleruby', 'jruby-10']
   include:
     - ruby-version: truffleruby
       continue-on-error: true  # Non-blocking
@@ -550,9 +560,9 @@ Meta protocol doesn't support authentication. Users requiring auth should:
 - Stay on Dalli 4.x with binary protocol
 
 ### 13. Update Minimum Requirements
-- Ruby 3.2+ (following Ruby EOL policy)
+- Ruby 3.3+ (Ruby 3.2 EOL is March 2026; starting with 3.3+ gives v5.0 a longer support window)
 - memcached 1.6+ (meta protocol minimum)
-- Remove JRuby-specific code paths
+- JRuby support retained (requires maintaining `readfull` fallback since JRuby lacks `IO#timeout=`)
 
 ### 14. Simplify Codebase Structure
 
@@ -594,45 +604,20 @@ lib/dalli/protocol/
 └── value_serializer.rb
 ```
 
-### 15. Replace `readfull` with `IO#read`
+### 15. Replace `readfull` with `IO#read` (CRuby only)
 **Reference:** PR #1026 (grcooper)
 
 Replace the manual `readfull` loop with Ruby's built-in `IO#read` method for ~7% performance improvement on read operations.
 
-**Why deferred to v5.0:**
+**Why this is possible in v5.0:**
 - `IO#read` relies on `IO#timeout=` for proper timeout handling
-- `IO#timeout=` was introduced in **Ruby 3.2** (not available in Ruby 3.1)
-- JRuby has different IO implementation that doesn't support `IO#timeout=`
-- Ruby 3.1 and JRuby hang indefinitely when using `IO#read` without timeout support
-
-**v5.0 enables this because:**
-- Minimum Ruby version will be 3.2+ (has `IO#timeout=`)
-- JRuby support will be dropped (or will need to maintain `readfull` fallback for JRuby)
+- `IO#timeout=` was introduced in Ruby 3.2
+- v5.0 requires Ruby 3.3+, so `IO#timeout=` is always available on CRuby
+- JRuby lacks `IO#timeout=` support, so it continues using `readfull`
 
 **Implementation:**
 
 File: `lib/dalli/protocol/connection_manager.rb`
-```ruby
-# Change from:
-def read(count)
-  @sock.readfull(count)
-rescue ...
-end
-
-# Change to:
-def read(count)
-  @sock.read(count)
-rescue ...
-end
-```
-
-File: `lib/dalli/socket.rb`
-- Remove `readfull` method entirely (no longer needed)
-- Remove `append_to_buffer?` method (only used by `readfull`)
-- Remove `nonblock_timed_out?` method (only used by `readfull`)
-
-**JRuby consideration:**
-If JRuby support is retained in v5.0, keep `readfull` as a fallback:
 ```ruby
 def read(count)
   if RUBY_ENGINE == 'jruby'
@@ -643,6 +628,10 @@ def read(count)
 rescue ...
 end
 ```
+
+File: `lib/dalli/socket.rb`
+- Keep `readfull` method for JRuby compatibility
+- Keep `append_to_buffer?` and `nonblock_timed_out?` methods (used by `readfull`)
 
 ---
 
@@ -711,8 +700,9 @@ end
 ### Phase 4: v5.0.0 (Cleanup)
 11. Remove binary protocol
 12. Remove SASL auth
-13. Update minimum requirements
+13. Update minimum requirements (Ruby 3.3+, keep JRuby)
 14. Simplify codebase structure
+15. Replace `readfull` with `IO#read` (CRuby performance improvement)
 
 ---
 

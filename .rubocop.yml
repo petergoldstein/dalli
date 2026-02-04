@@ -7,7 +7,7 @@ plugins:
 
 AllCops:
   NewCops: enable
-  TargetRubyVersion: 3.1
+  TargetRubyVersion: 3.3
 
 Metrics/BlockLength:
   Max: 50

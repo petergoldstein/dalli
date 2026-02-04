@@ -10,26 +10,14 @@ Dalli supports:
 * Fine-grained control of data serialization and compression
 * Thread-safe operation (either through use of a connection pool, or by using the Dalli client in threadsafe mode)
 * SSL/TLS connections to memcached
-* SASL authentication
 * OpenTelemetry distributed tracing (automatic when SDK is present)
 
 The name is a variant of Salvador Dali for his famous painting [The Persistence of Memory](http://en.wikipedia.org/wiki/The_Persistence_of_Memory).
 
 ## Requirements
 
-* Ruby 3.1 or later
-* memcached 1.4 or later (1.6+ recommended for meta protocol support)
-
-## Protocol Options
-
-Dalli supports two protocols for communicating with memcached:
-
-* `:binary` (default) - Works with all memcached versions, supports SASL authentication
-* `:meta` - Requires memcached 1.6+, better performance for some operations, no authentication support
-
-```ruby
-Dalli::Client.new('localhost:11211', protocol: :meta)
-```
+* Ruby 3.3 or later (JRuby also supported)
+* memcached 1.6 or later
 
 ## Configuration Options
 
@@ -64,7 +52,7 @@ By default, Dalli uses Ruby's Marshal for serialization. Deserializing untrusted
 Dalli::Client.new('localhost:11211', serializer: JSON)
 ```
 
-See the [4.0-Upgrade.md](4.0-Upgrade.md) guide for more information.
+See the [5.0-Upgrade.md](5.0-Upgrade.md) guide for upgrade information.
 
 ## OpenTelemetry Tracing
 

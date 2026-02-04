@@ -21,14 +21,6 @@ if [ ! -f /usr/local/bin/memcached-tool ]; then
   sudo ln -sf /usr/share/memcached/scripts/memcached-tool /usr/local/bin/memcached-tool
 fi
 
-echo "Setting up environment variables..."
-# Ensure test environment is properly configured
-cat >> ~/.bashrc << EOF
-
-# Dalli test environment
-export RUN_SASL_TESTS=1
-EOF
-
 # Fix permissions
 sudo chown -R vscode:vscode /usr/local/bundle
 echo "Installing dependencies..."

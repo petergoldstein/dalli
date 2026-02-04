@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'digest/md5'
-require 'set'
 
 # encoding: ascii
 module Dalli
@@ -48,15 +47,13 @@ module Dalli
     #                 serialization pipeline.
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method,
     #                   useful for injecting a FIPS compliant hash object.
-    # - :protocol - one of either :binary or :meta, defaulting to :binary.  This sets the protocol that Dalli uses
-    #               to communicate with memcached.
     #
     def initialize(servers = nil, options = {})
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
       @options = normalize_options(options)
+      warn_removed_options(@options)
       @key_manager = ::Dalli::KeyManager.new(@options)
       @ring = nil
-      emit_deprecation_warnings
     end
 
     #
@@ -98,10 +95,7 @@ module Dalli
     end
 
     ##
-    # Get value with extended metadata using the meta protocol.
-    #
-    # IMPORTANT: This method requires memcached 1.6+ and the meta protocol (protocol: :meta).
-    # It will raise an error if used with the binary protocol.
+    # Get value with extended metadata.
     #
     # @param key [String] the cache key
     # @param options [Hash] options controlling what metadata to return
@@ -129,8 +123,6 @@ module Dalli
     #   # => { value: "data", cas: 123, hit_before: true, last_access: 42 }
     #
     def get_with_metadata(key, options = {})
-      raise_unless_meta_protocol!
-
       key = key.to_s
       key = @key_manager.validate_key(key)
 
@@ -204,9 +196,6 @@ module Dalli
     # cache entry (the "thundering herd" problem). Only one client wins the right to
     # regenerate; other clients receive the stale value (if available) or wait.
     #
-    # IMPORTANT: This method requires memcached 1.6+ and the meta protocol (protocol: :meta).
-    # It will raise an error if used with the binary protocol.
-    #
     # @param key [String] the cache key
     # @param ttl [Integer] time-to-live for the cached value in seconds
     # @param lock_ttl [Integer] how long the lock/stub lives (default: 30 seconds)
@@ -231,8 +220,6 @@ module Dalli
     #
     def fetch_with_lock(key, ttl: nil, lock_ttl: 30, recache_threshold: nil, req_options: nil, &block)
       raise ArgumentError, 'Block is required for fetch_with_lock' unless block_given?
-
-      raise_unless_meta_protocol!
 
       key = key.to_s
       key = @key_manager.validate_key(key)
@@ -587,16 +574,7 @@ module Dalli
     end
 
     def ring
-      @ring ||= Dalli::Ring.new(@normalized_servers, protocol_implementation, @options)
-    end
-
-    def protocol_implementation
-      @protocol_implementation ||= case @options[:protocol]&.to_s
-                                   when 'meta'
-                                     Dalli::Protocol::Meta
-                                   else
-                                     Dalli::Protocol::Binary
-                                   end
+      @ring ||= Dalli::Ring.new(@normalized_servers, @options)
     end
 
     ##
@@ -637,6 +615,21 @@ module Dalli
       raise ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
     end
 
+    REMOVED_OPTIONS = {
+      protocol: 'Dalli 5.0 only supports the meta protocol. The :protocol option has been removed.',
+      username: 'Dalli 5.0 removed SASL authentication support. The :username option is ignored.',
+      password: 'Dalli 5.0 removed SASL authentication support. The :password option is ignored.'
+    }.freeze
+    private_constant :REMOVED_OPTIONS
+
+    def warn_removed_options(opts)
+      REMOVED_OPTIONS.each do |key, message|
+        next unless opts.key?(key)
+
+        Dalli.logger.warn(message)
+      end
+    end
+
     def pipelined_getter
       PipelinedGetter.new(ring, @key_manager)
     end
@@ -648,15 +641,5 @@ module Dalli
     def pipelined_deleter
       PipelinedDeleter.new(ring, @key_manager)
     end
-
-    def raise_unless_meta_protocol!
-      return if protocol_implementation == Dalli::Protocol::Meta
-
-      raise Dalli::DalliError,
-            'This operation requires the meta protocol (memcached 1.6+). ' \
-            'Use protocol: :meta when creating the client.'
-    end
-
-    include ProtocolDeprecations
   end
 end
