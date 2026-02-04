@@ -1,6 +1,17 @@
 Dalli Changelog
 =====================
 
+4.3.1
+==========
+
+Bug Fixes:
+
+- Fix socket compatibility with gems that monkey-patch TCPSocket (#996, #1012)
+  - Gems like `socksify` and `resolv-replace` modify `TCPSocket#initialize`, breaking Ruby 3.0+'s `connect_timeout:` keyword argument
+  - Detection now uses parameter signature checking instead of gem-specific method detection
+  - Falls back to `Timeout.timeout` when monkey-patching is detected
+  - Detection result is cached for performance
+
 4.3.0
 ==========
 
