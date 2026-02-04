@@ -92,10 +92,6 @@ module Dalli
 
         tracer.in_span(name, attributes: DEFAULT_ATTRIBUTES.merge(attributes), kind: :client) do |span|
           yield
-        rescue StandardError => e
-          span.record_exception(e)
-          span.status = OpenTelemetry::Trace::Status.error(e.message)
-          raise
         end
       end
 
@@ -128,10 +124,6 @@ module Dalli
 
         tracer.in_span(name, attributes: DEFAULT_ATTRIBUTES.merge(attributes), kind: :client) do |span|
           yield(span)
-        rescue StandardError => e
-          span.record_exception(e)
-          span.status = OpenTelemetry::Trace::Status.error(e.message)
-          raise
         end
       end
     end
