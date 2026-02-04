@@ -1,5 +1,13 @@
 # frozen_string_literal: true
 
+module StrictWarnings
+  def warn(msg, *)
+    raise RuntimeError, msg, caller(1)
+  end
+end
+
+Warning.singleton_class.prepend(StrictWarnings)
+
 require 'bundler/setup'
 # require 'simplecov'
 # SimpleCov.start
