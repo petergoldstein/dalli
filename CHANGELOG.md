@@ -12,6 +12,24 @@ Bug Fixes:
   - Falls back to `Timeout.timeout` when monkey-patching is detected
   - Detection result is cached for performance
 
+- Fix network retry bug with `socket_max_failures: 0` (#1065)
+  - Previously, setting `socket_max_failures: 0` could still cause retries due to error handling
+  - Introduced `RetryableNetworkError` subclass to distinguish retryable vs non-retryable errors
+  - `down!` now raises non-retryable `NetworkError`, `reconnect!` raises `RetryableNetworkError`
+  - Thanks to Graham Cooper (Shopify) for this fix
+
+- Fix "character class has duplicated range" Ruby warning (#1067)
+  - Fixed regex in `KeyManager::VALID_NAMESPACE_SEPARATORS` that caused warnings on newer Ruby versions
+  - Thanks to Hartley McGuire for this fix
+
+Improvements:
+
+- Add StrictWarnings test helper to catch Ruby warnings early (#1067)
+
+- Use bulk attribute setter for OpenTelemetry spans (#1068)
+  - Reduces lock acquisitions when setting span attributes
+  - Thanks to Robert Laurin (Shopify) for this optimization
+
 4.3.0
 ==========
 
