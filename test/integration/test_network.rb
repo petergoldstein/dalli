@@ -92,6 +92,29 @@ describe 'Network' do
           end
         end
 
+        it 'does not retry NetworkError from down! with socket_max_failures: 0' do
+          next if p == :binary
+
+          memcached_mock(lambda { |sock|
+            # handle initial version call
+            sock.gets
+            sock.write("VERSION 1.6.0\r\n")
+
+            # handle the get request but never respond, causing timeout
+            sock.gets
+            sleep(0.3)
+          }) do
+            dc = Dalli::Client.new('localhost:19123', socket_timeout: 0.1, protocol: p, socket_max_failures: 0,
+                                                      socket_failure_delay: 0.0, down_retry_delay: 0.0)
+            # With socket_max_failures: 0, the first error triggers down! which raises NetworkError.
+            # This NetworkError should NOT be caught and retried by perform (only RetryableNetworkError is).
+            err = assert_raises Dalli::NetworkError do
+              dc.get('abc')
+            end
+            assert_match(/is down/, err.message)
+          end
+        end
+
         it 'opens a standard TCP connection when ssl_context is not configured' do
           memcached_persistent(p) do |dc|
             server = dc.send(:ring).servers.first
