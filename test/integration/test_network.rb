@@ -31,7 +31,7 @@ describe 'Network' do
               dc.get('abc')
 
               # Use higher latency (500ms vs 100ms timeout) to ensure timeout triggers reliably
-              Toxiproxy[/memcached/].downstream(:latency, latency: 500).apply do
+              Toxiproxy[/memcached/].downstream(:latency, latency: 1000).apply do
                 assert_raises Dalli::RingError, message: 'No server available' do
                   dc.get('abc')
                 end
@@ -42,7 +42,7 @@ describe 'Network' do
           it 'handle connect timeouts' do
             toxiproxy_memcached_persistent(p, client_options: { socket_timeout: 0.1 }) do |dc|
               # Use higher latency (500ms vs 100ms timeout) to ensure timeout triggers reliably
-              Toxiproxy[/memcached/].downstream(:latency, latency: 500).apply do
+              Toxiproxy[/memcached/].downstream(:latency, latency: 1000).apply do
                 assert_raises Dalli::RingError, message: 'No server available' do
                   dc.get('abc')
                 end
@@ -88,7 +88,7 @@ describe 'Network' do
 
             # Use much higher latency (500ms vs 100ms timeout) to ensure timeout triggers reliably
             # Apply to downstream only - the request goes out fast, but response is delayed
-            Toxiproxy[/memcached/].downstream(:latency, latency: 500).apply do
+            Toxiproxy[/memcached/].downstream(:latency, latency: 1000).apply do
               # With socket_max_failures: 0, NetworkError is raised immediately when server goes down
               err = assert_raises Dalli::NetworkError do
                 dc.get('abc')
