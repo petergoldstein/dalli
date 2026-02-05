@@ -30,6 +30,11 @@ Improvements:
   - Reduces lock acquisitions when setting span attributes
   - Thanks to Robert Laurin (Shopify) for this optimization
 
+- Fix double recording of exceptions on OpenTelemetry spans (#1069)
+  - OpenTelemetry's `in_span` method already records exceptions and sets error status automatically
+  - Removed redundant explicit exception recording that caused exceptions to appear twice in traces
+  - Thanks to Robert Laurin (Shopify) for this fix
+
 4.3.0
 ==========
 
