@@ -90,7 +90,7 @@ module Dalli
       def trace(name, attributes = {})
         return yield unless enabled?
 
-        tracer.in_span(name, attributes: DEFAULT_ATTRIBUTES.merge(attributes), kind: :client) do |span|
+        tracer.in_span(name, attributes: DEFAULT_ATTRIBUTES.merge(attributes), kind: :client) do |_span|
           yield
         end
       end
@@ -119,12 +119,10 @@ module Dalli
       #     results
       #   end
       #
-      def trace_with_result(name, attributes = {})
+      def trace_with_result(name, attributes = {}, &)
         return yield(nil) unless enabled?
 
-        tracer.in_span(name, attributes: DEFAULT_ATTRIBUTES.merge(attributes), kind: :client) do |span|
-          yield(span)
-        end
+        tracer.in_span(name, attributes: DEFAULT_ATTRIBUTES.merge(attributes), kind: :client, &)
       end
     end
   end
