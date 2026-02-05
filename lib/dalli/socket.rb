@@ -90,6 +90,12 @@ module Dalli
       # options - supports enhanced logging in the case of a timeout
       attr_accessor :options
 
+      # Expected parameter signature for unmodified TCPSocket#initialize.
+      # Used to detect when gems like socksify or resolv-replace have monkey-patched
+      # TCPSocket, which breaks the connect_timeout: keyword argument.
+      TCPSOCKET_NATIVE_PARAMETERS = [[:rest]].freeze
+      private_constant :TCPSOCKET_NATIVE_PARAMETERS
+
       def self.open(host, port, options = {})
         create_socket_with_timeout(host, port, options) do |sock|
           sock.options = { host: host, port: port }.merge(options)
@@ -99,15 +105,18 @@ module Dalli
         end
       end
 
+      # Detect and cache whether TCPSocket supports the connect_timeout: keyword argument.
+      # Returns false if TCPSocket#initialize has been monkey-patched by gems like
+      # socksify or resolv-replace, which don't support keyword arguments.
+      def self.supports_connect_timeout?
+        return @supports_connect_timeout if defined?(@supports_connect_timeout)
+
+        @supports_connect_timeout = RUBY_VERSION >= '3.0' &&
+                                    ::TCPSocket.instance_method(:initialize).parameters == TCPSOCKET_NATIVE_PARAMETERS
+      end
+
       def self.create_socket_with_timeout(host, port, options)
-        # Check that TCPSocket#initialize was not overwritten by resolv-replace gem
-        # (part of ruby standard library since 3.0.0, should be removed in 3.4.0),
-        # as it does not handle keyword arguments correctly.
-        # To check this we are using the fact that resolv-replace
-        # aliases TCPSocket#initialize method to #original_resolv_initialize.
-        # https://github.com/ruby/resolv-replace/blob/v0.1.1/lib/resolv-replace.rb#L21
-        if RUBY_VERSION >= '3.0' &&
-           !::TCPSocket.private_method_defined?(:original_resolv_initialize)
+        if supports_connect_timeout?
           sock = new(host, port, connect_timeout: options[:socket_timeout])
           yield(sock)
         else

@@ -1,5 +1,16 @@
 # frozen_string_literal: true
 
+module StrictWarnings
+  def warn(msg, **, &)
+    # Allow intentional deprecation warnings from Dalli
+    return super if msg.to_s.start_with?('[DEPRECATION]')
+
+    raise RuntimeError, msg, caller(1)
+  end
+end
+
+Warning.singleton_class.prepend(StrictWarnings)
+
 require 'bundler/setup'
 # require 'simplecov'
 # SimpleCov.start

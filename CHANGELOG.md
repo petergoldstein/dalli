@@ -1,6 +1,40 @@
 Dalli Changelog
 =====================
 
+4.3.1
+==========
+
+Bug Fixes:
+
+- Fix socket compatibility with gems that monkey-patch TCPSocket (#996, #1012)
+  - Gems like `socksify` and `resolv-replace` modify `TCPSocket#initialize`, breaking Ruby 3.0+'s `connect_timeout:` keyword argument
+  - Detection now uses parameter signature checking instead of gem-specific method detection
+  - Falls back to `Timeout.timeout` when monkey-patching is detected
+  - Detection result is cached for performance
+
+- Fix network retry bug with `socket_max_failures: 0` (#1065)
+  - Previously, setting `socket_max_failures: 0` could still cause retries due to error handling
+  - Introduced `RetryableNetworkError` subclass to distinguish retryable vs non-retryable errors
+  - `down!` now raises non-retryable `NetworkError`, `reconnect!` raises `RetryableNetworkError`
+  - Thanks to Graham Cooper (Shopify) for this fix
+
+- Fix "character class has duplicated range" Ruby warning (#1067)
+  - Fixed regex in `KeyManager::VALID_NAMESPACE_SEPARATORS` that caused warnings on newer Ruby versions
+  - Thanks to Hartley McGuire for this fix
+
+Improvements:
+
+- Add StrictWarnings test helper to catch Ruby warnings early (#1067)
+
+- Use bulk attribute setter for OpenTelemetry spans (#1068)
+  - Reduces lock acquisitions when setting span attributes
+  - Thanks to Robert Laurin (Shopify) for this optimization
+
+- Fix double recording of exceptions on OpenTelemetry spans (#1069)
+  - OpenTelemetry's `in_span` method already records exceptions and sets error status automatically
+  - Removed redundant explicit exception recording that caused exceptions to appear twice in traces
+  - Thanks to Robert Laurin (Shopify) for this fix
+
 4.3.0
 ==========
 

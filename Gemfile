@@ -27,4 +27,8 @@ end
 
 group :test do
   gem 'ruby-prof', platform: :mri
+
+  # For socket compatibility testing (these gems monkey-patch TCPSocket)
+  gem 'resolv-replace', require: false
+  gem 'socksify', require: false
 end
