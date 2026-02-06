@@ -1,6 +1,21 @@
 Dalli Changelog
 =====================
 
+4.2.1
+==========
+
+OpenTelemetry:
+
+- Migrate to stable OTel semantic conventions
+  - `db.system` renamed to `db.system.name`
+  - `db.operation` renamed to `db.operation.name`
+  - `server.address` now contains hostname only; `server.port` is a separate integer attribute
+  - `get_with_metadata` and `fetch_with_lock` now include `server.address`/`server.port`
+- Add `db.query.text` span attribute with configurable modes
+  - `:otel_db_statement` option: `:include`, `:obfuscate`, or `nil` (default: omitted)
+- Add `peer.service` span attribute
+  - `:otel_peer_service` option for logical service naming
+
 4.2.0
 ==========
 
