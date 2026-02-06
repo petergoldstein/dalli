@@ -254,6 +254,7 @@ describe Dalli::Instrumentation do
 
   describe 'client integration with mock OpenTelemetry' do
     before do
+      skip 'Meta protocol requires memcached 1.6+' unless MemcachedManager.supported_protocols.include?(:meta)
       clear_tracer_cache
       @mock_tracer = MockOpenTelemetry::MockTracer.new
       @mock_provider = MockOpenTelemetry::MockTracerProvider.new(@mock_tracer)
