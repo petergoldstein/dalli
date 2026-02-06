@@ -47,6 +47,10 @@ module Dalli
     #                 serialization pipeline.
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method,
     #                   useful for injecting a FIPS compliant hash object.
+    # - :otel_db_statement - controls the +db.query.text+ span attribute when OpenTelemetry is loaded.
+    #                        +:include+ logs the full operation and key(s), +:obfuscate+ replaces keys with "?",
+    #                        +nil+ (default) omits the attribute entirely.
+    # - :otel_peer_service - when set, adds a +peer.service+ span attribute with this value for logical service naming.
     #
     def initialize(servers = nil, options = {})
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
@@ -126,8 +130,8 @@ module Dalli
       key = key.to_s
       key = @key_manager.validate_key(key)
 
-      Instrumentation.trace('get_with_metadata', { 'db.operation' => 'get_with_metadata' }) do
-        server = ring.server_for_key(key)
+      server = ring.server_for_key(key)
+      Instrumentation.trace('get_with_metadata', trace_attrs('get_with_metadata', key, server)) do
         server.request(:meta_get, key, options)
       end
     rescue NetworkError => e
@@ -224,7 +228,8 @@ module Dalli
       key = key.to_s
       key = @key_manager.validate_key(key)
 
-      Instrumentation.trace('fetch_with_lock', { 'db.operation' => 'fetch_with_lock' }) do
+      server = ring.server_for_key(key)
+      Instrumentation.trace('fetch_with_lock', trace_attrs('fetch_with_lock', key, server)) do
         fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options, &block)
       end
     rescue NetworkError => e
@@ -305,10 +310,7 @@ module Dalli
     def set_multi(hash, ttl = nil, req_options = nil)
       return if hash.empty?
 
-      Instrumentation.trace('set_multi', {
-                              'db.operation' => 'set_multi',
-                              'db.memcached.key_count' => hash.size
-                            }) do
+      Instrumentation.trace('set_multi', multi_trace_attrs('set_multi', hash.size, hash.keys)) do
         pipelined_setter.process(hash, ttl_or_default(ttl), req_options)
       end
     end
@@ -365,10 +367,7 @@ module Dalli
     def delete_multi(keys)
       return if keys.empty?
 
-      Instrumentation.trace('delete_multi', {
-                              'db.operation' => 'delete_multi',
-                              'db.memcached.key_count' => keys.size
-                            }) do
+      Instrumentation.trace('delete_multi', multi_trace_attrs('delete_multi', keys.size, keys)) do
         pipelined_deleter.process(keys)
       end
     end
@@ -502,17 +501,11 @@ module Dalli
 
     private
 
-    # Records hit/miss metrics on a span for cache observability.
-    # @param span [OpenTelemetry::Trace::Span, nil] the span to record on
-    # @param key_count [Integer] total keys requested
-    # @param hit_count [Integer] keys found in cache
     def record_hit_miss_metrics(span, key_count, hit_count)
       return unless span
 
-      span.add_attributes({
-                            'db.memcached.hit_count' => hit_count,
-                            'db.memcached.miss_count' => key_count - hit_count
-                          })
+      span.add_attributes('db.memcached.hit_count' => hit_count,
+                          'db.memcached.miss_count' => key_count - hit_count)
     end
 
     def get_multi_yielding(keys)
@@ -537,7 +530,30 @@ module Dalli
     end
 
     def get_multi_attributes(keys)
-      { 'db.operation' => 'get_multi', 'db.memcached.key_count' => keys.size }
+      multi_trace_attrs('get_multi', keys.size, keys)
+    end
+
+    def trace_attrs(operation, key, server)
+      attrs = { 'db.operation.name' => operation, 'server.address' => server.hostname }
+      attrs['server.port'] = server.port if server.socket_type == :tcp
+      attrs['peer.service'] = @options[:otel_peer_service] if @options[:otel_peer_service]
+      add_query_text(attrs, operation, key)
+    end
+
+    def multi_trace_attrs(operation, key_count, keys)
+      attrs = { 'db.operation.name' => operation, 'db.memcached.key_count' => key_count }
+      attrs['peer.service'] = @options[:otel_peer_service] if @options[:otel_peer_service]
+      add_query_text(attrs, operation, keys)
+    end
+
+    def add_query_text(attrs, operation, key_or_keys)
+      case @options[:otel_db_statement]
+      when :include
+        attrs['db.query.text'] = "#{operation} #{Array(key_or_keys).join(' ')}"
+      when :obfuscate
+        attrs['db.query.text'] = "#{operation} ?"
+      end
+      attrs
     end
 
     def check_positive!(amt)
@@ -585,7 +601,7 @@ module Dalli
     #
     # This method also forces retries on network errors - when
     # a particular memcached instance becomes unreachable, or the
-    # operational times out.
+    # operation times out.
     ##
     def perform(*all_args)
       return yield if block_given?
@@ -596,10 +612,7 @@ module Dalli
       key = @key_manager.validate_key(key)
 
       server = ring.server_for_key(key)
-      Instrumentation.trace(op.to_s, {
-                              'db.operation' => op.to_s,
-                              'server.address' => server.name
-                            }) do
+      Instrumentation.trace(op.to_s, trace_attrs(op.to_s, key, server)) do
         server.request(op, key, *args)
       end
     rescue RetryableNetworkError => e

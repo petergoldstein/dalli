@@ -8,24 +8,35 @@ module Dalli
   # When OpenTelemetry is loaded, Dalli automatically creates spans for cache operations.
   # When OpenTelemetry is not available, all tracing methods are no-ops with zero overhead.
   #
+  # Dalli 5.0 uses the stable OTel semantic conventions for database spans.
+  #
   # == Span Attributes
   #
   # All spans include the following default attributes:
-  # - +db.system+ - Always "memcached"
+  # - +db.system.name+ - Always "memcached"
   #
   # Single-key operations (+get+, +set+, +delete+, +incr+, +decr+, etc.) add:
-  # - +db.operation+ - The operation name (e.g., "get", "set")
-  # - +server.address+ - The memcached server handling the request (e.g., "localhost:11211")
+  # - +db.operation.name+ - The operation name (e.g., "get", "set")
+  # - +server.address+ - The server hostname (e.g., "localhost")
+  # - +server.port+ - The server port as an integer (e.g., 11211); omitted for Unix sockets
   #
   # Multi-key operations (+get_multi+) add:
-  # - +db.operation+ - "get_multi"
+  # - +db.operation.name+ - "get_multi"
   # - +db.memcached.key_count+ - Number of keys requested
   # - +db.memcached.hit_count+ - Number of keys found in cache
   # - +db.memcached.miss_count+ - Number of keys not found
   #
   # Bulk write operations (+set_multi+, +delete_multi+) add:
-  # - +db.operation+ - The operation name
+  # - +db.operation.name+ - The operation name
   # - +db.memcached.key_count+ - Number of keys in the operation
+  #
+  # == Optional Attributes
+  #
+  # - +db.query.text+ - The operation and key(s), controlled by the +:otel_db_statement+ client option:
+  #   - +:include+ - Full text (e.g., "get mykey")
+  #   - +:obfuscate+ - Obfuscated (e.g., "get ?")
+  #   - +nil+ (default) - Attribute omitted
+  # - +peer.service+ - Logical service name, set via the +:otel_peer_service+ client option
   #
   # == Error Handling
   #
@@ -40,8 +51,8 @@ module Dalli
   ##
   module Instrumentation
     # Default attributes included on all memcached spans.
-    # @return [Hash] frozen hash with 'db.system' => 'memcached'
-    DEFAULT_ATTRIBUTES = { 'db.system' => 'memcached' }.freeze
+    # @return [Hash] frozen hash with 'db.system.name' => 'memcached'
+    DEFAULT_ATTRIBUTES = { 'db.system.name' => 'memcached' }.freeze
 
     class << self
       # Returns the OpenTelemetry tracer if available, nil otherwise.
@@ -75,15 +86,16 @@ module Dalli
       # @param name [String] the span name (e.g., 'get', 'set', 'delete')
       # @param attributes [Hash] span attributes to merge with defaults.
       #   Common attributes include:
-      #   - 'db.operation' - the operation name
-      #   - 'server.address' - the target server
+      #   - 'db.operation.name' - the operation name
+      #   - 'server.address' - the server hostname
+      #   - 'server.port' - the server port (integer)
       #   - 'db.memcached.key_count' - number of keys (for multi operations)
       # @yield the cache operation to trace
       # @return [Object] the result of the block
       # @raise [StandardError] re-raises any exception from the block
       #
       # @example Tracing a set operation
-      #   trace('set', { 'db.operation' => 'set', 'server.address' => 'localhost:11211' }) do
+      #   trace('set', { 'db.operation.name' => 'set', 'server.address' => 'localhost', 'server.port' => 11211 }) do
       #     server.set(key, value, ttl)
       #   end
       #
@@ -110,7 +122,7 @@ module Dalli
       # @raise [StandardError] re-raises any exception from the block
       #
       # @example Recording hit/miss metrics after get_multi
-      #   trace_with_result('get_multi', { 'db.operation' => 'get_multi' }) do |span|
+      #   trace_with_result('get_multi', { 'db.operation.name' => 'get_multi' }) do |span|
       #     results = fetch_from_cache(keys)
       #     if span
       #       span.set_attribute('db.memcached.hit_count', results.size)
