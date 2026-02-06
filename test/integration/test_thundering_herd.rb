@@ -300,14 +300,6 @@ describe 'thundering herd protection' do
           refute result.key?(:last_access), 'Should not include last_access when not requested'
         end
       end
-
-      it 'raises error when used with binary protocol' do
-        memcached_persistent(:binary) do |dc|
-          assert_raises(Dalli::DalliError) do
-            dc.get_with_metadata('key')
-          end
-        end
-      end
     end
 
     describe 'fetch_with_lock' do
@@ -386,16 +378,6 @@ describe 'thundering herd protection' do
           end
 
           assert_equal 'first_value', result2
-        end
-      end
-    end
-  end
-
-  describe 'using the binary protocol' do
-    it 'raises error when fetch_with_lock is called' do
-      memcached_persistent(:binary) do |dc|
-        assert_raises(Dalli::DalliError) do
-          dc.fetch_with_lock('key', ttl: 300, lock_ttl: 30) { 'value' }
         end
       end
     end

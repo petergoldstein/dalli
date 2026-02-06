@@ -17,7 +17,7 @@ Gem::Specification.new do |s|
     'Gemfile'
   ]
   s.homepage = 'https://github.com/petergoldstein/dalli'
-  s.required_ruby_version = '>= 3.1'
+  s.required_ruby_version = '>= 3.3'
 
   s.metadata = {
     'bug_tracker_uri' => 'https://github.com/petergoldstein/dalli/issues',

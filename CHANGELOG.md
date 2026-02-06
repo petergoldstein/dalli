@@ -1,6 +1,49 @@
 Dalli Changelog
 =====================
 
+5.0.0
+==========
+
+**Breaking Changes:**
+
+- **Removed binary protocol** - The meta protocol is now the only supported protocol
+  - The `:protocol` option is no longer used
+  - Requires memcached 1.6+ (for meta protocol support)
+  - Users on older memcached versions must upgrade or stay on Dalli 4.x
+
+- **Removed SASL authentication** - The meta protocol does not support authentication
+  - Use network-level security (firewall rules, VPN) or memcached's TLS support instead
+  - Users requiring SASL authentication must stay on Dalli 4.x with binary protocol
+
+- **Ruby 3.3+ required** - Dropped support for Ruby 3.1 and 3.2
+  - Ruby 3.2 reached end-of-life in March 2026
+  - JRuby remains supported
+
+Performance:
+
+- **~7% read performance improvement** (CRuby only)
+  - Use native `IO#read` instead of custom `readfull` implementation
+  - Enabled by Ruby 3.3's `IO#timeout=` support
+  - JRuby continues to use `readfull` for compatibility
+
+OpenTelemetry:
+
+- Migrate to stable OTel semantic conventions (#1070)
+  - `db.system` renamed to `db.system.name`
+  - `db.operation` renamed to `db.operation.name`
+  - `server.address` now contains hostname only; `server.port` is a separate integer attribute
+  - `get_with_metadata` and `fetch_with_lock` now include `server.address`/`server.port`
+- Add `db.query.text` span attribute with configurable modes
+  - `:otel_db_statement` option: `:include`, `:obfuscate`, or `nil` (default: omitted)
+- Add `peer.service` span attribute
+  - `:otel_peer_service` option for logical service naming
+
+Internal:
+
+- Simplified protocol directory structure: moved `lib/dalli/protocol/meta/*` to `lib/dalli/protocol/`
+- Removed deprecated binary protocol files and SASL authentication code
+- Removed `require 'set'` (autoloaded in Ruby 3.3+)
+
 4.3.1
 ==========
 

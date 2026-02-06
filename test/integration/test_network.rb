@@ -75,8 +75,6 @@ describe 'Network' do
         end
 
         it 'handles operation timeouts' do
-          next if p == :binary
-
           memcached_mock(lambda { |sock|
             # handle initial version call
             sock.gets
@@ -226,9 +224,7 @@ describe 'Network' do
 
             ssl_error = OpenSSL::SSL::SSLError.new('SSL_read: unexpected eof while reading')
 
-            # Binary protocol uses readfull for reading, meta protocol uses gets
-            stub_method = p == :binary ? :readfull : :gets
-            server.sock.stub(stub_method, proc { raise ssl_error }) do
+            server.sock.stub(:gets, proc { raise ssl_error }) do
               # The operation will retry with a new connection and may succeed
               # What matters is the SSLError is caught, not propagated
               dc.get('ssl_test_key')
@@ -427,7 +423,7 @@ describe 'Network' do
       end
 
       it 'passes a simple smoke test on unix socket' do
-        memcached_persistent(:binary, MemcachedMock::UNIX_SOCKET_PATH) do |dc, path|
+        memcached_persistent(:meta, MemcachedMock::UNIX_SOCKET_PATH) do |dc, path|
           resp = dc.flush
 
           refute_nil resp

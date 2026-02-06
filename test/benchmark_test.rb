@@ -36,7 +36,7 @@ describe 'performance' do
   end
 
   it 'runs benchmarks' do
-    protocol = :binary
+    protocol = :meta
     memcached(protocol, @port) do
       profile do
         Benchmark.bm(37) do |x|

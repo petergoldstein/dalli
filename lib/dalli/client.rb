@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'digest/md5'
-require 'set'
 
 # encoding: ascii
 module Dalli
@@ -48,15 +47,17 @@ module Dalli
     #                 serialization pipeline.
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method,
     #                   useful for injecting a FIPS compliant hash object.
-    # - :protocol - one of either :binary or :meta, defaulting to :binary.  This sets the protocol that Dalli uses
-    #               to communicate with memcached.
+    # - :otel_db_statement - controls the +db.query.text+ span attribute when OpenTelemetry is loaded.
+    #                        +:include+ logs the full operation and key(s), +:obfuscate+ replaces keys with "?",
+    #                        +nil+ (default) omits the attribute entirely.
+    # - :otel_peer_service - when set, adds a +peer.service+ span attribute with this value for logical service naming.
     #
     def initialize(servers = nil, options = {})
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
       @options = normalize_options(options)
+      warn_removed_options(@options)
       @key_manager = ::Dalli::KeyManager.new(@options)
       @ring = nil
-      emit_deprecation_warnings
     end
 
     #
@@ -98,10 +99,7 @@ module Dalli
     end
 
     ##
-    # Get value with extended metadata using the meta protocol.
-    #
-    # IMPORTANT: This method requires memcached 1.6+ and the meta protocol (protocol: :meta).
-    # It will raise an error if used with the binary protocol.
+    # Get value with extended metadata.
     #
     # @param key [String] the cache key
     # @param options [Hash] options controlling what metadata to return
@@ -129,13 +127,11 @@ module Dalli
     #   # => { value: "data", cas: 123, hit_before: true, last_access: 42 }
     #
     def get_with_metadata(key, options = {})
-      raise_unless_meta_protocol!
-
       key = key.to_s
       key = @key_manager.validate_key(key)
 
-      Instrumentation.trace('get_with_metadata', { 'db.operation' => 'get_with_metadata' }) do
-        server = ring.server_for_key(key)
+      server = ring.server_for_key(key)
+      Instrumentation.trace('get_with_metadata', trace_attrs('get_with_metadata', key, server)) do
         server.request(:meta_get, key, options)
       end
     rescue NetworkError => e
@@ -204,9 +200,6 @@ module Dalli
     # cache entry (the "thundering herd" problem). Only one client wins the right to
     # regenerate; other clients receive the stale value (if available) or wait.
     #
-    # IMPORTANT: This method requires memcached 1.6+ and the meta protocol (protocol: :meta).
-    # It will raise an error if used with the binary protocol.
-    #
     # @param key [String] the cache key
     # @param ttl [Integer] time-to-live for the cached value in seconds
     # @param lock_ttl [Integer] how long the lock/stub lives (default: 30 seconds)
@@ -232,12 +225,11 @@ module Dalli
     def fetch_with_lock(key, ttl: nil, lock_ttl: 30, recache_threshold: nil, req_options: nil, &block)
       raise ArgumentError, 'Block is required for fetch_with_lock' unless block_given?
 
-      raise_unless_meta_protocol!
-
       key = key.to_s
       key = @key_manager.validate_key(key)
 
-      Instrumentation.trace('fetch_with_lock', { 'db.operation' => 'fetch_with_lock' }) do
+      server = ring.server_for_key(key)
+      Instrumentation.trace('fetch_with_lock', trace_attrs('fetch_with_lock', key, server)) do
         fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options, &block)
       end
     rescue NetworkError => e
@@ -318,10 +310,7 @@ module Dalli
     def set_multi(hash, ttl = nil, req_options = nil)
       return if hash.empty?
 
-      Instrumentation.trace('set_multi', {
-                              'db.operation' => 'set_multi',
-                              'db.memcached.key_count' => hash.size
-                            }) do
+      Instrumentation.trace('set_multi', multi_trace_attrs('set_multi', hash.size, hash.keys)) do
         pipelined_setter.process(hash, ttl_or_default(ttl), req_options)
       end
     end
@@ -378,10 +367,7 @@ module Dalli
     def delete_multi(keys)
       return if keys.empty?
 
-      Instrumentation.trace('delete_multi', {
-                              'db.operation' => 'delete_multi',
-                              'db.memcached.key_count' => keys.size
-                            }) do
+      Instrumentation.trace('delete_multi', multi_trace_attrs('delete_multi', keys.size, keys)) do
         pipelined_deleter.process(keys)
       end
     end
@@ -515,17 +501,11 @@ module Dalli
 
     private
 
-    # Records hit/miss metrics on a span for cache observability.
-    # @param span [OpenTelemetry::Trace::Span, nil] the span to record on
-    # @param key_count [Integer] total keys requested
-    # @param hit_count [Integer] keys found in cache
     def record_hit_miss_metrics(span, key_count, hit_count)
       return unless span
 
-      span.add_attributes({
-                            'db.memcached.hit_count' => hit_count,
-                            'db.memcached.miss_count' => key_count - hit_count
-                          })
+      span.add_attributes('db.memcached.hit_count' => hit_count,
+                          'db.memcached.miss_count' => key_count - hit_count)
     end
 
     def get_multi_yielding(keys)
@@ -550,7 +530,30 @@ module Dalli
     end
 
     def get_multi_attributes(keys)
-      { 'db.operation' => 'get_multi', 'db.memcached.key_count' => keys.size }
+      multi_trace_attrs('get_multi', keys.size, keys)
+    end
+
+    def trace_attrs(operation, key, server)
+      attrs = { 'db.operation.name' => operation, 'server.address' => server.hostname }
+      attrs['server.port'] = server.port if server.socket_type == :tcp
+      attrs['peer.service'] = @options[:otel_peer_service] if @options[:otel_peer_service]
+      add_query_text(attrs, operation, key)
+    end
+
+    def multi_trace_attrs(operation, key_count, keys)
+      attrs = { 'db.operation.name' => operation, 'db.memcached.key_count' => key_count }
+      attrs['peer.service'] = @options[:otel_peer_service] if @options[:otel_peer_service]
+      add_query_text(attrs, operation, keys)
+    end
+
+    def add_query_text(attrs, operation, key_or_keys)
+      case @options[:otel_db_statement]
+      when :include
+        attrs['db.query.text'] = "#{operation} #{Array(key_or_keys).join(' ')}"
+      when :obfuscate
+        attrs['db.query.text'] = "#{operation} ?"
+      end
+      attrs
     end
 
     def check_positive!(amt)
@@ -587,16 +590,7 @@ module Dalli
     end
 
     def ring
-      @ring ||= Dalli::Ring.new(@normalized_servers, protocol_implementation, @options)
-    end
-
-    def protocol_implementation
-      @protocol_implementation ||= case @options[:protocol]&.to_s
-                                   when 'meta'
-                                     Dalli::Protocol::Meta
-                                   else
-                                     Dalli::Protocol::Binary
-                                   end
+      @ring ||= Dalli::Ring.new(@normalized_servers, @options)
     end
 
     ##
@@ -607,7 +601,7 @@ module Dalli
     #
     # This method also forces retries on network errors - when
     # a particular memcached instance becomes unreachable, or the
-    # operational times out.
+    # operation times out.
     ##
     def perform(*all_args)
       return yield if block_given?
@@ -618,10 +612,7 @@ module Dalli
       key = @key_manager.validate_key(key)
 
       server = ring.server_for_key(key)
-      Instrumentation.trace(op.to_s, {
-                              'db.operation' => op.to_s,
-                              'server.address' => server.name
-                            }) do
+      Instrumentation.trace(op.to_s, trace_attrs(op.to_s, key, server)) do
         server.request(op, key, *args)
       end
     rescue RetryableNetworkError => e
@@ -637,6 +628,21 @@ module Dalli
       raise ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
     end
 
+    REMOVED_OPTIONS = {
+      protocol: 'Dalli 5.0 only supports the meta protocol. The :protocol option has been removed.',
+      username: 'Dalli 5.0 removed SASL authentication support. The :username option is ignored.',
+      password: 'Dalli 5.0 removed SASL authentication support. The :password option is ignored.'
+    }.freeze
+    private_constant :REMOVED_OPTIONS
+
+    def warn_removed_options(opts)
+      REMOVED_OPTIONS.each do |key, message|
+        next unless opts.key?(key)
+
+        Dalli.logger.warn(message)
+      end
+    end
+
     def pipelined_getter
       PipelinedGetter.new(ring, @key_manager)
     end
@@ -648,15 +654,5 @@ module Dalli
     def pipelined_deleter
       PipelinedDeleter.new(ring, @key_manager)
     end
-
-    def raise_unless_meta_protocol!
-      return if protocol_implementation == Dalli::Protocol::Meta
-
-      raise Dalli::DalliError,
-            'This operation requires the meta protocol (memcached 1.6+). ' \
-            'Use protocol: :meta when creating the client.'
-    end
-
-    include ProtocolDeprecations
   end
 end

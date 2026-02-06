@@ -156,7 +156,13 @@ module Dalli
       end
 
       def read(count)
-        @sock.readfull(count)
+        # JRuby doesn't support IO#timeout=, so use custom readfull implementation
+        # CRuby 3.3+ has IO#timeout= which makes IO#read work with timeouts
+        if RUBY_ENGINE == 'jruby'
+          @sock.readfull(count)
+        else
+          @sock.read(count)
+        end
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
         error_on_request!(e)
       end

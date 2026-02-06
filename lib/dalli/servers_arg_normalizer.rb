@@ -16,7 +16,7 @@ module Dalli
   #     weight are optional (e.g. 'localhost', 'abc.com:12345', 'example.org:22222:3')
   #   * A colon separated string of (UNIX socket, weight) where the weight is optional
   #     (e.g. '/var/run/memcached/socket', '/tmp/xyz:3') (not supported on Windows)
-  #   * A URI with a 'memcached' protocol, which will typically include a username/password
+  #   * A URI with a 'memcached' protocol (e.g. 'memcached://localhost:11211')
   #
   # The methods in this module do not validate the format of individual server strings, but
   # rather normalize the argument into a compact array, wherein each array entry corresponds

@@ -22,6 +22,7 @@ module Dalli
 
       def initialize(attribs, client_options = {})
         hostname, port, socket_type, @weight, user_creds = ServerConfigParser.parse(attribs)
+        warn_uri_credentials(user_creds)
         @options = client_options.merge(user_creds)
         @raw_mode = client_options[:raw]
         @value_marshaller = @raw_mode ? StringMarshaller.new(@options) : ValueMarshaller.new(@options)
@@ -141,18 +142,6 @@ module Dalli
         !response_buffer.in_progress?
       end
 
-      def username
-        @options[:username] || ENV.fetch('MEMCACHE_USERNAME', nil)
-      end
-
-      def password
-        @options[:password] || ENV.fetch('MEMCACHE_PASSWORD', nil)
-      end
-
-      def require_auth?
-        !username.nil?
-      end
-
       def quiet?
         Thread.current[::Dalli::QUIET]
       end
@@ -161,6 +150,16 @@ module Dalli
       # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
 
       private
+
+      URI_CREDENTIAL_WARNING = 'Dalli 5.0 removed SASL authentication. ' \
+                               'Credentials in memcached:// URIs are ignored.'
+      private_constant :URI_CREDENTIAL_WARNING
+
+      def warn_uri_credentials(user_creds)
+        return if user_creds[:username].nil? && user_creds[:password].nil?
+
+        Dalli.logger.warn(URI_CREDENTIAL_WARNING)
+      end
 
       ALLOWED_QUIET_OPS = %i[add replace set delete incr decr append prepend flush noop].freeze
       private_constant :ALLOWED_QUIET_OPS
@@ -216,8 +215,7 @@ module Dalli
 
       def connect
         @connection_manager.establish_connection
-        authenticate_connection if require_auth?
-        @version = version # Connect socket if not authed
+        @version = version
         up!
       end
 

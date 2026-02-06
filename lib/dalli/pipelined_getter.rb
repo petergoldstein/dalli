@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'set'
-
 module Dalli
   ##
   # Contains logic for the pipelined gets implemented by the client.

@@ -4,7 +4,7 @@
 # Utility module for spinning up memcached instances locally, and generating a corresponding
 # Dalli::Client to access the local instance.  Supports access via TCP and UNIX domain socket.
 ##
-module MemcachedManager
+module MemcachedManager # rubocop:disable Metrics/ModuleLength
   # TODO: This is all UNIX specific.  To support
   # running CI on Windows we'll need to conditionally
   # define a Windows equivalent
@@ -107,8 +107,9 @@ module MemcachedManager
   MIN_META_VERSION = '1.6'
   def self.supported_protocols
     return [] unless version
+    raise "Dalli 5.0+ requires memcached #{MIN_META_VERSION}+" unless version >= MIN_META_VERSION
 
-    version > MIN_META_VERSION ? %i[binary meta] : %i[binary]
+    %i[meta]
   end
 
   META_DELETE_CAS_FIX_PATCH_VERSION = '13'
