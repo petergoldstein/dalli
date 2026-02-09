@@ -11,7 +11,8 @@ describe 'authentication options' do
     end
 
     begin
-      memcached_persistent(:meta, port_or_socket: 21_345, cli_args: '', client_options: { username: 'user' }) do |_dc, port|
+      memcached_persistent(:meta, port_or_socket: 21_345, cli_args: '',
+                                  client_options: { username: 'user' }) do |_dc, port|
         # Create client with auth options that should trigger warnings
         client = Dalli::Client.new("localhost:#{port}", username: 'user', password: 'pass')
         client.flush
@@ -35,7 +36,7 @@ describe 'authentication options' do
     end
 
     begin
-      memcached_persistent(:meta, 21_346, '') do |_dc, port|
+      memcached_persistent(:meta, port_or_socket: 21_346) do |_dc, port|
         # Create client with binary protocol option that should trigger warning
         # This is the more common case - users upgrading from 4.x with explicit binary protocol
         client = Dalli::Client.new("localhost:#{port}", protocol: :binary)
@@ -60,7 +61,7 @@ describe 'authentication options' do
     end
 
     begin
-      memcached_persistent(:meta, 21_347, '') do |_dc, port|
+      memcached_persistent(:meta, port_or_socket: 21_347) do |_dc, port|
         # Create client with credentials in URI that should trigger warning
         client = Dalli::Client.new("memcached://user:pass@localhost:#{port}")
         client.flush

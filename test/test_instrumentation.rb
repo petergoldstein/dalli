@@ -288,7 +288,7 @@ describe Dalli::Instrumentation do
       end
 
       it 'uses socket path for server.address on Unix sockets and omits server.port' do
-        memcached_persistent(:meta, MemcachedMock::UNIX_SOCKET_PATH) do |dc|
+        memcached_persistent(:meta, port_or_socket: MemcachedMock::UNIX_SOCKET_PATH) do |dc|
           dc.set('otel_unix_test', 'value')
 
           span = @mock_tracer.spans.last
@@ -301,7 +301,7 @@ describe Dalli::Instrumentation do
 
     describe 'db.query.text attribute' do
       it 'includes full key text when otel_db_statement is :include' do
-        memcached_persistent(:meta, 21_345, '', otel_db_statement: :include) do |dc|
+        memcached_persistent(:meta, port_or_socket: 21_345, client_options: { otel_db_statement: :include }) do |dc|
           dc.set('mykey', 'value')
 
           span = @mock_tracer.spans.last
@@ -311,7 +311,7 @@ describe Dalli::Instrumentation do
       end
 
       it 'obfuscates key when otel_db_statement is :obfuscate' do
-        memcached_persistent(:meta, 21_345, '', otel_db_statement: :obfuscate) do |dc|
+        memcached_persistent(:meta, port_or_socket: 21_345, client_options: { otel_db_statement: :obfuscate }) do |dc|
           dc.set('mykey', 'value')
 
           span = @mock_tracer.spans.last
@@ -331,7 +331,7 @@ describe Dalli::Instrumentation do
       end
 
       it 'includes multiple keys for set_multi with :include' do
-        memcached_persistent(:meta, 21_345, '', otel_db_statement: :include) do |dc|
+        memcached_persistent(:meta, port_or_socket: 21_345, client_options: { otel_db_statement: :include }) do |dc|
           dc.set_multi({ 'key1' => 'v1', 'key2' => 'v2' })
 
           span = @mock_tracer.spans.last
@@ -344,7 +344,7 @@ describe Dalli::Instrumentation do
       end
 
       it 'includes keys for get_multi with :include' do
-        memcached_persistent(:meta, 21_345, '', otel_db_statement: :include) do |dc|
+        memcached_persistent(:meta, port_or_socket: 21_345, client_options: { otel_db_statement: :include }) do |dc|
           dc.set('gm1', 'v1')
           dc.set('gm2', 'v2')
           @mock_tracer.spans.clear
@@ -361,7 +361,7 @@ describe Dalli::Instrumentation do
       end
 
       it 'includes keys for delete_multi with :include' do
-        memcached_persistent(:meta, 21_345, '', otel_db_statement: :include) do |dc|
+        memcached_persistent(:meta, port_or_socket: 21_345, client_options: { otel_db_statement: :include }) do |dc|
           dc.set('dm1', 'v1')
           dc.set('dm2', 'v2')
           @mock_tracer.spans.clear
@@ -380,7 +380,7 @@ describe Dalli::Instrumentation do
 
     describe 'peer.service attribute' do
       it 'includes peer.service when otel_peer_service is configured' do
-        memcached_persistent(:meta, 21_345, '', otel_peer_service: 'my-cache') do |dc|
+        memcached_persistent(:meta, port_or_socket: 21_345, client_options: { otel_peer_service: 'my-cache' }) do |dc|
           dc.set('ps_test', 'value')
 
           span = @mock_tracer.spans.last

@@ -52,28 +52,6 @@ describe 'Network' do
           end
         end
 
-        it 'handles operation timeouts' do
-          toxiproxy_memcached_persistent(
-            p,
-            client_options: {
-              socket_timeout: 0.1,
-              socket_max_failures: 0,
-              socket_failure_delay: 0.0,
-              down_retry_delay: 0.0,
-              protocol: p
-            }
-          ) do |dc|
-            dc.version
-            dc = Dalli::Client.new('localhost:19123', socket_timeout: 0.1, protocol: p, socket_max_failures: 0,
-                                                      socket_failure_delay: 0.0, down_retry_delay: 0.0)
-            # With socket_max_failures: 0, the first error triggers down! which raises NetworkError.
-            # This NetworkError is not retried (only RetryableNetworkError is).
-            assert_raises Dalli::NetworkError do
-              dc.get('abc')
-            end
-          end
-        end
-
         it 'handles operation timeouts without retries' do
           toxiproxy_memcached_persistent(
             p,
