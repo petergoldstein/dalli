@@ -84,6 +84,22 @@ module Memcached
       yield dc, listen_port
     end
 
+    # Applies a toxiproxy down toxic.
+    # Closes any existing connection first to ensure the next request
+    # goes through the toxified proxy.
+    def with_toxiproxy_down(dalli_client, &)
+      dalli_client.close
+      Toxiproxy[/memcached/].down(&)
+    end
+
+    # Applies a toxiproxy latency toxic.
+    # Closes any existing connection first to ensure the next request
+    # goes through the toxified proxy.
+    def with_toxiproxy_latency(dalli_client, latency:, &block)
+      dalli_client.close
+      Toxiproxy[/memcached/].downstream(:latency, latency: latency).apply(&block)
+    end
+
     # Launches a persistent memcached process, configured to use SSL
     def memcached_ssl_persistent(protocol = :meta, port_or_socket: rand(21_397..21_896), &)
       memcached_persistent(protocol,
