@@ -9,11 +9,7 @@ require 'rack/mock'
 describe Rack::Session::Dalli do
   before do
     @port = 19_129
-<<<<<<< HEAD
-    memcached_persistent(:meta, @port)
-=======
-    memcached_persistent(:binary, port_or_socket: @port)
->>>>>>> 44f3bac (Add toxiproxy)
+    memcached_persistent(:meta, port_or_socket: @port)
     Rack::Session::Dalli::DEFAULT_DALLI_OPTIONS[:memcache_server] = "localhost:#{@port}"
 
     # test memcache connection
