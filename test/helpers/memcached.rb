@@ -95,9 +95,9 @@ module Memcached
     # Applies a toxiproxy latency toxic.
     # Closes any existing connection first to ensure the next request
     # goes through the toxified proxy.
-    def with_toxiproxy_latency(dalli_client, latency:, &block)
+    def with_toxiproxy_latency(dalli_client, latency:, &)
       dalli_client.close
-      Toxiproxy[/memcached/].downstream(:latency, latency: latency).apply(&block)
+      Toxiproxy[/memcached/].downstream(:latency, latency: latency).apply(&)
     end
 
     # Launches a persistent memcached process, configured to use SSL
