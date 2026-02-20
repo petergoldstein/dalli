@@ -61,11 +61,13 @@ module Dalli
       # Uses the library name 'dalli' and current Dalli::VERSION.
       #
       # @return [OpenTelemetry::Trace::Tracer, nil] the tracer or nil if OTel unavailable
+      # rubocop:disable ThreadSafety/ClassInstanceVariable
       def tracer
         return @tracer if defined?(@tracer)
 
         @tracer = (OpenTelemetry.tracer_provider.tracer('dalli', Dalli::VERSION) if defined?(OpenTelemetry))
       end
+      # rubocop:enable ThreadSafety/ClassInstanceVariable
 
       # Returns true if instrumentation is enabled (OpenTelemetry SDK is available).
       #

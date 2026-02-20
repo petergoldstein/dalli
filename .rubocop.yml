@@ -4,6 +4,13 @@ plugins:
   - rubocop-minitest
   - rubocop-performance
   - rubocop-rake
+  - rubocop-thread_safety
+
+ThreadSafety:
+  Enabled: true
+  Exclude:
+    - "**/*.gemspec"
+    - test/**/*
 
 AllCops:
   NewCops: enable

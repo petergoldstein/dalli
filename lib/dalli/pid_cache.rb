@@ -13,7 +13,7 @@ module Dalli
         attr_reader :pid
 
         def update!
-          @pid = Process.pid
+          @pid = Process.pid # rubocop:disable ThreadSafety/ClassInstanceVariable
         end
       end
       update!
