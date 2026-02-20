@@ -249,6 +249,22 @@ describe 'Network' do
         end
       end
 
+      it 'handles closed socket with IOError' do
+        with_nil_logger do
+          memcached_persistent(p) do |dc|
+            dc.set('test_key', 'test_value')
+
+            # Force close the socket to simulate IOError: closed stream
+            server = dc.instance_variable_get(:@ring).servers.first
+            socket = server.instance_variable_get(:@connection_manager).sock
+            socket&.close
+
+            # Should recover by reconnecting and return the cached value
+            assert_equal 'test_value', dc.get('test_key')
+          end
+        end
+      end
+
       it 'handles asynchronous Thread#raise' do
         with_nil_logger do
           memcached(p, 19_191) do |dc|
