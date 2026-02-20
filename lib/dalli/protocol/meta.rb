@@ -257,6 +257,55 @@ module Dalli
         @connection_manager.flush
       end
 
+      # Single-server fast path for get_multi. Writes all quiet get requests
+      # terminated by a noop, then reads all responses sequentially. Avoids the
+      # PipelinedGetter machinery (IO.select, response buffering, server grouping).
+      def read_multi_req(keys)
+        write_multi_get_req(keys)
+        read_multi_get_responses
+      end
+
+      def write_multi_get_req(keys)
+        skip_flags = raw_mode?
+        req = +''
+        keys.each do |key|
+          encoded_key, base64 = KeyRegularizer.encode(key)
+          req << RequestFormatter.meta_get(key: encoded_key, base64: base64, quiet: true, skip_flags: skip_flags)
+        end
+        req << RequestFormatter.meta_noop
+        write(req)
+        @connection_manager.flush
+      end
+
+      def read_multi_get_responses
+        hash = {}
+        resp = response_processor
+        loop do
+          tokens = read_multi_next_tokens
+          break unless tokens
+
+          next unless tokens.first == ResponseProcessor::VA
+
+          hash[resp.key_from_tokens(tokens)] = read_multi_value(tokens, resp)
+        end
+        hash
+      end
+
+      def read_multi_next_tokens
+        line = @connection_manager.read_line&.chomp!(TERMINATOR)
+        return nil if line.nil?
+
+        tokens = line.split
+        return nil if tokens.first == ResponseProcessor::MN
+
+        tokens
+      end
+
+      def read_multi_value(tokens, resp)
+        data = @connection_manager.read(tokens[1].to_i + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+        @value_marshaller.retrieve(data, resp.bitflags_from_tokens(tokens))
+      end
+
       require_relative 'key_regularizer'
       require_relative 'request_formatter'
       require_relative 'response_processor'

@@ -522,11 +522,28 @@ module Dalli
 
     def get_multi_hash(keys)
       Instrumentation.trace_with_result('get_multi', get_multi_attributes(keys)) do |span|
-        {}.tap do |hash|
-          pipelined_getter.process(keys) { |k, data| hash[k] = data.first }
-          record_hit_miss_metrics(span, keys.size, hash.size)
-        end
+        hash = if ring.servers.size == 1
+                 single_server_get_multi(keys)
+               else
+                 {}.tap do |h|
+                   pipelined_getter.process(keys) { |k, data| h[k] = data.first }
+                 end
+               end
+        record_hit_miss_metrics(span, keys.size, hash.size)
+        hash
       end
+    end
+
+    def single_server_get_multi(keys)
+      keys.map! { |k| @key_manager.validate_key(k.to_s) }
+      server = ring.servers.first
+      return {} unless server.alive?
+
+      result = server.request(:read_multi_req, keys)
+      result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
+      result
+    rescue Dalli::NetworkError
+      {}
     end
 
     def get_multi_attributes(keys)

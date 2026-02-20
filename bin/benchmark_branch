@@ -1,0 +1,294 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Compare dalli performance between the current working tree and a base branch
+# (default: main) within the SAME repo. Uses git stash to switch between versions.
+#
+# This script:
+#   1. Stashes uncommitted changes
+#   2. Benchmarks the base branch code (baseline)
+#   3. Restores stashed changes
+#   4. Benchmarks the current code (with changes)
+#   5. Prints comparison
+#
+# Requirements:
+#   - memcached running (set BENCH_CACHE_URL if not on localhost:11211)
+#   - benchmark-ips gem installed (or in Gemfile)
+#   - Uncommitted or staged changes to compare against base branch
+#
+# Usage:
+#   bundle exec ruby bin/benchmark_branch
+#
+#   # Only benchmark get_multi:
+#   BENCH_TARGET=get_multi bundle exec ruby bin/benchmark_branch
+#
+#   # Compare against a different base branch:
+#   BENCH_BASE=develop bundle exec ruby bin/benchmark_branch
+#
+# Environment variables:
+#   BENCH_BASE          - base branch to compare against (default: main)
+#   BENCH_TARGET        - all, get, get_multi, set, set_multi (default: get_multi)
+#   BENCH_TIME          - seconds per benchmark run (default: 10)
+#   BENCH_WARMUP        - seconds warmup (default: 3)
+#   BENCH_PAYLOAD_SIZE  - value size in bytes (default: 100)
+#   BENCH_MULTI_COUNTS  - comma-separated multi key counts (default: 10,100,500)
+#   BENCH_CACHE_URL     - memcached url (default: 127.0.0.1:11211)
+#   BENCH_SAVE_FILE     - path for save! results file (default: /tmp/dalli_bench_branch)
+
+require 'benchmark/ips'
+require 'fileutils'
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+base_branch      = ENV.fetch('BENCH_BASE', 'main')
+bench_target     = ENV.fetch('BENCH_TARGET', 'get_multi')
+bench_time       = Integer(ENV.fetch('BENCH_TIME', '10'))
+bench_warmup     = Integer(ENV.fetch('BENCH_WARMUP', '3'))
+payload_size     = Integer(ENV.fetch('BENCH_PAYLOAD_SIZE', '100'))
+multi_counts     = ENV.fetch('BENCH_MULTI_COUNTS', '10,100,500').split(',').map { |s| Integer(s) }
+dalli_url        = ENV.fetch('BENCH_CACHE_URL', '127.0.0.1:11211')
+save_file        = ENV.fetch('BENCH_SAVE_FILE', '/tmp/dalli_bench_branch')
+
+# ---------------------------------------------------------------------------
+# Helper: run benchmarks with the currently-loaded dalli code
+# ---------------------------------------------------------------------------
+def run_benchmarks(label:, client:, bench_target:, bench_time:, bench_warmup:,
+                   suite:, payload_size:, multi_pairs:, multi_counts:, save_file:)
+  if %w[all get].include?(bench_target)
+    puts '-' * 70
+    puts "Single GET (raw, #{payload_size}B payload)"
+    puts '-' * 70
+    Benchmark.ips do |x|
+      x.config(warmup: bench_warmup, time: bench_time, suite: suite)
+      x.report("#{label} get") { client.get('bench_key') }
+      x.save! save_file
+      x.compare!
+    end
+    puts
+  end
+
+  if %w[all get_multi].include?(bench_target)
+    multi_counts.each do |count|
+      puts '-' * 70
+      puts "get_multi (#{count} keys, #{payload_size}B values)"
+      puts '-' * 70
+      keys = multi_pairs[count].keys
+      Benchmark.ips do |x|
+        x.config(warmup: bench_warmup, time: bench_time, suite: suite)
+        x.report("#{label} get_multi(#{count})") { client.get_multi(*keys) }
+        x.save! save_file
+        x.compare!
+      end
+      puts
+    end
+  end
+
+  if %w[all set].include?(bench_target)
+    puts '-' * 70
+    puts "Single SET (raw, #{payload_size}B payload)"
+    puts '-' * 70
+    Benchmark.ips do |x|
+      x.config(warmup: bench_warmup, time: bench_time, suite: suite)
+      x.report("#{label} set") { client.set('bench_key', 'x' * payload_size) }
+      x.save! save_file
+      x.compare!
+    end
+    puts
+  end
+
+  return unless %w[all set_multi].include?(bench_target)
+
+  pairs = multi_pairs[100] || multi_pairs[multi_counts.first]
+  count = pairs.size
+  puts '-' * 70
+  puts "set_multi (#{count} keys, #{payload_size}B values)"
+  puts '-' * 70
+  Benchmark.ips do |x|
+    x.config(warmup: bench_warmup, time: bench_time, suite: suite)
+    x.report("#{label} set_multi(#{count})") { client.set_multi(pairs, 3600) }
+    x.save! save_file
+    x.compare!
+  end
+  puts
+end
+
+# ---------------------------------------------------------------------------
+# NoopSerializer - avoids Marshal overhead so we measure Dalli, not Marshal
+# ---------------------------------------------------------------------------
+class NoopSerializer
+  def self.dump(value)
+    value
+  end
+
+  def self.load(value)
+    value
+  end
+end
+
+# ---------------------------------------------------------------------------
+# GCSuite - disable GC during benchmarks for consistent results
+# ---------------------------------------------------------------------------
+class GCSuite
+  def warming(*)
+    run_gc
+  end
+
+  def running(*)
+    run_gc
+  end
+
+  def warmup_stats(*)
+    GC.enable
+  end
+
+  def add_report(*)
+    GC.enable
+  end
+
+  private
+
+  def run_gc
+    GC.enable
+    GC.start
+    GC.disable
+  end
+end
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+# Clean previous results
+FileUtils.rm_f(save_file)
+
+current_branch = `git rev-parse --abbrev-ref HEAD`.strip
+current_sha    = `git rev-parse --short HEAD`.strip
+has_changes    = !system('git diff --quiet HEAD')
+
+puts '=' * 70
+puts 'Dalli Branch Benchmark'
+puts '=' * 70
+puts "ruby:           #{RUBY_DESCRIPTION}"
+yjit = defined?(RubyVM::YJIT) && RubyVM::YJIT.enabled?
+puts "yjit:           #{yjit}"
+puts "target:         #{bench_target}"
+puts "payload size:   #{payload_size} bytes"
+puts "multi counts:   #{multi_counts.join(', ')}"
+puts "bench time:     #{bench_time}s (warmup: #{bench_warmup}s)"
+puts "memcached:      #{dalli_url}"
+puts "current branch: #{current_branch} (#{current_sha})"
+puts "base branch:    #{base_branch}"
+puts "has changes:    #{has_changes}"
+puts '=' * 70
+puts
+
+suite = GCSuite.new
+payload = 'x' * payload_size
+
+# ---------------------------------------------------------------------------
+# Phase 1: Benchmark the base branch (baseline)
+# ---------------------------------------------------------------------------
+puts '#' * 70
+puts "PHASE 1: Benchmarking baseline (#{base_branch})"
+puts '#' * 70
+puts
+
+if has_changes
+  puts '=> Stashing uncommitted changes...'
+  system('git stash --include-untracked -q') || abort('Failed to stash changes')
+end
+
+begin
+  # Reload dalli from the base branch code
+  # We need to fork a subprocess so we get a clean Ruby load
+  pid = fork do
+    # Re-require dalli fresh
+    $LOAD_PATH.unshift(File.expand_path('../lib', __dir__))
+    load File.expand_path('../lib/dalli.rb', __dir__)
+
+    label = "baseline (#{base_branch})"
+
+    client_opts = { serializer: NoopSerializer, compress: false, raw: true }
+    client = Dalli::Client.new(dalli_url, **client_opts)
+
+    # Seed data
+    client.set('bench_key', payload)
+
+    multi_pairs = {}
+    multi_counts.each do |count|
+      pairs = {}
+      count.times { |i| pairs["bench_multi_#{count}_#{i}"] = payload }
+      multi_pairs[count] = pairs
+      pairs.each { |k, v| client.set(k, v) }
+    end
+
+    puts "Baseline client verified. Seeded #{multi_pairs.values.sum(&:size)} multi keys."
+    puts
+
+    run_benchmarks(
+      label: label, client: client, bench_target: bench_target,
+      bench_time: bench_time, bench_warmup: bench_warmup, suite: suite,
+      payload_size: payload_size, multi_pairs: multi_pairs,
+      multi_counts: multi_counts, save_file: save_file
+    )
+
+    client.close
+  end
+
+  _, status = Process.waitpid2(pid)
+  abort('Baseline benchmark failed!') unless status.success?
+ensure
+  # Restore changes
+  if has_changes
+    puts '=> Restoring stashed changes...'
+    system('git stash pop -q') || abort('Failed to restore stash')
+  end
+end
+
+puts
+puts '#' * 70
+puts "PHASE 2: Benchmarking current changes (#{current_branch})"
+puts '#' * 70
+puts
+
+# Phase 2 runs in a fork too, for symmetry and clean loading
+pid = fork do
+  $LOAD_PATH.unshift(File.expand_path('../lib', __dir__))
+  load File.expand_path('../lib/dalli.rb', __dir__)
+
+  label = "current (#{current_branch})"
+
+  client_opts = { serializer: NoopSerializer, compress: false, raw: true }
+  client = Dalli::Client.new(dalli_url, **client_opts)
+
+  # Seed data
+  client.set('bench_key', payload)
+
+  multi_pairs = {}
+  multi_counts.each do |count|
+    pairs = {}
+    count.times { |i| pairs["bench_multi_#{count}_#{i}"] = payload }
+    multi_pairs[count] = pairs
+    pairs.each { |k, v| client.set(k, v) }
+  end
+
+  puts "Current client verified. Seeded #{multi_pairs.values.sum(&:size)} multi keys."
+  puts
+
+  run_benchmarks(
+    label: label, client: client, bench_target: bench_target,
+    bench_time: bench_time, bench_warmup: bench_warmup, suite: suite,
+    payload_size: payload_size, multi_pairs: multi_pairs,
+    multi_counts: multi_counts, save_file: save_file
+  )
+
+  client.close
+end
+
+_, status = Process.waitpid2(pid)
+abort('Current benchmark failed!') unless status.success?
+
+puts '=' * 70
+puts 'Done! Comparison shown above after each benchmark.'
+puts '=' * 70
