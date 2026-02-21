@@ -1,6 +1,22 @@
 Dalli Changelog
 =====================
 
+4.3.3
+==========
+
+Performance:
+
+- Reduce object allocations in pipelined get response processing (#1072)
+  - Offset-based `ResponseBuffer`: track a read offset instead of slicing a new string after every parsed response; compact only when the consumed portion exceeds 4KB and more than half the buffer
+  - Inline response processor parsing: avoid intermediate array allocations from `split`-based header parsing in both binary and meta protocols
+  - Block-based `pipeline_next_responses`: yield `(key, value, cas)` directly when a block is given, avoiding per-call Hash allocation
+  - `PipelinedGetter`: replace Hash-based socket-to-server mapping with linear scan (faster for typical 1-5 server counts); use `Process.clock_gettime(CLOCK_MONOTONIC)` instead of `Time.now`
+- Add cross-version benchmark script (`bin/compare_versions`) for reproducible performance comparisons across Dalli versions
+
+Bug Fixes:
+
+- Skip OTel integration tests when meta protocol is unavailable (#1072)
+
 4.3.2
 ==========
 
