@@ -1,6 +1,29 @@
 Dalli Changelog
 =====================
 
+5.0.1
+==========
+
+Performance:
+
+- Reduce object allocations in pipelined get response processing (#1072, #1078)
+  - Offset-based `ResponseBuffer`: track a read offset instead of slicing a new string after every parsed response; compact only when the consumed portion exceeds 4KB and more than half the buffer
+  - Inline response processor parsing: avoid intermediate array allocations from `split`-based header parsing
+  - Block-based `pipeline_next_responses`: yield `(key, value, cas)` directly when a block is given, avoiding per-call Hash allocation
+  - `PipelinedGetter`: replace Hash-based socket-to-server mapping with linear scan (faster for typical 1-5 server counts); use `Process.clock_gettime(CLOCK_MONOTONIC)` instead of `Time.now`
+- Add cross-version benchmark script (`bin/compare_versions`) for reproducible performance comparisons across Dalli versions
+
+Bug Fixes:
+
+- Rescue `IOError` in connection manager `write`/`flush` methods (#1075)
+  - Prevents unhandled exceptions when a connection is closed mid-operation
+  - Thanks to Graham Cooper (Shopify) for this fix
+
+Development:
+
+- Add `rubocop-thread_safety` for detecting thread-safety issues (#1076)
+- Add CONTRIBUTING.md with AI contribution policy (#1074)
+
 5.0.0
 ==========
 
@@ -43,6 +66,37 @@ Internal:
 - Simplified protocol directory structure: moved `lib/dalli/protocol/meta/*` to `lib/dalli/protocol/`
 - Removed deprecated binary protocol files and SASL authentication code
 - Removed `require 'set'` (autoloaded in Ruby 3.3+)
+
+4.3.3
+==========
+
+Performance:
+
+- Reduce object allocations in pipelined get response processing (#1072)
+  - Offset-based `ResponseBuffer`: track a read offset instead of slicing a new string after every parsed response; compact only when the consumed portion exceeds 4KB and more than half the buffer
+  - Inline response processor parsing: avoid intermediate array allocations from `split`-based header parsing in both binary and meta protocols
+  - Block-based `pipeline_next_responses`: yield `(key, value, cas)` directly when a block is given, avoiding per-call Hash allocation
+  - `PipelinedGetter`: replace Hash-based socket-to-server mapping with linear scan (faster for typical 1-5 server counts); use `Process.clock_gettime(CLOCK_MONOTONIC)` instead of `Time.now`
+- Add cross-version benchmark script (`bin/compare_versions`) for reproducible performance comparisons across Dalli versions
+
+Bug Fixes:
+
+- Skip OTel integration tests when meta protocol is unavailable (#1072)
+
+4.3.2
+==========
+
+OpenTelemetry:
+
+- Migrate to stable OTel semantic conventions
+  - `db.system` renamed to `db.system.name`
+  - `db.operation` renamed to `db.operation.name`
+  - `server.address` now contains hostname only; `server.port` is a separate integer attribute
+  - `get_with_metadata` and `fetch_with_lock` now include `server.address`/`server.port`
+- Add `db.query.text` span attribute with configurable modes
+  - `:otel_db_statement` option: `:include`, `:obfuscate`, or `nil` (default: omitted)
+- Add `peer.service` span attribute
+  - `:otel_peer_service` option for logical service naming
 
 4.3.1
 ==========
