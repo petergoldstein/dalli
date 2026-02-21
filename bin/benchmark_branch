@@ -197,6 +197,9 @@ puts
 if has_changes
   puts '=> Stashing uncommitted changes...'
   system('git stash --include-untracked -q') || abort('Failed to stash changes')
+elsif current_branch != base_branch
+  puts "=> Checking out #{base_branch}..."
+  system("git checkout #{base_branch} -q") || abort("Failed to checkout #{base_branch}")
 end
 
 begin
@@ -239,10 +242,13 @@ begin
   _, status = Process.waitpid2(pid)
   abort('Baseline benchmark failed!') unless status.success?
 ensure
-  # Restore changes
+  # Restore to feature branch
   if has_changes
     puts '=> Restoring stashed changes...'
     system('git stash pop -q') || abort('Failed to restore stash')
+  elsif current_branch != base_branch
+    puts "=> Checking out #{current_branch}..."
+    system("git checkout #{current_branch} -q") || abort("Failed to checkout #{current_branch}")
   end
 end
 
