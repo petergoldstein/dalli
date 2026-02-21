@@ -91,10 +91,13 @@ module Dalli
       # repeatedly whenever this server's socket is readable until
       # #pipeline_complete?.
       #
-      # Returns a Hash of kv pairs received.
-      def pipeline_next_responses
+      # When a block is given, yields (key, value, cas) for each response,
+      # avoiding intermediate Hash allocation. Returns nil.
+      # Without a block, returns a Hash of { key => [value, cas] }.
+      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      def pipeline_next_responses(&block)
         reconnect_on_pipeline_complete!
-        values = {}
+        values = nil
 
         response_buffer.read
 
@@ -108,16 +111,24 @@ module Dalli
 
           # If the status is ok and the key is not nil, then this is a
           # getkq response with a value that we want to set in the response hash
-          values[key] = [value, cas] unless key.nil?
+          unless key.nil?
+            if block
+              yield key, value, cas
+            else
+              values ||= {}
+              values[key] = [value, cas]
+            end
+          end
 
           # Get the next response from the buffer
           status, cas, key, value = response_buffer.process_single_getk_response
         end
 
-        values
+        values || {}
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
         @connection_manager.error_on_request!(e)
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       # Abort current pipelined get. Generally used to signal an external
       # timeout during pipelined get.  The underlying socket is

@@ -189,16 +189,6 @@ module Dalli
           [resp_header.status, content]
         end
 
-        def contains_header?(buf)
-          return false unless buf
-
-          buf.bytesize >= ResponseHeader::SIZE
-        end
-
-        def response_header_from_buffer(buf)
-          ResponseHeader.new(buf)
-        end
-
         ##
         # This method returns an array of values used in a pipelined
         # getk process.  The first value is the number of bytes by
@@ -209,11 +199,11 @@ module Dalli
         # The remaining three values in the array are the ResponseHeader,
         # key, and value.
         ##
-        def getk_response_from_buffer(buf)
+        def getk_response_from_buffer(buf, offset = 0)
           # There's no header in the buffer, so don't advance
-          return [0, nil, nil, nil, nil] unless contains_header?(buf)
+          return [0, nil, nil, nil, nil] unless buf && buf.bytesize >= offset + ResponseHeader::SIZE
 
-          resp_header = response_header_from_buffer(buf)
+          resp_header = ResponseHeader.new(buf.byteslice(offset, ResponseHeader::SIZE))
           body_len = resp_header.body_len
 
           # We have a complete response that has no body.
@@ -225,11 +215,11 @@ module Dalli
           resp_size = ResponseHeader::SIZE + body_len
           # The header is in the buffer, but the body is not.  As we don't have
           # a complete response, don't advance the buffer
-          return [0, nil, nil, nil, nil] unless buf.bytesize >= resp_size
+          return [0, nil, nil, nil, nil] unless buf.bytesize >= offset + resp_size
 
           # The full response is in our buffer, so parse it and return
           # the values
-          body = buf.byteslice(ResponseHeader::SIZE, body_len)
+          body = buf.byteslice(offset + ResponseHeader::SIZE, body_len)
           key, value = unpack_response_body(resp_header, body, true)
           [resp_size, resp_header.ok?, resp_header.cas, key, value]
         end
