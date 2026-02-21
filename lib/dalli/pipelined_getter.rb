@@ -27,7 +27,7 @@ module Dalli
         # Stores partial results collected during interleaved send phase
         @partial_results = {}
         servers = setup_requests(keys)
-        start_time = Time.now
+        start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
         # First yield any partial results collected during interleaved send
         yield_partial_results(&block)
@@ -147,7 +147,7 @@ module Dalli
     end
 
     def remaining_time(start, timeout)
-      elapsed = Time.now - start
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
       return 0 if elapsed > timeout
 
       timeout - elapsed
@@ -166,8 +166,8 @@ module Dalli
     # Processes responses from a server.  Returns true if there are no
     # additional responses from this server.
     def process_server(server)
-      server.pipeline_next_responses.each_pair do |key, value_list|
-        yield @key_manager.key_without_namespace(key), value_list
+      server.pipeline_next_responses do |key, value, cas|
+        yield @key_manager.key_without_namespace(key), [value, cas]
       end
 
       server.pipeline_complete?
@@ -176,18 +176,13 @@ module Dalli
     def servers_with_response(servers, timeout)
       return [] if servers.empty?
 
-      # TODO: - This is a bit challenging.  Essentially the PipelinedGetter
-      # is a reactor, but without the benefit of a Fiber or separate thread.
-      # My suspicion is that we may want to try and push this down into the
-      # individual servers, but I'm not sure.  For now, we keep the
-      # mapping between the alerted object (the socket) and the
-      # corrresponding server here.
-      server_map = servers.each_with_object({}) { |s, h| h[s.sock] = s }
-
-      readable, = IO.select(server_map.keys, nil, nil, timeout)
+      sockets = servers.map(&:sock)
+      readable, = IO.select(sockets, nil, nil, timeout)
       return [] if readable.nil?
 
-      readable.map { |sock| server_map[sock] }
+      # For typical server counts (1-5), linear scan is faster than
+      # building and looking up a hash map
+      readable.filter_map { |sock| servers.find { |s| s.sock == sock } }
     end
 
     def groups_for_keys(*keys)
