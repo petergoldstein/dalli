@@ -257,6 +257,82 @@ module Dalli
         @connection_manager.flush
       end
 
+      # Single-server fast path for get_multi. Inlines request formatting and
+      # response parsing to minimize per-key overhead. Avoids the PipelinedGetter
+      # machinery (IO.select, response buffering, server grouping).
+      def read_multi_req(keys)
+        is_raw = raw_mode?
+        # Inline request formatting — avoids RequestFormatter.meta_get overhead per key.
+        # In raw mode: "mg <key> v k q s\r\n" (no f flag, key at index 2)
+        # Normal mode: "mg <key> v f k q s\r\n" (key at index 3)
+        post_get = is_raw ? " v k q s\r\n" : " v f k q s\r\n"
+        keys.each do |key|
+          encoded_key, base64 = KeyRegularizer.encode(key)
+          write(base64 ? "mg #{encoded_key} b#{post_get}" : "mg #{encoded_key}#{post_get}")
+        end
+        write("mn\r\n")
+        @connection_manager.flush
+
+        read_multi_get_responses(is_raw)
+      end
+
+      def read_multi_get_responses(is_raw)
+        hash = {}
+        key_index = is_raw ? 2 : 3
+        while (line = @connection_manager.read_line)
+          break if line.start_with?('MN')
+          next unless line.start_with?('VA ')
+
+          key, value = parse_multi_get_value(line, key_index, is_raw)
+          hash[key] = value if key
+        end
+        hash
+      end
+
+      def parse_multi_get_value(line, key_index, is_raw)
+        tokens = line.chomp!(TERMINATOR).split
+        value = @connection_manager.read(tokens[1].to_i + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+        raw_key = tokens[key_index]
+        return unless raw_key
+
+        key = KeyRegularizer.decode(raw_key[1..], tokens.include?('b'))
+        bitflags = is_raw ? 0 : response_processor.bitflags_from_tokens(tokens)
+        [key, @value_marshaller.retrieve(value, bitflags)]
+      end
+
+      # Single-server fast path for set_multi. Inlines request formatting to
+      # minimize per-key overhead. Avoids PipelinedSetter server grouping.
+      def write_multi_req(pairs, ttl, req_options)
+        ttl = TtlSanitizer.sanitize(ttl) if ttl
+        pairs.each do |key, raw_value|
+          (value, bitflags) = @value_marshaller.store(key, raw_value, req_options)
+          encoded_key, base64 = KeyRegularizer.encode(key)
+          # Inline format: "ms <key> <size> c [b] F<flags> T<ttl> MS q\r\n"
+          cmd = "ms #{encoded_key} #{value.bytesize} c"
+          cmd << ' b' if base64
+          cmd << " F#{bitflags}" if bitflags
+          cmd << " T#{ttl}" if ttl
+          cmd << " MS q\r\n"
+          write(cmd)
+          write(value)
+          write(TERMINATOR)
+        end
+        write_noop
+        response_processor.consume_all_responses_until_mn
+      end
+
+      # Single-server fast path for delete_multi. Writes all quiet delete requests
+      # terminated by a noop, then consumes all responses.
+      def delete_multi_req(keys)
+        keys.each do |key|
+          encoded_key, base64 = KeyRegularizer.encode(key)
+          # Inline format: "md <key> [b] q\r\n"
+          write(base64 ? "md #{encoded_key} b q\r\n" : "md #{encoded_key} q\r\n")
+        end
+        write_noop
+        response_processor.consume_all_responses_until_mn
+      end
+
       require_relative 'key_regularizer'
       require_relative 'request_formatter'
       require_relative 'response_processor'

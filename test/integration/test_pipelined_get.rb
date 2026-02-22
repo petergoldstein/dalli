@@ -103,6 +103,86 @@ describe 'Pipelined Get' do
         end
       end
 
+      describe 'single-server get_multi fast path' do
+        it 'returns correct results via the fast path' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            dc.set('a', 'foo')
+            dc.set('b', 123)
+            dc.set('c', %w[a b c])
+
+            resp = dc.get_multi(%w[a b c d e f])
+            expected = { 'a' => 'foo', 'b' => 123, 'c' => %w[a b c] }
+
+            assert_equal(expected, resp)
+          end
+        end
+
+        it 'returns correct results with raw mode' do
+          memcached_persistent(p, 21_345, '', raw: true) do |dc|
+            dc.flush
+
+            dc.set('x', 'hello')
+            dc.set('y', 'world')
+
+            resp = dc.get_multi(%w[x y z])
+
+            assert_equal({ 'x' => 'hello', 'y' => 'world' }, resp)
+          end
+        end
+
+        it 'returns correct results with namespace' do
+          memcached_persistent(p, 21_345, '', namespace: 'ns') do |dc|
+            dc.flush
+
+            dc.set('a', 'val_a')
+            dc.set('b', 'val_b')
+
+            resp = dc.get_multi(%w[a b c])
+
+            assert_equal({ 'a' => 'val_a', 'b' => 'val_b' }, resp)
+          end
+        end
+
+        it 'handles all misses' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            resp = dc.get_multi(%w[miss1 miss2 miss3])
+
+            assert_empty(resp)
+          end
+        end
+
+        it 'handles Unicode and space keys via fast path' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            dc.set('contains space', 'space_val')
+            dc.set('ƒ©åÍÎ', 'unicode_val')
+
+            resp = dc.get_multi(['contains space', 'ƒ©åÍÎ', 'missing'])
+
+            assert_equal({ 'contains space' => 'space_val', 'ƒ©åÍÎ' => 'unicode_val' }, resp)
+          end
+        end
+
+        it 'still uses block-based get_multi via PipelinedGetter' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            dc.set('a', 'foo')
+            dc.set('b', 'bar')
+
+            collected = {}
+            dc.get_multi(%w[a b c]) { |k, v| collected[k] = v }
+
+            assert_equal({ 'a' => 'foo', 'b' => 'bar' }, collected)
+          end
+        end
+      end
+
       describe 'pipelined_get_interleaved' do
         it 'works with chunked requests' do
           memcached_persistent(p) do |dc|

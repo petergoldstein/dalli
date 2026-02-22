@@ -15,6 +15,9 @@ ThreadSafety:
 AllCops:
   NewCops: enable
   TargetRubyVersion: 3.3
+  Exclude:
+    - 'bin/benchmark_*'
+    - 'vendor/**/*'
 
 Metrics/BlockLength:
   Max: 50
