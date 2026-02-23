@@ -311,7 +311,11 @@ module Dalli
       return if hash.empty?
 
       Instrumentation.trace('set_multi', multi_trace_attrs('set_multi', hash.size, hash.keys)) do
-        pipelined_setter.process(hash, ttl_or_default(ttl), req_options)
+        if ring.servers.size == 1
+          single_server_set_multi(hash, ttl_or_default(ttl), req_options)
+        else
+          pipelined_setter.process(hash, ttl_or_default(ttl), req_options)
+        end
       end
     end
 
@@ -368,7 +372,11 @@ module Dalli
       return if keys.empty?
 
       Instrumentation.trace('delete_multi', multi_trace_attrs('delete_multi', keys.size, keys)) do
-        pipelined_deleter.process(keys)
+        if ring.servers.size == 1
+          single_server_delete_multi(keys)
+        else
+          pipelined_deleter.process(keys)
+        end
       end
     end
 
@@ -522,11 +530,50 @@ module Dalli
 
     def get_multi_hash(keys)
       Instrumentation.trace_with_result('get_multi', get_multi_attributes(keys)) do |span|
-        {}.tap do |hash|
-          pipelined_getter.process(keys) { |k, data| hash[k] = data.first }
-          record_hit_miss_metrics(span, keys.size, hash.size)
-        end
+        hash = if ring.servers.size == 1
+                 single_server_get_multi(keys)
+               else
+                 {}.tap do |h|
+                   pipelined_getter.process(keys) { |k, data| h[k] = data.first }
+                 end
+               end
+        record_hit_miss_metrics(span, keys.size, hash.size)
+        hash
       end
+    end
+
+    def single_server
+      server = ring.servers.first
+      server if server&.alive?
+    end
+
+    def single_server_get_multi(keys)
+      keys.map! { |k| @key_manager.validate_key(k.to_s) }
+      return {} unless (server = single_server)
+
+      result = server.request(:read_multi_req, keys)
+      result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
+      result
+    rescue Dalli::NetworkError
+      {}
+    end
+
+    def single_server_set_multi(hash, ttl, req_options)
+      pairs = hash.transform_keys { |k| @key_manager.validate_key(k.to_s) }
+      return unless (server = single_server)
+
+      server.request(:write_multi_req, pairs, ttl, req_options)
+    rescue Dalli::NetworkError
+      nil
+    end
+
+    def single_server_delete_multi(keys)
+      validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
+      return unless (server = single_server)
+
+      server.request(:delete_multi_req, validated_keys)
+    rescue Dalli::NetworkError
+      nil
     end
 
     def get_multi_attributes(keys)
