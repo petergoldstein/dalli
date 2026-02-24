@@ -1,6 +1,20 @@
 Dalli Changelog
 =====================
 
+5.0.2
+==========
+
+Performance:
+
+- Add single-server fast path for `get_multi`, `set_multi`, and `delete_multi` (#1077)
+  - When only one memcached server is configured, bypass the `Pipelined*` machinery (IO.select, response buffering, server grouping) and issue all quiet meta requests inline followed by a noop terminator
+  - `get_multi` shows ~1.5x improvement at 10 keys and ~1.75x at 100–500 keys compared to the `PipelinedGetter` path
+  - Thanks to Dan Mayer (Shopify) for this contribution
+
+Development:
+
+- Add `bin/benchmark_branch` script for benchmarking against the current branch
+
 5.0.1
 ==========
 
