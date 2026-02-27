@@ -10,6 +10,10 @@ on:
     #   - "src/**/*.js"
     #   - "src/**/*.jsx"
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   claude-review:
     # Optional: Filter by PR author
