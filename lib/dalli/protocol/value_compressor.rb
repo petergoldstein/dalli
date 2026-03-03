@@ -20,10 +20,6 @@ module Dalli
 
       OPTIONS = DEFAULTS.keys.freeze
 
-      # https://www.hjp.at/zettel/m/memcached_flags.rxml
-      # Looks like most clients use bit 1 to indicate gzip compression.
-      FLAG_COMPRESSED = 0x2
-
       def initialize(client_options)
         @compression_options =
           DEFAULTS.merge(client_options.slice(*OPTIONS))
@@ -32,13 +28,13 @@ module Dalli
       def store(value, req_options, bitflags)
         do_compress = compress_value?(value, req_options)
         store_value = do_compress ? compressor.compress(value) : value
-        bitflags |= FLAG_COMPRESSED if do_compress
+        bitflags |= Flags::COMPRESSED if do_compress
 
         [store_value, bitflags]
       end
 
       def retrieve(value, bitflags)
-        compressed = bitflags.anybits?(FLAG_COMPRESSED)
+        compressed = bitflags.anybits?(Flags::COMPRESSED)
         compressed ? compressor.decompress(value) : value
 
       # TODO: We likely want to move this rescue into the Dalli::Compressor / Dalli::GzipCompressor

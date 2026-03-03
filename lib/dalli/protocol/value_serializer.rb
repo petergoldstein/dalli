@@ -15,11 +15,6 @@ module Dalli
 
       OPTIONS = DEFAULTS.keys.freeze
 
-      # https://www.hjp.at/zettel/m/memcached_flags.rxml
-      # Looks like most clients use bit 0 to indicate native language serialization
-      FLAG_SERIALIZED = 0x1
-      FLAG_UTF8 = 0x2
-
       # Class variable to track whether the Marshal warning has been logged
       @@marshal_warning_logged = false # rubocop:disable Style/ClassVars
 
@@ -35,18 +30,18 @@ module Dalli
         return store_raw(value, bitflags) if req_options&.dig(:raw)
         return store_string_fastpath(value, bitflags) if use_string_fastpath?(value, req_options)
 
-        [serialize_value(value), bitflags | FLAG_SERIALIZED]
+        [serialize_value(value), bitflags | Flags::SERIALIZED]
       end
 
       def retrieve(value, bitflags)
-        serialized = bitflags.anybits?(FLAG_SERIALIZED)
+        serialized = bitflags.anybits?(Flags::SERIALIZED)
         if serialized
           begin
             serializer.load(value)
           rescue StandardError
             raise UnmarshalError, 'Unable to unmarshal value'
           end
-        elsif bitflags.anybits?(FLAG_UTF8)
+        elsif bitflags.anybits?(Flags::UTF8)
           value.force_encoding(Encoding::UTF_8)
         else
           value
@@ -86,8 +81,8 @@ module Dalli
       def store_string_fastpath(value, bitflags)
         case value.encoding
         when Encoding::BINARY then [value, bitflags]
-        when Encoding::UTF_8 then [value, bitflags | FLAG_UTF8]
-        else [serialize_value(value), bitflags | FLAG_SERIALIZED]
+        when Encoding::UTF_8 then [value, bitflags | Flags::UTF8]
+        else [serialize_value(value), bitflags | Flags::SERIALIZED]
         end
       end
 
