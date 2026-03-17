@@ -33,6 +33,7 @@ raise StandardError, 'No supported version of memcached could be found.' unless 
 # Generate self-signed certs for SSL once per suite run.
 CertificateGenerator.generate
 
+# rubocop:disable Style/OneClassPerFile
 module Minitest
   class Spec
     include Memcached::Helper
@@ -76,3 +77,4 @@ module Minitest
     end
   end
 end
+# rubocop:enable Style/OneClassPerFile

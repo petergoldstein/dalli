@@ -20,6 +20,7 @@ require 'benchmark/ips'
 require 'monitor'
 require_relative '../lib/dalli'
 
+# rubocop:disable Style/OneClassPerFile
 ##
 # NoopSerializer is a serializer that avoids the overhead of Marshal or JSON.
 ##
@@ -273,3 +274,4 @@ if %w[all set_multi].include?(bench_target)
     x.compare!
   end
 end
+# rubocop:enable Style/OneClassPerFile
