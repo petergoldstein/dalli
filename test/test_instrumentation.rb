@@ -91,6 +91,18 @@ describe Dalli::Instrumentation do
     end
   end
 
+  describe '.disable!' do
+    it 'causes .enabled? to return false' do
+      Dalli::Instrumentation.tracer = MockOpenTelemetry::MockTracer.new
+
+      assert_predicate Dalli::Instrumentation, :enabled?
+
+      Dalli::Instrumentation.disable!
+
+      refute_predicate Dalli::Instrumentation, :enabled?
+    end
+  end
+
   describe '.trace without OpenTelemetry' do
     it 'yields the block and returns its result when tracing is disabled' do
       clear_tracer_cache
