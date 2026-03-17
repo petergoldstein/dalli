@@ -1,6 +1,14 @@
 Dalli Changelog
 =====================
 
+Unreleased
+==========
+
+Features:
+
+- Add `Dalli::Instrumentation.disable!` to allow disabling OpenTelemetry instrumentation at runtime (#1088)
+  - Also exposes `Dalli::Instrumentation.tracer=` for setting a custom tracer
+
 5.0.2
 ==========
 

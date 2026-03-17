@@ -90,6 +90,20 @@ Exceptions are automatically recorded on spans with error status. When an operat
 2. The span status is set to error with the exception message
 3. The exception is re-raised to the caller
 
+### Disabling Instrumentation
+
+To disable instrumentation at runtime (e.g., in tests or specific environments):
+
+```ruby
+Dalli::Instrumentation.disable!
+```
+
+You can also assign a custom tracer directly:
+
+```ruby
+Dalli::Instrumentation.tracer = my_custom_tracer
+```
+
 ### Zero Overhead
 
 When OpenTelemetry is not present, there is zero overhead - the tracing code checks once at startup and bypasses all instrumentation logic entirely when the SDK is not loaded.
