@@ -650,10 +650,8 @@ module Dalli
     # a particular memcached instance becomes unreachable, or the
     # operation times out.
     ##
-    def perform(*all_args)
+    def perform(op, key, *args)
       return yield if block_given?
-
-      op, key, *args = all_args
 
       key = key.to_s
       key = @key_manager.validate_key(key)
