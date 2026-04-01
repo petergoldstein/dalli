@@ -650,7 +650,9 @@ module Dalli
     # a particular memcached instance becomes unreachable, or the
     # operation times out.
     ##
+    # rubocop:disable Naming/MethodParameterName
     def perform(op, key, *args)
+      # rubocop:enable Naming/MethodParameterName
       return yield if block_given?
 
       key = key.to_s
