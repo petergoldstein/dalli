@@ -4,6 +4,13 @@ Dalli Changelog
 Unreleased
 ==========
 
+Performance:
+
+- Eliminate double array allocation in `Client#perform` (#1093)
+  - Changed method signature from `perform(*all_args)` with destructuring to `perform(op, key, *args)`, letting Ruby decompose arguments directly without intermediate array allocations
+  - Reduces benchmark time by ~39% across all Dalli operations (get, set, delete, etc.)
+  - Thanks to Sam Obeid for this contribution
+
 Features:
 
 - Add `Dalli::Instrumentation.disable!` to allow disabling OpenTelemetry instrumentation at runtime (#1088)
