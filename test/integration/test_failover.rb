@@ -95,7 +95,7 @@ describe 'failover' do
 
               memcached_kill(second_port)
 
-              assert_raises Dalli::RingError, message: 'No server available' do
+              assert_error Dalli::RingError, /No server available/ do
                 dc.set 'foo', 'bar'
               end
             end
