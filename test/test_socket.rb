@@ -58,6 +58,7 @@ describe 'Dalli::Socket::TCP' do
 
     it 'returns false for resolv-replace < 0.2.0 which does not forward keyword arguments' do
       skip 'Ruby 3.0+ required' if RUBY_VERSION < '3.0'
+      skip 'MRI-specific test' if RUBY_ENGINE != 'ruby'
 
       # resolv-replace < 0.2.0 uses def initialize(host, serv, *rest) - no kwargs
       params = [%i[req host], %i[req serv], %i[rest rest]]
