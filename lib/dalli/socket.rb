@@ -106,14 +106,19 @@ module Dalli
       end
 
       # Detect and cache whether TCPSocket supports the connect_timeout: keyword argument.
-      # Returns false if TCPSocket#initialize has been monkey-patched by gems like
-      # socksify or resolv-replace, which don't support keyword arguments.
+      # Returns true for an unmodified TCPSocket on Ruby 3.0+, or for resolv-replace >= 0.2.0
+      # which forwards keyword arguments through its patch.
+      # Returns false when monkey-patched by gems like socksify or resolv-replace < 0.2.0.
       # rubocop:disable ThreadSafety/ClassInstanceVariable
       def self.supports_connect_timeout?
         return @supports_connect_timeout if defined?(@supports_connect_timeout)
 
         @supports_connect_timeout = RUBY_ENGINE == 'ruby' && RUBY_VERSION >= '3.0' &&
-                                    ::TCPSocket.instance_method(:initialize).parameters == TCPSOCKET_NATIVE_PARAMETERS
+                                    ::TCPSocket.instance_method(:initialize).parameters.then do |params|
+                                      params == TCPSOCKET_NATIVE_PARAMETERS || params.any? do |type, _|
+                                        type == :keyrest
+                                      end
+                                    end
       end
       # rubocop:enable ThreadSafety/ClassInstanceVariable
 

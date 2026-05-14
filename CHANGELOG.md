@@ -13,6 +13,8 @@ Performance:
 
 Features:
 
+- Support `connect_timeout:` keyword argument with `resolv-replace` >= 0.2.0, which now correctly forwards keyword arguments through its `TCPSocket` patch (#1096)
+
 - Add `Dalli::Instrumentation.disable!` to allow disabling OpenTelemetry instrumentation at runtime (#1088)
   - Also exposes `Dalli::Instrumentation.tracer=` for setting a custom tracer
 

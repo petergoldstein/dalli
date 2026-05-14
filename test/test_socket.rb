@@ -10,6 +10,12 @@ describe 'Dalli::Socket::TCP' do
         Dalli::Socket::TCP.instance_variable_defined?(:@supports_connect_timeout)
     end
 
+    def with_tcpsocket_parameters(params, &block)
+      fake_method = Object.new
+      fake_method.define_singleton_method(:parameters) { params }
+      TCPSocket.stub(:instance_method, fake_method, &block)
+    end
+
     it 'returns true for unmodified TCPSocket on MRI Ruby 3.0+' do
       skip 'Ruby 3.0+ required' if RUBY_VERSION < '3.0'
       skip 'MRI-specific test' if RUBY_ENGINE != 'ruby'
@@ -38,21 +44,27 @@ describe 'Dalli::Socket::TCP' do
       assert_equal result1, result2
     end
 
-    it 'detects when TCPSocket#initialize parameters have changed' do
+    it 'returns true for resolv-replace >= 0.2.0 which forwards keyword arguments' do
       skip 'Ruby 3.0+ required' if RUBY_VERSION < '3.0'
       skip 'MRI-specific test' if RUBY_ENGINE != 'ruby'
 
-      # Get the expected native parameters
-      native_params = [[:rest]]
-      actual_params = TCPSocket.instance_method(:initialize).parameters
+      # resolv-replace >= 0.2.0 uses def initialize(host, serv, *rest, **kwargs)
+      params = [%i[req host], %i[req serv], %i[rest rest], %i[keyrest kwargs]]
 
-      # This test documents the expected behavior
-      if actual_params == native_params
-        assert_predicate Dalli::Socket::TCP, :supports_connect_timeout?,
-                         'Should support connect_timeout when TCPSocket is unmodified'
-      else
-        refute_predicate Dalli::Socket::TCP, :supports_connect_timeout?,
-                         'Should not support connect_timeout when TCPSocket is modified'
+      with_tcpsocket_parameters(params) do
+        assert_predicate Dalli::Socket::TCP, :supports_connect_timeout?
+      end
+    end
+
+    it 'returns false for resolv-replace < 0.2.0 which does not forward keyword arguments' do
+      skip 'Ruby 3.0+ required' if RUBY_VERSION < '3.0'
+      skip 'MRI-specific test' if RUBY_ENGINE != 'ruby'
+
+      # resolv-replace < 0.2.0 uses def initialize(host, serv, *rest) - no kwargs
+      params = [%i[req host], %i[req serv], %i[rest rest]]
+
+      with_tcpsocket_parameters(params) do
+        refute_predicate Dalli::Socket::TCP, :supports_connect_timeout?
       end
     end
   end
