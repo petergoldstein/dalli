@@ -112,7 +112,7 @@ module Dalli
       def self.supports_connect_timeout?
         return @supports_connect_timeout if defined?(@supports_connect_timeout)
 
-        @supports_connect_timeout = RUBY_VERSION >= '3.0' &&
+        @supports_connect_timeout = RUBY_ENGINE == 'ruby' && RUBY_VERSION >= '3.0' &&
                                     ::TCPSocket.instance_method(:initialize).parameters == TCPSOCKET_NATIVE_PARAMETERS
       end
       # rubocop:enable ThreadSafety/ClassInstanceVariable

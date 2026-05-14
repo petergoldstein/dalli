@@ -40,6 +40,7 @@ describe 'Dalli::Socket::TCP' do
 
     it 'detects when TCPSocket#initialize parameters have changed' do
       skip 'Ruby 3.0+ required' if RUBY_VERSION < '3.0'
+      skip 'MRI-specific test' if RUBY_ENGINE != 'ruby'
 
       # Get the expected native parameters
       native_params = [[:rest]]
