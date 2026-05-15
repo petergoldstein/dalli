@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.0.3
+==========
+
 Performance:
 
 - Eliminate double array allocation in `Client#perform` (#1093)
