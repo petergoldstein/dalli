@@ -12,6 +12,10 @@ Bug fixes:
   - Adds regression test covering short/long UTF-8, binary, and cross-client read scenarios
   - Thanks to Jean Boussier and Mikael Henriksson for the fix and regression test
 
+- Fix client-level `string_fastpath: true` being silently ignored (#1101)
+  - `Dalli::Client.new(servers, string_fastpath: true)` had no effect; the fast path was only taken when `string_fastpath: true` was passed as a per-request option on each `set` call
+  - Per-request option continues to take precedence over the client-level setting in both directions
+
 5.0.3
 ==========
 
