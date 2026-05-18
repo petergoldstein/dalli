@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.0.4
+==========
+
 Bug fixes:
 
 - Fix `string_fastpath` flag collision with compression (#1099)
