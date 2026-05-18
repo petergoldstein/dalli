@@ -16,7 +16,19 @@ describe 'Serializer configuration' do
 
       it 'skips the serializer for simple strings when string_fastpath is enabled' do
         memcached(p, 29_198) do |_dc, port|
-          memcache = Dalli::Client.new("127.0.0.1:#{port}", string_fastpath: true)
+          dump_calls = 0
+          spy = Module.new do
+            define_singleton_method(:dump) do |v|
+              dump_calls += 1
+              Marshal.dump(v)
+            end
+            define_singleton_method(:load) { |v| Marshal.load(v) } # rubocop:disable Security/MarshalLoad
+          end
+
+          memcache = Dalli::Client.new("127.0.0.1:#{port}",
+                                       string_fastpath: true,
+                                       serializer: spy,
+                                       silence_marshal_warning: true)
           string = 'héllø'
           memcache.set 'utf-8', string
 
@@ -29,22 +41,64 @@ describe 'Serializer configuration' do
           assert_equal binary, memcache.get('binary')
           assert_equal Encoding::BINARY, memcache.get('binary').encoding
 
+          # UTF-8 and binary bypass the serializer; assert the spy was not called.
+          assert_equal 0, dump_calls, 'serializer#dump should not be called for UTF-8 or binary strings'
+
+          # Non-UTF-8/binary encodings still go through the serializer.
           latin1 = string.encode(Encoding::ISO_8859_1)
           memcache.set 'latin1', latin1
 
+          assert_equal 1, dump_calls, 'serializer#dump should be called for non-UTF-8/binary strings'
           assert_equal latin1, memcache.get('latin1')
           assert_equal Encoding::ISO_8859_1, memcache.get('latin1').encoding
 
-          # Ensure strings that went through the fastpath are properly retreived
+          # Ensure strings written via the fastpath are properly retrieved
           # by clients without string_fastpath enabled.
-          memcache = Dalli::Client.new("127.0.0.1:#{port}", string_fastpath: false)
+          plain = Dalli::Client.new("127.0.0.1:#{port}",
+                                    string_fastpath: false,
+                                    serializer: spy,
+                                    silence_marshal_warning: true)
 
-          assert_equal string, memcache.get('utf-8')
-          assert_equal Encoding::UTF_8, memcache.get('utf-8').encoding
-          assert_equal binary, memcache.get('binary')
-          assert_equal Encoding::BINARY, memcache.get('binary').encoding
-          assert_equal latin1, memcache.get('latin1')
-          assert_equal Encoding::ISO_8859_1, memcache.get('latin1').encoding
+          assert_equal string, plain.get('utf-8')
+          assert_equal Encoding::UTF_8, plain.get('utf-8').encoding
+          assert_equal binary, plain.get('binary')
+          assert_equal Encoding::BINARY, plain.get('binary').encoding
+          assert_equal latin1, plain.get('latin1')
+          assert_equal Encoding::ISO_8859_1, plain.get('latin1').encoding
+        end
+      end
+
+      it 'respects per-request string_fastpath overriding the client-level option' do
+        memcached(p, 29_198) do |_dc, port|
+          dump_calls = 0
+          spy = Module.new do
+            define_singleton_method(:dump) do |v|
+              dump_calls += 1
+              Marshal.dump(v)
+            end
+            define_singleton_method(:load) { |v| Marshal.load(v) } # rubocop:disable Security/MarshalLoad
+          end
+
+          # Client-level true, per-request false: serializer must be called.
+          memcache = Dalli::Client.new("127.0.0.1:#{port}",
+                                       string_fastpath: true,
+                                       serializer: spy,
+                                       silence_marshal_warning: true)
+          memcache.set 'key', 'value', nil, string_fastpath: false
+
+          assert_equal 1, dump_calls, 'per-request false should override client-level true'
+          assert_equal 'value', memcache.get('key')
+
+          # Client-level false, per-request true: serializer must not be called.
+          dump_calls = 0
+          plain = Dalli::Client.new("127.0.0.1:#{port}",
+                                    string_fastpath: false,
+                                    serializer: spy,
+                                    silence_marshal_warning: true)
+          plain.set 'key2', 'value2', nil, string_fastpath: true
+
+          assert_equal 0, dump_calls, 'per-request true should override client-level false'
+          assert_equal 'value2', plain.get('key2')
         end
       end
 

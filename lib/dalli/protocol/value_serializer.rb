@@ -10,7 +10,8 @@ module Dalli
     ##
     class ValueSerializer
       DEFAULTS = {
-        serializer: Marshal
+        serializer: Marshal,
+        string_fastpath: false
       }.freeze
 
       OPTIONS = DEFAULTS.keys.freeze
@@ -87,7 +88,9 @@ module Dalli
       end
 
       def use_string_fastpath?(value, req_options)
-        req_options&.dig(:string_fastpath) && value.instance_of?(String)
+        fastpath = req_options&.dig(:string_fastpath)
+        fastpath = @serialization_options[:string_fastpath] if fastpath.nil?
+        fastpath && value.instance_of?(String)
       end
 
       def warn_if_marshal_default(protocol_options)
