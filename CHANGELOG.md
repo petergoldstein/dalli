@@ -4,6 +4,14 @@ Dalli Changelog
 Unreleased
 ==========
 
+Bug fixes:
+
+- Fix `string_fastpath` flag collision with compression (#1099)
+  - `ValueSerializer::FLAG_UTF8` and `ValueCompressor::FLAG_COMPRESSED` were both `0x2`, causing `Dalli::UnmarshalError` on any UTF-8 string written with `string_fastpath: true` when compression is enabled, and silent encoding corruption for binary strings
+  - Introduces `Dalli::Flags` to centralise bit flag constants; UTF8 is reassigned to `0x4`
+  - Adds regression test covering short/long UTF-8, binary, and cross-client read scenarios
+  - Thanks to Jean Boussier and Mikael Henriksson for the fix and regression test
+
 5.0.3
 ==========
 

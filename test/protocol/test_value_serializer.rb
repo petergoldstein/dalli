@@ -283,7 +283,7 @@ describe Dalli::Protocol::ValueSerializer do
         error = ->(_arg) { raise TypeError, error_message }
         exception = serializer.stub :load, error do
           assert_raises Dalli::UnmarshalError do
-            vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
+            vs.retrieve(raw_value, Dalli::Flags::SERIALIZED)
           end
         end
 
@@ -300,7 +300,7 @@ describe Dalli::Protocol::ValueSerializer do
         error = ->(_arg) { raise TypeError, error_message }
         exception = serializer.stub :load, error do
           assert_raises Dalli::UnmarshalError do
-            vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
+            vs.retrieve(raw_value, Dalli::Flags::SERIALIZED)
           end
         end
 
@@ -315,7 +315,7 @@ describe Dalli::Protocol::ValueSerializer do
 
       it 'raises UnmarshalError on uninitialized constant' do
         exception = assert_raises Dalli::UnmarshalError do
-          vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
+          vs.retrieve(raw_value, Dalli::Flags::SERIALIZED)
         end
 
         assert_equal exception.cause.message, error_message
@@ -329,7 +329,7 @@ describe Dalli::Protocol::ValueSerializer do
 
       it 'raises UnmarshalError on uninitialized constant' do
         exception = assert_raises Dalli::UnmarshalError do
-          vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
+          vs.retrieve(raw_value, Dalli::Flags::SERIALIZED)
         end
 
         assert exception.cause.message.start_with?(error_message)
@@ -345,7 +345,7 @@ describe Dalli::Protocol::ValueSerializer do
         error = ->(_arg) { raise NameError, error_message }
         exception = serializer.stub :load, error do
           assert_raises Dalli::UnmarshalError do
-            vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
+            vs.retrieve(raw_value, Dalli::Flags::SERIALIZED)
           end
         end
 
@@ -360,7 +360,7 @@ describe Dalli::Protocol::ValueSerializer do
 
       it 'raises UnmarshalError on uninitialized constant' do
         exception = assert_raises Dalli::UnmarshalError do
-          vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
+          vs.retrieve(raw_value, Dalli::Flags::SERIALIZED)
         end
 
         assert_equal exception.cause.message, error_message
@@ -374,7 +374,7 @@ describe Dalli::Protocol::ValueSerializer do
 
       it 'raises UnmarshalError on uninitialized constant' do
         exception = assert_raises Dalli::UnmarshalError do
-          vs.retrieve(raw_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
+          vs.retrieve(raw_value, Dalli::Flags::SERIALIZED)
         end
 
         assert_equal exception.cause.message, error_message
@@ -388,13 +388,13 @@ describe Dalli::Protocol::ValueSerializer do
       let(:vs) { Dalli::Protocol::ValueSerializer.new(vs_options) }
 
       it 'properly deserializes the serialized value' do
-        assert_equal vs.retrieve(serialized_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED),
+        assert_equal vs.retrieve(serialized_value, Dalli::Flags::SERIALIZED),
                      deserialized_value
       end
 
       it 'raises UnmarshalError for non-serialized data' do
         assert_raises Dalli::UnmarshalError do
-          vs.retrieve(:not_serialized_value, Dalli::Protocol::ValueSerializer::FLAG_SERIALIZED)
+          vs.retrieve(:not_serialized_value, Dalli::Flags::SERIALIZED)
         end
       end
     end

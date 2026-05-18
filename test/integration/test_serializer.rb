@@ -48,6 +48,61 @@ describe 'Serializer configuration' do
         end
       end
 
+      it 'round-trips fastpath strings when compression is enabled (per-request option)' do
+        # Regression test for the collision between the UTF8 fastpath flag and
+        # the COMPRESSED flag — both occupy bit 0x2 in ValueSerializer and
+        # ValueCompressor respectively. The bug only surfaces when
+        # `string_fastpath: true` is passed as a per-request option on `#set`,
+        # which is the path real callers like Rails' `mem_cache_store` use
+        # (it forwards all per-call options to Dalli except `:compress`).
+        memcached(p, 29_198) do |_dc, port|
+          memcache = Dalli::Client.new("127.0.0.1:#{port}",
+                                       compress: true,
+                                       compression_min_size: 1024)
+
+          # Short UTF-8 — below the compression threshold, but the fastpath
+          # still sets the UTF8 flag bit. Without the fix, the reader's
+          # compressor sees the bit as "compressed" and raises Zlib::DataError
+          # (wrapped as Dalli::UnmarshalError).
+          short_utf8 = 'héllø'
+          memcache.set 'short_utf8', short_utf8, 60, string_fastpath: true
+
+          assert_equal short_utf8, memcache.get('short_utf8')
+          assert_equal Encoding::UTF_8, memcache.get('short_utf8').encoding
+
+          # Long UTF-8 — over the compression threshold. Compressor and
+          # fastpath both want to set their flag bit on the same value.
+          long_utf8 = ('héllo-вселенная-🌍 ' * 600).force_encoding(Encoding::UTF_8).freeze
+          memcache.set 'long_utf8', long_utf8, 60, string_fastpath: true
+
+          assert_equal long_utf8, memcache.get('long_utf8')
+          assert_equal Encoding::UTF_8, memcache.get('long_utf8').encoding
+
+          # Long BINARY — fastpath leaves no encoding flag, compressor adds
+          # the compression flag. Without the fix the reader returns the
+          # decompressed bytes with the wrong encoding.
+          long_binary = ("\xFFpayload" * 2000).b.freeze
+          memcache.set 'long_binary', long_binary, 60, string_fastpath: true
+
+          assert_equal long_binary, memcache.get('long_binary')
+          assert_equal Encoding::BINARY, memcache.get('long_binary').encoding
+
+          # A second client that never opts into fastpath must still read
+          # every entry correctly — covers a rolling-deploy or worker-pool
+          # mismatch where only some processes use the per-request option.
+          plain = Dalli::Client.new("127.0.0.1:#{port}",
+                                    compress: true,
+                                    compression_min_size: 1024)
+
+          assert_equal short_utf8, plain.get('short_utf8')
+          assert_equal Encoding::UTF_8, plain.get('short_utf8').encoding
+          assert_equal long_utf8, plain.get('long_utf8')
+          assert_equal Encoding::UTF_8, plain.get('long_utf8').encoding
+          assert_equal long_binary, plain.get('long_binary')
+          assert_equal Encoding::BINARY, plain.get('long_binary').encoding
+        end
+      end
+
       it 'supports a custom serializer' do
         memcached(p, 29_198) do |_dc, port|
           memcache = Dalli::Client.new("127.0.0.1:#{port}", serializer: JSON)
