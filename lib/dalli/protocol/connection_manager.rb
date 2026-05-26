@@ -148,7 +148,7 @@ module Dalli
       end
 
       def read_line
-        data = @sock.gets("\r\n")
+        data = @sock.gets("\r\n", chomp: true)
         error_on_request!('EOF in read_line') if data.nil?
         data
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e

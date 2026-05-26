@@ -110,7 +110,7 @@ module Dalli
           return false if [NS, EX].include?(tokens.first)
           return nil if tokens.first == NF
 
-          read_line.to_i
+          @io_source.read_line.to_i
         end
 
         def stats
@@ -239,12 +239,8 @@ module Dalli
           bitflags_token[1..]
         end
 
-        def read_line
-          @io_source.read_line&.chomp!(TERMINATOR)
-        end
-
         def next_line_to_tokens
-          line = read_line
+          line = @io_source.read_line
           line&.split || []
         end
 
