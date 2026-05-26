@@ -52,7 +52,7 @@ module Dalli
           cmd << ' h' if return_hit_status # Return hit status (0 or 1)
           cmd << ' l' if return_last_access # Return seconds since last access
           cmd << ' u' if skip_lru_bump # Don't bump LRU or update access stats
-          cmd + TERMINATOR
+          cmd << TERMINATOR
         end
 
         def self.meta_set(key:, value:, bitflags: nil, cas: nil, ttl: nil, mode: :set, base64: false, quiet: false)
@@ -77,7 +77,7 @@ module Dalli
           cmd << " T#{ttl}" if ttl
           cmd << ' I' if stale # Mark stale instead of deleting
           cmd << ' q' if quiet
-          cmd + TERMINATOR
+          cmd << TERMINATOR
         end
 
         def self.meta_arithmetic(key:, delta:, initial:, incr: true, cas: nil, ttl: nil, base64: false, quiet: false)
@@ -90,7 +90,7 @@ module Dalli
           cmd << cas_string(cas)
           cmd << ' q' if quiet
           cmd << " M#{incr ? 'I' : 'D'}"
-          cmd + TERMINATOR
+          cmd << TERMINATOR
         end
         # rubocop:enable Metrics/CyclomaticComplexity
         # rubocop:enable Metrics/ParameterLists
@@ -108,7 +108,7 @@ module Dalli
           cmd = +'flush_all'
           cmd << " #{parse_to_64_bit_int(delay, 0)}" if delay
           cmd << ' noreply' if quiet
-          cmd + TERMINATOR
+          cmd << TERMINATOR
         end
 
         ALLOWED_STATS_ARGS = [nil, '', 'items', 'slabs', 'settings', 'reset'].freeze
@@ -118,7 +118,7 @@ module Dalli
 
           cmd = +'stats'
           cmd << " #{arg}" if arg && !arg.empty?
-          cmd + TERMINATOR
+          cmd << TERMINATOR
         end
 
         def self.mode_to_token(mode)
