@@ -96,8 +96,9 @@ module Dalli
         # rubocop:enable Metrics/ParameterLists
         # rubocop:enable Metrics/PerceivedComplexity
 
+        META_NOOP = "mn#{TERMINATOR}".freeze
         def self.meta_noop
-          "mn#{TERMINATOR}"
+          META_NOOP
         end
 
         def self.version

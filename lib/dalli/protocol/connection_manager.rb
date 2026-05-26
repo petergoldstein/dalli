@@ -179,6 +179,14 @@ module Dalli
         error_on_request!(e)
       end
 
+      def flushed_write(bytes)
+        written = @sock.write(bytes)
+        @sock.flush
+        written
+      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, IOError => e
+        error_on_request!(e)
+      end
+
       # Non-blocking read.  Here to support the operation
       # of the get_multi operation
       def read_nonblock
