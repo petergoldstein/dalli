@@ -4,6 +4,20 @@ Dalli Changelog
 Unreleased
 ==========
 
+Performance:
+
+- Avoid repeated `RUBY_ENGINE` checks on every socket read (#1103)
+  - Moved the JRuby branch from a runtime `if` inside `ConnectionManager#read` to a class-level conditional method definition, so the check happens once at load time rather than on every read call
+  - Thanks to Jean Boussier for this contribution
+
+- Eliminate per-call array allocations in `ResponseProcessor` (#1104)
+  - Token sets passed to `error_on_unexpected!` (e.g. `[VA, EN, HD]`) were allocated as new arrays on every invocation; replaced with frozen constants defined once at class load time
+  - Thanks to Jean Boussier for this contribution
+
+- Avoid string copies when building request commands in `RequestFormatter` (#1106)
+  - Changed `cmd + TERMINATOR` to `cmd << TERMINATOR`; since `cmd` is always a mutable string, the in-place append avoids copying the entire command string just to append two bytes
+  - Thanks to Jean Boussier for this contribution
+
 5.0.4
 ==========
 
