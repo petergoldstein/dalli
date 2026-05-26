@@ -6,6 +6,11 @@ Unreleased
 
 Performance:
 
+- Batch multi-key commands into a single write to reduce packet overhead (#1107)
+  - With `TCP_NODELAY` set on sockets, each `write` call emits a separate packet; the meta protocol was calling `write` up to 3 times per key in multi-key operations (`get_multi`, `set_multi`, `delete_multi`), significantly increasing network traffic compared to the old binary protocol
+  - Multi-key request paths now buffer all per-key commands into a single binary string and flush once; single-key paths combine the write and flush into one `flushed_write` call
+  - Thanks to Jean Boussier for this contribution
+
 - Avoid repeated `RUBY_ENGINE` checks on every socket read (#1103)
   - Moved the JRuby branch from a runtime `if` inside `ConnectionManager#read` to a class-level conditional method definition, so the check happens once at load time rather than on every read call
   - Thanks to Jean Boussier for this contribution
