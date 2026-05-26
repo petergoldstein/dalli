@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.0.5
+==========
+
 Performance:
 
 - Batch multi-key commands into a single write to reduce packet overhead (#1107)
