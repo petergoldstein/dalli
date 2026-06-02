@@ -651,7 +651,7 @@ module Dalli
     # operation times out.
     ##
     # rubocop:disable Naming/MethodParameterName
-    def perform(op, key, *args)
+    def perform(op, key, ...)
       # rubocop:enable Naming/MethodParameterName
       return yield if block_given?
 
@@ -659,8 +659,14 @@ module Dalli
       key = @key_manager.validate_key(key)
 
       server = ring.server_for_key(key)
-      Instrumentation.trace(op.to_s, trace_attrs(op.to_s, key, server)) do
-        server.request(op, key, *args)
+
+      if Instrumentation.enabled?
+        op_name = op.name
+        Instrumentation.trace(op_name, trace_attrs(op_name, key, server)) do
+          server.request(op, key, ...)
+        end
+      else
+        server.request(op, key, ...)
       end
     rescue RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }

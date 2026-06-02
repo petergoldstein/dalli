@@ -13,7 +13,7 @@ module Dalli
       obj.init_threadsafe
     end
 
-    def request(opcode, *args)
+    def request(...)
       @lock.synchronize do
         super
       end
