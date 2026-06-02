@@ -174,7 +174,7 @@ module Dalli
         ##
         def getk_response_from_buffer(buf, offset = 0)
           # Find the header terminator starting from offset
-          term_idx = buf.index(TERMINATOR, offset)
+          term_idx = buf.byteindex(TERMINATOR, offset)
           return [0, nil, nil, nil, nil] unless term_idx
 
           header = buf.byteslice(offset, term_idx - offset)
