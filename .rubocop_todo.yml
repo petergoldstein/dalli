@@ -23,6 +23,7 @@ Metrics/MethodLength:
   Exclude:
     - 'lib/dalli/pipelined_getter.rb'
     - 'lib/dalli/protocol/base.rb'
+    - 'lib/dalli/socket.rb'
 
 # Offense count: 1
 # Configuration parameters: CountComments, CountAsOne.

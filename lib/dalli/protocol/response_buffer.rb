@@ -23,7 +23,19 @@ module Dalli
       end
 
       def read
-        @buffer << @io_source.read_available
+        remaining_bytes = @buffer.bytesize - @offset
+        if remaining_bytes.zero?
+          @offset = 0
+          @buffer = @io_source.read_available(@buffer)
+        else
+          if remaining_bytes > COMPACT_THRESHOLD && remaining_bytes < @buffer.bytesize
+            # NB: we're freezing the old buffer before slicing so Ruby doesn't
+            # have to allocate a third hidden string to be the Copy-on-Write onwer.
+            @buffer = @buffer.freeze.byteslice(@offset..)
+            @offset = 0
+          end
+          @buffer << @io_source.read_available
+        end
       end
 
       # Attempts to process a single response from the buffer,
@@ -31,14 +43,14 @@ module Dalli
       def process_single_getk_response
         bytes, status, cas, key, value = @response_processor.getk_response_from_buffer(@buffer, @offset)
         @offset += bytes
-        compact_if_needed
         [status, cas, key, value]
       end
 
       # Resets the internal buffer to an empty state,
       # so that we're ready to read pipelined responses
       def reset
-        @buffer = ''.b
+        @buffer&.clear
+        @buffer ||= ''.b
         @offset = 0
       end
 
@@ -54,24 +66,13 @@ module Dalli
 
       # Clear the internal response buffer
       def clear
+        @buffer&.clear
         @buffer = nil
         @offset = 0
       end
 
       def in_progress?
         !@buffer.nil?
-      end
-
-      private
-
-      # Only compact when we've consumed a significant portion of the buffer.
-      # This avoids per-response string allocation while preventing unbounded
-      # memory growth for large pipelines.
-      def compact_if_needed
-        return unless @offset > COMPACT_THRESHOLD && @offset > @buffer.bytesize / 2
-
-        @buffer = @buffer.byteslice(@offset..)
-        @offset = 0
       end
     end
   end
