@@ -4,7 +4,7 @@
 # Utility module for spinning up memcached instances locally, and generating a corresponding
 # Dalli::Client to access the local instance.  Supports access via TCP and UNIX domain socket.
 ##
-module MemcachedManager # rubocop:disable Metrics/ModuleLength
+module MemcachedManager
   # TODO: This is all UNIX specific.  To support
   # running CI on Windows we'll need to conditionally
   # define a Windows equivalent

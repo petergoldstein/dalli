@@ -220,9 +220,12 @@ module Dalli
         end
 
         def key_from_tokens(tokens)
-          base64_encoded = tokens.delete('b')
           encoded_key = value_from_tokens(tokens, 'k')
-          KeyRegularizer.decode(encoded_key, base64_encoded)
+          if tokens.delete('b')
+            KeyRegularizer.decode(encoded_key)
+          else
+            encoded_key
+          end
         end
 
         # Returns true if item was previously hit, false if first access, nil if not requested
