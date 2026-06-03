@@ -41,14 +41,14 @@ describe Dalli::Protocol::ResponseBuffer do
     it 'returns all nils when the buffer is empty' do
       buffer.read
 
-      assert_equal [nil, nil, nil, nil], buffer.process_single_getk_response
+      assert_equal [], buffer.process_single_getk_response
     end
 
     it "returns all nils if the response value hasn't yet been buffered" do
       write_pipe.write("VA 2 s2 t-1 c2 kfoo\r\nHI\r")
       buffer.read
 
-      assert_equal [nil, nil, nil, nil], buffer.process_single_getk_response
+      assert_equal [], buffer.process_single_getk_response
     end
 
     it 'returns the parsed value if it has been fully buffered' do
@@ -71,7 +71,7 @@ describe Dalli::Protocol::ResponseBuffer do
       buffer.read
 
       assert_equal [true, 2, 'foo', 'HI'], buffer.process_single_getk_response
-      assert_equal [true, nil, nil, nil], buffer.process_single_getk_response
+      assert_equal [true], buffer.process_single_getk_response
     end
   end
 end
