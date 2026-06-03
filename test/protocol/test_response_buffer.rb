@@ -58,6 +58,36 @@ describe Dalli::Protocol::ResponseBuffer do
       assert_equal [true, 2, 'foo', 'HI'], buffer.process_single_getk_response
     end
 
+    it 'returns the parsed value if it has been fully buffered on a subsequent read' do
+      write_pipe.write("VA 2 s2 t-1 c2 kfoo\r\nHI\r")
+      buffer.read
+
+      assert_equal [nil, nil, nil, nil], buffer.process_single_getk_response
+
+      write_pipe.write("\nVA 2 s5 t-1 c2 kfoo\r\nHELLO\r\ngarbage")
+      buffer.read
+
+      assert_equal [true, 2, 'foo', 'HI'], buffer.process_single_getk_response
+      assert_equal [true, 2, 'foo', 'HELLO'], buffer.process_single_getk_response
+    end
+
+    it 'compacts the buffer when it has largely been read' do
+      long_value = 'A' * 10_000
+      write_pipe.write("VA 2 s#{long_value.bytesize} t-1 c3424234 kfoo\r\n#{long_value}")
+      write_pipe.write("VA 2 s2 t-1 c2 kfoo\r\nHI\r") # missing one byte
+      buffer.read
+
+      assert_equal [true, 3_424_234, 'foo', long_value], buffer.process_single_getk_response
+      assert_equal [nil, nil, nil, nil], buffer.process_single_getk_response
+      write_pipe.write("\n") # add the missing byte
+
+      assert_equal 10_055, buffer.instance_variable_get(:@buffer).bytesize
+      buffer.read
+
+      assert_equal 23, buffer.instance_variable_get(:@buffer).bytesize
+      assert_equal [false, 2, 'foo', 'HI'], buffer.process_single_getk_response
+    end
+
     it 'advances the offset' do
       write_pipe.write("VA 2 s2 t-1 c2 kfoo\r\nHI\r\nVA 2 s5 t-1 c2 kfoo\r\nHELLO\r\ngarbage")
       buffer.read
