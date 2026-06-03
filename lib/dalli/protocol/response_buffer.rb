@@ -23,7 +23,7 @@ module Dalli
       end
 
       def read
-        @buffer << @io_source.read_nonblock
+        @buffer << @io_source.read_available
       end
 
       # Attempts to process a single response from the buffer,

@@ -193,7 +193,7 @@ module Dalli
 
       # Non-blocking read.  Here to support the operation
       # of the get_multi operation
-      def read_nonblock
+      def read_available
         @sock.read_available
       end
 
