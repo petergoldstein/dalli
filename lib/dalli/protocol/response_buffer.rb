@@ -11,10 +11,6 @@ module Dalli
     # when advancing through parsed responses.
     ##
     class ResponseBuffer
-      # Compact the buffer when the consumed portion exceeds this
-      # threshold and represents more than half the buffer
-      COMPACT_THRESHOLD = 4096
-
       def initialize(io_source, response_processor)
         @io_source = io_source
         @response_processor = response_processor
