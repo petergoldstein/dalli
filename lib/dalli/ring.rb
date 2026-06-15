@@ -90,6 +90,18 @@ module Dalli
       end
     end
 
+    # Explicitly reconcile responses left pending by deferred quiet writes on
+    # each server.  Only servers that actually have pending writes pay a
+    # round-trip; the rest are a no-op.  Used by callers of +defer_drain: true+
+    # that want to force a drain at a boundary.
+    def drain_deferred_responses
+      @servers.each do |s|
+        s.drain_deferred_responses!
+      rescue Dalli::NetworkError
+        # Ignore - the socket is unavailable, so there's nothing to drain
+      end
+    end
+
     def socket_timeout
       @servers.first.socket_timeout
     end

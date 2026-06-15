@@ -18,7 +18,8 @@ module Dalli
 
       def_delegators :@value_marshaller, :serializer, :compressor, :compression_min_size, :compress_by_default?
       def_delegators :@connection_manager, :name, :sock, :hostname, :port, :close, :connected?, :socket_timeout,
-                     :socket_type, :up!, :down!, :write, :reconnect_down_server?, :raise_down_error, :flushed_write
+                     :socket_type, :up!, :down!, :write, :reconnect_down_server?, :raise_down_error, :flushed_write,
+                     :deferred_responses_pending?
 
       def initialize(attribs, client_options = {})
         hostname, port, socket_type, @weight, user_creds = ServerConfigParser.parse(attribs)
@@ -41,6 +42,7 @@ module Dalli
 
         begin
           @connection_manager.start_request!
+          drain_before_read!(opkey)
           response = send(opkey, *args)
 
           # pipelined_get/pipelined_get_interleaved emit query but don't read the response(s)
@@ -73,6 +75,22 @@ module Dalli
       def lock!; end
 
       def unlock!; end
+
+      # Explicitly drain any responses left pending by deferred quiet writes
+      # (see +defer_drain: true+).  This is a safe no-op when nothing is pending
+      # or the connection is down.  Normal operation reconciles lazily before
+      # the next read, so this is only needed by callers that want write errors
+      # surfaced at an explicit boundary (e.g. the end of a Rack request).
+      def drain_deferred_responses!
+        return unless @connection_manager.deferred_responses_pending?
+        return unless connected?
+
+        @connection_manager.start_request!
+        drain_deferred_responses
+        @connection_manager.finish_request!
+      rescue Dalli::NetworkError
+        nil
+      end
 
       # Start reading key/value pairs from this connection. This is usually called
       # after a series of GETKQ commands. A NOOP is sent, and the server begins
@@ -161,6 +179,29 @@ module Dalli
       # NOTE: Additional public methods should be overridden in Dalli::Threadsafe
 
       private
+
+      # Operations that, when issued in quiet mode, only append a request to the
+      # socket and do not read a response.  We must NOT force a drain before
+      # these, otherwise the deferred-flush optimization would pay a round-trip
+      # per write.  Every other operation reads a response and therefore needs
+      # any prior quiet responses reconciled first.
+      DEFERRABLE_QUIET_OPS = %i[set add replace append prepend delete incr decr flush].freeze
+      private_constant :DEFERRABLE_QUIET_OPS
+
+      def defer_drain?
+        @options[:defer_drain]
+      end
+
+      # Before any operation that reads a response, drain responses left pending
+      # by earlier deferred quiet writes on this connection.  Skipped for the
+      # quiet writes themselves and for noop (which performs its own drain).
+      def drain_before_read!(opkey)
+        return unless @connection_manager.deferred_responses_pending?
+        return if opkey == :noop
+        return if quiet? && DEFERRABLE_QUIET_OPS.include?(opkey)
+
+        drain_deferred_responses
+      end
 
       URI_CREDENTIAL_WARNING = 'Dalli 5.0 removed SASL authentication. ' \
                                'Credentials in memcached:// URIs are ignored.'

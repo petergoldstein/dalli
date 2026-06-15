@@ -35,6 +35,7 @@ module Dalli
         @socket_type = socket_type
         @options = DEFAULTS.merge(client_options)
         @request_in_progress = false
+        @pending_quiet = false
         @sock = nil
         @pid = nil
 
@@ -56,6 +57,7 @@ module Dalli
         @sock.sync = false # Enable buffered I/O for better performance
         @pid = PIDCache.pid
         @request_in_progress = false
+        @pending_quiet = false
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError, SocketError => e
         # SocketError = DNS resolution failure
         error_on_request!(e)
@@ -120,6 +122,7 @@ module Dalli
         end
         @sock = nil
         @pid = nil
+        @pending_quiet = false
         abort_request!
       end
 
@@ -145,6 +148,23 @@ module Dalli
 
       def abort_request!
         @request_in_progress = false
+      end
+
+      # Deferred-drain bookkeeping.  When the client is configured with
+      # +defer_drain: true+, quiet mutations (set/delete/etc.) send their bytes
+      # but skip the blocking response drain.  We record that the connection has
+      # un-drained quiet responses so the next operation that needs to read can
+      # reconcile them with a single noop before proceeding.
+      def deferred_responses_pending?
+        @pending_quiet
+      end
+
+      def mark_responses_deferred!
+        @pending_quiet = true
+      end
+
+      def clear_deferred_responses!
+        @pending_quiet = false
       end
 
       def read_line

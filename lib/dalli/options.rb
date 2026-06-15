@@ -31,6 +31,12 @@ module Dalli
       end
     end
 
+    def drain_deferred_responses!
+      @lock.synchronize do
+        super
+      end
+    end
+
     def pipeline_response_setup
       @lock.synchronize do
         super

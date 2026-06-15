@@ -47,6 +47,12 @@ module Dalli
     #                 serialization pipeline.
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method,
     #                   useful for injecting a FIPS compliant hash object.
+    # - :defer_drain - defaults to false.  When true, quiet mutations (those run inside a #quiet/#multi block)
+    #                  send their bytes immediately but defer the blocking response drain.  Pending responses are
+    #                  reconciled lazily, with a single amortized noop, before the next operation that needs to read
+    #                  from the connection (or explicitly via #drain_deferred_responses).  This makes scattered single
+    #                  set/delete calls effectively fire-and-forget (no per-op round-trip), at the cost of write
+    #                  errors surfacing on a later operation rather than immediately.
     # - :otel_db_statement - controls the +db.query.text+ span attribute when OpenTelemetry is loaded.
     #                        +:include+ logs the full operation and key(s), +:obfuscate+ replaces keys with "?",
     #                        +nil+ (default) omits the attribute entirely.
@@ -286,10 +292,26 @@ module Dalli
       Thread.current[::Dalli::QUIET] = true
       yield
     ensure
-      @ring&.pipeline_consume_and_ignore_responses
+      # With defer_drain enabled, quiet responses are reconciled lazily before
+      # the next read (or via #drain_deferred_responses) rather than draining with
+      # a blocking noop round-trip on every quiet block exit.  This restores the
+      # fork's fire-and-forget behavior for scattered single mutations.
+      @ring&.pipeline_consume_and_ignore_responses unless defer_drain?
       Thread.current[::Dalli::QUIET] = old
     end
     alias multi quiet
+
+    ##
+    # Explicitly reconcile any responses left pending by deferred quiet writes
+    # (only relevant when the client is configured with +defer_drain: true+).
+    #
+    # Normal operation drains lazily before the next read, so calling this is
+    # optional.  It is useful at an explicit boundary (e.g. the end of a Rack
+    # request or Sidekiq job) for callers that want write errors surfaced
+    # eagerly rather than on a later operation.
+    def drain_deferred_responses
+      @ring&.drain_deferred_responses
+    end
 
     def set(key, value, ttl = nil, req_options = nil)
       set_cas(key, value, 0, ttl, req_options)
@@ -634,6 +656,10 @@ module Dalli
       (ttl || @options[:expires_in]).to_i
     rescue NoMethodError
       raise ArgumentError, "Cannot convert ttl (#{ttl}) to an integer"
+    end
+
+    def defer_drain?
+      @options[:defer_drain]
     end
 
     def ring
