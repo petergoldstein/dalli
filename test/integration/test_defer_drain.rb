@@ -114,6 +114,34 @@ describe 'defer_drain behavior' do
         end
       end
 
+      it 'clears the pending flag so the next read requires no implicit drain' do
+        with_deferred_client(p) do |dc|
+          key = SecureRandom.hex(3)
+          value = SecureRandom.hex(3)
+
+          dc.quiet { dc.set(key, value) }
+
+          # After a deferred quiet write the server that handled the write has a
+          # pending response flag set; a subsequent read would drain it before
+          # proceeding.  (With multiple servers the write is routed to one of
+          # them, so any? is used rather than a specific index.)
+          servers = dc.send(:ring).servers
+
+          assert servers.any?(&:deferred_responses_pending?),
+                 'expected a pending response after a deferred quiet write'
+
+          # Draining at an explicit boundary (e.g. the end of a Rack request or
+          # Sidekiq job) clears the flag on all servers; the next read will not
+          # need to issue an extra noop round-trip to reconcile the connection.
+          dc.drain_deferred_responses
+
+          refute servers.any?(&:deferred_responses_pending?),
+                 'expected no pending responses after drain_deferred_responses'
+
+          assert_equal value, dc.get(key)
+        end
+      end
+
       it 'is a no-op to drain_deferred_responses when nothing is pending' do
         with_deferred_client(p) do |dc|
           key = SecureRandom.hex(3)
