@@ -4,6 +4,29 @@ Dalli Changelog
 Unreleased
 ==========
 
+Performance:
+
+- Reduce allocations in common operation paths (#1111)
+  - Use `Symbol#name` over `Symbol#to_s` to return a frozen string without allocation
+  - Skip trace attribute hash construction when OpenTelemetry instrumentation is disabled
+  - Use argument forwarding (`...`) in `Client#perform` and `Threadsafe#request` to avoid splat array allocation
+  - Use `match?` in `KeyRegularizer#encode` to avoid `MatchData` object allocation
+  - Reduces objects allocated by ~26% and memory by ~6% for a simple `get` workload
+  - Thanks to Jean Boussier for this contribution
+
+- Fix pathological memory behavior in `ResponseBuffer` (#1114)
+  - `compact_if_needed` was intended to reclaim memory by slicing off consumed bytes, but `buffer.byteslice(@offset..)` on an unfrozen string causes Ruby to allocate a hidden third string as the copy-on-write owner rather than freeing the original
+  - Redesigns buffer management to pass reusable buffer objects directly to `read`/`read_nonblock`, avoiding reallocation on each response read
+  - Reduces allocations from ~2.38 GB to ~649 MB in a `get_multi_cas` benchmark over 10,000 iterations
+  - Accompanied by new unit tests for `ResponseBuffer` (#1115)
+  - Thanks to Jean Boussier for this contribution
+
+Maintenance:
+
+- Use `String#byteindex` instead of `String#index` when searching for the response terminator in `getk_response_from_buffer` (#1112)
+  - The result feeds directly into `byteslice`; `byteindex` makes the intent explicit, though both return the same value since the buffer encoding is always `BINARY`
+  - Thanks to Jean Boussier for this contribution
+
 5.0.5
 ==========
 
