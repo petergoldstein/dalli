@@ -6,6 +6,25 @@ Unreleased
 
 Performance:
 
+- Reduce allocations in `KeyRegularizer` and multi-key request paths (#1120)
+  - Decomposed `KeyRegularizer#encode` into separate `needs_encoding?` and `encode` calls so the common happy path avoids allocating an intermediate array for the two-element return value
+  - Refactored `multi_get`/`multi_set`/`multi_delete` command generation into `RequestFormatter` to share its key-encoding helpers
+  - Thanks to Jean Boussier for this contribution
+
+- Reduce allocations in `ResponseBuffer` pipelined getk parsing (#1117)
+  - `process_single_getk_response` was building a fresh array to return results alongside the updated offset; refactored to store the offset as the last element of the existing tokens array and pop it, saving one allocation per response
+  - Also skips trailing nils in the token array
+  - Thanks to Jean Boussier for this contribution
+
+- Enable frozen string literals in `RequestFormatter` (#1118)
+  - Frozen string literals had been inadvertently disabled; re-enabling reduces allocations by ~300,000 objects in a 10,000-iteration `get_multi_cas` benchmark (562 MB → 550 MB total allocated)
+  - Thanks to Jean Boussier for this contribution
+
+- Reduce allocations in `ResponseProcessor#value_from_tokens` (#1113)
+  - `token[1..].to_i` was allocating a new string for every token parsed; replaced with in-place `slice!` followed by a token reset to avoid poisoning subsequent token comparisons
+  - Saves 4 allocations per entry in `get_multi_cas` workloads (a hotspot for IdentityCache)
+  - Thanks to Jean Boussier for this contribution
+
 - Reduce allocations in common operation paths (#1111)
   - Use `Symbol#name` over `Symbol#to_s` to return a frozen string without allocation
   - Skip trace attribute hash construction when OpenTelemetry instrumentation is disabled
@@ -21,7 +40,20 @@ Performance:
   - Accompanied by new unit tests for `ResponseBuffer` (#1115)
   - Thanks to Jean Boussier for this contribution
 
+Bug Fixes:
+
+- Fix `ResponseBuffer` compaction logic (#1119)
+  - `COMPACT_THRESHOLD` was removed in #1116 as apparently unused, but the constant was referenced by the compaction guard; its absence silently disabled buffer compaction
+  - Restored the constant, corrected the compaction condition, and improved the buffer-shrinking implementation to use `String#bytesplice` (backed by `memmove`) for true in-place compaction
+  - Adds targeted tests covering the compaction threshold and shrink behavior
+  - Thanks to Jean Boussier for this contribution
+
 Maintenance:
+
+- Remove unused `COMPACT_THRESHOLD` constant from `ResponseBuffer` (#1116)
+  - Followup cleanup after the buffer management redesign in #1114
+  - Note: subsequently found to be in use; restored and corrected in #1119
+  - Thanks to Jean Boussier for this contribution
 
 - Use `String#byteindex` instead of `String#index` when searching for the response terminator in `getk_response_from_buffer` (#1112)
   - The result feeds directly into `byteslice`; `byteindex` makes the intent explicit, though both return the same value since the buffer encoding is always `BINARY`
