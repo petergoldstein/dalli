@@ -180,6 +180,8 @@ module Dalli
           header = buf.byteslice(offset, term_idx - offset)
           tokens = header.split
           header_len = header.bytesize + TERMINATOR.length
+
+          # The body len is removed from the tokens array
           body_len = body_len_from_tokens(tokens)
 
           # We have a complete response that has no body.
@@ -210,16 +212,16 @@ module Dalli
         end
 
         def bitflags_from_tokens(tokens)
-          value_from_tokens(tokens, 'f')&.to_i
+          value_from_tokens(tokens, 'f').to_i
         end
 
         def cas_from_tokens(tokens)
-          value_from_tokens(tokens, 'c')&.to_i
+          value_from_tokens(tokens, 'c').to_i
         end
 
         def key_from_tokens(tokens)
+          base64_encoded = tokens.delete('b')
           encoded_key = value_from_tokens(tokens, 'k')
-          base64_encoded = tokens.any?('b')
           KeyRegularizer.decode(encoded_key, base64_encoded)
         end
 
@@ -235,18 +237,22 @@ module Dalli
         # Returns seconds since last access, or nil if not requested
         # The l flag returns l<seconds>
         def last_access_from_tokens(tokens)
-          value_from_tokens(tokens, 'l')&.to_i
+          value_from_tokens(tokens, 'l').to_i
         end
 
         def body_len_from_tokens(tokens)
-          value_from_tokens(tokens, 's')&.to_i
+          value_from_tokens(tokens, 's').to_i
         end
 
         def value_from_tokens(tokens, flag)
-          bitflags_token = tokens.find { |t| t.start_with?(flag) }
-          return 0 unless bitflags_token
-
-          bitflags_token[1..]
+          # NB: as an optimization, we're mutating the matching token in place
+          # so there is a baked assumption that we're only accessing each token at most once.
+          index = tokens.find_index { |t| t.start_with?(flag) }
+          if index
+            tokens.delete_at(index).delete_prefix!(flag)
+          else
+            0
+          end
         end
 
         def read_line
