@@ -159,7 +159,7 @@ module Dalli
 
         def full_response_from_buffer(tokens, body, resp_size)
           value = @value_marshaller.retrieve(body, bitflags_from_tokens(tokens))
-          [resp_size, tokens.first == VA, cas_from_tokens(tokens), key_from_tokens(tokens), value]
+          [tokens.first == VA, cas_from_tokens(tokens), key_from_tokens(tokens), value, resp_size]
         end
 
         ##
@@ -175,7 +175,7 @@ module Dalli
         def getk_response_from_buffer(buf, offset = 0)
           # Find the header terminator starting from offset
           term_idx = buf.byteindex(TERMINATOR, offset)
-          return [0, nil, nil, nil, nil] unless term_idx
+          return [0] unless term_idx
 
           header = buf.byteslice(offset, term_idx - offset)
           tokens = header.split
@@ -186,12 +186,12 @@ module Dalli
           # This is either the response to the terminating
           # noop or, if the status is not MN, an intermediate
           # error response that needs to be discarded.
-          return [header_len, true, nil, nil, nil] if body_len.zero?
+          return [true, header_len] if body_len.zero?
 
           resp_size = header_len + body_len + TERMINATOR.length
           # The header is in the buffer, but the body is not.  As we don't have
           # a complete response, don't advance the buffer
-          return [0, nil, nil, nil, nil] unless buf.bytesize >= offset + resp_size
+          return [0] unless buf.bytesize >= offset + resp_size
 
           # The full response is in our buffer, so parse it and return
           # the values

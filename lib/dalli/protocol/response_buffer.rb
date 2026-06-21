@@ -39,9 +39,9 @@ module Dalli
       # Attempts to process a single response from the buffer,
       # advancing the offset past the consumed bytes.
       def process_single_getk_response
-        bytes, status, cas, key, value = @response_processor.getk_response_from_buffer(@buffer, @offset)
-        @offset += bytes
-        [status, cas, key, value]
+        response = @response_processor.getk_response_from_buffer(@buffer, @offset)
+        @offset += response.pop
+        response
       end
 
       # Resets the internal buffer to an empty state,

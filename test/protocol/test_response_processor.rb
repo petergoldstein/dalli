@@ -327,15 +327,15 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
       buf = 'incomplete'
       result = processor.getk_response_from_buffer(buf)
 
-      assert_equal [0, nil, nil, nil, nil], result
+      assert_equal [0], result
     end
 
     it 'returns header info for complete response without body' do
       buf = "MN\r\n"
       result = processor.getk_response_from_buffer(buf)
 
-      assert_equal 4, result[0] # header length
-      assert result[1] # ok status
+      assert_equal 4, result.last # header length
+      assert result[0] # ok status
     end
   end
 end
