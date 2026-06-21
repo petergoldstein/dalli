@@ -62,7 +62,7 @@ describe Dalli::Protocol::ResponseBuffer do
       write_pipe.write("VA 2 s2 t-1 c2 kfoo\r\nHI\r")
       buffer.read
 
-      assert_equal [nil, nil, nil, nil], buffer.process_single_getk_response
+      assert_equal [], buffer.process_single_getk_response
 
       write_pipe.write("\nVA 2 s5 t-1 c2 kfoo\r\nHELLO\r\ngarbage")
       buffer.read
@@ -78,7 +78,7 @@ describe Dalli::Protocol::ResponseBuffer do
       buffer.read
 
       assert_equal [true, 3_424_234, 'foo', long_value], buffer.process_single_getk_response
-      assert_equal [nil, nil, nil, nil], buffer.process_single_getk_response
+      assert_equal [], buffer.process_single_getk_response
       write_pipe.write("\n") # add the missing byte
 
       assert_equal 10_055, buffer.instance_variable_get(:@buffer).bytesize

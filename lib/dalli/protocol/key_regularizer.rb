@@ -9,17 +9,18 @@ module Dalli
       # allowed.
       # memcached supports the use of base64 hashes for keys containing
       # whitespace or non-ASCII characters, provided the 'b' flag is included in the request.
-      class KeyRegularizer
-        def self.encode(key)
-          return [key, false] if key.ascii_only? && !/\s/.match?(key)
+      module KeyRegularizer
+        module_function
 
-          strict_base64_encoded = [key].pack('m0')
-          [strict_base64_encoded, true]
+        def required?(key)
+          !key.ascii_only? || /\s/.match?(key)
         end
 
-        def self.decode(encoded_key, base64_encoded)
-          return encoded_key unless base64_encoded
+        def encode(key)
+          [key].pack('m0')
+        end
 
+        def decode(encoded_key)
           strict_base64_decoded = encoded_key.unpack1('m0')
           strict_base64_decoded.force_encoding(Encoding::UTF_8)
         end
