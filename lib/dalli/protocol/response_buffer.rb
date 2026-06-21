@@ -5,6 +5,10 @@ require 'timeout'
 
 module Dalli
   module Protocol
+    # Compact the buffer when the consumed portion exceeds this
+    # threshold and represents more than half the buffer
+    COMPACT_THRESHOLD = 4096
+
     ##
     # Manages the buffer for responses from memcached.
     # Uses an offset-based approach to avoid string allocations
@@ -24,10 +28,8 @@ module Dalli
           @offset = 0
           @buffer = @io_source.read_available(@buffer)
         else
-          if remaining_bytes > COMPACT_THRESHOLD && remaining_bytes < @buffer.bytesize
-            # NB: we're freezing the old buffer before slicing so Ruby doesn't
-            # have to allocate a third hidden string to be the Copy-on-Write onwer.
-            @buffer = @buffer.freeze.byteslice(@offset..)
+          if @offset > COMPACT_THRESHOLD && @offset > (@buffer.bytesize / 2)
+            @buffer.bytesplice(0, @offset, '')
             @offset = 0
           end
           @buffer << @io_source.read_available
