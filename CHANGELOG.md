@@ -50,6 +50,10 @@ Bug Fixes:
 
 Maintenance:
 
+- Remove `PIDCache` module (#1125)
+  - `Process.pid` is cached natively by Ruby 3.3+ (via https://bugs.ruby-lang.org/issues/19443), making the manual cache unnecessary now that Dalli requires Ruby 3.3+
+  - Thanks to Jean Boussier for this contribution
+
 - Remove unused `COMPACT_THRESHOLD` constant from `ResponseBuffer` (#1116)
   - Followup cleanup after the buffer management redesign in #1114
   - Note: subsequently found to be in use; restored and corrected in #1119
