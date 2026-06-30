@@ -4,8 +4,6 @@ require 'English'
 require 'socket'
 require 'timeout'
 
-require 'dalli/pid_cache'
-
 module Dalli
   module Protocol
     ##
@@ -54,7 +52,7 @@ module Dalli
 
         @sock = memcached_socket
         @sock.sync = false # Enable buffered I/O for better performance
-        @pid = PIDCache.pid
+        @pid = Process.pid
         @request_in_progress = false
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError, SocketError => e
         # SocketError = DNS resolution failure
@@ -252,7 +250,7 @@ module Dalli
       end
 
       def fork_detected?
-        @pid && @pid != PIDCache.pid
+        @pid && @pid != Process.pid
       end
 
       def log_down_detected

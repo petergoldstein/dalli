@@ -207,7 +207,7 @@ describe Dalli::Protocol::ConnectionManager do
     end
 
     it 'returns false when pid matches current process' do
-      connection_manager.instance_variable_set(:@pid, Dalli::PIDCache.pid)
+      connection_manager.instance_variable_set(:@pid, Process.pid)
 
       refute_predicate connection_manager, :fork_detected?
     end
