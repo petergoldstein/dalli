@@ -364,12 +364,12 @@ module Dalli
     # it batches requests by server and uses quiet mode.
     #
     # @param keys [Array<String>] keys to delete
-    # @return [void]
+    # @return [Integer] the number of keys that were found and deleted
     #
     # Example:
     #   client.delete_multi(['key1', 'key2', 'key3'])
     def delete_multi(keys)
-      return if keys.empty?
+      return 0 if keys.empty?
 
       Instrumentation.trace('delete_multi', multi_trace_attrs('delete_multi', keys.size, keys)) do
         if ring.servers.size == 1
@@ -569,11 +569,11 @@ module Dalli
 
     def single_server_delete_multi(keys)
       validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
-      return unless (server = single_server)
+      return 0 unless (server = single_server)
 
       server.request(:delete_multi_req, validated_keys)
     rescue Dalli::NetworkError
-      nil
+      0
     end
 
     def get_multi_attributes(keys)

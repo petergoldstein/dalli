@@ -157,6 +157,16 @@ module Dalli
           true
         end
 
+        def pipelined_delete_misses
+          misses = 0
+          tokens = next_line_to_tokens
+          until tokens.first == MN
+            misses += 1 if tokens.first == NF
+            tokens = next_line_to_tokens
+          end
+          misses
+        end
+
         def full_response_from_buffer(tokens, body, resp_size)
           value = @value_marshaller.retrieve(body, bitflags_from_tokens(tokens))
           [tokens.first == VA, cas_from_tokens(tokens), key_from_tokens(tokens), value, resp_size]

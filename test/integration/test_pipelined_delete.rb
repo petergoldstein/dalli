@@ -89,6 +89,91 @@ describe 'Pipelined Delete' do
             assert_nil dc.get('del_bulk_99')
           end
         end
+
+        it 'returns the number of keys that were deleted' do
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
+            dc.flush
+
+            dc.set('del_key1', 'value1')
+            dc.set('del_key2', 'value2')
+
+            assert_equal 2, dc.delete_multi(%w[del_key1 del_key2])
+          end
+        end
+
+        it 'does not count keys that were not found' do
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
+            dc.flush
+
+            dc.set('del_key1', 'value1')
+
+            assert_equal 1, dc.delete_multi(%w[del_key1 missing_key])
+          end
+        end
+      end
+
+      describe 'multi-server delete_multi pipelined path' do
+        it 'aggregates the number of keys deleted per server' do
+          memcached_persistent(p) do |dc|
+            ring = dc.send(:ring)
+
+            assert_equal 2, ring.servers.size
+
+            dc.flush
+
+            keys = (0...6).map { |i| "multi_del_#{i}" }
+            keys.each { |k| dc.set(k, 'value') }
+
+            assert_equal 2, keys.map { |k| ring.server_for_key(k) }.uniq.size
+            assert_equal 6, dc.delete_multi(keys)
+          end
+        end
+
+        it 'does not count keys that were not found' do
+          memcached_persistent(p) do |dc|
+            ring = dc.send(:ring)
+
+            assert_equal 2, ring.servers.size
+
+            dc.flush
+
+            keys = (0...6).map { |i| "multi_del_#{i}" }
+            keys.each { |k| dc.set(k, 'value') }
+
+            assert_equal 2, keys.map { |k| ring.server_for_key(k) }.uniq.size
+            assert_equal 6, dc.delete_multi(keys + ['missing_key'])
+          end
+        end
+
+        it 'does not count keys that fail to enqueue' do
+          memcached_persistent(p) do |dc|
+            ring = dc.send(:ring)
+            dc.flush
+
+            dc.set('successful_key', 'value1')
+            dc.set('failing_key', 'value2')
+
+            failing_key_server = ring.server_for_key('failing_key')
+
+            original_request = failing_key_server.method(:request)
+            failing_request = lambda do |opkey, *args|
+              if opkey == :pipelined_delete && args.first == 'failing_key'
+                raise Dalli::DalliError,
+                      'error writing request'
+              end
+
+              original_request.call(opkey, *args)
+            end
+
+            failing_key_server.stub(:request, failing_request) do
+              assert_equal 1, dc.delete_multi(%w[successful_key failing_key])
+            end
+
+            assert_equal 'value2', dc.get('failing_key')
+          end
+        end
       end
     end
   end

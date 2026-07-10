@@ -16,14 +16,14 @@ module Dalli
     # Deletes multiple keys from memcached.
     #
     # @param keys [Array<String>] keys to delete
-    # @return [void]
+    # @return [Integer] the number of keys that were deleted
     ##
     def process(keys)
-      return if keys.empty?
+      return 0 if keys.empty?
 
       @ring.lock do
-        servers = setup_requests(keys)
-        finish_requests(servers)
+        groups = setup_requests(keys)
+        finish_requests(groups)
       end
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }
@@ -36,7 +36,7 @@ module Dalli
     def setup_requests(keys)
       groups = groups_for_keys(keys)
       make_delete_requests(groups)
-      groups.keys
+      groups
     end
 
     ##
@@ -45,24 +45,28 @@ module Dalli
     ##
     def make_delete_requests(groups)
       groups.each do |server, keys_for_server|
-        keys_for_server.each do |key|
+        keys_for_server.select! do |key|
           server.request(:pipelined_delete, key)
+          true
         rescue DalliError, NetworkError => e
           Dalli.logger.debug { e.inspect }
           Dalli.logger.debug { "unable to delete key #{key} for server #{server.name}" }
+          false
         end
       end
     end
 
     ##
     # Sends noop to each server to flush responses and ensure all deletes complete.
+    # Returns the total successful deletes across servers.
     ##
-    def finish_requests(servers)
-      servers.each do |server|
-        server.request(:noop)
+    def finish_requests(groups)
+      groups.sum do |server, keys_for_server|
+        server.request(:finish_pipelined_delete, keys_for_server.size)
       rescue DalliError, NetworkError => e
         Dalli.logger.debug { e.inspect }
         Dalli.logger.debug { "unable to complete pipelined delete on server #{server.name}" }
+        0
       end
     end
 
