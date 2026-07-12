@@ -66,6 +66,10 @@ module Memcached
       MemcachedManager.stop(port_or_socket)
     end
 
+    def single_server_client(port, client_options = {})
+      Dalli::Client.new("localhost:#{port}", client_options)
+    end
+
     private
 
     def fork_mock_process(prc, meth, meth_args)
