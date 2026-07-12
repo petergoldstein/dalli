@@ -7,7 +7,8 @@ describe 'Pipelined Set' do
     describe "using the #{p} protocol" do
       describe 'single-server set_multi fast path' do
         it 'sets multiple key-value pairs' do
-          memcached_persistent(p) do |dc|
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
             dc.flush
 
             hash = { 'a' => 'foo', 'b' => 123, 'c' => %w[x y z] }
@@ -20,7 +21,8 @@ describe 'Pipelined Set' do
         end
 
         it 'sets with custom TTL' do
-          memcached_persistent(p) do |dc|
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
             dc.flush
 
             dc.set_multi({ 'ttl1' => 'val1', 'ttl2' => 'val2' }, 300)
@@ -31,7 +33,8 @@ describe 'Pipelined Set' do
         end
 
         it 'sets with raw mode' do
-          memcached_persistent(p, 21_345, '', raw: true) do |dc|
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port, raw: true)
             dc.flush
 
             dc.set_multi({ 'r1' => 'raw_val1', 'r2' => 'raw_val2' }, 300)
@@ -42,13 +45,15 @@ describe 'Pipelined Set' do
         end
 
         it 'handles empty hash' do
-          memcached_persistent(p) do |dc|
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
             dc.set_multi({})
           end
         end
 
         it 'handles large batch' do
-          memcached_persistent(p) do |dc|
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
             dc.flush
 
             hash = {}
@@ -61,7 +66,8 @@ describe 'Pipelined Set' do
         end
 
         it 'works with get_multi round-trip' do
-          memcached_persistent(p) do |dc|
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
             dc.flush
 
             hash = { 'rt1' => 'v1', 'rt2' => 'v2', 'rt3' => 'v3' }

@@ -7,7 +7,8 @@ describe 'Pipelined Delete' do
     describe "using the #{p} protocol" do
       describe 'single-server delete_multi fast path' do
         it 'deletes multiple keys' do
-          memcached_persistent(p) do |dc|
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
             dc.flush
 
             dc.set('d1', 'v1')
@@ -25,13 +26,15 @@ describe 'Pipelined Delete' do
         end
 
         it 'handles empty array' do
-          memcached_persistent(p) do |dc|
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
             dc.delete_multi([])
           end
         end
 
         it 'handles non-existent keys' do
-          memcached_persistent(p) do |dc|
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
             dc.flush
 
             dc.delete_multi(%w[nonexistent1 nonexistent2])
@@ -39,7 +42,8 @@ describe 'Pipelined Delete' do
         end
 
         it 'only deletes specified keys' do
-          memcached_persistent(p) do |dc|
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
             dc.flush
 
             dc.set('keep', 'keep_val')
@@ -53,7 +57,8 @@ describe 'Pipelined Delete' do
         end
 
         it 'handles Unicode and space keys' do
-          memcached_persistent(p) do |dc|
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
             dc.flush
 
             dc.set('contains space', 'space_val')
@@ -67,7 +72,8 @@ describe 'Pipelined Delete' do
         end
 
         it 'handles large batch' do
-          memcached_persistent(p) do |dc|
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
             dc.flush
 
             keys = []
