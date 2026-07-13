@@ -181,7 +181,7 @@ module Dalli
 
       def finish_pipelined_delete(sent)
         write_noop
-        sent - response_processor.pipelined_delete_misses
+        sent - response_processor.pipelined_delete_non_deletions
       end
 
       # Arithmetic Commands
@@ -290,7 +290,7 @@ module Dalli
         buffer = RequestFormatter.multi_meta_delete(keys)
         flushed_write(buffer)
         buffer.clear
-        keys.size - response_processor.pipelined_delete_misses
+        keys.size - response_processor.pipelined_delete_non_deletions
       end
 
       require_relative 'key_regularizer'

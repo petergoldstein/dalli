@@ -157,14 +157,21 @@ module Dalli
           true
         end
 
-        def pipelined_delete_misses
-          misses = 0
+        # Consumes the responses to a batch of quiet (pipelined) delete
+        # requests, which are terminated by a noop (MN). In quiet mode
+        # memcached suppresses the success response for each deleted key, so
+        # every line received before the terminator corresponds to a key that
+        # was NOT deleted -- a miss (NF) or an error. Returns that count so
+        # callers can derive the number of successful deletes as
+        # (keys_sent - non_deletions).
+        def pipelined_delete_non_deletions
+          non_deletions = 0
           tokens = next_line_to_tokens
           until tokens.first == MN
-            misses += 1 if tokens.first == NF
+            non_deletions += 1
             tokens = next_line_to_tokens
           end
-          misses
+          non_deletions
         end
 
         def full_response_from_buffer(tokens, body, resp_size)

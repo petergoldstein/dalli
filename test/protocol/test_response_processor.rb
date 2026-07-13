@@ -300,6 +300,33 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
     end
   end
 
+  describe '#pipelined_delete_non_deletions' do
+    it 'returns 0 when every delete succeeded (all responses suppressed)' do
+      expect_read_line('MN')
+
+      assert_equal 0, processor.pipelined_delete_non_deletions
+      io_source.verify
+    end
+
+    it 'counts NF misses' do
+      expect_read_line('NF')
+      expect_read_line('NF')
+      expect_read_line('MN')
+
+      assert_equal 2, processor.pipelined_delete_non_deletions
+      io_source.verify
+    end
+
+    it 'counts error responses as non-deletions, not just NF misses' do
+      expect_read_line('NF')
+      expect_read_line('CLIENT_ERROR bad command line format')
+      expect_read_line('MN')
+
+      assert_equal 2, processor.pipelined_delete_non_deletions
+      io_source.verify
+    end
+  end
+
   describe 'error handling' do
     it 'raises DalliError for unexpected response' do
       expect_read_line('UNEXPECTED')

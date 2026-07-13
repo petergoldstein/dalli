@@ -112,6 +112,54 @@ describe 'Pipelined Delete' do
             assert_equal 1, dc.delete_multi(%w[del_key1 missing_key])
           end
         end
+
+        it 'retries on a transient (retryable) network error and returns the real count' do
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
+            dc.flush
+
+            dc.set('del_key1', 'value1')
+            dc.set('del_key2', 'value2')
+
+            server = dc.send(:ring).servers.first
+            original_request = server.method(:request)
+            attempts = 0
+            flaky_request = lambda do |opkey, *args|
+              if opkey == :delete_multi_req
+                attempts += 1
+                raise Dalli::RetryableNetworkError, 'transient blip' if attempts == 1
+              end
+
+              original_request.call(opkey, *args)
+            end
+
+            server.stub(:request, flaky_request) do
+              assert_equal 2, dc.delete_multi(%w[del_key1 del_key2])
+            end
+
+            assert_equal 2, attempts
+          end
+        end
+
+        it 'returns 0 on a terminal (non-retryable) network error' do
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
+            dc.flush
+
+            dc.set('del_key1', 'value1')
+
+            server = dc.send(:ring).servers.first
+            failing_request = lambda do |opkey, *args|
+              raise Dalli::NetworkError, 'localhost is down' if opkey == :delete_multi_req
+
+              raise "unexpected request: #{opkey}, #{args.inspect}"
+            end
+
+            server.stub(:request, failing_request) do
+              assert_equal 0, dc.delete_multi(%w[del_key1])
+            end
+          end
+        end
       end
 
       describe 'multi-server delete_multi pipelined path' do

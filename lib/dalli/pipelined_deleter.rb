@@ -16,7 +16,10 @@ module Dalli
     # Deletes multiple keys from memcached.
     #
     # @param keys [Array<String>] keys to delete
-    # @return [Integer] the number of keys that were deleted
+    # @return [Integer] the number of keys that were deleted. This is
+    #   best-effort: on a network error the operation is retried, and keys
+    #   deleted before the error are not recounted, so the result may
+    #   under-report the number actually removed when a failure occurs.
     ##
     def process(keys)
       return 0 if keys.empty?
@@ -25,7 +28,7 @@ module Dalli
         groups = setup_requests(keys)
         finish_requests(groups)
       end
-    rescue NetworkError => e
+    rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying pipelined deletes because of network error' }
       retry
