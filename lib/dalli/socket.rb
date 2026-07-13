@@ -48,7 +48,6 @@ module Dalli
       # JRuby doesn't support IO#timeout=, so use custom readfull implementation
       # CRuby 3.3+ has IO#timeout= which makes IO#read work with timeouts
       if RUBY_ENGINE == 'jruby'
-        # rubocop:disable Metrics/AbcSize
         def readfull(count)
           value = String.new(capacity: count + 1)
 

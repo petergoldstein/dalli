@@ -95,7 +95,6 @@ module Dalli
       # When a block is given, yields (key, value, cas) for each response,
       # avoiding intermediate Hash allocation. Returns nil.
       # Without a block, returns a Hash of { key => [value, cas] }.
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def pipeline_next_responses(&block)
         reconnect_on_pipeline_complete!
         values = nil

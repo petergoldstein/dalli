@@ -121,9 +121,6 @@ class GCSuite
 end
 suite = GCSuite.new
 
-# rubocop:disable Metrics/PerceivedComplexity
-# rubocop:disable Metrics/AbcSize
-# rubocop:disable Metrics/CyclomaticComplexity
 def sock_get_multi(sock, pairs)
   count = pairs.length
   pairs.each_key do |key|

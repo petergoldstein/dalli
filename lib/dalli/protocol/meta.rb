@@ -132,7 +132,6 @@ module Dalli
         response_processor.meta_set_with_cas unless quiet?
       end
 
-      # rubocop:disable Metrics/ParameterLists
       def write_storage_req(mode, key, raw_value, ttl = nil, cas = nil, options = {}, quiet: quiet?)
         (value, bitflags) = @value_marshaller.store(key, raw_value, options)
         ttl = TtlSanitizer.sanitize(ttl) if ttl

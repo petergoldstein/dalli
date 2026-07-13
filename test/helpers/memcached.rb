@@ -45,7 +45,6 @@ module Memcached
     # Launches a memcached process using the memcached method in this module,
     # but sets terminate_process to false ensuring that the process persists
     # past execution of the block argument.
-    # rubocop:disable Metrics/ParameterLists
     def memcached_persistent(protocol = :meta, port_or_socket = 21_345, args = '', client_options = {}, &)
       memcached(protocol, port_or_socket, args, client_options, terminate_process: false, &)
     end
