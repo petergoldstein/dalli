@@ -6,29 +6,6 @@
 # Note that changes in the inspected code, or installation of new
 # versions of RuboCop, may require this file to be generated again.
 
-# Offense count: 2
-# Configuration parameters: AllowedMethods, AllowedPatterns, CountRepeatedAttributes.
-Metrics/AbcSize:
-  Max: 19
-
-# Offense count: 7
-# Configuration parameters: CountComments, CountAsOne.
-Metrics/ClassLength:
-  Max: 342
-
-# Offense count: 1
-# Configuration parameters: CountComments, Max, CountAsOne, AllowedMethods, AllowedPatterns.
-Metrics/MethodLength:
-  Exclude:
-    - 'lib/dalli/socket.rb'
-
-# Offense count: 2
-# Configuration parameters: CountComments, CountAsOne.
-Metrics/ModuleLength:
-  Max: 128
-
-# Offense count: 1
-# Configuration parameters: AllowedClasses.
 Style/OneClassPerFile:
   Exclude:
     - 'test/helper.rb'

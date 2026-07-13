@@ -14,9 +14,6 @@ module Dalli
         # Rubocop directives.  We really can't make this construction much simpler,
         # and introducing an intermediate object seems like overkill.
         #
-        # rubocop:disable Metrics/CyclomaticComplexity
-        # rubocop:disable Metrics/ParameterLists
-        # rubocop:disable Metrics/PerceivedComplexity
         #
         # Meta get flags:
         #

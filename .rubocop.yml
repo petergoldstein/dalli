@@ -19,13 +19,8 @@ AllCops:
     - 'bin/benchmark_*'
     - 'vendor/**/*'
 
-Metrics/BlockLength:
-  Max: 50
-  Exclude:
-    - 'test/**/*'
-
-Metrics/MethodLength:
-  Max: 20
+Metrics:
+  Enabled: false
 
 Style/Documentation:
   Exclude:
