@@ -40,6 +40,14 @@ Performance:
   - Accompanied by new unit tests for `ResponseBuffer` (#1115)
   - Thanks to Jean Boussier for this contribution
 
+Features:
+
+- `delete_multi` now returns the number of keys found and deleted (#1126)
+  - Previously the return value was unspecified; callers (e.g. Rails, see rails/rails#58071) had no way to tell how many keys were actually removed
+  - The count is derived from the meta protocol's quiet-mode delete responses with no extra round-trips: successful deletes are suppressed while misses report `NF`, so any response received before the terminator is a key that was not deleted
+  - The single-server fast path now shares the pipelined path's bounded retry on transient (`RetryableNetworkError`) network errors, so both paths behave consistently; the returned count is best-effort and may under-report if a network error triggers a retry, since keys deleted before the error are not recounted
+  - Thanks to Iliana Hadzhiatanasova for this contribution
+
 Bug Fixes:
 
 - Fix `ResponseBuffer` compaction logic (#1119)
@@ -62,6 +70,11 @@ Maintenance:
 - Use `String#byteindex` instead of `String#index` when searching for the response terminator in `getk_response_from_buffer` (#1112)
   - The result feeds directly into `byteslice`; `byteindex` makes the intent explicit, though both return the same value since the buffer encoding is always `BINARY`
   - Thanks to Jean Boussier for this contribution
+
+- Make single-server fast path tests actually exercise the fast path (#1127)
+  - The batch-operation tests built clients through a helper that registers two address aliases for the same memcached process, so every client had a 2-server ring and the tests always ran through the pipelined path instead of the single-server fast path
+  - Adds a `single_server_client` test helper that builds a client with a single address, and uses it in the affected `get_multi`, `set_multi`, and `delete_multi` tests
+  - Thanks to Iliana Hadzhiatanasova for this contribution
 
 5.0.5
 ==========
