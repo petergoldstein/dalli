@@ -364,12 +364,15 @@ module Dalli
     # it batches requests by server and uses quiet mode.
     #
     # @param keys [Array<String>] keys to delete
-    # @return [void]
+    # @return [Integer] the number of keys that were found and deleted. This is
+    #   best-effort: on a network error the operation is retried, and keys
+    #   deleted before the error are not recounted, so the result may
+    #   under-report the number actually removed when a failure occurs.
     #
     # Example:
     #   client.delete_multi(['key1', 'key2', 'key3'])
     def delete_multi(keys)
-      return if keys.empty?
+      return 0 if keys.empty?
 
       Instrumentation.trace('delete_multi', multi_trace_attrs('delete_multi', keys.size, keys)) do
         if ring.servers.size == 1
@@ -569,11 +572,18 @@ module Dalli
 
     def single_server_delete_multi(keys)
       validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
-      return unless (server = single_server)
+      return 0 unless (server = single_server)
 
       server.request(:delete_multi_req, validated_keys)
+    rescue Dalli::RetryableNetworkError => e
+      # Mirror the pipelined path: retry transient errors so a momentary blip
+      # still yields a real count. Bounded by the server's socket_max_failures,
+      # after which a hard NetworkError is raised and handled below.
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { 'retrying single-server delete_multi because of network error' }
+      retry
     rescue Dalli::NetworkError
-      nil
+      0
     end
 
     def get_multi_attributes(keys)
