@@ -88,6 +88,57 @@ describe 'operations' do
         end
       end
 
+      describe 'get_with_metadata h/l/t flags' do
+        it 'returns the value and requested hit/last-access/ttl metadata' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            val1 = 'meta'
+            dc.set('meta_key', val1)
+            result = dc.get_with_metadata('meta_key', return_hit_status: true, return_last_access: true,
+                                                      return_ttl_remaining: true)
+
+            assert_equal val1, result[:value]
+            assert_operator result[:cas], :>, 0
+            refute result[:miss]
+            # not yet hit, last accessed 0 from set, and no TTL so ttl_remaining is -1
+            refute result[:hit_before]
+            assert_equal 0, result[:last_access]
+            assert_equal(-1, result[:ttl_remaining])
+
+            sleep 1 # we can't simulate time in memcached so we need to sleep
+            # ensure hit true and last accessed 1
+            result = dc.get_with_metadata('meta_key', return_hit_status: true, return_last_access: true)
+
+            assert_equal val1, result[:value]
+            assert result[:hit_before]
+            assert_equal 1, result[:last_access]
+          end
+        end
+
+        it 'reports a miss with nil value' do
+          memcached_persistent(p) do |dc|
+            result = dc.get_with_metadata('notexist', return_hit_status: true, return_ttl_remaining: true)
+
+            assert_nil result[:value]
+            assert result[:miss]
+          end
+        end
+
+        it 'returns the remaining TTL for an item stored with an expiry' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            dc.set('meta_key', 'meta', 100)
+            result = dc.get_with_metadata('meta_key', return_ttl_remaining: true)
+
+            assert_equal 'meta', result[:value]
+            assert_operator result[:ttl_remaining], :>, 0
+            assert_operator result[:ttl_remaining], :<=, 100
+          end
+        end
+      end
+
       describe 'gat' do
         it 'returns the value and touches on a hit' do
           memcached_persistent(p) do |dc|

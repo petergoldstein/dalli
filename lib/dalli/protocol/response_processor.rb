@@ -72,11 +72,13 @@ module Dalli
         #
         # Used by meta_get for comprehensive metadata retrieval.
         # Supports thundering herd protection (N/R flags) and metadata flags (h/l/u).
-        def meta_get_with_metadata(cache_nils: false, return_hit_status: false, return_last_access: false)
+        def meta_get_with_metadata(cache_nils: false, return_hit_status: false, return_last_access: false,
+                                   return_ttl_remaining: false)
           tokens = error_on_unexpected!(T_VA_EN_HD)
           result = build_metadata_result(tokens)
           result[:hit_before] = hit_status_from_tokens(tokens) if return_hit_status
           result[:last_access] = last_access_from_tokens(tokens) if return_last_access
+          result[:ttl_remaining] = ttl_remaining_from_tokens(tokens) if return_ttl_remaining
           result[:value] = parse_value_from_tokens(tokens, cache_nils)
           result
         end
@@ -85,7 +87,12 @@ module Dalli
           {
             value: nil, cas: cas_from_tokens(tokens),
             won_recache: tokens.include?('W'), stale: tokens.include?('X'),
-            lost_recache: tokens.include?('Z')
+            lost_recache: tokens.include?('Z'),
+            # Explicit miss marker: EN means the key does not exist. A
+            # tombstoned item (md key I) is NOT a miss — it responds VA/HD
+            # with the X flag set. This lets callers distinguish a true miss
+            # from a stale tombstone without relying on cas == 0.
+            miss: tokens.first == EN
           }
         end
 
@@ -225,7 +232,7 @@ module Dalli
 
           raise Dalli::ServerError, tokens.join(' ').to_s if tokens.first == SERVER_ERROR
 
-          raise Dalli::DalliError, "Response error: #{tokens.first}"
+          raise Dalli::DalliError, "Response error: #{tokens.join(' ')}"
         end
 
         def bitflags_from_tokens(tokens)
@@ -245,6 +252,14 @@ module Dalli
           end
         end
 
+        # Detects the `X` presence flag indicating the item has been marked
+        # stale via a prior `md key I`. Strict equality (Array#any?(pattern)
+        # uses `===`, which for Strings is `==`) avoids false positives if a
+        # future value-bearing flag is introduced beginning with `X`.
+        def stale_from_tokens(tokens)
+          tokens.any?('X')
+        end
+
         # Returns true if item was previously hit, false if first access, nil if not requested
         # The h flag returns h0 (first access) or h1 (previously accessed)
         def hit_status_from_tokens(tokens)
@@ -258,6 +273,12 @@ module Dalli
         # The l flag returns l<seconds>
         def last_access_from_tokens(tokens)
           value_from_tokens(tokens, 'l').to_i
+        end
+
+        # Returns seconds of TTL remaining (-1 when the item has no TTL)
+        # The t flag returns t<seconds>
+        def ttl_remaining_from_tokens(tokens)
+          value_from_tokens(tokens, 't').to_i
         end
 
         def body_len_from_tokens(tokens)

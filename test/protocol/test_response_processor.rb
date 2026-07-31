@@ -365,4 +365,99 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
       assert result[0] # ok status
     end
   end
+
+  describe 'error responses' do
+    it 'includes the full unexpected response line in DalliError messages' do
+      expect_read_line('CLIENT_ERROR bad data chunk')
+
+      err = assert_raises(Dalli::DalliError) { processor.meta_get_with_value }
+
+      assert_equal 'Response error: CLIENT_ERROR bad data chunk', err.message
+      io_source.verify
+    end
+
+    it 'includes the full server error response line in ServerError messages' do
+      expect_read_line('SERVER_ERROR object too large for cache')
+
+      err = assert_raises(Dalli::ServerError) { processor.meta_get_with_value }
+
+      assert_equal 'SERVER_ERROR object too large for cache', err.message
+      io_source.verify
+    end
+  end
+
+  describe '#meta_get_with_metadata stale/miss markers' do
+    it 'reports stale: true and miss: false on an X-flagged hit' do
+      test_value = 'hello'
+      serialized = Marshal.dump(test_value)
+
+      expect_read_line("VA #{serialized.bytesize} f1 c42 X")
+      expect_read_data(serialized, serialized.bytesize)
+
+      result = processor.meta_get_with_metadata
+
+      assert_equal test_value, result[:value]
+      assert result[:stale]
+      refute result[:miss]
+      assert_equal 42, result[:cas]
+      io_source.verify
+    end
+
+    it 'reports stale: false on a plain hit' do
+      serialized = Marshal.dump('v')
+
+      expect_read_line("VA #{serialized.bytesize} f1 c7")
+      expect_read_data(serialized, serialized.bytesize)
+
+      result = processor.meta_get_with_metadata
+
+      refute result[:stale]
+      refute result[:miss]
+      io_source.verify
+    end
+
+    it 'reports miss: true with nil value on EN' do
+      expect_read_line('EN')
+
+      result = processor.meta_get_with_metadata
+
+      assert result[:miss]
+      refute result[:stale]
+      assert_nil result[:value]
+      assert_equal 0, result[:cas]
+      io_source.verify
+    end
+  end
+
+  describe '#meta_get_with_metadata ttl_remaining' do
+    it 'parses the t flag when return_ttl_remaining is requested' do
+      test_value = 'flagged'
+      serialized = Marshal.dump(test_value)
+
+      expect_read_line("VA #{serialized.bytesize} f1 c9 h1 l5 t42")
+      expect_read_data(serialized, serialized.bytesize)
+
+      result = processor.meta_get_with_metadata(return_hit_status: true, return_last_access: true,
+                                                return_ttl_remaining: true)
+
+      assert_equal test_value, result[:value]
+      assert result[:hit_before]
+      assert_equal 5, result[:last_access]
+      assert_equal 42, result[:ttl_remaining]
+      assert_equal 9, result[:cas]
+      io_source.verify
+    end
+
+    it 'reports -1 for items with no TTL' do
+      serialized = Marshal.dump('v')
+
+      expect_read_line("VA #{serialized.bytesize} f1 c9 t-1")
+      expect_read_data(serialized, serialized.bytesize)
+
+      result = processor.meta_get_with_metadata(return_ttl_remaining: true)
+
+      assert_equal(-1, result[:ttl_remaining])
+      io_source.verify
+    end
+  end
 end

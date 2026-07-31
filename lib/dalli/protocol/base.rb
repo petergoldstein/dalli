@@ -40,12 +40,14 @@ module Dalli
         verify_state(opkey)
 
         begin
+          request_local_completed = false
           @connection_manager.start_request!
           response = send(opkey, *args)
 
           # pipelined_get/pipelined_get_interleaved emit query but don't read the response(s)
           @connection_manager.finish_request! unless %i[pipelined_get pipelined_get_interleaved].include?(opkey)
 
+          request_local_completed = true
           response
         rescue Dalli::MarshalError => e
           log_marshal_err(args.first, e)
@@ -56,6 +58,16 @@ module Dalli
           log_unexpected_err(e)
           close
           raise
+        ensure
+          # If the begin block didn't complete — any exception, including
+          # non-StandardError like Async::Stop — tear down the connection
+          # so we don't return a half-used client to the pool.  The local
+          # flag avoids reading $ERROR_INFO, which leaks state when
+          # `request` is called from inside a rescue clause: $! is preserved
+          # there and would falsely trigger close on the pipelined get
+          # happy path (which intentionally leaves @request_in_progress
+          # true until the caller drains the responses).
+          close unless request_local_completed
         end
       end
 
@@ -217,6 +229,48 @@ module Dalli
         connected?
       end
 
+      # Extracts opaque routing-token kwargs (`p_token`, `l_token`) from a
+      # request-options Hash so they can be splatted into a RequestFormatter
+      # call. Empty-string tokens are normalized to `nil` (no-op) so they do
+      # not produce orphan `P`/`L` tokens on the wire (proxies may parse
+      # those inconsistently). CRLF / null-byte injection is rejected later,
+      # at the wire-formatter level, where it can ArgumentError uniformly
+      # regardless of how the token reached the formatter.
+      def routing_token_kwargs(opts)
+        return {} unless opts.is_a?(Hash)
+
+        p = blank_token?(opts[:p_token]) ? nil : opts[:p_token]
+        l = blank_token?(opts[:l_token]) ? nil : opts[:l_token]
+        return {} unless p || l
+
+        { p_token: p, l_token: l }
+      end
+
+      # Extracts meta-delete kwargs (`invalidate`, `tombstone_ttl`,
+      # `drop_value`) from a request-options Hash so they can be splatted
+      # into a RequestFormatter.meta_delete call. Returns `{}` when none
+      # of the keys are set, so the splat is a no-op for the common path.
+      # Tombstone TTL uses the same memcached expiration semantics as other
+      # TTL-bearing operations, so sanitize it before formatting the request.
+      # Validation (e.g. `tombstone_ttl` requiring `invalidate`) happens at
+      # the wire-formatter level, where it can ArgumentError uniformly.
+      def tombstone_kwargs(opts)
+        return {} unless opts.is_a?(Hash)
+
+        invalidate    = opts[:invalidate]
+        tombstone_ttl = opts[:tombstone_ttl]
+        drop_value    = opts[:drop_value]
+        return {} unless invalidate || tombstone_ttl || drop_value
+
+        tombstone_ttl = TtlSanitizer.sanitize(Integer(tombstone_ttl)) if tombstone_ttl
+
+        { invalidate: invalidate, tombstone_ttl: tombstone_ttl, drop_value: drop_value }.compact
+      end
+
+      def blank_token?(value)
+        value.nil? || (value.respond_to?(:empty?) && value.empty?)
+      end
+
       def cache_nils?(opts)
         return false unless opts.is_a?(Hash)
 
@@ -229,7 +283,7 @@ module Dalli
         up!
       end
 
-      def pipelined_get(keys)
+      def pipelined_get(keys, req_options = nil)
         # Clear buffer to remove any stale data from interrupted operations.
         # Use clear (not reset) to keep pipeline_complete? = true, which is
         # the expected state before pipeline_response_setup is called.
@@ -237,7 +291,7 @@ module Dalli
 
         req = +''
         keys.each do |key|
-          req << quiet_get_request(key)
+          req << quiet_get_request(key, req_options)
         end
         # Could send noop here instead of in pipeline_response_setup
         write(req)
@@ -246,7 +300,7 @@ module Dalli
       # For large batches, interleave writing requests with draining responses.
       # This prevents socket buffer deadlock when sending many keys.
       # Populates the provided results hash with any responses drained during send.
-      def pipelined_get_interleaved(keys, chunk_size, results)
+      def pipelined_get_interleaved(keys, chunk_size, results, req_options = nil)
         # Initialize the response buffer for draining during send phase
         response_buffer.ensure_ready
 
@@ -254,7 +308,7 @@ module Dalli
           # Build and write this chunk of requests
           req = +''
           chunk.each do |key|
-            req << quiet_get_request(key)
+            req << quiet_get_request(key, req_options)
           end
           write(req)
           @connection_manager.flush

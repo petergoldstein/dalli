@@ -1,6 +1,46 @@
 Dalli Changelog
 =====================
 
+Shopify fork (on top of upstream 5.0.5)
+==========
+
+Features:
+
+- Add opaque routing tokens `:p_token` / `:l_token` as per-request options on all
+  operations (get, gat, get_cas, get_with_metadata, fetch_with_lock, set, add,
+  replace, append, prepend, delete, incr, decr, and all multi/pipelined paths).
+  Tokens are appended to the wire as `P<token>` / `L<token>` for consumption by
+  intermediate proxies. CRLF/NUL bytes are rejected to prevent wire-protocol
+  injection; empty tokens are treated as no-ops. (Shopify#70, Shopify#72)
+- Add tombstone (mark-stale) support to `delete` / `delete_cas` / `delete_multi`
+  via the `:invalidate`, `:tombstone_ttl` and `:drop_value` request options
+  (meta-protocol `I`, `T` and `x` flags on `md`). A tombstoned item lives in a
+  stale window so concurrent readers can tell a racing repopulate apart from a
+  true miss. (Shopify#73)
+- `get_with_metadata` now returns an explicit `:miss` marker, accepts routing
+  tokens, and supports `return_ttl_remaining:` to fetch the item's remaining TTL
+  (`:ttl_remaining`, `-1` when the item has no expiry). (Shopify#73)
+- Add `get_multi_with_metadata` for stale-aware bulk reads. Returns a metadata
+  Hash (`:value`, `:cas`, `:stale`, `:miss`) for every requested key, including
+  misses, so callers can distinguish a true miss from a tombstone per key.
+  (Shopify#73)
+
+Bug Fixes:
+
+- Ensure fixed-length response reads consume exactly the requested number of
+  bytes or fail. A peer closing the connection mid-response now raises and
+  closes the dirty socket for a retry instead of surfacing a truncated value.
+  (Shopify#77)
+- Tear down the connection when a non-StandardError (e.g. `Async::Stop`,
+  `Thread#kill`) escapes a request or interrupts `ConnectionManager#close`, so
+  a half-used connection is never returned to the pool. (Shopify#68, Shopify#69,
+  Shopify#71)
+
+Performance:
+
+- Quiet-mode `ms` requests no longer include the cas-return flag, saving two
+  bytes per pipelined set.
+
 Unreleased
 ==========
 

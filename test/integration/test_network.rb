@@ -516,4 +516,65 @@ describe 'Network' do
       end
     end
   end
+
+  describe 'fixed-length reads' do
+    # Regression test for truncated reads: a peer that closes the connection
+    # partway through a response body must not surface a decodable-but-wrong
+    # value. The dirty socket must be closed and the request retried on a
+    # fresh connection.
+    it 'does not return a truncated value when the peer closes mid-response body' do
+      value = 'a' * 512
+      tcp_server = TCPServer.new('127.0.0.1', 0)
+      port = tcp_server.addr[1]
+      get_count = 0
+      get_count_mutex = Mutex.new
+
+      server_thread = Thread.new do
+        loop do
+          conn = tcp_server.accept
+          Thread.new(conn) do |c|
+            while (line = c.gets("\r\n"))
+              cmd, key = line.split
+              case cmd
+              when 'version'
+                c.write("VERSION 1.6.39-fake\r\n")
+              when 'mg'
+                nth = get_count_mutex.synchronize { get_count += 1 }
+                if nth == 1
+                  # Correct header + length, only part of the body, then EOF.
+                  c.write("VA #{value.bytesize} k#{key}\r\n")
+                  c.write(value[0, value.bytesize - 16])
+                  c.close
+                  break
+                else
+                  c.write("VA #{value.bytesize} k#{key}\r\n#{value}\r\n")
+                end
+              else
+                c.write("ERROR\r\n")
+              end
+            end
+          rescue IOError, Errno::ECONNRESET, Errno::EPIPE
+            nil
+          end
+        rescue IOError
+          next
+        end
+      end
+      server_thread.abort_on_exception = true
+
+      begin
+        dc = Dalli::Client.new("127.0.0.1:#{port}", raw: true, socket_timeout: 2, socket_max_failures: 2)
+        conn_mgr = dc.send(:ring).servers.first.instance_variable_get(:@connection_manager)
+
+        assert_equal value, dc.get('trunc_key'),
+                     'a mid-response EOF must not surface a truncated value'
+        assert_equal 2, get_count,
+                     'the truncated first response should trigger a transparent retry'
+        refute_predicate conn_mgr, :request_in_progress?
+      ensure
+        tcp_server.close
+        server_thread.kill
+      end
+    end
+  end
 end

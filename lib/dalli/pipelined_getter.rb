@@ -20,13 +20,16 @@ module Dalli
     ##
     # Yields, one at a time, keys and their values+attributes.
     #
-    def process(keys, &block)
+    # `req_options` is an optional hash of options applied to every request
+    # in the pipeline (e.g. routing tokens `:p_token` / `:l_token`).
+    #
+    def process(keys, req_options = nil, &block)
       return {} if keys.empty?
 
       @ring.lock do
         # Stores partial results collected during interleaved send phase
         @partial_results = {}
-        servers = setup_requests(keys)
+        servers = setup_requests(keys, req_options)
         start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
         # First yield any partial results collected during interleaved send
@@ -40,6 +43,33 @@ module Dalli
       retry
     end
 
+    ##
+    # Stale-aware bulk get. Returns { key => metadata Hash } including
+    # misses, so callers can distinguish a true miss from a tombstoned/stale
+    # item for every requested key.
+    #
+    def process_with_metadata(keys, req_options = nil)
+      return {} if keys.empty?
+
+      @ring.lock do
+        results = {}
+        groups_for_keys(keys).each do |server, keys_for_server|
+          results.merge!(server.request(:read_multi_with_metadata_req, keys_for_server, req_options))
+        rescue Dalli::RetryableNetworkError
+          raise
+        rescue DalliError, NetworkError => e
+          Dalli.logger.debug { e.inspect }
+          Dalli.logger.debug { "unable to get keys for server #{server.name}" }
+        end
+        results.transform_keys! { |key| @key_manager.key_without_namespace(key) }
+        results
+      end
+    rescue Dalli::RetryableNetworkError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { 'retrying pipelined get with metadata because of network error' }
+      retry
+    end
+
     private
 
     def yield_partial_results
@@ -49,9 +79,9 @@ module Dalli
       @partial_results.clear
     end
 
-    def setup_requests(keys)
+    def setup_requests(keys, req_options = nil)
       groups = groups_for_keys(keys)
-      make_getkq_requests(groups)
+      make_getkq_requests(groups, req_options)
 
       # TODO: How does this exit on a NetworkError
       finish_queries(groups.keys)
@@ -65,15 +95,15 @@ module Dalli
     # on the wire by switching from getkq to getq, and using
     # the opaque value to match requests to responses.
     ##
-    def make_getkq_requests(groups)
+    def make_getkq_requests(groups, req_options = nil)
       groups.each do |server, keys_for_server|
         if keys_for_server.size <= INTERLEAVE_THRESHOLD
           # Small batch - send all at once (existing behavior)
-          server.request(:pipelined_get, keys_for_server)
+          server.request(:pipelined_get, keys_for_server, req_options)
         else
           # Large batch - interleave sends with response draining
           # Pass @partial_results directly to avoid hash allocation/merge overhead
-          server.request(:pipelined_get_interleaved, keys_for_server, CHUNK_SIZE, @partial_results)
+          server.request(:pipelined_get_interleaved, keys_for_server, CHUNK_SIZE, @partial_results, req_options)
         end
       rescue DalliError, NetworkError => e
         Dalli.logger.debug { e.inspect }

@@ -3,6 +3,7 @@ name: Benchmarks
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -12,10 +13,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
-    - name: Install Memcached 1.6.23
+    - name: Install Memcached 1.6.41
       working-directory: scripts
       env:
-        MEMCACHED_VERSION: 1.6.23
+        MEMCACHED_VERSION: 1.6.41
       run: |
         chmod +x ./install_memcached.sh
         ./install_memcached.sh
