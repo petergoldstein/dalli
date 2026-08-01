@@ -165,10 +165,16 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                                                                     cas: "\nset importantkey 1 1000 8\ninjected")
     end
 
-    it 'sets the quiet mode if configured' do
-      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS q\r\n",
+    it 'sets the quiet mode if configured, skipping the cas-return flag' do
+      assert_equal "ms #{key} #{val.bytesize} F#{bitflags} MS q\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags,
                                                                     quiet: true)
+    end
+
+    it 'retains the cas-return flag when not in quiet mode' do
+      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags,
+                                                                    quiet: false)
     end
 
     it 'sets the base64 mode if required' do

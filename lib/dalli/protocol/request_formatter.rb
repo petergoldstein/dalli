@@ -68,7 +68,9 @@ module Dalli
           base64 = KeyRegularizer.required?(key)
           key = KeyRegularizer.encode(key) if base64
           cmd = "ms #{key} #{value.bytesize}"
-          cmd << ' c' unless %i[append prepend].include?(mode)
+          # Skip the cas-return flag in quiet mode: the response is suppressed,
+          # so requesting it only adds bytes to the request.
+          cmd << ' c' if !quiet && !%i[append prepend].include?(mode)
           cmd << ' b' if base64
           cmd << " F#{bitflags}" if bitflags
           cmd << cas_string(cas)
