@@ -122,10 +122,12 @@ describe 'Pipelined Get' do
         end
 
         it 'returns correct results with raw mode' do
-          memcached_persistent(p, 21_345, '', raw: true) do |_, port|
-            dc = single_server_client(port)
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port, raw: true)
 
             dc.flush
+
+            assert_raises(Dalli::MarshalError) { dc.set('n', 123) }
 
             dc.set('x', 'hello')
             dc.set('y', 'world')
@@ -137,8 +139,8 @@ describe 'Pipelined Get' do
         end
 
         it 'returns correct results with namespace' do
-          memcached_persistent(p, 21_345, '', namespace: 'ns') do |_, port|
-            dc = single_server_client(port)
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port, namespace: 'ns')
 
             dc.flush
 
@@ -148,6 +150,7 @@ describe 'Pipelined Get' do
             resp = dc.get_multi(%w[a b c])
 
             assert_equal({ 'a' => 'val_a', 'b' => 'val_b' }, resp)
+            assert_equal 'val_a', single_server_client(port).get('ns:a')
           end
         end
 
