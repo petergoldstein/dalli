@@ -6,6 +6,11 @@ Unreleased
 
 Performance:
 
+- Skip the cas-return flag on quiet `meta_set` requests (#1131)
+  - In quiet mode memcached suppresses the `ms` response entirely, so the CAS requested by the `c` flag can never be read; sending it only added two bytes to every request
+  - Applies to the bulk-write paths, where quiet sets are emitted: `Dalli::Client#multi` blocks and the pipelined setter
+  - Extracted from #1130; thanks to Jianbin Chen for this contribution
+
 - Reduce allocations in `KeyRegularizer` and multi-key request paths (#1120)
   - Decomposed `KeyRegularizer#encode` into separate `needs_encoding?` and `encode` calls so the common happy path avoids allocating an intermediate array for the two-element return value
   - Refactored `multi_get`/`multi_set`/`multi_delete` command generation into `RequestFormatter` to share its key-encoding helpers
@@ -57,6 +62,31 @@ Bug Fixes:
   - Thanks to Jean Boussier for this contribution
 
 Maintenance:
+
+- Scope `StrictWarnings` to Dalli's own source (#1134)
+  - The test suite runs under `-w` and prepends a hook to `Warning.singleton_class` that turns warnings into failures, but that hook is global: a warning emitted while loading any third-party gem aborted the whole suite before a single test ran
+  - `json` 2.21.2's pure-Ruby generator (used on JRuby, where the C extension is unavailable) warns `method redefined; discarding old to_hash` at require time, which took the `jruby-10` CI job red with no change to Dalli
+  - Warnings are now attributed to a source file and only raise for `lib/` and `test/`; attribution prefers the location Ruby embeds in the message, since the stack at that point describes the require chain rather than the offending code
+  - Portable attribution of `Kernel#warn` callers also required walking the stack rather than indexing it (Ruby 3.3/3.4 push an `<internal:warning>` frame that 4.0 does not), skipping RubyGems' `Kernel#warn` shim (active on JRuby but not CRuby), and resolving relative backtrace paths
+
+- Make raw and namespace fast path tests actually use those options (#1129)
+  - Followup to #1127: the `raw` and `namespace` variants passed those options to the helper that starts memcached, which configures the client the tests then discarded, so neither option was ever exercised
+  - Passes the options to the client under test and adds assertions that fail if they are absent
+  - Thanks to Iliana Hadzhiatanasova for this contribution
+
+- Benchmark `set_multi` and add a `delete_multi` target (#1132)
+  - Enables the two `set_multi` reports that were commented out pending the arrival of `set_multi`, resolving the accompanying TODO
+  - Adds a `delete_multi` target comparing the pipelined path against N single deletes
+  - Extracted from #1130; thanks to Jianbin Chen for this contribution
+
+- Bump CI memcached to 1.6.41 and run benchmarks on pull requests (#1133)
+  - The tests workflow moves from 1.6.40 to 1.6.41; the benchmarks and profile workflows had drifted back on 1.6.23
+  - Extracted from #1130; thanks to Jianbin Chen for this contribution
+
+- Disable RuboCop metrics cops (#1128)
+  - Thanks to Jean Boussier for this contribution
+
+- Bump `actions/checkout` from 6 to 7 (#1124)
 
 - Remove `PIDCache` module (#1125)
   - `Process.pid` is cached natively by Ruby 3.3+ (via https://bugs.ruby-lang.org/issues/19443), making the manual cache unnecessary now that Dalli requires Ruby 3.3+
