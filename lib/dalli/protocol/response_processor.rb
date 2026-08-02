@@ -72,11 +72,13 @@ module Dalli
         #
         # Used by meta_get for comprehensive metadata retrieval.
         # Supports thundering herd protection (N/R flags) and metadata flags (h/l/u).
-        def meta_get_with_metadata(cache_nils: false, return_hit_status: false, return_last_access: false)
+        def meta_get_with_metadata(cache_nils: false, return_hit_status: false, return_last_access: false,
+                                   return_ttl_remaining: false)
           tokens = error_on_unexpected!(T_VA_EN_HD)
           result = build_metadata_result(tokens)
           result[:hit_before] = hit_status_from_tokens(tokens) if return_hit_status
           result[:last_access] = last_access_from_tokens(tokens) if return_last_access
+          result[:ttl_remaining] = ttl_remaining_from_tokens(tokens) if return_ttl_remaining
           result[:value] = parse_value_from_tokens(tokens, cache_nils)
           result
         end
@@ -85,7 +87,12 @@ module Dalli
           {
             value: nil, cas: cas_from_tokens(tokens),
             won_recache: tokens.include?('W'), stale: tokens.include?('X'),
-            lost_recache: tokens.include?('Z')
+            lost_recache: tokens.include?('Z'),
+            # Explicit miss marker: EN means the key does not exist.  A tombstoned
+            # item is NOT a miss -- it answers VA/HD with the X flag set -- and a
+            # stored nil under cache_nils is not one either, so neither can be
+            # inferred from value or cas alone.
+            miss: tokens.first == EN
           }
         end
 
@@ -258,6 +265,12 @@ module Dalli
         # The l flag returns l<seconds>
         def last_access_from_tokens(tokens)
           value_from_tokens(tokens, 'l').to_i
+        end
+
+        # Returns seconds of TTL remaining; -1 when the item has no expiry.
+        # The t flag returns t<seconds>.
+        def ttl_remaining_from_tokens(tokens)
+          value_from_tokens(tokens, 't').to_i
         end
 
         def body_len_from_tokens(tokens)

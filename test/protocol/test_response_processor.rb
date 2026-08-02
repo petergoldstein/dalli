@@ -365,4 +365,75 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
       assert result[0] # ok status
     end
   end
+  describe '#meta_get_with_metadata' do
+    it 'marks an EN response as a miss' do
+      expect_read_line('EN')
+
+      result = processor.meta_get_with_metadata
+
+      assert result[:miss]
+      assert_nil result[:value]
+      io_source.verify
+    end
+
+    it 'does not mark a found item as a miss' do
+      serialized = Marshal.dump('hello')
+      expect_read_line("VA #{serialized.bytesize} f1 c7")
+      expect_read_data(serialized, serialized.bytesize)
+
+      result = processor.meta_get_with_metadata
+
+      refute result[:miss]
+      assert_equal 'hello', result[:value]
+      assert_equal 7, result[:cas]
+      io_source.verify
+    end
+
+    # A tombstoned item answers VA with the X flag, so it must not be reported as
+    # a miss -- that distinction is the whole point of the :miss key.
+    it 'does not mark a stale item as a miss' do
+      serialized = Marshal.dump('stale value')
+      expect_read_line("VA #{serialized.bytesize} f1 X")
+      expect_read_data(serialized, serialized.bytesize)
+
+      result = processor.meta_get_with_metadata
+
+      refute result[:miss]
+      assert result[:stale]
+      io_source.verify
+    end
+
+    it 'omits ttl_remaining unless requested' do
+      serialized = Marshal.dump('v')
+      expect_read_line("VA #{serialized.bytesize} f1 t42")
+      expect_read_data(serialized, serialized.bytesize)
+
+      result = processor.meta_get_with_metadata
+
+      refute result.key?(:ttl_remaining)
+      io_source.verify
+    end
+
+    it 'returns ttl_remaining when requested' do
+      serialized = Marshal.dump('v')
+      expect_read_line("VA #{serialized.bytesize} f1 t42")
+      expect_read_data(serialized, serialized.bytesize)
+
+      result = processor.meta_get_with_metadata(return_ttl_remaining: true)
+
+      assert_equal 42, result[:ttl_remaining]
+      io_source.verify
+    end
+
+    it 'returns -1 for ttl_remaining when the item has no expiry' do
+      serialized = Marshal.dump('v')
+      expect_read_line("VA #{serialized.bytesize} f1 t-1")
+      expect_read_data(serialized, serialized.bytesize)
+
+      result = processor.meta_get_with_metadata(return_ttl_remaining: true)
+
+      assert_equal(-1, result[:ttl_remaining])
+      io_source.verify
+    end
+  end
 end

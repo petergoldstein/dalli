@@ -106,17 +106,23 @@ module Dalli
     #   - :return_cas [Boolean] return the CAS value (default: true)
     #   - :return_hit_status [Boolean] return whether item was previously accessed
     #   - :return_last_access [Boolean] return seconds since last access
+    #   - :return_ttl_remaining [Boolean] return seconds of TTL remaining (-1 if no TTL)
     #   - :skip_lru_bump [Boolean] don't bump LRU or update access stats
     #
     # @return [Hash] containing:
     #   - :value - the cached value (or nil on miss)
     #   - :cas - the CAS value
+    #   - :miss - true when the key does not exist.  Always present.  Prefer it
+    #     over a nil :value, which cannot distinguish a miss from a stored nil
+    #     under cache_nils
     #   - :hit_before - true/false if previously accessed (only if return_hit_status: true)
     #   - :last_access - seconds since last access (only if return_last_access: true)
+    #   - :ttl_remaining - seconds of TTL remaining, -1 when the item has no
+    #     expiry (only if return_ttl_remaining: true)
     #
     # @example Get with hit status
     #   result = client.get_with_metadata('key', return_hit_status: true)
-    #   # => { value: "data", cas: 123, hit_before: true }
+    #   # => { value: "data", cas: 123, miss: false, hit_before: true }
     #
     # @example Get with all metadata without affecting LRU
     #   result = client.get_with_metadata('key',

@@ -81,10 +81,17 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                      Dalli::Protocol::Meta::RequestFormatter.meta_get(key: key, skip_lru_bump: true)
       end
 
+      it 'sets the t flag when return_ttl_remaining is true' do
+        assert_equal "mg #{key} v f t\r\n",
+                     Dalli::Protocol::Meta::RequestFormatter.meta_get(key: key, return_ttl_remaining: true)
+      end
+
       it 'combines all metadata flags' do
-        assert_equal "mg #{key} v f h l u\r\n",
+        assert_equal "mg #{key} v f h l t u\r\n",
                      Dalli::Protocol::Meta::RequestFormatter.meta_get(key: key, return_hit_status: true,
-                                                                      return_last_access: true, skip_lru_bump: true)
+                                                                      return_last_access: true,
+                                                                      return_ttl_remaining: true,
+                                                                      skip_lru_bump: true)
       end
     end
   end
