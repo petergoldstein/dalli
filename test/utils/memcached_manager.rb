@@ -154,20 +154,13 @@ module MemcachedManager
     @version
   end
 
-  MIN_META_VERSION = '1.6'
+  # determine_cmd refuses to return a binary below MEMCACHED_MIN_VERSION and
+  # raises when it finds none, so anything reachable from here is already known
+  # to be a supported version.  Guards that re-checked lower thresholds (the
+  # meta protocol at 1.6, the meta delete CAS fix at 1.6.13) could no longer
+  # fire once the floor moved to 1.6.27 and have been removed.
   def self.supported_protocols
-    return [] unless version
-    raise "Dalli 5.0+ requires memcached #{MIN_META_VERSION}+" unless at_least_version?(version, MIN_META_VERSION)
-
     %i[meta]
-  end
-
-  # Meta delete did not honor the CAS argument before this version.
-  META_DELETE_CAS_FIX_VERSION = '1.6.13'
-  def self.supports_delete_cas?(protocol)
-    return true unless protocol == :meta
-
-    at_least_version?(version, META_DELETE_CAS_FIX_VERSION)
   end
 
   def self.cmd_with_args(port_or_socket, args)
