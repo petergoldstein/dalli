@@ -68,7 +68,7 @@ Bug Fixes:
   - `Async::Stop` and `Thread#kill` descend from `Exception` rather than `StandardError`, so the rescue clauses in `Protocol::Base#request` never saw them; a scheduler cancelling a fiber parked on a response read skipped `close` entirely, leaving the connection marked as having a request in progress with partial response bytes still unread on the wire, and returning that half-used client to the pool under `connection_pool`
   - `Protocol::Base#request` now closes in an `ensure` unless the request ran to completion, and `ConnectionManager#close` performs its state cleanup in an `ensure` so a second cancellation landing inside `@sock.close` cannot leave the socket non-nil with the request still marked in progress
   - `Dalli::DalliError` and `Dalli::MarshalError` now close the connection at the point of failure rather than at the start of the next request; those paths already left the request in progress and `ConnectionManager#confirm_ready!` closed on the next call, so this changes when the close happens rather than adding one
-  - Extracted from #1130; thanks to Jianbin Chen for this contribution
+  - Extracted from #1130; thanks to Dan Mayer for the original fix and Jianbin Chen for the port
 
 - Fix `ResponseBuffer` compaction logic (#1119)
   - `COMPACT_THRESHOLD` was removed in #1116 as apparently unused, but the constant was referenced by the compaction guard; its absence silently disabled buffer compaction
