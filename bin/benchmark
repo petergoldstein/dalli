@@ -248,10 +248,9 @@ if %w[all set_multi].include?(bench_target)
         end
       end
     end
-    # TODO: uncomment this once we add PR adding set_multi
-    # x.report('multi client set_multi 100') do
-    #   multi_client.set_multi(pairs, 3600, raw: true)
-    # end
+    x.report('multi client set_multi 100') do
+      multi_client.set_multi(pairs, 3600, raw: true)
+    end
     x.report('write 100 keys rawsock') do
       count = pairs.length
       tail = ''
@@ -267,7 +266,16 @@ if %w[all set_multi].include?(bench_target)
       sock.flush
       sock.gets(TERMINATOR) # clear the buffer
     end
-    # x.report('write_mutli 100 keys') { client.set_multi(pairs, 3600, raw: true) }
+    x.report('write_multi 100 keys') { client.set_multi(pairs, 3600, raw: true) }
+    x.compare!
+  end
+end
+
+if %w[all delete_multi].include?(bench_target)
+  Benchmark.ips do |x|
+    x.config(warmup: bench_warmup, time: bench_time, suite: suite)
+    x.report('delete_multi 100 keys') { client.delete_multi(pairs.keys) }
+    x.report('delete 100 keys') { pairs.each_key { |key| client.delete(key) } }
     x.compare!
   end
 end
