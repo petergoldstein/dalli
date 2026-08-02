@@ -36,8 +36,8 @@ module Dalli
         # - l<N>: Seconds since last access
         def meta_get(key:, value: true, return_cas: false, ttl: nil, quiet: false,
                      vivify_ttl: nil, recache_ttl: nil,
-                     return_hit_status: false, return_last_access: false, skip_lru_bump: false,
-                     skip_flags: false)
+                     return_hit_status: false, return_last_access: false, return_ttl_remaining: false,
+                     skip_lru_bump: false, skip_flags: false)
           cmd = "mg #{encoded_key(key)}"
           # In raw mode (skip_flags: true), we don't request bitflags since they're not used.
           # This saves 2 bytes per request and skips parsing on response.
@@ -49,6 +49,7 @@ module Dalli
           cmd << " R#{recache_ttl}" if recache_ttl # Thundering herd: win recache if TTL below threshold
           cmd << ' h' if return_hit_status # Return hit status (0 or 1)
           cmd << ' l' if return_last_access # Return seconds since last access
+          cmd << ' t' if return_ttl_remaining # Return seconds of TTL remaining (-1 = no TTL)
           cmd << ' u' if skip_lru_bump # Don't bump LRU or update access stats
           cmd << TERMINATOR
         end

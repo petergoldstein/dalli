@@ -298,6 +298,70 @@ describe 'thundering herd protection' do
           assert_equal 'simple_value', result[:value]
           refute result.key?(:hit_before), 'Should not include hit_before when not requested'
           refute result.key?(:last_access), 'Should not include last_access when not requested'
+          refute result.key?(:ttl_remaining), 'Should not include ttl_remaining when not requested'
+        end
+      end
+
+      it 'returns the remaining TTL when requested' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+          dc.set('ttl_key', 'ttl_value', 300)
+
+          result = dc.get_with_metadata('ttl_key', return_ttl_remaining: true)
+
+          assert_equal 'ttl_value', result[:value]
+          # Bounded rather than exact: the server counts down from the moment of
+          # the set, so any assertion on a specific value races the clock.
+          assert_operator result[:ttl_remaining], :positive?
+          assert_operator result[:ttl_remaining], :<=, 300
+        end
+      end
+
+      it 'returns -1 as the remaining TTL for an item stored without an expiry' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+          dc.set('no_ttl_key', 'no_ttl_value')
+
+          result = dc.get_with_metadata('no_ttl_key', return_ttl_remaining: true)
+
+          assert_equal(-1, result[:ttl_remaining])
+        end
+      end
+
+      it 'reports a miss for a key that does not exist' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+
+          result = dc.get_with_metadata('never_stored')
+
+          assert result[:miss]
+          assert_nil result[:value]
+        end
+      end
+
+      it 'does not report a stored value as a miss' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+          dc.set('present_key', 'present_value')
+
+          refute dc.get_with_metadata('present_key')[:miss]
+        end
+      end
+
+      # A nil value is indistinguishable from a miss by :value alone, which is
+      # the reason :miss reads the protocol response rather than the value.
+      it 'distinguishes a stored nil from a miss' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+          dc.set('nil_key', nil)
+
+          stored = dc.get_with_metadata('nil_key')
+          missing = dc.get_with_metadata('never_stored')
+
+          assert_nil stored[:value]
+          assert_nil missing[:value]
+          refute stored[:miss], 'a stored nil is not a miss'
+          assert missing[:miss]
         end
       end
     end
