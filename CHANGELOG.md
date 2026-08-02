@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.0.6
+==========
+
 Performance:
 
 - Skip the cas-return flag on quiet `meta_set` requests (#1131)
