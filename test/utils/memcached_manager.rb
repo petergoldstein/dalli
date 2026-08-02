@@ -70,6 +70,8 @@ module MemcachedManager
     rescue Errno::ECHILD, Errno::ESRCH => e
       puts e.inspect
     end
+
+    confirm_stopped(port_or_socket)
   end
 
   def self.kill_and_wait(pid)
@@ -77,8 +79,49 @@ module MemcachedManager
     Process.wait(pid)
   end
 
+  # Tests that kill a server then assert on its absence depend on the port
+  # actually being free.  Reaping the pid is not on its own proof of that -- if
+  # some other process still holds the port, the client keeps getting answers
+  # and the assertion fails somewhere far from the cause.  Fail here instead,
+  # where the reason is obvious.
+  STOP_TIMEOUT_SECONDS = 5
+  def self.confirm_stopped(port_or_socket)
+    port = port_or_socket.to_i
+    return if port.zero? # UNIX socket; memcached removes the socket file itself
+
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + STOP_TIMEOUT_SECONDS
+    loop do
+      return unless port_accepting?(port)
+
+      if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        raise "memcached on port #{port} still accepting connections " \
+              "#{STOP_TIMEOUT_SECONDS}s after being stopped"
+      end
+
+      sleep 0.05
+    end
+  end
+
+  def self.port_accepting?(port)
+    TCPSocket.new('127.0.0.1', port).close
+    true
+  rescue SystemCallError
+    false
+  end
+
+  # A start that raised may still have spawned a process holding the port.
+  # Dropping the pid without killing it leaked that process: the port stayed
+  # bound, subsequent kills targeted a pid that no longer owned it, and tests
+  # asserting a server was gone found a live one.
   def self.failed_start(port_or_socket)
-    @running_pids[port_or_socket] = nil
+    pid = @running_pids.delete(port_or_socket)
+    return unless pid
+
+    begin
+      kill_and_wait(pid)
+    rescue Errno::ECHILD, Errno::ESRCH
+      nil
+    end
   end
 
   def self.parse_port_or_socket(port)

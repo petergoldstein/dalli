@@ -202,8 +202,13 @@ describe Rack::Session::Dalli do
     assert_includes res.body, { 'counter' => 1 }.to_s
   end
 
+  # Freshness and expiry were asserted in one test against a one second TTL, so
+  # the two back-to-back requests raced the expiry: on a loaded machine the
+  # session could lapse between them and the second request saw a new session
+  # with counter 1.  Freshness needs a TTL long enough that it cannot expire
+  # mid-test; only the expiry case needs a short one.
   it 'maintains freshness of existing sessions' do
-    rsd = Rack::Session::Dalli.new(incrementor, expire_after: 1)
+    rsd = Rack::Session::Dalli.new(incrementor, expire_after: 60)
     res = Rack::MockRequest.new(rsd).get('/')
 
     assert_includes res.body, { 'counter' => 1 }.to_s
@@ -212,6 +217,17 @@ describe Rack::Session::Dalli do
 
     assert_equal cookie, res['Set-Cookie']
     assert_includes res.body, { 'counter' => 2 }.to_s
+  end
+
+  it 'expires a session that has been refreshed' do
+    rsd = Rack::Session::Dalli.new(incrementor, expire_after: 1)
+    res = Rack::MockRequest.new(rsd).get('/')
+    cookie = res['Set-Cookie']
+
+    # Refresh it, then outlast the TTL.  Deliberately asserts nothing about the
+    # refresh itself: whether it lands inside the TTL is exactly the timing this
+    # test must not depend on.
+    Rack::MockRequest.new(rsd).get('/', 'HTTP_COOKIE' => cookie)
     puts 'Sleeping to expire session' if $DEBUG
     sleep 2
     res = Rack::MockRequest.new(rsd).get('/', 'HTTP_COOKIE' => cookie)
