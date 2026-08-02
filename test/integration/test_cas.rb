@@ -170,56 +170,50 @@ describe 'CAS behavior' do
         end
       end
 
-      # There's a bug in some versions of memcached where
-      # the meta delete doesn't honor the CAS argument
-      # Ensure our tests run correctly when used with
-      # either set of versions
-      if MemcachedManager.supports_delete_cas?(p)
-        it 'supports delete with CAS' do
-          memcached_persistent(p) do |dc|
-            cas = dc.set('some_key', 'some_value')
+      it 'supports delete with CAS' do
+        memcached_persistent(p) do |dc|
+          cas = dc.set('some_key', 'some_value')
 
-            # It returns falsey and doesn't delete
-            # when the CAS is wrong
-            refute dc.delete_cas('some_key', 123)
-            assert_equal 'some_value', dc.get('some_key')
+          # It returns falsey and doesn't delete
+          # when the CAS is wrong
+          refute dc.delete_cas('some_key', 123)
+          assert_equal 'some_value', dc.get('some_key')
 
-            dc.delete_cas('some_key', cas)
+          dc.delete_cas('some_key', cas)
 
-            assert_nil dc.get('some_key')
+          assert_nil dc.get('some_key')
 
-            refute dc.delete_cas('nonexist', 123)
-          end
+          refute dc.delete_cas('nonexist', 123)
         end
+      end
 
-        it 'handles CAS round-trip operations' do
-          memcached_persistent(p) do |dc|
-            dc.flush
+      it 'handles CAS round-trip operations' do
+        memcached_persistent(p) do |dc|
+          dc.flush
 
-            expected = { 'blah' => 'blerg!' }
-            dc.set('some_key', expected)
+          expected = { 'blah' => 'blerg!' }
+          dc.set('some_key', expected)
 
-            value, cas = dc.get_cas('some_key')
+          value, cas = dc.get_cas('some_key')
 
-            assert_equal value, expected
-            assert(!cas.nil? && cas != 0)
+          assert_equal value, expected
+          assert(!cas.nil? && cas != 0)
 
-            # Set operation, first with wrong then with correct CAS
-            expected = { 'blah' => 'set succeeded' }
+          # Set operation, first with wrong then with correct CAS
+          expected = { 'blah' => 'set succeeded' }
 
-            refute(dc.set_cas('some_key', expected, cas + 1))
-            assert op_addset_succeeds(cas = dc.set_cas('some_key', expected, cas))
+          refute(dc.set_cas('some_key', expected, cas + 1))
+          assert op_addset_succeeds(cas = dc.set_cas('some_key', expected, cas))
 
-            # Replace operation, first with wrong then with correct CAS
-            expected = { 'blah' => 'replace succeeded' }
+          # Replace operation, first with wrong then with correct CAS
+          expected = { 'blah' => 'replace succeeded' }
 
-            refute(dc.replace_cas('some_key', expected, cas + 1))
-            assert op_addset_succeeds(cas = dc.replace_cas('some_key', expected, cas))
+          refute(dc.replace_cas('some_key', expected, cas + 1))
+          assert op_addset_succeeds(cas = dc.replace_cas('some_key', expected, cas))
 
-            # Delete operation, first with wrong then with correct CAS
-            refute(dc.delete_cas('some_key', cas + 1))
-            assert dc.delete_cas('some_key', cas)
-          end
+          # Delete operation, first with wrong then with correct CAS
+          refute(dc.delete_cas('some_key', cas + 1))
+          assert dc.delete_cas('some_key', cas)
         end
       end
 
