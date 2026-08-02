@@ -2,6 +2,34 @@
 
 require_relative '../helper'
 
+# IO#read(maxlen) on a blocking socket returns exactly maxlen bytes unless the
+# stream hits EOF, where it returns a shorter (non-nil) buffer or nil. This
+# models that contract deterministically: one queued result per read call, so
+# we can exercise the full read and the premature-EOF cases without a real
+# socket. (JRuby uses Socket#readfull, which this fake does not implement.)
+class ContractReadSocket
+  attr_reader :read_calls
+
+  def initialize(*chunks)
+    @chunks = chunks
+    @read_calls = []
+    @closed = false
+  end
+
+  def read(count)
+    @read_calls << count
+    @chunks.shift
+  end
+
+  def close
+    @closed = true
+  end
+
+  def closed?
+    @closed
+  end
+end
+
 describe Dalli::Protocol::ConnectionManager do
   let(:hostname) { 'localhost' }
   let(:port) { 11_211 }
@@ -257,6 +285,52 @@ describe Dalli::Protocol::ConnectionManager do
         end
 
         assert_match(/is down/, error.message)
+      end
+    end
+  end
+
+  unless RUBY_ENGINE == 'jruby'
+    describe 'exact-length reads' do
+      def connection_manager_with_socket(socket)
+        manager = Dalli::Protocol::ConnectionManager.new(
+          'localhost',
+          11_211,
+          :tcp,
+          socket_failure_delay: nil,
+          socket_max_failures: 2
+        )
+        manager.instance_variable_set(:@sock, socket)
+        manager
+      end
+
+      it 'returns the full buffer from a single read, binary-safe' do
+        socket = ContractReadSocket.new("a\x00\xFFz".b)
+        manager = connection_manager_with_socket(socket)
+
+        result = manager.read_exact(4)
+
+        assert_equal "a\x00\xFFz".b, result
+        assert_equal Encoding::BINARY, result.encoding
+        assert_equal [4], socket.read_calls
+        # #read shares the same fill semantics (both delegate to read_bytes).
+        assert_equal 'xyz', connection_manager_with_socket(ContractReadSocket.new('xyz')).read(3)
+      end
+
+      it 'raises and closes the dirty socket on a premature EOF (nil)' do
+        socket = ContractReadSocket.new(nil)
+        manager = connection_manager_with_socket(socket)
+
+        assert_raises(Dalli::RetryableNetworkError) { manager.read_exact(5) }
+        assert_predicate socket, :closed?
+        refute_predicate manager, :connected?
+      end
+
+      it 'raises and closes the dirty socket on a short read (EOF mid-response)' do
+        socket = ContractReadSocket.new('abc')
+        manager = connection_manager_with_socket(socket)
+
+        assert_raises(Dalli::RetryableNetworkError) { manager.read(5) }
+        assert_predicate socket, :closed?
       end
     end
   end
