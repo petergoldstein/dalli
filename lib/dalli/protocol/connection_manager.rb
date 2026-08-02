@@ -115,10 +115,16 @@ module Dalli
           @sock.close
         rescue StandardError
           nil
+        ensure
+          # A non-StandardError (e.g. a second Async::Stop fired into the
+          # fiber while it is already inside this cleanup) can escape
+          # @sock.close; run the state cleanup unconditionally so the client
+          # isn't returned to the pool with a half-closed socket and
+          # @request_in_progress == true.
+          @sock = nil
+          @pid = nil
+          abort_request!
         end
-        @sock = nil
-        @pid = nil
-        abort_request!
       end
 
       def connected?

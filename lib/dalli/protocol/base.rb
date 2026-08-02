@@ -40,12 +40,14 @@ module Dalli
         verify_state(opkey)
 
         begin
+          request_completed = false
           @connection_manager.start_request!
           response = send(opkey, *args)
 
           # pipelined_get/pipelined_get_interleaved emit query but don't read the response(s)
           @connection_manager.finish_request! unless %i[pipelined_get pipelined_get_interleaved].include?(opkey)
 
+          request_completed = true
           response
         rescue Dalli::MarshalError => e
           log_marshal_err(args.first, e)
@@ -56,6 +58,18 @@ module Dalli
           log_unexpected_err(e)
           close
           raise
+        ensure
+          # If the begin block didn't complete -- any exception, including a
+          # non-StandardError such as Async::Stop or Thread#kill, which the
+          # rescue clauses above never see -- tear down the connection so a
+          # half-used client isn't returned to the pool.
+          #
+          # The local flag is deliberate: reading $ERROR_INFO here would see
+          # the *outer* exception when `request` is called from inside a
+          # rescue clause (a common cache-fallback shape), and would then
+          # falsely tear down the pipelined_get happy path, which leaves
+          # @request_in_progress true on purpose until the caller drains.
+          close unless request_completed
         end
       end
 
