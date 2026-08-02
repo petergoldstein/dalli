@@ -167,8 +167,12 @@ module Dalli
       # rubocop:enable Metrics/ParameterLists
 
       # Delete Commands
-      def delete(key, cas)
-        req = RequestFormatter.meta_delete(key: key, cas: cas, quiet: quiet?)
+      #
+      # `options` supports the meta-delete keys :invalidate, :tombstone_ttl and
+      # :drop_value; see Dalli::Client#delete.
+      def delete(key, cas, options = nil)
+        req = RequestFormatter.meta_delete(key: key, cas: cas, quiet: quiet?,
+                                           **tombstone_kwargs(options))
         write(req)
         @connection_manager.flush unless quiet?
         response_processor.meta_delete unless quiet?
