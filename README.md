@@ -17,7 +17,12 @@ The name is a variant of Salvador Dali for his famous painting [The Persistence 
 ## Requirements
 
 * Ruby 3.3 or later (JRuby also supported)
-* memcached 1.6 or later
+* memcached 1.6.27 or later
+
+Dalli is tested against both the minimum supported memcached version and the
+latest release. Earlier 1.6.x servers are not supported: the meta protocol
+rejects unknown flags outright, so features added after a server's release fail
+with `CLIENT_ERROR invalid flag` rather than degrading.
 
 ## Configuration Options
 

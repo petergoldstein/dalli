@@ -20,7 +20,9 @@ jobs:
           - '3.3'
           - jruby-10
           - truffleruby
-        memcached-version: ['1.6.41']
+        # Floor (Dalli::MIN_SUPPORTED_MEMCACHED_VERSION) and latest, so the
+        # supported-version claim in the README is actually exercised.
+        memcached-version: ['1.6.27', '1.6.45']
 
     name: "Ruby ${{ matrix.ruby-version }} / Memcached ${{ matrix.memcached-version }}"
     steps:

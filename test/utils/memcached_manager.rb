@@ -18,7 +18,14 @@ module MemcachedManager
   MEMCACHED_CMD = 'memcached'
   MEMCACHED_VERSION_CMD = "#{MEMCACHED_CMD} -h | head -1".freeze
   MEMCACHED_VERSION_REGEXP = /^memcached (\d\.\d\.\d+)/
-  MEMCACHED_MIN_MAJOR_VERSION = ::Dalli::MIN_SUPPORTED_MEMCACHED_VERSION
+  MEMCACHED_MIN_VERSION = ::Dalli::MIN_SUPPORTED_MEMCACHED_VERSION
+
+  # Versions are compared as Gem::Version, never as strings.  Lexically
+  # '1.6.9' > '1.6.27', which would let a server below the floor through, and a
+  # strict '>' would reject the floor version itself.
+  def self.at_least_version?(candidate, minimum)
+    Gem::Version.new(candidate) >= Gem::Version.new(minimum)
+  end
 
   @running_pids = {}
 
@@ -107,24 +114,17 @@ module MemcachedManager
   MIN_META_VERSION = '1.6'
   def self.supported_protocols
     return [] unless version
-    raise "Dalli 5.0+ requires memcached #{MIN_META_VERSION}+" unless version >= MIN_META_VERSION
+    raise "Dalli 5.0+ requires memcached #{MIN_META_VERSION}+" unless at_least_version?(version, MIN_META_VERSION)
 
     %i[meta]
   end
 
-  META_DELETE_CAS_FIX_PATCH_VERSION = '13'
+  # Meta delete did not honor the CAS argument before this version.
+  META_DELETE_CAS_FIX_VERSION = '1.6.13'
   def self.supports_delete_cas?(protocol)
     return true unless protocol == :meta
 
-    return false unless version > MIN_META_VERSION
-
-    minor_patch_delimiter = version.index('.', 2)
-    minor_version = version[0...minor_patch_delimiter]
-    return true if minor_version > MIN_META_VERSION
-
-    patch_version = version[(minor_patch_delimiter + 1)..]
-
-    patch_version >= META_DELETE_CAS_FIX_PATCH_VERSION
+    at_least_version?(version, META_DELETE_CAS_FIX_VERSION)
   end
 
   def self.cmd_with_args(port_or_socket, args)
@@ -138,13 +138,13 @@ module MemcachedManager
       next unless output && output =~ MEMCACHED_VERSION_REGEXP
 
       version = Regexp.last_match(1)
-      next unless version > MEMCACHED_MIN_MAJOR_VERSION
+      next unless at_least_version?(version, MEMCACHED_MIN_VERSION)
 
       @version = version
       puts "Found #{output} in #{prefix.empty? ? 'PATH' : prefix}"
       return "#{prefix}#{MEMCACHED_CMD}"
     end
 
-    raise Errno::ENOENT, "Unable to find memcached #{MEMCACHED_MIN_MAJOR_VERSION}+ locally"
+    raise Errno::ENOENT, "Unable to find memcached #{MEMCACHED_MIN_VERSION}+ locally"
   end
 end
