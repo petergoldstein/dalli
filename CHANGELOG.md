@@ -98,8 +98,6 @@ Maintenance:
 - Disable RuboCop metrics cops (#1128)
   - Thanks to Jean Boussier for this contribution
 
-- Bump `actions/checkout` from 6 to 7 (#1124)
-
 - Remove `PIDCache` module (#1125)
   - `Process.pid` is cached natively by Ruby 3.3+ (via https://bugs.ruby-lang.org/issues/19443), making the manual cache unnecessary now that Dalli requires Ruby 3.3+
   - Thanks to Jean Boussier for this contribution
