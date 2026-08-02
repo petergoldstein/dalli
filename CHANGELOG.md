@@ -55,6 +55,18 @@ Features:
 
 Bug Fixes:
 
+- Raise instead of returning a truncated value when the peer closes mid-response (#1135)
+  - `IO#read(count)` on a blocking socket accumulates across TCP chunks and hands back a shorter buffer (or `nil`) in only one case: the stream hit EOF. That short buffer was passed through as the response body, so a memcached restart, proxy drop, or load balancer timeout partway through a response could surface a truncated but still decodable value to the caller, indistinguishable from a real one
+  - A short read is now treated as the premature EOF it is, raising and closing the dirty socket so the request is retried on a fresh connection
+  - CRuby only; the JRuby path already used `Socket#readfull`, which enforces the same contract
+  - Extracted from #1130; thanks to Ian Ker-Seymer for the original fix and Jianbin Chen for the port
+
+- Tear down the connection when a non-`StandardError` aborts a request (#1136)
+  - `Async::Stop` and `Thread#kill` descend from `Exception` rather than `StandardError`, so the rescue clauses in `Protocol::Base#request` never saw them; a scheduler cancelling a fiber parked on a response read skipped `close` entirely, leaving the connection marked as having a request in progress with partial response bytes still unread on the wire, and returning that half-used client to the pool under `connection_pool`
+  - `Protocol::Base#request` now closes in an `ensure` unless the request ran to completion, and `ConnectionManager#close` performs its state cleanup in an `ensure` so a second cancellation landing inside `@sock.close` cannot leave the socket non-nil with the request still marked in progress
+  - `Dalli::DalliError` and `Dalli::MarshalError` now close the connection at the point of failure rather than at the start of the next request; those paths already left the request in progress and `ConnectionManager#confirm_ready!` closed on the next call, so this changes when the close happens rather than adding one
+  - Extracted from #1130; thanks to Jianbin Chen for this contribution
+
 - Fix `ResponseBuffer` compaction logic (#1119)
   - `COMPACT_THRESHOLD` was removed in #1116 as apparently unused, but the constant was referenced by the compaction guard; its absence silently disabled buffer compaction
   - Restored the constant, corrected the compaction condition, and improved the buffer-shrinking implementation to use `String#bytesplice` (backed by `memmove`) for true in-place compaction
