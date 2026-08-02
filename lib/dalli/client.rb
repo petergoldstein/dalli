@@ -408,24 +408,34 @@ module Dalli
     # This method is more efficient than calling delete() in a loop because
     # it batches requests by server and uses quiet mode.
     #
+    # `req_options` accepts the same meta-delete options as #delete and applies
+    # them to every key in the batch.
+    #
     # @param keys [Array<String>] keys to delete
-    # @return [Integer] the number of keys that were found and deleted. This is
-    #   best-effort: a transient network error is retried automatically, and
-    #   keys deleted before the error are not recounted, so the result may
-    #   under-report the number actually removed when a retry occurs. If a
-    #   server remains unreachable after retrying, raises Dalli::NetworkError.
+    # @param req_options [Hash, nil] meta-delete options
+    # @return [Integer] the number of keys the server found and acted on. Only a
+    #   key that did not exist decrements this count, so with `:invalidate` it
+    #   reports how many keys were tombstoned rather than removed -- the action
+    #   is whichever one the caller asked for. This is best-effort: a transient
+    #   network error is retried automatically, and keys handled before the
+    #   error are not recounted, so the result may under-report when a retry
+    #   occurs. If a server remains unreachable after retrying, raises
+    #   Dalli::NetworkError.
     # @raise [Dalli::NetworkError] if a server is unreachable after retrying
     #
     # Example:
     #   client.delete_multi(['key1', 'key2', 'key3'])
-    def delete_multi(keys)
+    #   client.delete_multi(%w[key1 key2], invalidate: true, tombstone_ttl: 30)
+    def delete_multi(keys, req_options = nil)
       return 0 if keys.empty?
+
+      validate_delete_options!(req_options)
 
       Instrumentation.trace('delete_multi', multi_trace_attrs('delete_multi', keys.size, keys)) do
         if ring.servers.size == 1
-          single_server_delete_multi(keys)
+          single_server_delete_multi(keys, req_options)
         else
-          pipelined_deleter.process(keys)
+          pipelined_deleter.process(keys, req_options)
         end
       end
     end
@@ -654,11 +664,11 @@ module Dalli
       retry
     end
 
-    def single_server_delete_multi(keys)
+    def single_server_delete_multi(keys, req_options = nil)
       validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
       return 0 unless (server = single_server)
 
-      server.request(:delete_multi_req, validated_keys)
+      server.request(:delete_multi_req, validated_keys, req_options)
     rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying single-server delete_multi because of network error' }

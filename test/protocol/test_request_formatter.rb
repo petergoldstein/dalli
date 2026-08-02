@@ -321,6 +321,33 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       TXT
       assert_equal expected, Dalli::Protocol::Meta::RequestFormatter.multi_meta_delete(['foo', 'bar€'])
     end
+
+    describe 'tombstone flags' do
+      it 'applies the flags to every key in the batch' do
+        expected = <<~TXT
+          md a I T30 x q\r
+          md b I T30 x q\r
+          mn\r
+        TXT
+        assert_equal expected,
+                     Dalli::Protocol::Meta::RequestFormatter.multi_meta_delete(%w[a b], stale: true, ttl: 30,
+                                                                                        drop_value: true)
+      end
+
+      it 'emits exactly one T token per key' do
+        req = Dalli::Protocol::Meta::RequestFormatter.multi_meta_delete(%w[a b], stale: true, ttl: 30)
+
+        assert_equal 2, req.scan(/ T\d+/).size
+      end
+
+      it 'raises when given a TTL without the stale flag' do
+        error = assert_raises(ArgumentError) do
+          Dalli::Protocol::Meta::RequestFormatter.multi_meta_delete(%w[a], ttl: 30)
+        end
+
+        assert_equal 'tombstone_ttl requires invalidate: true', error.message
+      end
+    end
   end
 
   describe 'meta_arithmetic' do

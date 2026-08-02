@@ -22,11 +22,13 @@ module Dalli
     #   under-report the number actually removed when a retry occurs. If a
     #   server remains unreachable after retrying, raises Dalli::NetworkError.
     ##
-    def process(keys)
+    # `req_options` is applied to every delete in the batch (see
+    # Dalli::Client#delete for the supported meta-delete keys).
+    def process(keys, req_options = nil)
       return 0 if keys.empty?
 
       @ring.lock do
-        groups = setup_requests(keys)
+        groups = setup_requests(keys, req_options)
         finish_requests(groups)
       end
     rescue Dalli::RetryableNetworkError => e
@@ -37,9 +39,9 @@ module Dalli
 
     private
 
-    def setup_requests(keys)
+    def setup_requests(keys, req_options = nil)
       groups = groups_for_keys(keys)
-      make_delete_requests(groups)
+      make_delete_requests(groups, req_options)
       groups
     end
 
@@ -53,10 +55,10 @@ module Dalli
     # RetryableNetworkError too -- since NetworkError < DalliError -- dropping
     # this server's keys on a transient hiccup instead of retrying. Only a
     # non-network DalliError should be swallowed here.
-    def make_delete_requests(groups)
+    def make_delete_requests(groups, req_options = nil)
       groups.each do |server, keys_for_server|
         keys_for_server.select! do |key|
-          server.request(:pipelined_delete, key)
+          server.request(:pipelined_delete, key, req_options)
           true
         rescue Dalli::NetworkError
           raise
