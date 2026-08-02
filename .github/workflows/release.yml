@@ -1,0 +1,55 @@
+name: Release
+
+# `rake release` pushes the version tag as part of publishing the gem, so this
+# fires automatically on release.  It only creates the GitHub Release; the gem
+# itself is still pushed to RubyGems by `rake release`.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  github-release:
+    runs-on: ubuntu-latest
+    # Forks share the tag namespace but not the release; don't have them try.
+    if: github.repository == 'petergoldstein/dalli'
+
+    steps:
+    - uses: actions/checkout@v7
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ruby
+
+    - name: Build release notes from the CHANGELOG
+      env:
+        TAG: ${{ github.ref_name }}
+      run: |
+        version="${TAG#v}"
+        echo "VERSION=${version}" >> "$GITHUB_ENV"
+        # Fails the job if the version has no CHANGELOG section, rather than
+        # publishing a release with empty notes.
+        ruby scripts/changelog_section.rb "$version" > release_notes.md
+        echo "--- release notes for ${version} ---"
+        cat release_notes.md
+
+    - name: Create the GitHub Release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG: ${{ github.ref_name }}
+      run: |
+        if gh release view "$TAG" >/dev/null 2>&1; then
+          echo "Release $TAG already exists; nothing to do."
+          exit 0
+        fi
+
+        args=(--title "$TAG" --notes-file release_notes.md --verify-tag)
+        # Gem prereleases carry a letter in the version (5.1.0.rc1, 5.1.0.pre).
+        if [[ "$VERSION" =~ [a-zA-Z] ]]; then
+          args+=(--prerelease)
+        fi
+
+        gh release create "$TAG" "${args[@]}"
