@@ -75,8 +75,8 @@ module Dalli
     # Gat (get and touch) fetch an item and simultaneously update its expiration time.
     #
     # If a value is not found, then +nil+ is returned.
-    def gat(key, ttl = nil)
-      perform(:gat, key, ttl_or_default(ttl))
+    def gat(key, ttl = nil, req_options = nil)
+      perform(:gat, key, ttl_or_default(ttl), req_options)
     end
 
     ##
@@ -91,8 +91,8 @@ module Dalli
     ##
     # Get the value and CAS ID associated with the key.  If a block is provided,
     # value and CAS will be passed to the block.
-    def get_cas(key)
-      (value, cas) = perform(:cas, key)
+    def get_cas(key, req_options = nil)
+      (value, cas) = perform(:cas, key, req_options)
       return [value, cas] unless block_given?
 
       yield value, cas
@@ -106,25 +106,36 @@ module Dalli
     #   - :return_cas [Boolean] return the CAS value (default: true)
     #   - :return_hit_status [Boolean] return whether item was previously accessed
     #   - :return_last_access [Boolean] return seconds since last access
+    #   - :return_ttl_remaining [Boolean] return seconds of TTL remaining (-1 if no TTL)
     #   - :skip_lru_bump [Boolean] don't bump LRU or update access stats
+    #   - :p_token / :l_token [String] opaque routing tokens appended to the wire request
     #
     # @return [Hash] containing:
     #   - :value - the cached value (or nil on miss)
     #   - :cas - the CAS value
+    #   - :miss - true if the key does not exist. A tombstoned item (see
+    #     `#delete` with `invalidate: true`) is NOT a miss: it is returned with
+    #     `stale: true` and its value may be an empty string when the tombstone
+    #     was created with `drop_value: true`.
+    #   - :stale - true if item is stale (X flag)
+    #   - :won_recache - true if client won the recache race (W flag)
+    #   - :lost_recache - true if another client is recaching (Z flag)
     #   - :hit_before - true/false if previously accessed (only if return_hit_status: true)
     #   - :last_access - seconds since last access (only if return_last_access: true)
+    #   - :ttl_remaining - seconds of TTL remaining (only if return_ttl_remaining: true)
     #
     # @example Get with hit status
     #   result = client.get_with_metadata('key', return_hit_status: true)
-    #   # => { value: "data", cas: 123, hit_before: true }
+    #   # => { value: "data", cas: 123, miss: false, stale: false, ..., hit_before: true }
     #
     # @example Get with all metadata without affecting LRU
     #   result = client.get_with_metadata('key',
     #     return_hit_status: true,
     #     return_last_access: true,
+    #     return_ttl_remaining: true,
     #     skip_lru_bump: true
     #   )
-    #   # => { value: "data", cas: 123, hit_before: true, last_access: 42 }
+    #   # => { value: "data", cas: 123, ..., hit_before: true, last_access: 42, ttl_remaining: 300 }
     #
     def get_with_metadata(key, options = {})
       key = key.to_s
@@ -144,19 +155,69 @@ module Dalli
     # Fetch multiple keys efficiently.
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
+    # An optional trailing keyword arg hash (`req_options`) is applied to every
+    # request issued in the pipeline. Recognized entries include the opaque
+    # routing tokens `:p_token` and `:l_token`, which are appended to every
+    # `mg` line as `P<token>` / `L<token>`. The same value is applied to every
+    # key in the pipeline; per-key tokens are not supported.
+    #
+    # NOTE: `req_options` is supplied as keyword arguments here (e.g.
+    # `dc.get_multi('a', 'b', p_token: 'foo')`) because the variadic
+    # `*keys` parameter precludes a trailing positional options hash.
     # rubocop:disable Style/ExplicitBlockArgument
-    def get_multi(*keys)
+    def get_multi(*keys, **req_options)
       keys.flatten!
       keys.compact!
       return {} if keys.empty?
 
+      req_options = nil if req_options.empty?
+
       if block_given?
-        get_multi_yielding(keys) { |k, v| yield k, v }
+        get_multi_yielding(keys, req_options) { |k, v| yield k, v }
       else
-        get_multi_hash(keys)
+        get_multi_hash(keys, req_options)
       end
     end
     # rubocop:enable Style/ExplicitBlockArgument
+
+    ##
+    # Fetch multiple keys efficiently and return a stale-aware metadata Hash
+    # for every requested key.
+    #
+    # Unlike `#get_multi`, the returned hash includes misses so callers can
+    # distinguish a true miss from a tombstoned/stale item for each key. Each
+    # entry is a Hash with `:value`, `:cas`, `:stale` and `:miss` — a subset
+    # of the keys returned by the single-key `#get_with_metadata`:
+    #   { 'key' => { value: 'v', cas: 123, stale: false, miss: false },
+    #     'missing' => { value: nil, cas: 0, stale: false, miss: true } }
+    #
+    # A tombstoned item (see `#delete` with `invalidate: true`) is returned
+    # with `stale: true` and `miss: false`; its value may be an empty string
+    # when the tombstone was created with `drop_value: true`.
+    #
+    # If a block is given, yields key/result pairs one at a time for every
+    # requested key.
+    #
+    # See `#get_multi` for documentation on the `req_options` trailing keyword
+    # arguments (e.g. `p_token:` / `l_token:`).
+    def get_multi_with_metadata(*keys, **req_options, &block)
+      keys.flatten!
+      keys.compact!
+      return {} if keys.empty?
+
+      req_options = nil if req_options.empty?
+
+      results = Instrumentation.trace('get_multi_with_metadata',
+                                      multi_trace_attrs('get_multi_with_metadata', keys.size, keys)) do
+        if ring.servers.size == 1
+          single_server_get_multi_with_metadata(keys, req_options)
+        else
+          pipelined_getter.process_with_metadata(keys, req_options)
+        end
+      end
+
+      block ? results.each(&block) : results
+    end
 
     ##
     # Fetch multiple keys efficiently, including available metadata such as CAS.
@@ -164,12 +225,14 @@ module Dalli
     # [value, cas_id]
     # If no block is given, returns a hash of
     #   { 'key' => [value, cas_id] }
-    def get_multi_cas(*keys)
+    def get_multi_cas(*keys, **req_options)
+      req_options = nil if req_options.empty?
+
       if block_given?
-        pipelined_getter.process(keys) { |*args| yield(*args) }
+        pipelined_getter.process(keys, req_options) { |*args| yield(*args) }
       else
         {}.tap do |hash|
-          pipelined_getter.process(keys) { |k, data| hash[k] = data }
+          pipelined_getter.process(keys, req_options) { |k, data| hash[k] = data }
         end
       end
     end
@@ -350,12 +413,30 @@ module Dalli
 
     # Delete a key/value pair, verifying existing CAS.
     # Returns true if succeeded, and falsy otherwise.
-    def delete_cas(key, cas = 0)
-      perform(:delete, key, cas)
+    #
+    # `req_options` recognizes the same meta-delete keys as `#delete`:
+    # `:invalidate`, `:tombstone_ttl`, `:drop_value`.
+    def delete_cas(key, cas = 0, req_options = nil)
+      perform(:delete, key, cas, req_options)
     end
 
-    def delete(key)
-      delete_cas(key, 0)
+    ##
+    # Delete a key.
+    #
+    # `req_options` may include memcached meta-delete options:
+    # - `:invalidate` (Boolean) — mark the item stale instead of removing it.
+    #   This is the tombstone marker: `#get_with_metadata` returns `stale: true`, and
+    #   the existing value remains readable unless `:drop_value` is also set.
+    # - `:drop_value` (Boolean) — remove the item value but leave the item.
+    #   Alone this is not a tombstone: reads are a non-stale hit with an empty
+    #   string value.
+    # - `:invalidate` + `:drop_value` — leave a stale tombstone marker with an
+    #   empty value, so readers can distinguish it from a miss without retaining
+    #   the previous value.
+    # - `:tombstone_ttl` (Integer seconds) — how long the stale tombstone lives;
+    #   requires `:invalidate`. After this elapses, reads see `miss?`.
+    def delete(key, req_options = nil)
+      delete_cas(key, 0, req_options)
     end
 
     ##
@@ -369,16 +450,20 @@ module Dalli
     #   deleted before the error are not recounted, so the result may
     #   under-report the number actually removed when a failure occurs.
     #
+    # `req_options` is applied to every delete in the pipeline. Recognized
+    # meta-delete keys (`:invalidate`, `:tombstone_ttl`, `:drop_value`) are
+    # applied uniformly to every key in the batch — see `#delete`.
+    #
     # Example:
     #   client.delete_multi(['key1', 'key2', 'key3'])
-    def delete_multi(keys)
+    def delete_multi(keys, req_options = nil)
       return 0 if keys.empty?
 
       Instrumentation.trace('delete_multi', multi_trace_attrs('delete_multi', keys.size, keys)) do
         if ring.servers.size == 1
-          single_server_delete_multi(keys)
+          single_server_delete_multi(keys, req_options)
         else
-          pipelined_deleter.process(keys)
+          pipelined_deleter.process(keys, req_options)
         end
       end
     end
@@ -386,15 +471,15 @@ module Dalli
     ##
     # Append value to the value already stored on the server for 'key'.
     # Appending only works for values stored with :raw => true.
-    def append(key, value)
-      perform(:append, key, value.to_s)
+    def append(key, value, req_options = nil)
+      perform(:append, key, value.to_s, req_options)
     end
 
     ##
     # Prepend value to the value already stored on the server for 'key'.
     # Prepending only works for values stored with :raw => true.
-    def prepend(key, value)
-      perform(:prepend, key, value.to_s)
+    def prepend(key, value, req_options = nil)
+      perform(:prepend, key, value.to_s, req_options)
     end
 
     ##
@@ -410,10 +495,10 @@ module Dalli
     # #cas.
     #
     # If the value already exists, it must have been set with raw: true
-    def incr(key, amt = 1, ttl = nil, default = nil)
+    def incr(key, amt = 1, ttl = nil, default = nil, req_options = nil)
       check_positive!(amt)
 
-      perform(:incr, key, amt.to_i, ttl_or_default(ttl), default)
+      perform(:incr, key, amt.to_i, ttl_or_default(ttl), default, req_options)
     end
 
     ##
@@ -432,10 +517,10 @@ module Dalli
     # #cas.
     #
     # If the value already exists, it must have been set with raw: true
-    def decr(key, amt = 1, ttl = nil, default = nil)
+    def decr(key, amt = 1, ttl = nil, default = nil, req_options = nil)
       check_positive!(amt)
 
-      perform(:decr, key, amt.to_i, ttl_or_default(ttl), default)
+      perform(:decr, key, amt.to_i, ttl_or_default(ttl), default, req_options)
     end
 
     ##
@@ -519,10 +604,10 @@ module Dalli
                           'db.memcached.miss_count' => key_count - hit_count)
     end
 
-    def get_multi_yielding(keys)
+    def get_multi_yielding(keys, req_options = nil)
       Instrumentation.trace_with_result('get_multi', get_multi_attributes(keys)) do |span|
         hit_count = 0
-        pipelined_getter.process(keys) do |k, data|
+        pipelined_getter.process(keys, req_options) do |k, data|
           hit_count += 1
           yield k, data.first
         end
@@ -531,13 +616,13 @@ module Dalli
       end
     end
 
-    def get_multi_hash(keys)
+    def get_multi_hash(keys, req_options = nil)
       Instrumentation.trace_with_result('get_multi', get_multi_attributes(keys)) do |span|
         hash = if ring.servers.size == 1
-                 single_server_get_multi(keys)
+                 single_server_get_multi(keys, req_options)
                else
                  {}.tap do |h|
-                   pipelined_getter.process(keys) { |k, data| h[k] = data.first }
+                   pipelined_getter.process(keys, req_options) { |k, data| h[k] = data.first }
                  end
                end
         record_hit_miss_metrics(span, keys.size, hash.size)
@@ -550,11 +635,22 @@ module Dalli
       server if server&.alive?
     end
 
-    def single_server_get_multi(keys)
+    def single_server_get_multi(keys, req_options = nil)
       keys.map! { |k| @key_manager.validate_key(k.to_s) }
       return {} unless (server = single_server)
 
-      result = server.request(:read_multi_req, keys)
+      result = server.request(:read_multi_req, keys, req_options)
+      result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
+      result
+    rescue Dalli::NetworkError
+      {}
+    end
+
+    def single_server_get_multi_with_metadata(keys, req_options = nil)
+      keys.map! { |k| @key_manager.validate_key(k.to_s) }
+      return {} unless (server = single_server)
+
+      result = server.request(:read_multi_with_metadata_req, keys, req_options)
       result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
       result
     rescue Dalli::NetworkError
@@ -570,11 +666,11 @@ module Dalli
       nil
     end
 
-    def single_server_delete_multi(keys)
+    def single_server_delete_multi(keys, req_options = nil)
       validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
       return 0 unless (server = single_server)
 
-      server.request(:delete_multi_req, validated_keys)
+      server.request(:delete_multi_req, validated_keys, req_options)
     rescue Dalli::RetryableNetworkError => e
       # Mirror the pipelined path: retry transient errors so a momentary blip
       # still yields a real count. Bounded by the server's socket_max_failures,
@@ -618,7 +714,7 @@ module Dalli
     end
 
     def cas_core(key, always_set, ttl = nil, req_options = nil)
-      (value, cas) = perform(:cas, key)
+      (value, cas) = perform(:cas, key, req_options)
       return if value.nil? && !always_set
 
       newvalue = yield(value)

@@ -165,8 +165,8 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                                                                     cas: "\nset importantkey 1 1000 8\ninjected")
     end
 
-    it 'sets the quiet mode if configured' do
-      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS q\r\n",
+    it 'sets the quiet mode if configured, skipping the cas-return flag' do
+      assert_equal "ms #{key} #{val.bytesize} F#{bitflags} MS q\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags,
                                                                     quiet: true)
     end
@@ -461,6 +461,133 @@ describe Dalli::Protocol::Meta::RequestFormatter do
 
     it 'handles empty keys' do
       assert_raw ''
+    end
+  end
+
+  describe 'routing tokens' do
+    it 'appends P and L tokens to meta_get' do
+      assert_equal "mg foo v f Ppod1 Lzone2\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: 'pod1', l_token: 'zone2')
+    end
+
+    it 'appends routing tokens to quiet meta_get before the quiet flags' do
+      assert_equal "mg foo v f Px k q s\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', quiet: true, p_token: 'x')
+    end
+
+    it 'appends routing tokens to meta_set' do
+      assert_equal "ms foo 1 MS q Ppod1\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_set(key: 'foo', value: 'v', quiet: true,
+                                                                    p_token: 'pod1')
+    end
+
+    it 'appends routing tokens to meta_delete' do
+      assert_equal "md foo Ppod1\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: 'foo', p_token: 'pod1')
+    end
+
+    it 'appends routing tokens to meta_arithmetic' do
+      assert_equal "ma c v D1 MI Lz\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: 'c', delta: 1, initial: nil,
+                                                                           l_token: 'z')
+    end
+
+    it 'appends routing tokens to every line of multi_meta_get' do
+      assert_equal "mg a v k q s Px\r\nmg b v k q s Px\r\nmn\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.multi_meta_get(%w[a b], skip_flags: true, p_token: 'x')
+    end
+
+    it 'requests cas on every line of multi_meta_get when return_cas is set' do
+      assert_equal "mg a v f c k q s\r\nmg b v f c k q s\r\nmn\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.multi_meta_get(%w[a b], return_cas: true)
+    end
+
+    it 'appends routing tokens to every line of multi_meta_set' do
+      entries = [['a', ['v1', 0]], ['b', ['v2', 0]]]
+
+      assert_equal "ms a 2 c F0 MS q Px\r\nv1\r\nms b 2 c F0 MS q Px\r\nv2\r\nmn\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.multi_meta_set(entries, p_token: 'x')
+    end
+
+    it 'treats nil and empty tokens as no-ops' do
+      plain = Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo')
+
+      assert_equal plain, Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: nil)
+      assert_equal plain, Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: '', l_token: '')
+    end
+
+    it 'rejects CRLF and null bytes to prevent wire injection' do
+      %W[evil\r\nflush_all evil\rx evil\nx evil\0x].each do |token|
+        assert_raises(ArgumentError) do
+          Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: token)
+        end
+      end
+    end
+
+    it 'rejects non-String tokens' do
+      assert_raises(ArgumentError) do
+        Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', l_token: 42)
+      end
+    end
+  end
+
+  describe 'tombstone delete flags' do
+    it 'marks stale with invalidate' do
+      assert_equal "md foo I\r\n", Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: 'foo', invalidate: true)
+    end
+
+    it 'treats stale: as an alias for invalidate:' do
+      assert_equal Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: 'foo', invalidate: true),
+                   Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: 'foo', stale: true)
+    end
+
+    it 'appends the tombstone TTL' do
+      assert_equal "md foo I T30\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: 'foo', invalidate: true,
+                                                                       tombstone_ttl: 30)
+    end
+
+    it 'appends the drop_value flag' do
+      assert_equal "md foo I T30 x\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: 'foo', invalidate: true,
+                                                                       tombstone_ttl: 30, drop_value: true)
+    end
+
+    it 'requires invalidate when tombstone_ttl is given' do
+      assert_raises(ArgumentError) do
+        Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: 'foo', tombstone_ttl: 30)
+      end
+    end
+
+    it 'applies tombstone flags to every line of multi_meta_delete' do
+      assert_equal "md a q I x\r\nmd b q I x\r\nmn\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.multi_meta_delete(%w[a b], invalidate: true,
+                                                                                      drop_value: true)
+    end
+  end
+
+  describe 'quiet set cas flag' do
+    it 'skips the cas-return flag in quiet mode' do
+      refute_includes Dalli::Protocol::Meta::RequestFormatter.meta_set(key: 'foo', value: 'v', quiet: true), ' c'
+    end
+
+    it 'requests cas in non-quiet mode' do
+      assert_equal "ms foo 1 c MS\r\n", Dalli::Protocol::Meta::RequestFormatter.meta_set(key: 'foo', value: 'v')
+    end
+  end
+
+  describe 'ttl remaining flag' do
+    it 'appends the t flag when return_ttl_remaining is set' do
+      assert_equal "mg foo v f t\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', return_ttl_remaining: true)
+    end
+
+    it 'combines with the other metadata flags in upstream order' do
+      assert_equal "mg foo v f c h l t\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', return_cas: true,
+                                                                    return_hit_status: true,
+                                                                    return_last_access: true,
+                                                                    return_ttl_remaining: true)
     end
   end
 end

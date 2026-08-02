@@ -36,27 +36,34 @@ module Dalli
         # - l<N>: Seconds since last access
         def meta_get(key:, value: true, return_cas: false, ttl: nil, quiet: false,
                      vivify_ttl: nil, recache_ttl: nil,
-                     return_hit_status: false, return_last_access: false, skip_lru_bump: false,
-                     skip_flags: false)
+                     return_hit_status: false, return_last_access: false, return_ttl_remaining: false,
+                     skip_lru_bump: false, skip_flags: false, p_token: nil, l_token: nil)
           cmd = "mg #{encoded_key(key)}"
           # In raw mode (skip_flags: true), we don't request bitflags since they're not used.
           # This saves 2 bytes per request and skips parsing on response.
           cmd << (skip_flags ? ' v' : ' v f') if value
           cmd << ' c' if return_cas
           cmd << " T#{ttl}" if ttl
+          cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << ' k q s' if quiet # Return the key in the response if quiet
           cmd << " N#{vivify_ttl}" if vivify_ttl # Thundering herd: vivify on miss
           cmd << " R#{recache_ttl}" if recache_ttl # Thundering herd: win recache if TTL below threshold
           cmd << ' h' if return_hit_status # Return hit status (0 or 1)
           cmd << ' l' if return_last_access # Return seconds since last access
+          cmd << ' t' if return_ttl_remaining # Return seconds of TTL remaining (-1 = no TTL)
           cmd << ' u' if skip_lru_bump # Don't bump LRU or update access stats
           cmd << TERMINATOR
         end
 
-        def multi_meta_get(keys, skip_flags: false)
+        def multi_meta_get(keys, skip_flags: false, return_cas: false, p_token: nil, l_token: nil)
           # In raw mode: "mg <key> v k q s\r\n" (no f flag, key at index 2)
           # Normal mode: "mg <key> v f k q s\r\n" (key at index 3)
-          post_get = skip_flags ? " v k q s\r\n" : " v f k q s\r\n"
+          # With return_cas: a "c" flag is added after the value/bitflag flags.
+          routing = routing_tokens(p_token: p_token, l_token: l_token)
+          post_get = +' v'
+          post_get << ' f' unless skip_flags
+          post_get << ' c' if return_cas
+          post_get << ' k q s' << routing << TERMINATOR
           buffer = ''.b
           keys.each do |key|
             buffer << 'mg ' << encoded_key(key) << post_get
@@ -64,21 +71,26 @@ module Dalli
           buffer << 'mn' << TERMINATOR
         end
 
-        def meta_set(key:, value:, bitflags: nil, cas: nil, ttl: nil, mode: :set, quiet: false)
+        def meta_set(key:, value:, bitflags: nil, cas: nil, ttl: nil, mode: :set, quiet: false,
+                     p_token: nil, l_token: nil)
           base64 = KeyRegularizer.required?(key)
           key = KeyRegularizer.encode(key) if base64
           cmd = "ms #{key} #{value.bytesize}"
-          cmd << ' c' unless %i[append prepend].include?(mode)
+          # Skip the cas-return flag in quiet mode: the response is suppressed,
+          # so requesting it only adds bytes to the request.
+          cmd << ' c' if !quiet && !%i[append prepend].include?(mode)
           cmd << ' b' if base64
           cmd << " F#{bitflags}" if bitflags
           cmd << cas_string(cas)
           cmd << " T#{ttl}" if ttl
           cmd << " M#{mode_to_token(mode)}"
           cmd << ' q' if quiet
+          cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << TERMINATOR
         end
 
-        def multi_meta_set(entries, ttl: nil)
+        def multi_meta_set(entries, ttl: nil, p_token: nil, l_token: nil)
+          routing = routing_tokens(p_token: p_token, l_token: l_token)
           buffer = ''.b
           entries.each do |key, pair|
             value, bitflags = pair
@@ -86,37 +98,57 @@ module Dalli
             base64 = KeyRegularizer.required?(key)
             key = KeyRegularizer.encode(key) if base64
 
-            # Inline format: "ms <key> <size> c [b] F<flags> T<ttl> MS q\r\n"
+            # Inline format: "ms <key> <size> c [b] F<flags> T<ttl> MS q [P<t>] [L<t>]\r\n"
             buffer << "ms #{key} #{value.bytesize} c"
             buffer << ' b' if base64
             buffer << " F#{bitflags}" if bitflags
             buffer << " T#{ttl}" if ttl
-            buffer << ' MS q' << TERMINATOR << value << TERMINATOR
+            buffer << ' MS q' << routing << TERMINATOR << value << TERMINATOR
           end
           buffer << META_NOOP
         end
 
-        # Thundering herd protection flag:
-        # - stale (I flag): Instead of deleting the item, mark it as stale. Other clients
-        #   using N/R flags will see the X flag and know the item is being regenerated.
-        def meta_delete(key:, cas: nil, ttl: nil, quiet: false, stale: false)
+        # Tombstone / thundering herd protection flags:
+        # - stale / invalidate (I flag): Instead of deleting the item, mark it as stale.
+        #   Readers using N/R flags (or get_with_metadata) will see the X flag and know
+        #   the item is being regenerated.
+        # - tombstone_ttl (T flag): how long the stale tombstone lives; requires invalidate.
+        # - drop_value (x flag): remove the item value but leave the (stale) marker.
+        def meta_delete(key:, cas: nil, ttl: nil, quiet: false, stale: false,
+                        invalidate: false, tombstone_ttl: nil, drop_value: false,
+                        p_token: nil, l_token: nil)
+          raise ArgumentError, 'tombstone_ttl requires invalidate: true' if tombstone_ttl && !(invalidate || stale)
+
           cmd = "md #{encoded_key(key)}"
           cmd << cas_string(cas)
           cmd << " T#{ttl}" if ttl
-          cmd << ' I' if stale # Mark stale instead of deleting
+          cmd << ' I' if stale || invalidate # Mark stale instead of deleting
+          cmd << " T#{Integer(tombstone_ttl)}" if tombstone_ttl
+          cmd << ' x' if drop_value # Drop the value but keep the item
           cmd << ' q' if quiet
+          cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << TERMINATOR
         end
 
-        def multi_meta_delete(keys)
+        def multi_meta_delete(keys, invalidate: false, tombstone_ttl: nil, drop_value: false,
+                              p_token: nil, l_token: nil)
+          raise ArgumentError, 'tombstone_ttl requires invalidate: true' if tombstone_ttl && !invalidate
+
+          suffix = +' q'
+          suffix << ' I' if invalidate
+          suffix << " T#{Integer(tombstone_ttl)}" if tombstone_ttl
+          suffix << ' x' if drop_value
+          suffix << routing_tokens(p_token: p_token, l_token: l_token)
+          suffix << TERMINATOR
           buffer = ''.b
           keys.each do |key|
-            buffer << 'md ' << encoded_key(key) << ' q' << TERMINATOR
+            buffer << 'md ' << encoded_key(key) << suffix
           end
           buffer << META_NOOP
         end
 
-        def meta_arithmetic(key:, delta:, initial:, incr: true, cas: nil, ttl: nil, quiet: false)
+        def meta_arithmetic(key:, delta:, initial:, incr: true, cas: nil, ttl: nil, quiet: false,
+                            p_token: nil, l_token: nil)
           cmd = "ma #{encoded_key(key)} v"
           cmd << " D#{delta}" if delta
           cmd << " J#{initial}" if initial
@@ -125,7 +157,46 @@ module Dalli
           cmd << cas_string(cas)
           cmd << ' q' if quiet
           cmd << " M#{incr ? 'I' : 'D'}"
+          cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << TERMINATOR
+        end
+
+        # Builds the wire-format suffix for opaque routing tokens (P and L).
+        #
+        # Empty / nil tokens are treated as no-ops. CRLF and null bytes are
+        # rejected with `ArgumentError` to prevent the token from being used
+        # as a wire-protocol injection vector (e.g. `"foo\r\nflush_all\r\n"`
+        # would otherwise be parsed as a second command by memcached or any
+        # intermediate proxy/LB).
+        def routing_tokens(p_token: nil, l_token: nil)
+          p_token = nil if p_token.respond_to?(:empty?) && p_token.empty?
+          l_token = nil if l_token.respond_to?(:empty?) && l_token.empty?
+          validate_routing_token!('p_token', p_token)
+          validate_routing_token!('l_token', l_token)
+          return '' unless p_token || l_token
+
+          s = +''
+          s << " P#{p_token}" if p_token
+          s << " L#{l_token}" if l_token
+          s
+        end
+
+        # Disallowed bytes: CR, LF, NUL. Any of these embedded in a routing
+        # token would let the caller inject a second wire-protocol command
+        # (e.g. `"foo\r\nflush_all\r\n"`).
+        #
+        # Despite intuition, `match?` with a literal regex is ~2.3x faster
+        # than `s.include?("\r") || s.include?("\n") || s.include?("\0")`
+        # in microbenchmarks for short clean tokens (the hot path). Ruby's
+        # Regexp engine fuses short character classes into a single C-level
+        # scan, while the include? chain walks the string up to three times.
+        ROUTING_TOKEN_FORBIDDEN = /[\r\n\0]/
+        private_constant :ROUTING_TOKEN_FORBIDDEN
+
+        def validate_routing_token!(name, value)
+          return if value.nil?
+          raise ArgumentError, "#{name} must be a String, got #{value.class}" unless value.is_a?(String)
+          raise ArgumentError, "#{name} must not contain CRLF or null bytes" if value.match?(ROUTING_TOKEN_FORBIDDEN)
         end
         # rubocop:enable Metrics/CyclomaticComplexity
         # rubocop:enable Metrics/ParameterLists
