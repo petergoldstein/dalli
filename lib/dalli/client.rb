@@ -171,6 +171,41 @@ module Dalli
     # rubocop:enable Style/ExplicitBlockArgument
 
     ##
+    # Fetch multiple keys efficiently, returning a stale-aware metadata Hash per
+    # key.  If a block is given, yields key/metadata pairs one at a time.
+    #
+    # Like #get_multi and #get_multi_cas, keys that were not found are omitted
+    # from the result -- absence is the miss.  A tombstoned item (see #delete
+    # with the meta protocol's invalidate flag) is *not* a miss: it is returned
+    # with stale: true, possibly with an empty value, which is the distinction
+    # stale-aware callers need.
+    #
+    #   client.get_multi_with_metadata('a', 'b', 'absent')
+    #   # => { 'a' => { value: 'v', cas: 12, stale: false, miss: false },
+    #   #      'b' => { value: '',  cas: 13, stale: true,  miss: false } }
+    #
+    # Missing keys are `requested - result.keys`.
+    #
+    # @param keys [Array<String>] the keys to fetch
+    # @return [Hash] key => { value:, cas:, stale:, miss: }
+    def get_multi_with_metadata(*keys, &block)
+      keys.flatten!
+      keys.compact!
+      return {} if keys.empty?
+
+      results = Instrumentation.trace('get_multi_with_metadata',
+                                      multi_trace_attrs('get_multi_with_metadata', keys.size, keys)) do
+        if ring.servers.size == 1
+          single_server_get_multi_with_metadata(keys)
+        else
+          pipelined_getter.process_with_metadata(keys)
+        end
+      end
+
+      block ? results.each(&block) : results
+    end
+
+    ##
     # Fetch multiple keys efficiently, including available metadata such as CAS.
     # If a block is given, yields key/data pairs one a time.  Data is an array:
     # [value, cas_id]
@@ -589,6 +624,17 @@ module Dalli
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying single-server get_multi because of network error' }
       retry
+    end
+
+    def single_server_get_multi_with_metadata(keys)
+      keys.map! { |k| @key_manager.validate_key(k.to_s) }
+      return {} unless (server = single_server)
+
+      result = server.request(:read_multi_with_metadata_req, keys)
+      result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
+      result
+    rescue Dalli::NetworkError
+      {}
     end
 
     def single_server_set_multi(hash, ttl, req_options)

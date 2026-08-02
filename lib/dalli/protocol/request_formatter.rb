@@ -54,10 +54,16 @@ module Dalli
           cmd << TERMINATOR
         end
 
-        def multi_meta_get(keys, skip_flags: false)
+        def multi_meta_get(keys, skip_flags: false, return_cas: false)
           # In raw mode: "mg <key> v k q s\r\n" (no f flag, key at index 2)
           # Normal mode: "mg <key> v f k q s\r\n" (key at index 3)
-          post_get = skip_flags ? " v k q s\r\n" : " v f k q s\r\n"
+          # With return_cas a "c" flag follows, which shifts those indexes --
+          # callers of that variant locate tokens by flag rather than position.
+          post_get = if return_cas
+                       skip_flags ? " v c k q s\r\n" : " v f c k q s\r\n"
+                     else
+                       skip_flags ? " v k q s\r\n" : " v f k q s\r\n"
+                     end
           buffer = ''.b
           keys.each do |key|
             buffer << 'mg ' << encoded_key(key) << post_get
