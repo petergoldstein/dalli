@@ -237,6 +237,19 @@ module Dalli
         opts[:cache_nils] ? true : false
       end
 
+      # Extracts opaque routing-token kwargs (:p_token, :l_token) from a
+      # request-options Hash so they can be splatted into a RequestFormatter
+      # call. Returns {} when neither is set, so the splat is a no-op on the
+      # common path. Validation (type, forbidden bytes) happens at the
+      # wire-formatter level, where it can raise uniformly regardless of how
+      # the token reached the formatter.
+      def routing_token_kwargs(opts)
+        return {} unless opts.is_a?(Hash)
+        return {} unless opts[:p_token] || opts[:l_token]
+
+        { p_token: opts[:p_token], l_token: opts[:l_token] }
+      end
+
       def connect
         @connection_manager.establish_connection
         @version = version
