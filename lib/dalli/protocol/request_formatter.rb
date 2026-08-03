@@ -112,7 +112,11 @@ module Dalli
         # - drop_value (x flag): remove the item's value but leave the item, so a
         #   tombstone can be left without retaining the old payload.
         def meta_delete(key:, cas: nil, ttl: nil, quiet: false, stale: false, drop_value: false)
-          raise ArgumentError, 'tombstone_ttl requires invalidate: true' if ttl && !stale
+          # Message uses this method's own parameter names (ttl/stale), not the
+          # client-facing tombstone_ttl/invalidate names Dalli::Client validates
+          # against -- this guard is also reachable by internal callers (tests,
+          # direct RequestFormatter use) that never go through the client.
+          raise ArgumentError, 'ttl requires stale: true' if ttl && !stale
 
           cmd = "md #{encoded_key(key)}"
           cmd << cas_string(cas)

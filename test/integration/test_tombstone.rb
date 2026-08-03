@@ -125,6 +125,29 @@ describe 'tombstone deletes' do
           end
         end
       end
+
+      describe 'non-integer tombstone_ttl' do
+        # tombstone_kwargs coerces tombstone_ttl with Integer() deep inside the
+        # request path; without a client-side type check that raise unwinds
+        # through Protocol::Base#request and closes the connection, same as an
+        # unvalidated tombstone_ttl/invalidate pairing.
+        it 'raises ArgumentError without closing the connection' do
+          memcached_persistent(p) do |_dc, port|
+            dc = single_server_client(port)
+            dc.flush
+            dc.set('survivor', 'value')
+            conn_mgr = dc.send(:ring).servers.first.instance_variable_get(:@connection_manager)
+
+            error = assert_raises(ArgumentError) do
+              dc.delete('survivor', invalidate: true, tombstone_ttl: 'not-a-number')
+            end
+
+            assert_equal 'tombstone_ttl must be an integer, got "not-a-number"', error.message
+            assert_predicate conn_mgr, :connected?, 'bad tombstone_ttl type must not tear down the connection'
+            assert_equal 'value', dc.get('survivor')
+          end
+        end
+      end
     end
   end
 end

@@ -566,9 +566,21 @@ module Dalli
     # connection.
     def validate_delete_options!(req_options)
       return unless req_options.is_a?(Hash)
-      return unless req_options[:tombstone_ttl] && !req_options[:invalidate]
 
-      raise ArgumentError, 'tombstone_ttl requires invalidate: true'
+      tombstone_ttl = req_options[:tombstone_ttl]
+      return unless tombstone_ttl
+
+      raise ArgumentError, 'tombstone_ttl requires invalidate: true' unless req_options[:invalidate]
+
+      # tombstone_kwargs coerces this with Integer(), deep inside the request
+      # path; validated here first so a bad value raises cleanly instead of
+      # unwinding through Protocol::Base#request, which would close the
+      # connection on the ArgumentError Integer() raises.
+      begin
+        Integer(tombstone_ttl)
+      rescue ArgumentError, TypeError
+        raise ArgumentError, "tombstone_ttl must be an integer, got #{tombstone_ttl.inspect}"
+      end
     end
 
     def record_hit_miss_metrics(span, key_count, hit_count)

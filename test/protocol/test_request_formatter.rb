@@ -276,7 +276,7 @@ describe Dalli::Protocol::Meta::RequestFormatter do
           Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, ttl: 30)
         end
 
-        assert_equal 'tombstone_ttl requires invalidate: true', error.message
+        assert_equal 'ttl requires stale: true', error.message
       end
 
       it 'emits exactly one T token' do
