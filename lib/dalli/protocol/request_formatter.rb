@@ -150,8 +150,12 @@ module Dalli
         # otherwise be parsed as a second command by memcached or any
         # intermediate proxy/LB).
         def routing_tokens(p_token: nil, l_token: nil)
-          p_token = nil if p_token.respond_to?(:empty?) && p_token.empty?
-          l_token = nil if l_token.respond_to?(:empty?) && l_token.empty?
+          # Only an empty *String* is a no-op. Checking respond_to?(:empty?)
+          # instead would also swallow p_token: [] / {} before the type check
+          # below ever runs, silently dropping caller mistakes that should
+          # raise "must be a String".
+          p_token = nil if p_token.is_a?(String) && p_token.empty?
+          l_token = nil if l_token.is_a?(String) && l_token.empty?
           validate_routing_token!('p_token', p_token)
           validate_routing_token!('l_token', l_token)
           return '' unless p_token || l_token

@@ -672,7 +672,10 @@ module Dalli
     end
 
     def validate_routing_token!(name, value)
-      return if value.nil? || (value.respond_to?(:empty?) && value.empty?)
+      # Only an empty *String* is a no-op; see the matching comment in
+      # RequestFormatter#routing_tokens for why respond_to?(:empty?) is wrong
+      # here (it would also excuse [] / {} from the type check below).
+      return if value.nil? || (value.is_a?(String) && value.empty?)
       raise ArgumentError, "#{name} must be a String, got #{value.class}" unless value.is_a?(String)
       raise ArgumentError, "#{name} must not contain CRLF or null bytes" if value.match?(ROUTING_TOKEN_FORBIDDEN)
     end
@@ -688,8 +691,12 @@ module Dalli
 
     def fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options)
       server = ring.server_for_key(key)
-      meta_options = { vivify_ttl: lock_ttl, recache_ttl: recache_threshold }
-      meta_options.merge!(req_options) if req_options.is_a?(Hash)
+      # req_options is the base, not the override: fetch_with_lock's own
+      # lock_ttl/recache_threshold parameters must always win, even if a
+      # caller's req_options happened to contain :vivify_ttl/:recache_ttl.
+      meta_options = req_options.is_a?(Hash) ? req_options.dup : {}
+      meta_options[:vivify_ttl] = lock_ttl
+      meta_options[:recache_ttl] = recache_threshold
       result = server.request(:meta_get, key, meta_options)
 
       return result[:value] unless result[:won_recache]

@@ -507,6 +507,19 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       assert_equal plain, Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: '', l_token: '')
     end
 
+    # An empty non-String (e.g. [] or {}) must still hit the "must be a
+    # String" check -- only an empty String is a no-op. Checking
+    # respond_to?(:empty?) instead would let these slip through silently
+    # before the type check ever ran.
+    it 'does not treat an empty non-String as a no-op' do
+      assert_raises(ArgumentError) do
+        Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: [])
+      end
+      assert_raises(ArgumentError) do
+        Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', l_token: {})
+      end
+    end
+
     it 'rejects CRLF and null bytes to prevent wire injection' do
       %W[evil\r\nflush_all evil\rx evil\nx evil\0x].each do |token|
         assert_raises(ArgumentError) do

@@ -207,6 +207,29 @@ describe 'routing tokens (p_token / l_token) passthrough' do
       end
     end
 
+    # An empty non-String must still be rejected as "not a String" -- only an
+    # empty String is a no-op. The client-side check duplicates the
+    # formatter's; if the client-side copy alone regressed to treating any
+    # empty object as a no-op, the formatter would still raise, but only
+    # after the request reached Protocol::Base#request -- reintroducing the
+    # connection-closing failure mode this layer exists to avoid. Asserting
+    # on connected? isolates that the client-side copy is independently
+    # correct, not merely backstopped by the formatter.
+    it 'does not treat an empty non-String token as a no-op, and does not close the connection' do
+      memcached_persistent do |_dc, port|
+        dc = single_server_client(port)
+        dc.flush
+        dc.set('rtk', 'val')
+        conn_mgr = dc.send(:ring).servers.first.instance_variable_get(:@connection_manager)
+
+        assert_raises(ArgumentError) { dc.get('rtk', p_token: []) }
+        assert_predicate conn_mgr, :connected?, 'an empty Array p_token closed the connection'
+
+        assert_raises(ArgumentError) { dc.get('rtk', l_token: {}) }
+        assert_predicate conn_mgr, :connected?, 'an empty Hash l_token closed the connection'
+      end
+    end
+
     # A bad token must be rejected before any bytes reach the socket: the
     # request never enters Protocol::Base#request, so there is nothing to
     # tear down. Checking the connection directly matters here -- a version
@@ -320,6 +343,27 @@ describe 'routing tokens (p_token / l_token) passthrough' do
         assert_includes get_line, "L#{L_TOKEN}", "expected L#{L_TOKEN} in #{get_line.inspect}"
         assert_includes set_line, 'PpodA', "expected PpodA in #{set_line.inspect}"
         assert_includes incr_line, 'LzoneX', "expected LzoneX in #{incr_line.inspect}"
+      end
+    end
+
+    # fetch_with_lock_request builds its own vivify_ttl/recache_ttl from its
+    # own lock_ttl:/recache_threshold: parameters, then merges req_options in.
+    # If req_options were the override instead of the base, a caller-supplied
+    # req_options[:vivify_ttl] would silently replace lock_ttl on the wire.
+    # This proves lock_ttl always wins, while p_token from req_options still
+    # comes through on the same request.
+    it 'lets lock_ttl win over a colliding :vivify_ttl in req_options' do
+      port = rand(22_133..22_632)
+      capture_requests(port) do |captured|
+        dc = Dalli::Client.new("127.0.0.1:#{port}", socket_timeout: 2)
+
+        dc.fetch_with_lock('k', lock_ttl: 30, req_options: { vivify_ttl: 99_999, p_token: 'podA' }) { 'x' }
+
+        get_line = captured.find { |l| l.start_with?('mg') }
+
+        assert_includes get_line, 'N30', "expected the real lock_ttl (N30) in #{get_line.inspect}"
+        refute_includes get_line, 'N99999', 'req_options[:vivify_ttl] must not override lock_ttl'
+        assert_includes get_line, 'PpodA', "expected PpodA in #{get_line.inspect}"
       end
     end
   end
