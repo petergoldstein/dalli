@@ -81,16 +81,23 @@ describe 'get_multi_with_metadata' do
         end
       end
 
-      it 'yields key and metadata when given a block' do
+      it 'yields key and metadata when given a block, returning nil' do
         memcached_persistent(p) do |dc|
           dc.flush
           dc.set('a', 'val_a')
           dc.set('b', 'val_b')
 
           collected = {}
-          dc.get_multi_with_metadata(%w[a b absent]) { |k, meta| collected[k] = meta[:value] }
+          # Return value is asserted too: Hash#each returns its receiver, so a
+          # naive `block ? results.each(&block) : results` silently returns the
+          # full results Hash in block form -- unlike get_multi/get_multi_cas,
+          # which both return nil there. A caller relying on that difference
+          # (e.g. `return unless get_multi_with_metadata(...) { ... }`) would
+          # see behavior that doesn't match the rest of the bulk-read family.
+          result = dc.get_multi_with_metadata(%w[a b absent]) { |k, meta| collected[k] = meta[:value] }
 
           assert_equal({ 'a' => 'val_a', 'b' => 'val_b' }, collected)
+          assert_nil result
         end
       end
 

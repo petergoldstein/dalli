@@ -202,7 +202,15 @@ module Dalli
         end
       end
 
-      block ? results.each(&block) : results
+      if block
+        results.each(&block)
+        # Matches get_multi/get_multi_cas: nil when a block is given, so
+        # callers can't come to depend on a return value that block-form
+        # get_multi never provided.
+        return nil
+      end
+
+      results
     end
 
     ##
