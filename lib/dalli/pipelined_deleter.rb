@@ -15,15 +15,19 @@ module Dalli
     ##
     # Deletes multiple keys from memcached.
     #
-    # @param keys [Array<String>] keys to delete
-    # @return [Integer] the number of keys that were deleted. This is
-    #   best-effort: a transient network error is retried automatically, and
-    #   keys deleted before the error are not recounted, so the result may
-    #   under-report the number actually removed when a retry occurs. If a
-    #   server remains unreachable after retrying, raises Dalli::NetworkError.
-    ##
     # `req_options` is applied to every delete in the batch (see
     # Dalli::Client#delete for the supported meta-delete keys).
+    #
+    # @param keys [Array<String>] keys to delete
+    # @return [Integer] the number of keys the server found and acted on. Only
+    #   a key that did not exist decrements this count, so with
+    #   `req_options: {invalidate: true}` it reports how many keys were
+    #   tombstoned rather than removed. This is best-effort: a transient
+    #   network error is retried automatically, and keys handled before the
+    #   error are not recounted, so the result may under-report when a retry
+    #   occurs. If a server remains unreachable after retrying, raises
+    #   Dalli::NetworkError.
+    ##
     def process(keys, req_options = nil)
       return 0 if keys.empty?
 
