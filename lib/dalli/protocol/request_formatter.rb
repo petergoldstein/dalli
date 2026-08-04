@@ -37,13 +37,14 @@ module Dalli
         def meta_get(key:, value: true, return_cas: false, ttl: nil, quiet: false,
                      vivify_ttl: nil, recache_ttl: nil,
                      return_hit_status: false, return_last_access: false, return_ttl_remaining: false,
-                     skip_lru_bump: false, skip_flags: false)
+                     skip_lru_bump: false, skip_flags: false, p_token: nil, l_token: nil)
           cmd = "mg #{encoded_key(key)}"
           # In raw mode (skip_flags: true), we don't request bitflags since they're not used.
           # This saves 2 bytes per request and skips parsing on response.
           cmd << (skip_flags ? ' v' : ' v f') if value
           cmd << ' c' if return_cas
           cmd << " T#{ttl}" if ttl
+          cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << ' k q s' if quiet # Return the key in the response if quiet
           cmd << " N#{vivify_ttl}" if vivify_ttl # Thundering herd: vivify on miss
           cmd << " R#{recache_ttl}" if recache_ttl # Thundering herd: win recache if TTL below threshold
@@ -65,7 +66,8 @@ module Dalli
           buffer << 'mn' << TERMINATOR
         end
 
-        def meta_set(key:, value:, bitflags: nil, cas: nil, ttl: nil, mode: :set, quiet: false)
+        def meta_set(key:, value:, bitflags: nil, cas: nil, ttl: nil, mode: :set, quiet: false,
+                     p_token: nil, l_token: nil)
           base64 = KeyRegularizer.required?(key)
           key = KeyRegularizer.encode(key) if base64
           cmd = "ms #{key} #{value.bytesize}"
@@ -78,6 +80,7 @@ module Dalli
           cmd << " T#{ttl}" if ttl
           cmd << " M#{mode_to_token(mode)}"
           cmd << ' q' if quiet
+          cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << TERMINATOR
         end
 
@@ -119,7 +122,8 @@ module Dalli
           buffer << META_NOOP
         end
 
-        def meta_arithmetic(key:, delta:, initial:, incr: true, cas: nil, ttl: nil, quiet: false)
+        def meta_arithmetic(key:, delta:, initial:, incr: true, cas: nil, ttl: nil, quiet: false,
+                            p_token: nil, l_token: nil)
           cmd = "ma #{encoded_key(key)} v"
           cmd << " D#{delta}" if delta
           cmd << " J#{initial}" if initial
@@ -128,7 +132,38 @@ module Dalli
           cmd << cas_string(cas)
           cmd << ' q' if quiet
           cmd << " M#{incr ? 'I' : 'D'}"
+          cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << TERMINATOR
+        end
+
+        # Builds the wire-format suffix for opaque routing tokens (P and L).
+        # memcached itself ignores these; they exist as hints for a proxy or
+        # router sitting between the client and memcached. See protocol.txt:
+        # "All commands accept tokens 'P' and 'L' which are completely ignored.
+        # The arguments to 'P' and 'L' can be used as hints or path
+        # specifications to a proxy or router inbetween a client and a
+        # memcached daemon."
+        #
+        # Empty / nil tokens are treated as no-ops. CRLF and null bytes are
+        # rejected with ArgumentError to prevent the token from being used as a
+        # wire-protocol injection vector (e.g. "foo\r\nflush_all\r\n" would
+        # otherwise be parsed as a second command by memcached or any
+        # intermediate proxy/LB).
+        def routing_tokens(p_token: nil, l_token: nil)
+          # Only an empty *String* is a no-op. Checking respond_to?(:empty?)
+          # instead would also swallow p_token: [] / {} before the type check
+          # below ever runs, silently dropping caller mistakes that should
+          # raise "must be a String".
+          p_token = nil if p_token.is_a?(String) && p_token.empty?
+          l_token = nil if l_token.is_a?(String) && l_token.empty?
+          validate_routing_token!('p_token', p_token)
+          validate_routing_token!('l_token', l_token)
+          return '' unless p_token || l_token
+
+          s = +''
+          s << " P#{p_token}" if p_token
+          s << " L#{l_token}" if l_token
+          s
         end
         # rubocop:enable Metrics/CyclomaticComplexity
         # rubocop:enable Metrics/ParameterLists
@@ -169,6 +204,17 @@ module Dalli
         end
 
         private
+
+        # Disallowed bytes: CR, LF, NUL. Any of these embedded in a routing
+        # token would let the caller inject a second wire-protocol command.
+        ROUTING_TOKEN_FORBIDDEN = /[\r\n\0]/
+        private_constant :ROUTING_TOKEN_FORBIDDEN
+
+        def validate_routing_token!(name, value)
+          return if value.nil?
+          raise ArgumentError, "#{name} must be a String, got #{value.class}" unless value.is_a?(String)
+          raise ArgumentError, "#{name} must not contain CRLF or null bytes" if value.match?(ROUTING_TOKEN_FORBIDDEN)
+        end
 
         def mode_to_token(mode)
           case mode

@@ -68,6 +68,7 @@ module Dalli
     # Get the value associated with the key.
     # If a value is not found, then +nil+ is returned.
     def get(key, req_options = nil)
+      validate_routing_tokens!(req_options)
       perform(:get, key, req_options)
     end
 
@@ -75,8 +76,9 @@ module Dalli
     # Gat (get and touch) fetch an item and simultaneously update its expiration time.
     #
     # If a value is not found, then +nil+ is returned.
-    def gat(key, ttl = nil)
-      perform(:gat, key, ttl_or_default(ttl))
+    def gat(key, ttl = nil, req_options = nil)
+      validate_routing_tokens!(req_options)
+      perform(:gat, key, ttl_or_default(ttl), req_options)
     end
 
     ##
@@ -91,8 +93,9 @@ module Dalli
     ##
     # Get the value and CAS ID associated with the key.  If a block is provided,
     # value and CAS will be passed to the block.
-    def get_cas(key)
-      (value, cas) = perform(:cas, key)
+    def get_cas(key, req_options = nil)
+      validate_routing_tokens!(req_options)
+      (value, cas) = perform(:cas, key, req_options)
       return [value, cas] unless block_given?
 
       yield value, cas
@@ -133,6 +136,7 @@ module Dalli
     #   # => { value: "data", cas: 123, hit_before: true, last_access: 42 }
     #
     def get_with_metadata(key, options = {})
+      validate_routing_tokens!(options)
       key = key.to_s
       key = @key_manager.validate_key(key)
 
@@ -237,6 +241,7 @@ module Dalli
     def fetch_with_lock(key, ttl: nil, lock_ttl: 30, recache_threshold: nil, req_options: nil, &block)
       raise ArgumentError, 'Block is required for fetch_with_lock' unless block_given?
 
+      validate_routing_tokens!(req_options)
       key = key.to_s
       key = @key_manager.validate_key(key)
 
@@ -340,6 +345,7 @@ module Dalli
     # Set the key-value pair, verifying existing CAS.
     # Returns the resulting CAS value if succeeded, and falsy otherwise.
     def set_cas(key, value, cas, ttl = nil, req_options = nil)
+      validate_routing_tokens!(req_options)
       perform(:set, key, value, ttl_or_default(ttl), cas, req_options)
     end
 
@@ -347,6 +353,7 @@ module Dalli
     # Conditionally add a key/value pair, if the key does not already exist
     # on the server.  Returns truthy if the operation succeeded.
     def add(key, value, ttl = nil, req_options = nil)
+      validate_routing_tokens!(req_options)
       perform(:add, key, value, ttl_or_default(ttl), req_options)
     end
 
@@ -362,6 +369,7 @@ module Dalli
     # key already exists on the server.  Returns the new CAS value if the
     # operation succeeded, or falsy otherwise.
     def replace_cas(key, value, cas, ttl = nil, req_options = nil)
+      validate_routing_tokens!(req_options)
       perform(:replace, key, value, ttl_or_default(ttl), cas, req_options)
     end
 
@@ -405,15 +413,17 @@ module Dalli
     ##
     # Append value to the value already stored on the server for 'key'.
     # Appending only works for values stored with :raw => true.
-    def append(key, value)
-      perform(:append, key, value.to_s)
+    def append(key, value, req_options = nil)
+      validate_routing_tokens!(req_options)
+      perform(:append, key, value.to_s, req_options)
     end
 
     ##
     # Prepend value to the value already stored on the server for 'key'.
     # Prepending only works for values stored with :raw => true.
-    def prepend(key, value)
-      perform(:prepend, key, value.to_s)
+    def prepend(key, value, req_options = nil)
+      validate_routing_tokens!(req_options)
+      perform(:prepend, key, value.to_s, req_options)
     end
 
     ##
@@ -429,10 +439,11 @@ module Dalli
     # #cas.
     #
     # If the value already exists, it must have been set with raw: true
-    def incr(key, amt = 1, ttl = nil, default = nil)
+    def incr(key, amt = 1, ttl = nil, default = nil, req_options = nil)
       check_positive!(amt)
+      validate_routing_tokens!(req_options)
 
-      perform(:incr, key, amt.to_i, ttl_or_default(ttl), default)
+      perform(:incr, key, amt.to_i, ttl_or_default(ttl), default, req_options)
     end
 
     ##
@@ -451,10 +462,11 @@ module Dalli
     # #cas.
     #
     # If the value already exists, it must have been set with raw: true
-    def decr(key, amt = 1, ttl = nil, default = nil)
+    def decr(key, amt = 1, ttl = nil, default = nil, req_options = nil)
       check_positive!(amt)
+      validate_routing_tokens!(req_options)
 
-      perform(:decr, key, amt.to_i, ttl_or_default(ttl), default)
+      perform(:decr, key, amt.to_i, ttl_or_default(ttl), default, req_options)
     end
 
     ##
@@ -644,8 +656,33 @@ module Dalli
       raise ArgumentError, "Positive values only: #{amt}" if amt.negative?
     end
 
+    # Validated here, before the request reaches Protocol::Base#request, rather
+    # than only at the RequestFormatter level. Reaching only the formatter's
+    # check means unwinding through Protocol::Base#request, which logs the
+    # failure as unexpected and closes the connection -- a caller passing a
+    # bad token should get a clean ArgumentError and keep its connection.
+    ROUTING_TOKEN_FORBIDDEN = /[\r\n\0]/
+    private_constant :ROUTING_TOKEN_FORBIDDEN
+
+    def validate_routing_tokens!(req_options)
+      return unless req_options.is_a?(Hash)
+
+      validate_routing_token!(:p_token, req_options[:p_token])
+      validate_routing_token!(:l_token, req_options[:l_token])
+    end
+
+    def validate_routing_token!(name, value)
+      # Only an empty *String* is a no-op; see the matching comment in
+      # RequestFormatter#routing_tokens for why respond_to?(:empty?) is wrong
+      # here (it would also excuse [] / {} from the type check below).
+      return if value.nil? || (value.is_a?(String) && value.empty?)
+      raise ArgumentError, "#{name} must be a String, got #{value.class}" unless value.is_a?(String)
+      raise ArgumentError, "#{name} must not contain CRLF or null bytes" if value.match?(ROUTING_TOKEN_FORBIDDEN)
+    end
+
     def cas_core(key, always_set, ttl = nil, req_options = nil)
-      (value, cas) = perform(:cas, key)
+      validate_routing_tokens!(req_options)
+      (value, cas) = perform(:cas, key, req_options)
       return if value.nil? && !always_set
 
       newvalue = yield(value)
@@ -654,7 +691,13 @@ module Dalli
 
     def fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options)
       server = ring.server_for_key(key)
-      result = server.request(:meta_get, key, { vivify_ttl: lock_ttl, recache_ttl: recache_threshold })
+      # req_options is the base, not the override: fetch_with_lock's own
+      # lock_ttl/recache_threshold parameters must always win, even if a
+      # caller's req_options happened to contain :vivify_ttl/:recache_ttl.
+      meta_options = req_options.is_a?(Hash) ? req_options.dup : {}
+      meta_options[:vivify_ttl] = lock_ttl
+      meta_options[:recache_ttl] = recache_threshold
+      result = server.request(:meta_get, key, meta_options)
 
       return result[:value] unless result[:won_recache]
 

@@ -26,7 +26,7 @@ module Dalli
       def get(key, options = nil)
         # Skip bitflags in raw mode - saves 2 bytes per request and skips parsing
         skip_flags = raw_mode? || (options && options[:raw])
-        req = RequestFormatter.meta_get(key: key, skip_flags: skip_flags)
+        req = RequestFormatter.meta_get(key: key, skip_flags: skip_flags, **routing_token_kwargs(options))
         flushed_write(req)
         response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
       end
@@ -39,7 +39,7 @@ module Dalli
       def gat(key, ttl, options = nil)
         ttl = TtlSanitizer.sanitize(ttl)
         skip_flags = raw_mode? || (options && options[:raw])
-        req = RequestFormatter.meta_get(key: key, ttl: ttl, skip_flags: skip_flags)
+        req = RequestFormatter.meta_get(key: key, ttl: ttl, skip_flags: skip_flags, **routing_token_kwargs(options))
         flushed_write(req)
         response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
       end
@@ -53,8 +53,8 @@ module Dalli
 
       # TODO: This is confusing, as there's a cas command in memcached
       # and this isn't it.  Maybe rename?  Maybe eliminate?
-      def cas(key)
-        req = RequestFormatter.meta_get(key: key, value: true, return_cas: true)
+      def cas(key, options = nil)
+        req = RequestFormatter.meta_get(key: key, value: true, return_cas: true, **routing_token_kwargs(options))
         flushed_write(req)
         response_processor.meta_get_with_value_and_cas
       end
@@ -90,7 +90,8 @@ module Dalli
           return_hit_status: options[:return_hit_status],
           return_last_access: options[:return_last_access],
           return_ttl_remaining: options[:return_ttl_remaining],
-          skip_lru_bump: options[:skip_lru_bump]
+          skip_lru_bump: options[:skip_lru_bump],
+          **routing_token_kwargs(options)
         )
         flushed_write(req)
         response_processor.meta_get_with_metadata(
@@ -140,27 +141,29 @@ module Dalli
         ttl = TtlSanitizer.sanitize(ttl) if ttl
         req = RequestFormatter.meta_set(key: key, value: value,
                                         bitflags: bitflags, cas: cas,
-                                        ttl: ttl, mode: mode, quiet: quiet)
+                                        ttl: ttl, mode: mode, quiet: quiet,
+                                        **routing_token_kwargs(options))
         write("#{req}#{value}#{TERMINATOR}")
         @connection_manager.flush unless quiet
       end
       # rubocop:enable Metrics/ParameterLists
 
-      def append(key, value)
-        write_append_prepend_req(:append, key, value)
+      def append(key, value, options = nil)
+        write_append_prepend_req(:append, key, value, nil, nil, options)
         response_processor.meta_set_append_prepend unless quiet?
       end
 
-      def prepend(key, value)
-        write_append_prepend_req(:prepend, key, value)
+      def prepend(key, value, options = nil)
+        write_append_prepend_req(:prepend, key, value, nil, nil, options)
         response_processor.meta_set_append_prepend unless quiet?
       end
 
       # rubocop:disable Metrics/ParameterLists
-      def write_append_prepend_req(mode, key, value, ttl = nil, cas = nil, _options = {})
+      def write_append_prepend_req(mode, key, value, ttl = nil, cas = nil, options = nil)
         ttl = TtlSanitizer.sanitize(ttl) if ttl
         req = RequestFormatter.meta_set(key: key, value: value,
-                                        cas: cas, ttl: ttl, mode: mode, quiet: quiet?)
+                                        cas: cas, ttl: ttl, mode: mode, quiet: quiet?,
+                                        **routing_token_kwargs(options))
         write("#{req}#{value}#{TERMINATOR}")
         @connection_manager.flush unless quiet?
       end
@@ -187,21 +190,23 @@ module Dalli
       end
 
       # Arithmetic Commands
-      def decr(key, count, ttl, initial)
-        decr_incr false, key, count, ttl, initial
+      def decr(key, count, ttl, initial, options = nil)
+        decr_incr false, key, count, ttl, initial, options
       end
 
-      def incr(key, count, ttl, initial)
-        decr_incr true, key, count, ttl, initial
+      def incr(key, count, ttl, initial, options = nil)
+        decr_incr true, key, count, ttl, initial, options
       end
 
-      def decr_incr(incr, key, delta, ttl, initial)
+      # rubocop:disable Metrics/ParameterLists
+      def decr_incr(incr, key, delta, ttl, initial, options = nil)
         ttl = initial ? TtlSanitizer.sanitize(ttl) : nil # Only set a TTL if we want to set a value on miss
         write(RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial, incr: incr, ttl: ttl,
-                                               quiet: quiet?))
+                                               quiet: quiet?, **routing_token_kwargs(options)))
         @connection_manager.flush unless quiet?
         response_processor.decr_incr unless quiet?
       end
+      # rubocop:enable Metrics/ParameterLists
 
       # Other Commands
       def flush(delay = 0)

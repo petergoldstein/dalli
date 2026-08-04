@@ -476,4 +476,62 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       assert_raw ''
     end
   end
+
+  describe 'routing tokens' do
+    it 'appends P and L tokens to meta_get' do
+      assert_equal "mg foo v f Ppod1 Lzone2\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: 'pod1', l_token: 'zone2')
+    end
+
+    it 'appends routing tokens to quiet meta_get before the quiet flags' do
+      assert_equal "mg foo v f Px k q s\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', quiet: true, p_token: 'x')
+    end
+
+    it 'appends routing tokens to meta_set' do
+      assert_equal "ms foo 1 MS q Ppod1\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_set(key: 'foo', value: 'v', quiet: true,
+                                                                    p_token: 'pod1')
+    end
+
+    it 'appends routing tokens to meta_arithmetic' do
+      assert_equal "ma c v D1 MI Lz\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: 'c', delta: 1, initial: nil,
+                                                                           l_token: 'z')
+    end
+
+    it 'treats nil and empty tokens as no-ops' do
+      plain = Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo')
+
+      assert_equal plain, Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: nil)
+      assert_equal plain, Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: '', l_token: '')
+    end
+
+    # An empty non-String (e.g. [] or {}) must still hit the "must be a
+    # String" check -- only an empty String is a no-op. Checking
+    # respond_to?(:empty?) instead would let these slip through silently
+    # before the type check ever ran.
+    it 'does not treat an empty non-String as a no-op' do
+      assert_raises(ArgumentError) do
+        Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: [])
+      end
+      assert_raises(ArgumentError) do
+        Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', l_token: {})
+      end
+    end
+
+    it 'rejects CRLF and null bytes to prevent wire injection' do
+      %W[evil\r\nflush_all evil\rx evil\nx evil\0x].each do |token|
+        assert_raises(ArgumentError) do
+          Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: token)
+        end
+      end
+    end
+
+    it 'rejects non-String tokens' do
+      assert_raises(ArgumentError) do
+        Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', l_token: 42)
+      end
+    end
+  end
 end
