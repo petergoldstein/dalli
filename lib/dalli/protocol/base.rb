@@ -78,6 +78,19 @@ module Dalli
       # particular memcached instance is available for use.
       def alive?
         ensure_connected!
+      rescue Dalli::RetryableNetworkError => e
+        # A single connection attempt failure is retryable -- the same
+        # contract #request enforces on the send/receive path. Retrying here
+        # lets error_on_request!'s own fail-count threshold decide when to
+        # give up: it keeps raising RetryableNetworkError until
+        # socket_max_failures is reached, then raises a terminal
+        # NetworkError via down!, which the next rescue converts to false.
+        # Without this, a single transient hiccup during the liveness check
+        # itself -- as opposed to an actual request -- would report this
+        # server as not alive even though it would have reconnected fine.
+        Dalli.logger.debug { e.inspect }
+        Dalli.logger.debug { "retrying connection attempt to #{name} because of network error" }
+        retry
       rescue Dalli::NetworkError
         # ensure_connected! raises a NetworkError if connection fails.  We
         # want to capture that error and convert it to a boolean value here.
