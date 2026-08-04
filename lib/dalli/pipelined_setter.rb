@@ -46,13 +46,21 @@ module Dalli
     # Loop through the server-grouped sets of keys, writing
     # the corresponding quiet set requests to the appropriate servers
     ##
+    # NetworkError (which RetryableNetworkError subclasses) must propagate: the
+    # top-level rescue in #process retries the whole pipelined set on it. A
+    # combined `rescue DalliError, NetworkError` would silently swallow
+    # RetryableNetworkError too -- since NetworkError < DalliError -- dropping
+    # this server's keys on a transient hiccup instead of retrying. Only a
+    # non-network DalliError should be swallowed here.
     def make_set_requests(groups, hash, ttl, req_options)
       groups.each do |server, keys_for_server|
         keys_for_server.each do |key|
           original_key = @key_manager.key_without_namespace(key)
           value = hash[original_key]
           server.request(:pipelined_set, key, value, ttl, req_options)
-        rescue DalliError, NetworkError => e
+        rescue Dalli::NetworkError
+          raise
+        rescue DalliError => e
           Dalli.logger.debug { e.inspect }
           Dalli.logger.debug { "unable to set key #{key} for server #{server.name}" }
         end
@@ -65,7 +73,9 @@ module Dalli
     def finish_requests(servers)
       servers.each do |server|
         server.request(:noop)
-      rescue DalliError, NetworkError => e
+      rescue Dalli::NetworkError
+        raise
+      rescue DalliError => e
         Dalli.logger.debug { e.inspect }
         Dalli.logger.debug { "unable to complete pipelined set on server #{server.name}" }
       end
