@@ -77,6 +77,50 @@ describe 'Pipelined Set' do
             assert_equal hash, result
           end
         end
+
+        it 'retries on a transient (retryable) network error and completes the write' do
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
+            dc.flush
+
+            server = dc.send(:ring).servers.first
+            original_request = server.method(:request)
+            attempts = 0
+            flaky_request = lambda do |opkey, *args|
+              if opkey == :write_multi_req
+                attempts += 1
+                raise Dalli::RetryableNetworkError, 'transient blip' if attempts == 1
+              end
+
+              original_request.call(opkey, *args)
+            end
+
+            server.stub(:request, flaky_request) do
+              dc.set_multi({ 'x' => 'v' })
+            end
+
+            assert_equal 2, attempts
+            assert_equal 'v', dc.get('x')
+          end
+        end
+
+        it 'raises Dalli::NetworkError on a terminal (non-retryable) network error' do
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
+            dc.flush
+
+            server = dc.send(:ring).servers.first
+            failing_request = lambda do |opkey, *args|
+              raise Dalli::NetworkError, 'localhost is down' if opkey == :write_multi_req
+
+              raise "unexpected request: #{opkey}, #{args.inspect}"
+            end
+
+            server.stub(:request, failing_request) do
+              assert_raises(Dalli::NetworkError) { dc.set_multi({ 'x' => 'v' }) }
+            end
+          end
+        end
       end
     end
   end

@@ -20,6 +20,9 @@ module Dalli
     ##
     # Yields, one at a time, keys and their values+attributes.
     #
+    # A transient network error is retried automatically. If a server remains
+    # unreachable after retrying, raises Dalli::NetworkError.
+    #
     def process(keys, &block)
       return {} if keys.empty?
 
@@ -75,7 +78,17 @@ module Dalli
           # Pass @partial_results directly to avoid hash allocation/merge overhead
           server.request(:pipelined_get_interleaved, keys_for_server, CHUNK_SIZE, @partial_results)
         end
-      rescue DalliError, NetworkError => e
+      # NetworkError (which RetryableNetworkError subclasses) must propagate:
+      # #process's top-level rescue retries the whole pipelined get on it. This
+      # rescue used to catch DalliError and NetworkError together -- since
+      # NetworkError < DalliError, that silently swallowed RetryableNetworkError
+      # too, dropping this server's keys from the result on a transient hiccup
+      # instead of retrying, with nothing surfaced above debug-level logging.
+      # Only a non-network DalliError (this server genuinely can't serve these
+      # keys) should be swallowed here.
+      rescue Dalli::NetworkError
+        raise
+      rescue DalliError => e
         Dalli.logger.debug { e.inspect }
         Dalli.logger.debug { "unable to get keys for server #{server.name}" }
       end
