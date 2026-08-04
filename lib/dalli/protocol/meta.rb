@@ -247,6 +247,40 @@ module Dalli
         read_multi_get_responses(is_raw)
       end
 
+      # Stale-aware bulk get.  Returns { key => { value:, cas:, stale:, miss: } }
+      # for the keys the server returned.  Keys that were not found are absent
+      # from the hash, matching read_multi_req and the get_multi family; a
+      # tombstoned item is present (it answers VA with the X flag) with
+      # stale: true, which is the distinction callers need.
+      def read_multi_with_metadata_req(keys)
+        is_raw = raw_mode?
+        buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw, return_cas: true)
+        flushed_write(buffer)
+        buffer.clear
+        read_multi_metadata_responses(is_raw)
+      end
+
+      # Unlike read_multi_get_responses this locates tokens by flag rather than
+      # by position, because the c flag shifts the key's index.
+      def read_multi_metadata_responses(is_raw)
+        hash = {}
+        while (line = @connection_manager.read_line)
+          break if line.start_with?('MN')
+          next unless line.start_with?('VA ')
+
+          tokens = line.chomp!(TERMINATOR).split
+          value = @connection_manager.read(tokens[1].to_i + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+          stale = response_processor.stale_from_tokens(tokens)
+          cas = response_processor.cas_from_tokens(tokens)
+          bitflags = is_raw ? 0 : response_processor.bitflags_from_tokens(tokens)
+          key = response_processor.key_from_tokens(tokens)
+          next if key.nil?
+
+          hash[key] = { value: @value_marshaller.retrieve(value, bitflags), cas: cas, stale: stale, miss: false }
+        end
+        hash
+      end
+
       def read_multi_get_responses(is_raw)
         hash = {}
         key_index = is_raw ? 2 : 3
