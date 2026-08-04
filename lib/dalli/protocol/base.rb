@@ -237,6 +237,24 @@ module Dalli
         opts[:cache_nils] ? true : false
       end
 
+      # Maps the client-facing meta-delete options onto RequestFormatter's flag
+      # names, so they can be splatted into a meta_delete call.  Returns {} when
+      # none are set, keeping the splat a no-op on the common path.
+      #
+      # :tombstone_ttl becomes the T flag, which is the same TTL the formatter
+      # already accepted -- deliberately not a second TTL parameter, since two
+      # would allow emitting two T tokens in one request.  It is sanitized like
+      # every other TTL Dalli sends.
+      def tombstone_kwargs(opts)
+        return {} unless opts.is_a?(Hash)
+
+        kwargs = {}
+        kwargs[:stale] = true if opts[:invalidate]
+        kwargs[:ttl] = TtlSanitizer.sanitize(Integer(opts[:tombstone_ttl])) if opts[:tombstone_ttl]
+        kwargs[:drop_value] = true if opts[:drop_value]
+        kwargs
+      end
+
       def connect
         @connection_manager.establish_connection
         @version = version

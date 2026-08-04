@@ -102,11 +102,27 @@ module Dalli
         # Thundering herd protection flag:
         # - stale (I flag): Instead of deleting the item, mark it as stale. Other clients
         #   using N/R flags will see the X flag and know the item is being regenerated.
-        def meta_delete(key:, cas: nil, ttl: nil, quiet: false, stale: false)
+        # Tombstone flags:
+        # - stale (I flag): mark the item stale instead of removing it.  Readers
+        #   using N/R flags, or get_with_metadata, see the X flag and know the
+        #   item is being regenerated.
+        # - ttl (T flag): how long the stale marker lives.  memcached only honors
+        #   T on a delete when it is paired with I, so this raises rather than
+        #   emitting a request the server would apply differently than intended.
+        # - drop_value (x flag): remove the item's value but leave the item, so a
+        #   tombstone can be left without retaining the old payload.
+        def meta_delete(key:, cas: nil, ttl: nil, quiet: false, stale: false, drop_value: false)
+          # Message uses this method's own parameter names (ttl/stale), not the
+          # client-facing tombstone_ttl/invalidate names Dalli::Client validates
+          # against -- this guard is also reachable by internal callers (tests,
+          # direct RequestFormatter use) that never go through the client.
+          raise ArgumentError, 'ttl requires stale: true' if ttl && !stale
+
           cmd = "md #{encoded_key(key)}"
           cmd << cas_string(cas)
-          cmd << " T#{ttl}" if ttl
           cmd << ' I' if stale # Mark stale instead of deleting
+          cmd << " T#{Integer(ttl)}" if ttl
+          cmd << ' x' if drop_value # Drop the value but keep the item
           cmd << ' q' if quiet
           cmd << TERMINATOR
         end

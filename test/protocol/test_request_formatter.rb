@@ -246,6 +246,46 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                    Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, cas: 0)
     end
 
+    describe 'tombstone flags' do
+      it 'sets the I flag when marking stale' do
+        assert_equal "md #{key} I\r\n",
+                     Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, stale: true)
+      end
+
+      it 'sets the x flag when dropping the value' do
+        assert_equal "md #{key} x\r\n",
+                     Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, drop_value: true)
+      end
+
+      it 'emits the TTL after the I flag' do
+        assert_equal "md #{key} I T30\r\n",
+                     Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, stale: true, ttl: 30)
+      end
+
+      it 'combines the tombstone flags with CAS and quiet' do
+        assert_equal "md #{key} C#{cas} I T30 x q\r\n",
+                     Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, cas: cas, stale: true,
+                                                                         ttl: 30, drop_value: true, quiet: true)
+      end
+
+      # memcached only honors T on a delete when it accompanies I, so emitting
+      # one without the other would send a request it applies differently than
+      # the caller intends.
+      it 'raises when given a TTL without the stale flag' do
+        error = assert_raises(ArgumentError) do
+          Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, ttl: 30)
+        end
+
+        assert_equal 'ttl requires stale: true', error.message
+      end
+
+      it 'emits exactly one T token' do
+        req = Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, stale: true, ttl: 30)
+
+        assert_equal 1, req.scan(/ T\d+/).size
+      end
+    end
+
     it 'excludes non-numeric CAS values' do
       assert_equal "md #{key}\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key,

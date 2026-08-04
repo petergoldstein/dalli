@@ -367,12 +367,40 @@ module Dalli
 
     # Delete a key/value pair, verifying existing CAS.
     # Returns true if succeeded, and falsy otherwise.
-    def delete_cas(key, cas = 0)
-      perform(:delete, key, cas)
+    # Delete a key, optionally with a CAS check.
+    #
+    # `req_options` accepts the same meta-delete options as #delete.
+    def delete_cas(key, cas = 0, req_options = nil)
+      validate_delete_options!(req_options)
+      perform(:delete, key, cas, req_options)
     end
 
-    def delete(key)
-      delete_cas(key, 0)
+    ##
+    # Delete a key.
+    #
+    # `req_options` may include the memcached meta-delete options:
+    #
+    # - `:invalidate` (Boolean) — mark the item stale instead of removing it.
+    #   This is the tombstone: readers see `stale: true` from
+    #   #get_with_metadata and #get_multi_with_metadata, and the existing value
+    #   is still readable unless `:drop_value` is also set. A tombstoned key is
+    #   *not* a miss, which lets a reader tell "another process is repopulating
+    #   this" apart from "this was never here".
+    # - `:tombstone_ttl` (Integer seconds) — how long the stale marker lives.
+    #   Requires `:invalidate`; memcached only honors the TTL on a delete when
+    #   it accompanies the invalidate flag, so passing it alone raises
+    #   ArgumentError rather than sending a request the server would treat
+    #   differently than intended. Once it elapses, reads see a miss.
+    # - `:drop_value` (Boolean) — remove the item's value but leave the item, so
+    #   a tombstone need not retain the old payload. On its own it is not a
+    #   tombstone: reads are an ordinary hit with an empty value.
+    #
+    #   dc.delete('key', invalidate: true, tombstone_ttl: 30, drop_value: true)
+    #
+    # @param key [String] the key to delete
+    # @param req_options [Hash, nil] meta-delete options
+    def delete(key, req_options = nil)
+      delete_cas(key, 0, req_options)
     end
 
     ##
@@ -530,6 +558,30 @@ module Dalli
     end
 
     private
+
+    # Raised before the request reaches a server: RequestFormatter enforces the
+    # same rule, but reaching it means unwinding through Protocol::Base#request,
+    # which logs the failure as unexpected and closes the connection.  A caller
+    # passing the wrong options should get a clean ArgumentError and keep its
+    # connection.
+    def validate_delete_options!(req_options)
+      return unless req_options.is_a?(Hash)
+
+      tombstone_ttl = req_options[:tombstone_ttl]
+      return unless tombstone_ttl
+
+      raise ArgumentError, 'tombstone_ttl requires invalidate: true' unless req_options[:invalidate]
+
+      # tombstone_kwargs coerces this with Integer(), deep inside the request
+      # path; validated here first so a bad value raises cleanly instead of
+      # unwinding through Protocol::Base#request, which would close the
+      # connection on the ArgumentError Integer() raises.
+      begin
+        Integer(tombstone_ttl)
+      rescue ArgumentError, TypeError
+        raise ArgumentError, "tombstone_ttl must be an integer, got #{tombstone_ttl.inspect}"
+      end
+    end
 
     def record_hit_miss_metrics(span, key_count, hit_count)
       return unless span
