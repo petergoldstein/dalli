@@ -15,18 +15,24 @@ module Dalli
     ##
     # Deletes multiple keys from memcached.
     #
+    # `req_options` is applied to every delete in the batch (see
+    # Dalli::Client#delete for the supported meta-delete keys).
+    #
     # @param keys [Array<String>] keys to delete
-    # @return [Integer] the number of keys that were deleted. This is
-    #   best-effort: a transient network error is retried automatically, and
-    #   keys deleted before the error are not recounted, so the result may
-    #   under-report the number actually removed when a retry occurs. If a
-    #   server remains unreachable after retrying, raises Dalli::NetworkError.
+    # @return [Integer] the number of keys the server found and acted on. Only
+    #   a key that did not exist decrements this count, so with
+    #   `req_options: {invalidate: true}` it reports how many keys were
+    #   tombstoned rather than removed. This is best-effort: a transient
+    #   network error is retried automatically, and keys handled before the
+    #   error are not recounted, so the result may under-report when a retry
+    #   occurs. If a server remains unreachable after retrying, raises
+    #   Dalli::NetworkError.
     ##
-    def process(keys)
+    def process(keys, req_options = nil)
       return 0 if keys.empty?
 
       @ring.lock do
-        groups = setup_requests(keys)
+        groups = setup_requests(keys, req_options)
         finish_requests(groups)
       end
     rescue Dalli::RetryableNetworkError => e
@@ -37,9 +43,9 @@ module Dalli
 
     private
 
-    def setup_requests(keys)
+    def setup_requests(keys, req_options = nil)
       groups = groups_for_keys(keys)
-      make_delete_requests(groups)
+      make_delete_requests(groups, req_options)
       groups
     end
 
@@ -53,10 +59,10 @@ module Dalli
     # RetryableNetworkError too -- since NetworkError < DalliError -- dropping
     # this server's keys on a transient hiccup instead of retrying. Only a
     # non-network DalliError should be swallowed here.
-    def make_delete_requests(groups)
+    def make_delete_requests(groups, req_options = nil)
       groups.each do |server, keys_for_server|
         keys_for_server.select! do |key|
-          server.request(:pipelined_delete, key)
+          server.request(:pipelined_delete, key, req_options)
           true
         rescue Dalli::NetworkError
           raise

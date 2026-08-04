@@ -127,10 +127,19 @@ module Dalli
           cmd << TERMINATOR
         end
 
-        def multi_meta_delete(keys)
+        # Tombstone flags apply to every key in the batch; see meta_delete.
+        def multi_meta_delete(keys, stale: false, ttl: nil, drop_value: false)
+          raise ArgumentError, 'tombstone_ttl requires invalidate: true' if ttl && !stale
+
+          suffix = +''
+          suffix << ' I' if stale
+          suffix << " T#{Integer(ttl)}" if ttl
+          suffix << ' x' if drop_value
+          suffix << ' q' << TERMINATOR
+
           buffer = ''.b
           keys.each do |key|
-            buffer << 'md ' << encoded_key(key) << ' q' << TERMINATOR
+            buffer << 'md ' << encoded_key(key) << suffix
           end
           buffer << META_NOOP
         end
