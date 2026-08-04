@@ -59,7 +59,12 @@ describe 'Ring' do
 
     it 'detect when a dead server is up again' do
       memcached(:meta, 19_997) do
-        down_retry_delay = 0.5
+        # A non-zero delay would make this test's timing race against how
+        # long the second memcached process takes to spawn -- alive? now
+        # correctly engages the down-state cooldown (see
+        # Dalli::Protocol::Base#alive?), so a real delay would sometimes
+        # still be in its cooldown window when the second assertion runs.
+        down_retry_delay = 0
         dc = Dalli::Client.new(['localhost:19997', 'localhost:19998'], down_retry_delay: down_retry_delay)
 
         assert_equal 1, dc.stats.values.compact.count
