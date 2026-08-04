@@ -215,7 +215,13 @@ describe Rack::Session::Dalli do
     cookie = res['Set-Cookie']
     res = Rack::MockRequest.new(rsd).get('/', 'HTTP_COOKIE' => cookie)
 
-    assert_equal cookie, res['Set-Cookie']
+    # Comparing the full Set-Cookie header (not just the session id, as
+    # elsewhere in this file) was its own flake: the header embeds an
+    # expires= timestamp recomputed fresh on every response, so the two
+    # requests could straddle a wall-clock second and differ by one second
+    # in that field alone, even though "freshness" -- the same session id
+    # being reused -- held. Only the id is what this test actually asserts.
+    assert_equal cookie[session_match], res['Set-Cookie'][session_match]
     assert_includes res.body, { 'counter' => 2 }.to_s
   end
 
