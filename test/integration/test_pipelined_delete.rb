@@ -141,7 +141,7 @@ describe 'Pipelined Delete' do
           end
         end
 
-        it 'returns 0 on a terminal (non-retryable) network error' do
+        it 'raises Dalli::NetworkError on a terminal (non-retryable) network error' do
           memcached_persistent(p) do |_, port|
             dc = single_server_client(port)
             dc.flush
@@ -156,7 +156,7 @@ describe 'Pipelined Delete' do
             end
 
             server.stub(:request, failing_request) do
-              assert_equal 0, dc.delete_multi(%w[del_key1])
+              assert_raises(Dalli::NetworkError) { dc.delete_multi(%w[del_key1]) }
             end
           end
         end

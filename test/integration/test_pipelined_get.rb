@@ -196,6 +196,53 @@ describe 'Pipelined Get' do
             assert_equal({ 'a' => 'foo', 'b' => 'bar' }, collected)
           end
         end
+
+        it 'retries on a transient (retryable) network error and returns the real result' do
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
+            dc.flush
+
+            dc.set('a', 'foo')
+
+            server = dc.send(:ring).servers.first
+            original_request = server.method(:request)
+            attempts = 0
+            flaky_request = lambda do |opkey, *args|
+              if opkey == :read_multi_req
+                attempts += 1
+                raise Dalli::RetryableNetworkError, 'transient blip' if attempts == 1
+              end
+
+              original_request.call(opkey, *args)
+            end
+
+            server.stub(:request, flaky_request) do
+              assert_equal({ 'a' => 'foo' }, dc.get_multi(%w[a]))
+            end
+
+            assert_equal 2, attempts
+          end
+        end
+
+        it 'raises Dalli::NetworkError on a terminal (non-retryable) network error' do
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port)
+            dc.flush
+
+            dc.set('a', 'foo')
+
+            server = dc.send(:ring).servers.first
+            failing_request = lambda do |opkey, *args|
+              raise Dalli::NetworkError, 'localhost is down' if opkey == :read_multi_req
+
+              raise "unexpected request: #{opkey}, #{args.inspect}"
+            end
+
+            server.stub(:request, failing_request) do
+              assert_raises(Dalli::NetworkError) { dc.get_multi(%w[a]) }
+            end
+          end
+        end
       end
 
       describe 'pipelined_get_interleaved' do

@@ -4,6 +4,14 @@ Dalli Changelog
 Unreleased
 ==========
 
+Bug Fixes:
+
+- Retry transient network errors in `get_multi`, `set_multi` and `delete_multi` instead of silently swallowing them (#1149)
+  - All three methods group keys by server and issue one request per server. Each per-server rescue clause caught `DalliError` and `NetworkError` together and swallowed both, just debug-logging -- since `RetryableNetworkError < NetworkError`, this also silently swallowed transient, retryable failures, dropping that server's keys from the result instead of the whole operation retrying (`get_multi`/`set_multi`'s single-server fast path did not even attempt a retry, on any failure)
+  - Six rescue sites across `PipelinedGetter`, `PipelinedSetter`, `PipelinedDeleter` and the `single_server_*` fast paths now retry a transient `RetryableNetworkError`, matching sibling rescue sites in the same files that already did this correctly
+  - **Behavior change:** if a server remains unreachable after retrying (not just a transient blip), these three methods now raise `Dalli::NetworkError` instead of silently returning an incomplete or empty result. This matches how every other Dalli::Client method already behaves on a hard network failure, and is the retry-then-raise behavior `delete_multi`'s own docs already described; it was just not reliably true for this failure path before. Code that calls these methods without rescuing `Dalli::NetworkError` should account for this if it can reach a fully unreachable server
+  - Likely the cause of an intermittently failing `get_multi` failover integration test that recurred across multiple PRs, though this could not be directly confirmed: the failure (an empty result with no exception in the logs) never reproduced locally despite repeated attempts, consistent with needing a genuine transient network hiccup that is far more likely on a loaded CI runner than an idle dev machine
+
 5.0.6
 ==========
 

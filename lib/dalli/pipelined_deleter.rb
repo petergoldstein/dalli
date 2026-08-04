@@ -17,9 +17,10 @@ module Dalli
     #
     # @param keys [Array<String>] keys to delete
     # @return [Integer] the number of keys that were deleted. This is
-    #   best-effort: on a network error the operation is retried, and keys
-    #   deleted before the error are not recounted, so the result may
-    #   under-report the number actually removed when a failure occurs.
+    #   best-effort: a transient network error is retried automatically, and
+    #   keys deleted before the error are not recounted, so the result may
+    #   under-report the number actually removed when a retry occurs. If a
+    #   server remains unreachable after retrying, raises Dalli::NetworkError.
     ##
     def process(keys)
       return 0 if keys.empty?

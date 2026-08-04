@@ -14,7 +14,9 @@ module Dalli
 
     ##
     # Writes multiple key-value pairs to memcached.
-    # Raises an error if any server is unavailable.
+    #
+    # A transient network error is retried automatically. If a server remains
+    # unreachable after retrying, raises Dalli::NetworkError.
     #
     # @param hash [Hash] key-value pairs to set
     # @param ttl [Integer] time-to-live in seconds

@@ -150,6 +150,12 @@ module Dalli
     # Fetch multiple keys efficiently.
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
+    #
+    # A transient network error is retried automatically. If a server remains
+    # unreachable after retrying, raises Dalli::NetworkError rather than
+    # silently omitting that server's keys from the result.
+    #
+    # @raise [Dalli::NetworkError] if a server is unreachable after retrying
     # rubocop:disable Style/ExplicitBlockArgument
     def get_multi(*keys)
       keys.flatten!
@@ -306,10 +312,15 @@ module Dalli
     # This method is more efficient than calling set() in a loop because
     # it batches requests by server and uses quiet mode.
     #
+    # A transient network error is retried automatically. If a server remains
+    # unreachable after retrying, raises Dalli::NetworkError; keys already
+    # sent to other servers before the error are not rolled back.
+    #
     # @param hash [Hash] key-value pairs to set
     # @param ttl [Integer] time-to-live in seconds (optional, uses default if not provided)
     # @param req_options [Hash] options passed to each set operation
     # @return [void]
+    # @raise [Dalli::NetworkError] if a server is unreachable after retrying
     #
     # Example:
     #   client.set_multi({ 'key1' => 'value1', 'key2' => 'value2' }, 300)
@@ -371,9 +382,11 @@ module Dalli
     #
     # @param keys [Array<String>] keys to delete
     # @return [Integer] the number of keys that were found and deleted. This is
-    #   best-effort: on a network error the operation is retried, and keys
-    #   deleted before the error are not recounted, so the result may
-    #   under-report the number actually removed when a failure occurs.
+    #   best-effort: a transient network error is retried automatically, and
+    #   keys deleted before the error are not recounted, so the result may
+    #   under-report the number actually removed when a retry occurs. If a
+    #   server remains unreachable after retrying, raises Dalli::NetworkError.
+    # @raise [Dalli::NetworkError] if a server is unreachable after retrying
     #
     # Example:
     #   client.delete_multi(['key1', 'key2', 'key3'])
@@ -556,6 +569,15 @@ module Dalli
       server if server&.alive?
     end
 
+    # The three single_server_* fast-path methods below share one contract,
+    # matching the pipelined multi-server path they stand in for: a transient
+    # RetryableNetworkError is retried (bounded implicitly by the server's own
+    # socket_max_failures, same as the pipelined path's retry), and a hard
+    # NetworkError -- the server genuinely unreachable, not just blipping --
+    # propagates to the caller rather than being swallowed into a silently
+    # wrong result. Only server_for_key/single_server finding no live server
+    # to route to at all is still silent, matching Ring#keys_grouped_by_server
+    # dropping a key it can't route on both the single- and multi-server paths.
     def single_server_get_multi(keys)
       keys.map! { |k| @key_manager.validate_key(k.to_s) }
       return {} unless (server = single_server)
@@ -563,8 +585,10 @@ module Dalli
       result = server.request(:read_multi_req, keys)
       result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
       result
-    rescue Dalli::NetworkError
-      {}
+    rescue Dalli::RetryableNetworkError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { 'retrying single-server get_multi because of network error' }
+      retry
     end
 
     def single_server_set_multi(hash, ttl, req_options)
@@ -572,8 +596,10 @@ module Dalli
       return unless (server = single_server)
 
       server.request(:write_multi_req, pairs, ttl, req_options)
-    rescue Dalli::NetworkError
-      nil
+    rescue Dalli::RetryableNetworkError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { 'retrying single-server set_multi because of network error' }
+      retry
     end
 
     def single_server_delete_multi(keys)
@@ -582,14 +608,9 @@ module Dalli
 
       server.request(:delete_multi_req, validated_keys)
     rescue Dalli::RetryableNetworkError => e
-      # Mirror the pipelined path: retry transient errors so a momentary blip
-      # still yields a real count. Bounded by the server's socket_max_failures,
-      # after which a hard NetworkError is raised and handled below.
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying single-server delete_multi because of network error' }
       retry
-    rescue Dalli::NetworkError
-      0
     end
 
     def get_multi_attributes(keys)

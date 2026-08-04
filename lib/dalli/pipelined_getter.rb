@@ -20,6 +20,9 @@ module Dalli
     ##
     # Yields, one at a time, keys and their values+attributes.
     #
+    # A transient network error is retried automatically. If a server remains
+    # unreachable after retrying, raises Dalli::NetworkError.
+    #
     def process(keys, &block)
       return {} if keys.empty?
 
