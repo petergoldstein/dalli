@@ -43,6 +43,38 @@ module Dalli
       retry
     end
 
+    ##
+    # Stale-aware bulk get across servers.  Returns { key => metadata Hash } for
+    # the keys that were found; see Protocol::Meta#read_multi_with_metadata_req
+    # for why misses are absent rather than present with miss: true.
+    #
+    # Unlike #process this issues one request per server and reads its full
+    # response before moving on, rather than pipelining across servers: the
+    # metadata path has no interleaving support, and the stale-aware callers it
+    # serves fetch far smaller batches than get_multi does.
+    #
+    def process_with_metadata(keys)
+      return {} if keys.empty?
+
+      @ring.lock do
+        results = {}
+        groups_for_keys(keys).each do |server, keys_for_server|
+          results.merge!(server.request(:read_multi_with_metadata_req, keys_for_server))
+        rescue Dalli::RetryableNetworkError
+          raise
+        rescue DalliError, NetworkError => e
+          Dalli.logger.debug { e.inspect }
+          Dalli.logger.debug { "unable to get keys for server #{server.name}" }
+        end
+        results.transform_keys! { |key| @key_manager.key_without_namespace(key) }
+        results
+      end
+    rescue Dalli::RetryableNetworkError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { 'retrying pipelined get with metadata because of network error' }
+      retry
+    end
+
     private
 
     def yield_partial_results

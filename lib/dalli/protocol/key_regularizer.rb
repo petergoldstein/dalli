@@ -12,8 +12,25 @@ module Dalli
       module KeyRegularizer
         module_function
 
+        # protocol.txt requires that a key "must not include control
+        # characters or whitespace" -- \p{Cntrl} is C0 (0x00-0x1F) plus DEL
+        # (0x7F). \s alone misses NUL and the rest of that range: a key
+        # containing one of those bytes but no whitespace is ASCII-only, so
+        # it would otherwise be written to the wire unencoded. Not a
+        # protocol-injection risk (the text protocol splits on CRLF, not
+        # other control bytes), but a downstream consumer that treats the key
+        # specially at one of those bytes (a C string terminating at NUL, a
+        # terminal or log line interpreting an escape byte) could silently
+        # act on a different key than Dalli believes it sent.
+        #
+        # Written as \p{Cntrl} rather than the POSIX [:cntrl:] bracket class:
+        # \s and [:cntrl:] overlap (tab, newline, CR are in both), and Ruby
+        # warns "character class has duplicated range" when they're combined
+        # in one -- fatal here, since this suite's -w run treats warnings as
+        # errors (see test_strict_warnings.rb). \p{Cntrl} matches the same
+        # bytes without the overlap warning.
         def required?(key)
-          !key.ascii_only? || /\s/.match?(key)
+          !key.ascii_only? || /[\p{Cntrl}\s]/.match?(key)
         end
 
         def encode(key)

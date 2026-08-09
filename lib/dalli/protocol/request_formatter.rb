@@ -37,13 +37,14 @@ module Dalli
         def meta_get(key:, value: true, return_cas: false, ttl: nil, quiet: false,
                      vivify_ttl: nil, recache_ttl: nil,
                      return_hit_status: false, return_last_access: false, return_ttl_remaining: false,
-                     skip_lru_bump: false, skip_flags: false)
+                     skip_lru_bump: false, skip_flags: false, p_token: nil, l_token: nil)
           cmd = "mg #{encoded_key(key)}"
           # In raw mode (skip_flags: true), we don't request bitflags since they're not used.
           # This saves 2 bytes per request and skips parsing on response.
           cmd << (skip_flags ? ' v' : ' v f') if value
           cmd << ' c' if return_cas
           cmd << " T#{ttl}" if ttl
+          cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << ' k q s' if quiet # Return the key in the response if quiet
           cmd << " N#{vivify_ttl}" if vivify_ttl # Thundering herd: vivify on miss
           cmd << " R#{recache_ttl}" if recache_ttl # Thundering herd: win recache if TTL below threshold
@@ -54,10 +55,16 @@ module Dalli
           cmd << TERMINATOR
         end
 
-        def multi_meta_get(keys, skip_flags: false)
+        def multi_meta_get(keys, skip_flags: false, return_cas: false)
           # In raw mode: "mg <key> v k q s\r\n" (no f flag, key at index 2)
           # Normal mode: "mg <key> v f k q s\r\n" (key at index 3)
-          post_get = skip_flags ? " v k q s\r\n" : " v f k q s\r\n"
+          # With return_cas a "c" flag follows, which shifts those indexes --
+          # callers of that variant locate tokens by flag rather than position.
+          post_get = if return_cas
+                       skip_flags ? " v c k q s\r\n" : " v f c k q s\r\n"
+                     else
+                       skip_flags ? " v k q s\r\n" : " v f k q s\r\n"
+                     end
           buffer = ''.b
           keys.each do |key|
             buffer << 'mg ' << encoded_key(key) << post_get
@@ -65,7 +72,8 @@ module Dalli
           buffer << 'mn' << TERMINATOR
         end
 
-        def meta_set(key:, value:, bitflags: nil, cas: nil, ttl: nil, mode: :set, quiet: false)
+        def meta_set(key:, value:, bitflags: nil, cas: nil, ttl: nil, mode: :set, quiet: false,
+                     p_token: nil, l_token: nil)
           base64 = KeyRegularizer.required?(key)
           key = KeyRegularizer.encode(key) if base64
           cmd = "ms #{key} #{value.bytesize}"
@@ -78,6 +86,7 @@ module Dalli
           cmd << " T#{ttl}" if ttl
           cmd << " M#{mode_to_token(mode)}"
           cmd << ' q' if quiet
+          cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << TERMINATOR
         end
 
@@ -102,24 +111,50 @@ module Dalli
         # Thundering herd protection flag:
         # - stale (I flag): Instead of deleting the item, mark it as stale. Other clients
         #   using N/R flags will see the X flag and know the item is being regenerated.
-        def meta_delete(key:, cas: nil, ttl: nil, quiet: false, stale: false)
+        # Tombstone flags:
+        # - stale (I flag): mark the item stale instead of removing it.  Readers
+        #   using N/R flags, or get_with_metadata, see the X flag and know the
+        #   item is being regenerated.
+        # - ttl (T flag): how long the stale marker lives.  memcached only honors
+        #   T on a delete when it is paired with I, so this raises rather than
+        #   emitting a request the server would apply differently than intended.
+        # - drop_value (x flag): remove the item's value but leave the item, so a
+        #   tombstone can be left without retaining the old payload.
+        def meta_delete(key:, cas: nil, ttl: nil, quiet: false, stale: false, drop_value: false)
+          # Message uses this method's own parameter names (ttl/stale), not the
+          # client-facing tombstone_ttl/invalidate names Dalli::Client validates
+          # against -- this guard is also reachable by internal callers (tests,
+          # direct RequestFormatter use) that never go through the client.
+          raise ArgumentError, 'ttl requires stale: true' if ttl && !stale
+
           cmd = "md #{encoded_key(key)}"
           cmd << cas_string(cas)
-          cmd << " T#{ttl}" if ttl
           cmd << ' I' if stale # Mark stale instead of deleting
+          cmd << " T#{Integer(ttl)}" if ttl
+          cmd << ' x' if drop_value # Drop the value but keep the item
           cmd << ' q' if quiet
           cmd << TERMINATOR
         end
 
-        def multi_meta_delete(keys)
+        # Tombstone flags apply to every key in the batch; see meta_delete.
+        def multi_meta_delete(keys, stale: false, ttl: nil, drop_value: false)
+          raise ArgumentError, 'tombstone_ttl requires invalidate: true' if ttl && !stale
+
+          suffix = +''
+          suffix << ' I' if stale
+          suffix << " T#{Integer(ttl)}" if ttl
+          suffix << ' x' if drop_value
+          suffix << ' q' << TERMINATOR
+
           buffer = ''.b
           keys.each do |key|
-            buffer << 'md ' << encoded_key(key) << ' q' << TERMINATOR
+            buffer << 'md ' << encoded_key(key) << suffix
           end
           buffer << META_NOOP
         end
 
-        def meta_arithmetic(key:, delta:, initial:, incr: true, cas: nil, ttl: nil, quiet: false)
+        def meta_arithmetic(key:, delta:, initial:, incr: true, cas: nil, ttl: nil, quiet: false,
+                            p_token: nil, l_token: nil)
           cmd = "ma #{encoded_key(key)} v"
           cmd << " D#{delta}" if delta
           cmd << " J#{initial}" if initial
@@ -128,7 +163,38 @@ module Dalli
           cmd << cas_string(cas)
           cmd << ' q' if quiet
           cmd << " M#{incr ? 'I' : 'D'}"
+          cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << TERMINATOR
+        end
+
+        # Builds the wire-format suffix for opaque routing tokens (P and L).
+        # memcached itself ignores these; they exist as hints for a proxy or
+        # router sitting between the client and memcached. See protocol.txt:
+        # "All commands accept tokens 'P' and 'L' which are completely ignored.
+        # The arguments to 'P' and 'L' can be used as hints or path
+        # specifications to a proxy or router inbetween a client and a
+        # memcached daemon."
+        #
+        # Empty / nil tokens are treated as no-ops. CRLF and null bytes are
+        # rejected with ArgumentError to prevent the token from being used as a
+        # wire-protocol injection vector (e.g. "foo\r\nflush_all\r\n" would
+        # otherwise be parsed as a second command by memcached or any
+        # intermediate proxy/LB).
+        def routing_tokens(p_token: nil, l_token: nil)
+          # Only an empty *String* is a no-op. Checking respond_to?(:empty?)
+          # instead would also swallow p_token: [] / {} before the type check
+          # below ever runs, silently dropping caller mistakes that should
+          # raise "must be a String".
+          p_token = nil if p_token.is_a?(String) && p_token.empty?
+          l_token = nil if l_token.is_a?(String) && l_token.empty?
+          validate_routing_token!('p_token', p_token)
+          validate_routing_token!('l_token', l_token)
+          return '' unless p_token || l_token
+
+          s = +''
+          s << " P#{p_token}" if p_token
+          s << " L#{l_token}" if l_token
+          s
         end
         # rubocop:enable Metrics/CyclomaticComplexity
         # rubocop:enable Metrics/ParameterLists
@@ -169,6 +235,17 @@ module Dalli
         end
 
         private
+
+        # Disallowed bytes: CR, LF, NUL. Any of these embedded in a routing
+        # token would let the caller inject a second wire-protocol command.
+        ROUTING_TOKEN_FORBIDDEN = /[\r\n\0]/
+        private_constant :ROUTING_TOKEN_FORBIDDEN
+
+        def validate_routing_token!(name, value)
+          return if value.nil?
+          raise ArgumentError, "#{name} must be a String, got #{value.class}" unless value.is_a?(String)
+          raise ArgumentError, "#{name} must not contain CRLF or null bytes" if value.match?(ROUTING_TOKEN_FORBIDDEN)
+        end
 
         def mode_to_token(mode)
           case mode

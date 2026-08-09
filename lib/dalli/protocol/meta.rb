@@ -26,7 +26,7 @@ module Dalli
       def get(key, options = nil)
         # Skip bitflags in raw mode - saves 2 bytes per request and skips parsing
         skip_flags = raw_mode? || (options && options[:raw])
-        req = RequestFormatter.meta_get(key: key, skip_flags: skip_flags)
+        req = RequestFormatter.meta_get(key: key, skip_flags: skip_flags, **routing_token_kwargs(options))
         flushed_write(req)
         response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
       end
@@ -39,7 +39,7 @@ module Dalli
       def gat(key, ttl, options = nil)
         ttl = TtlSanitizer.sanitize(ttl)
         skip_flags = raw_mode? || (options && options[:raw])
-        req = RequestFormatter.meta_get(key: key, ttl: ttl, skip_flags: skip_flags)
+        req = RequestFormatter.meta_get(key: key, ttl: ttl, skip_flags: skip_flags, **routing_token_kwargs(options))
         flushed_write(req)
         response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
       end
@@ -53,8 +53,8 @@ module Dalli
 
       # TODO: This is confusing, as there's a cas command in memcached
       # and this isn't it.  Maybe rename?  Maybe eliminate?
-      def cas(key)
-        req = RequestFormatter.meta_get(key: key, value: true, return_cas: true)
+      def cas(key, options = nil)
+        req = RequestFormatter.meta_get(key: key, value: true, return_cas: true, **routing_token_kwargs(options))
         flushed_write(req)
         response_processor.meta_get_with_value_and_cas
       end
@@ -90,7 +90,8 @@ module Dalli
           return_hit_status: options[:return_hit_status],
           return_last_access: options[:return_last_access],
           return_ttl_remaining: options[:return_ttl_remaining],
-          skip_lru_bump: options[:skip_lru_bump]
+          skip_lru_bump: options[:skip_lru_bump],
+          **routing_token_kwargs(options)
         )
         flushed_write(req)
         response_processor.meta_get_with_metadata(
@@ -140,35 +141,41 @@ module Dalli
         ttl = TtlSanitizer.sanitize(ttl) if ttl
         req = RequestFormatter.meta_set(key: key, value: value,
                                         bitflags: bitflags, cas: cas,
-                                        ttl: ttl, mode: mode, quiet: quiet)
+                                        ttl: ttl, mode: mode, quiet: quiet,
+                                        **routing_token_kwargs(options))
         write("#{req}#{value}#{TERMINATOR}")
         @connection_manager.flush unless quiet
       end
       # rubocop:enable Metrics/ParameterLists
 
-      def append(key, value)
-        write_append_prepend_req(:append, key, value)
+      def append(key, value, options = nil)
+        write_append_prepend_req(:append, key, value, nil, nil, options)
         response_processor.meta_set_append_prepend unless quiet?
       end
 
-      def prepend(key, value)
-        write_append_prepend_req(:prepend, key, value)
+      def prepend(key, value, options = nil)
+        write_append_prepend_req(:prepend, key, value, nil, nil, options)
         response_processor.meta_set_append_prepend unless quiet?
       end
 
       # rubocop:disable Metrics/ParameterLists
-      def write_append_prepend_req(mode, key, value, ttl = nil, cas = nil, _options = {})
+      def write_append_prepend_req(mode, key, value, ttl = nil, cas = nil, options = nil)
         ttl = TtlSanitizer.sanitize(ttl) if ttl
         req = RequestFormatter.meta_set(key: key, value: value,
-                                        cas: cas, ttl: ttl, mode: mode, quiet: quiet?)
+                                        cas: cas, ttl: ttl, mode: mode, quiet: quiet?,
+                                        **routing_token_kwargs(options))
         write("#{req}#{value}#{TERMINATOR}")
         @connection_manager.flush unless quiet?
       end
       # rubocop:enable Metrics/ParameterLists
 
       # Delete Commands
-      def delete(key, cas)
-        req = RequestFormatter.meta_delete(key: key, cas: cas, quiet: quiet?)
+      #
+      # `options` supports the meta-delete keys :invalidate, :tombstone_ttl and
+      # :drop_value; see Dalli::Client#delete.
+      def delete(key, cas, options = nil)
+        req = RequestFormatter.meta_delete(key: key, cas: cas, quiet: quiet?,
+                                           **tombstone_kwargs(options))
         write(req)
         @connection_manager.flush unless quiet?
         response_processor.meta_delete unless quiet?
@@ -176,8 +183,8 @@ module Dalli
 
       # Pipelined delete - writes a quiet delete request without reading response.
       # Used by PipelinedDeleter for bulk operations.
-      def pipelined_delete(key)
-        req = RequestFormatter.meta_delete(key: key, quiet: true)
+      def pipelined_delete(key, req_options = nil)
+        req = RequestFormatter.meta_delete(key: key, quiet: true, **tombstone_kwargs(req_options))
         write(req)
       end
 
@@ -187,21 +194,23 @@ module Dalli
       end
 
       # Arithmetic Commands
-      def decr(key, count, ttl, initial)
-        decr_incr false, key, count, ttl, initial
+      def decr(key, count, ttl, initial, options = nil)
+        decr_incr false, key, count, ttl, initial, options
       end
 
-      def incr(key, count, ttl, initial)
-        decr_incr true, key, count, ttl, initial
+      def incr(key, count, ttl, initial, options = nil)
+        decr_incr true, key, count, ttl, initial, options
       end
 
-      def decr_incr(incr, key, delta, ttl, initial)
+      # rubocop:disable Metrics/ParameterLists
+      def decr_incr(incr, key, delta, ttl, initial, options = nil)
         ttl = initial ? TtlSanitizer.sanitize(ttl) : nil # Only set a TTL if we want to set a value on miss
         write(RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial, incr: incr, ttl: ttl,
-                                               quiet: quiet?))
+                                               quiet: quiet?, **routing_token_kwargs(options)))
         @connection_manager.flush unless quiet?
         response_processor.decr_incr unless quiet?
       end
+      # rubocop:enable Metrics/ParameterLists
 
       # Other Commands
       def flush(delay = 0)
@@ -247,6 +256,40 @@ module Dalli
         read_multi_get_responses(is_raw)
       end
 
+      # Stale-aware bulk get.  Returns { key => { value:, cas:, stale:, miss: } }
+      # for the keys the server returned.  Keys that were not found are absent
+      # from the hash, matching read_multi_req and the get_multi family; a
+      # tombstoned item is present (it answers VA with the X flag) with
+      # stale: true, which is the distinction callers need.
+      def read_multi_with_metadata_req(keys)
+        is_raw = raw_mode?
+        buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw, return_cas: true)
+        flushed_write(buffer)
+        buffer.clear
+        read_multi_metadata_responses(is_raw)
+      end
+
+      # Unlike read_multi_get_responses this locates tokens by flag rather than
+      # by position, because the c flag shifts the key's index.
+      def read_multi_metadata_responses(is_raw)
+        hash = {}
+        while (line = @connection_manager.read_line)
+          break if line.start_with?('MN')
+          next unless line.start_with?('VA ')
+
+          tokens = line.chomp!(TERMINATOR).split
+          value = @connection_manager.read(tokens[1].to_i + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+          stale = response_processor.stale_from_tokens(tokens)
+          cas = response_processor.cas_from_tokens(tokens)
+          bitflags = is_raw ? 0 : response_processor.bitflags_from_tokens(tokens)
+          key = response_processor.key_from_tokens(tokens)
+          next if key.nil?
+
+          hash[key] = { value: @value_marshaller.retrieve(value, bitflags), cas: cas, stale: stale, miss: false }
+        end
+        hash
+      end
+
       def read_multi_get_responses(is_raw)
         hash = {}
         key_index = is_raw ? 2 : 3
@@ -288,8 +331,8 @@ module Dalli
 
       # Single-server fast path for delete_multi. Writes all quiet delete requests
       # terminated by a noop, then consumes all responses.
-      def delete_multi_req(keys)
-        buffer = RequestFormatter.multi_meta_delete(keys)
+      def delete_multi_req(keys, req_options = nil)
+        buffer = RequestFormatter.multi_meta_delete(keys, **tombstone_kwargs(req_options))
         flushed_write(buffer)
         buffer.clear
         keys.size - response_processor.pipelined_delete_non_deletions

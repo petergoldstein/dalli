@@ -4,6 +4,38 @@ Dalli Changelog
 Unreleased
 ==========
 
+Features:
+
+- Add opaque routing tokens: `:p_token` and `:l_token` request options (#1147)
+  - `get`, `gat`, `get_cas`, `get_with_metadata`, `fetch_with_lock`, `set`/`add`/`replace`/`set_cas`/`replace_cas`, `append`/`prepend`, `incr`/`decr`, and `cas`/`cas!` now accept per-request `:p_token`/`:l_token` options, appended to the wire protocol as `P<token>`/`L<token>`
+  - memcached itself ignores these tokens; per the meta protocol spec they exist as hints for a proxy or router sitting between the client and memcached
+  - CRLF and NUL bytes raise `ArgumentError` before the request reaches the socket, both in `Dalli::Client` and in `RequestFormatter`, so a bad token can't be used for wire-protocol injection and can't close the connection out from under the caller the way a formatter-only check would
+  - `get_multi`, `get_multi_cas`, `set_multi`, `delete_multi`, and `get_multi_with_metadata` do not accept these options yet
+  - Extracted from #1130; thanks to Nick Herson for the original idea and Jianbin Chen for porting it forward
+
+- Support tombstone (mark-stale) deletes on `delete`, `delete_cas`, and `delete_multi` (#1145, #1153)
+  - `:invalidate` marks the item stale instead of removing it, so `#get_with_metadata` / `#get_multi_with_metadata` report `stale: true` and a reader can tell "another process is repopulating this" apart from "this was never here" -- a tombstoned key is not a miss
+  - `:tombstone_ttl` controls how long the stale marker lives; requires `:invalidate`, since memcached only honors the TTL on a delete when it accompanies the invalidate flag
+  - `:drop_value` removes the item's value but leaves the item; on its own it is not a tombstone -- reads are an ordinary hit with an empty value
+  - `delete_multi` applies the same options to every key in the batch, on both the single-server and pipelined paths; its return value keeps counting keys the server found and acted on, so under `:invalidate` it reports how many keys were tombstoned rather than removed
+  - Extracted from #1130; thanks to Jianbin Chen for this contribution
+
+- Add `:miss` and `:return_ttl_remaining` to `get_with_metadata` (#1143)
+  - `:miss` is now always present in the returned Hash, distinguishing a true miss from a stored `nil` under `cache_nils` or a tombstoned, stale hit -- neither of which a `nil` `:value` alone can tell apart
+  - `:return_ttl_remaining` exposes the meta protocol's `t` flag as `:ttl_remaining` (seconds remaining, or `-1` for an item with no expiry), following the same opt-in shape as `:return_hit_status` / `:return_last_access`
+  - Extracted from #1130; thanks to Jianbin Chen for this contribution
+
+- Add `get_multi_with_metadata` for stale-aware bulk reads (#1144)
+  - Returns `{ key => { value:, cas:, stale:, miss: } }` for the keys that were found; genuine misses are omitted, matching `get_multi` / `get_multi_cas` -- a tombstoned item is a hit at the protocol level, so it is still returned, with `stale: true`
+  - Routes to the same single-server fast path / pipelined-getter split as `get_multi`
+  - Extracted from #1130; thanks to Jianbin Chen for this contribution
+
+Other changes:
+
+- Raise the documented minimum supported memcached version to 1.6.27 (#1140)
+  - Groundwork for the features above: `drop_value` tombstone deletes require 1.6.27, the highest floor of anything landing from #1130
+  - Not enforced at runtime -- `MIN_SUPPORTED_MEMCACHED_VERSION` only gates the test harness and the README's support statement, so this changes no running client's behavior
+
 Bug Fixes:
 
 - Retry a transient network error during a liveness check instead of treating it as terminal (#1150)
@@ -12,6 +44,13 @@ Bug Fixes:
   - **Behavior change:** a server that was previously marked "down" (engaging the `down_retry_delay` cooldown) only via an actual request could now also reach that state via a liveness check (`alive?`, and anything that calls it -- `Dalli::Client#stats`, `#reset_stats`, and `Ring`'s own server selection) exhausting its retries. Previously, a solitary transient failure during a liveness check was silently forgotten rather than tracked, so the cooldown was inconsistently applied depending on which code path first observed the failure
   - Likely a contributing cause of the same intermittently failing `get_multi` failover integration test noted in #1149: that fix addressed the send/receive phase, but the liveness-check retry it introduced can itself force a fresh `connect()` mid-retry, giving this separate, pre-existing gap in `alive?` more chances to fire
   - Also fixed a test (`test_ring.rb`, "detect when a dead server is up again") that had been unknowingly relying on the old behavior: it never engaged the `down_retry_delay` cooldown from a single transient failure, so its 0.5s delay never actually gated anything. Updated to use a 0s delay, since the test's intent is to verify reconnection is detected, not to test cooldown timing
+
+- Base64-encode keys containing control characters, not just NUL (#1148)
+  - `KeyRegularizer.required?` decided whether a key needed base64 encoding using `/\s/`, which matches most whitespace but none of the C0 control range (0x00-0x1F) or DEL (0x7F) -- a key that was otherwise ASCII-only and contained no whitespace (e.g. `"foo\x00bar"` or a key with an embedded ESC byte) went out on the wire unencoded
+  - Not a command-injection risk: the text protocol splits commands on CRLF, not other control bytes. The risk is key confusion -- anything downstream that treats one of these bytes specially (a C string terminating at NUL, a terminal or log line interpreting an escape byte) could silently act on a different key than Dalli believes it sent
+  - A raw control byte in a key was never protocol-compliant in the first place: memcached's own spec (`protocol.txt`) states a key "must not include control characters or whitespace." The only sanctioned way to carry such content in a key is the meta protocol's base64 (`b` flag) path -- the one whitespace and non-ASCII keys already used, and the one these keys now use too. The check is now `/[\p{Cntrl}\s]/`, matching that rule directly rather than special-casing NUL
+  - **Behavior change:** a key containing a control character now produces different bytes on the wire (base64-encoded, per the meta protocol's `b` flag) than before. Existing cache entries stored under the old, unencoded form of such a key will read as a miss once every reader has upgraded. **During a rolling deploy, old and new Dalli versions disagree about which physical key such a logical key maps to** -- not just a one-time cutover, but ongoing inconsistency between the old-version and new-version server pools for the duration of the rollout. Harmless for an ordinary cached value (worst case, extra cache misses); worth accounting for if such a key ever backs something stateful, like a lock or counter. Expected to be rare in practice: embedding a raw control byte in a cache key is unusual, and doing so was already outside what the protocol permits
+  - Found while auditing `request_formatter.rb` during the routing-token work in #1130 / #1147; unrelated to that change and predates it
 
 - Retry transient network errors in `get_multi`, `set_multi` and `delete_multi` instead of silently swallowing them (#1149)
   - All three methods group keys by server and issue one request per server. Each per-server rescue clause caught `DalliError` and `NetworkError` together and swallowed both, just debug-logging -- since `RetryableNetworkError < NetworkError`, this also silently swallowed transient, retryable failures, dropping that server's keys from the result instead of the whole operation retrying (`get_multi`/`set_multi`'s single-server fast path did not even attempt a retry, on any failure)

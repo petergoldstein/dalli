@@ -24,6 +24,42 @@ describe 'Encoding' do
           assert_equal utf8, dc.get(utf_key)
         end
       end
+
+      # KeyRegularizer.required? previously missed embedded control bytes
+      # ('\s' doesn't match NUL or most of the rest of the C0 range), so a key
+      # like this went on the wire unencoded. This doesn't prove base64
+      # encoding is actually used on the wire -- real memcached's key
+      # tokenizer splits on whitespace, not other control bytes, so it parses
+      # such a key as ordinary content either way, and the unit-level tests in
+      # test_key_regularizer.rb / test_request_formatter.rb are what actually
+      # exercise the encoding path. This is an end-to-end functional check:
+      # such a key can still be set/get correctly, and (via the sibling key
+      # below) doesn't collide with a similar key that has no control byte.
+      it 'supports keys with an embedded NUL byte, distinct from a similar key without one' do
+        memcached_persistent(p) do |dc|
+          nul_key = "foo\x00bar"
+          plain_key = 'foobar'
+
+          dc.set(nul_key, 'nul_value')
+          dc.set(plain_key, 'plain_value')
+
+          assert_equal 'nul_value', dc.get(nul_key)
+          assert_equal 'plain_value', dc.get(plain_key)
+        end
+      end
+
+      it 'supports keys with a non-NUL control byte (e.g. ESC), distinct from a similar key without one' do
+        memcached_persistent(p) do |dc|
+          esc_key = "foo\x1Bbar"
+          plain_key = 'foobar'
+
+          dc.set(esc_key, 'esc_value')
+          dc.set(plain_key, 'plain_value')
+
+          assert_equal 'esc_value', dc.get(esc_key)
+          assert_equal 'plain_value', dc.get(plain_key)
+        end
+      end
     end
   end
 end

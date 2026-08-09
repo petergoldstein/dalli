@@ -250,6 +250,37 @@ module Dalli
         opts[:cache_nils] ? true : false
       end
 
+      # Extracts opaque routing-token kwargs (:p_token, :l_token) from a
+      # request-options Hash so they can be splatted into a RequestFormatter
+      # call. Returns {} when neither is set, so the splat is a no-op on the
+      # common path. Validation (type, forbidden bytes) happens at the
+      # wire-formatter level, where it can raise uniformly regardless of how
+      # the token reached the formatter.
+      def routing_token_kwargs(opts)
+        return {} unless opts.is_a?(Hash)
+        return {} unless opts[:p_token] || opts[:l_token]
+
+        { p_token: opts[:p_token], l_token: opts[:l_token] }
+      end
+
+      # Maps the client-facing meta-delete options onto RequestFormatter's flag
+      # names, so they can be splatted into a meta_delete call.  Returns {} when
+      # none are set, keeping the splat a no-op on the common path.
+      #
+      # :tombstone_ttl becomes the T flag, which is the same TTL the formatter
+      # already accepted -- deliberately not a second TTL parameter, since two
+      # would allow emitting two T tokens in one request.  It is sanitized like
+      # every other TTL Dalli sends.
+      def tombstone_kwargs(opts)
+        return {} unless opts.is_a?(Hash)
+
+        kwargs = {}
+        kwargs[:stale] = true if opts[:invalidate]
+        kwargs[:ttl] = TtlSanitizer.sanitize(Integer(opts[:tombstone_ttl])) if opts[:tombstone_ttl]
+        kwargs[:drop_value] = true if opts[:drop_value]
+        kwargs
+      end
+
       def connect
         @connection_manager.establish_connection
         @version = version

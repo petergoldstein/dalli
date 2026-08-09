@@ -114,6 +114,24 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       TXT
       assert_equal expected, Dalli::Protocol::Meta::RequestFormatter.multi_meta_get(['foo', 'bar€'], skip_flags: true)
     end
+
+    it 'requests the cas token on every line when return_cas is set' do
+      expected = <<~TXT
+        mg foo v f c k q s\r
+        mg YmFy4oKs b v f c k q s\r
+        mn\r
+      TXT
+      assert_equal expected, Dalli::Protocol::Meta::RequestFormatter.multi_meta_get(['foo', 'bar€'], return_cas: true)
+    end
+
+    it 'combines return_cas with skip_flags' do
+      expected = <<~TXT
+        mg foo v c k q s\r
+        mn\r
+      TXT
+      assert_equal expected,
+                   Dalli::Protocol::Meta::RequestFormatter.multi_meta_get(['foo'], skip_flags: true, return_cas: true)
+    end
   end
 
   describe 'meta_set' do
@@ -246,6 +264,46 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                    Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, cas: 0)
     end
 
+    describe 'tombstone flags' do
+      it 'sets the I flag when marking stale' do
+        assert_equal "md #{key} I\r\n",
+                     Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, stale: true)
+      end
+
+      it 'sets the x flag when dropping the value' do
+        assert_equal "md #{key} x\r\n",
+                     Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, drop_value: true)
+      end
+
+      it 'emits the TTL after the I flag' do
+        assert_equal "md #{key} I T30\r\n",
+                     Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, stale: true, ttl: 30)
+      end
+
+      it 'combines the tombstone flags with CAS and quiet' do
+        assert_equal "md #{key} C#{cas} I T30 x q\r\n",
+                     Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, cas: cas, stale: true,
+                                                                         ttl: 30, drop_value: true, quiet: true)
+      end
+
+      # memcached only honors T on a delete when it accompanies I, so emitting
+      # one without the other would send a request it applies differently than
+      # the caller intends.
+      it 'raises when given a TTL without the stale flag' do
+        error = assert_raises(ArgumentError) do
+          Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, ttl: 30)
+        end
+
+        assert_equal 'ttl requires stale: true', error.message
+      end
+
+      it 'emits exactly one T token' do
+        req = Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, stale: true, ttl: 30)
+
+        assert_equal 1, req.scan(/ T\d+/).size
+      end
+    end
+
     it 'excludes non-numeric CAS values' do
       assert_equal "md #{key}\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key,
@@ -280,6 +338,33 @@ describe Dalli::Protocol::Meta::RequestFormatter do
         mn\r
       TXT
       assert_equal expected, Dalli::Protocol::Meta::RequestFormatter.multi_meta_delete(['foo', 'bar€'])
+    end
+
+    describe 'tombstone flags' do
+      it 'applies the flags to every key in the batch' do
+        expected = <<~TXT
+          md a I T30 x q\r
+          md b I T30 x q\r
+          mn\r
+        TXT
+        assert_equal expected,
+                     Dalli::Protocol::Meta::RequestFormatter.multi_meta_delete(%w[a b], stale: true, ttl: 30,
+                                                                                        drop_value: true)
+      end
+
+      it 'emits exactly one T token per key' do
+        req = Dalli::Protocol::Meta::RequestFormatter.multi_meta_delete(%w[a b], stale: true, ttl: 30)
+
+        assert_equal 2, req.scan(/ T\d+/).size
+      end
+
+      it 'raises when given a TTL without the stale flag' do
+        error = assert_raises(ArgumentError) do
+          Dalli::Protocol::Meta::RequestFormatter.multi_meta_delete(%w[a], ttl: 30)
+        end
+
+        assert_equal 'tombstone_ttl requires invalidate: true', error.message
+      end
     end
   end
 
@@ -472,8 +557,80 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       assert_encoded 'user:🎉:profile'
     end
 
+    # \s does not match NUL or most other control bytes, so an ASCII-only key
+    # containing one but no whitespace previously reached the wire unencoded.
+    it 'returns base64 encoded key for keys with an embedded NUL byte' do
+      assert_encoded "foo\x00bar"
+    end
+
+    it 'returns base64 encoded key for keys with a non-NUL control byte (e.g. ESC)' do
+      assert_encoded "foo\x1Bbar"
+    end
+
+    it 'returns base64 encoded key for keys containing DEL (0x7F)' do
+      assert_encoded "foo\x7Fbar"
+    end
+
     it 'handles empty keys' do
       assert_raw ''
+    end
+  end
+
+  describe 'routing tokens' do
+    it 'appends P and L tokens to meta_get' do
+      assert_equal "mg foo v f Ppod1 Lzone2\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: 'pod1', l_token: 'zone2')
+    end
+
+    it 'appends routing tokens to quiet meta_get before the quiet flags' do
+      assert_equal "mg foo v f Px k q s\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', quiet: true, p_token: 'x')
+    end
+
+    it 'appends routing tokens to meta_set' do
+      assert_equal "ms foo 1 MS q Ppod1\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_set(key: 'foo', value: 'v', quiet: true,
+                                                                    p_token: 'pod1')
+    end
+
+    it 'appends routing tokens to meta_arithmetic' do
+      assert_equal "ma c v D1 MI Lz\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: 'c', delta: 1, initial: nil,
+                                                                           l_token: 'z')
+    end
+
+    it 'treats nil and empty tokens as no-ops' do
+      plain = Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo')
+
+      assert_equal plain, Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: nil)
+      assert_equal plain, Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: '', l_token: '')
+    end
+
+    # An empty non-String (e.g. [] or {}) must still hit the "must be a
+    # String" check -- only an empty String is a no-op. Checking
+    # respond_to?(:empty?) instead would let these slip through silently
+    # before the type check ever ran.
+    it 'does not treat an empty non-String as a no-op' do
+      assert_raises(ArgumentError) do
+        Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: [])
+      end
+      assert_raises(ArgumentError) do
+        Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', l_token: {})
+      end
+    end
+
+    it 'rejects CRLF and null bytes to prevent wire injection' do
+      %W[evil\r\nflush_all evil\rx evil\nx evil\0x].each do |token|
+        assert_raises(ArgumentError) do
+          Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: token)
+        end
+      end
+    end
+
+    it 'rejects non-String tokens' do
+      assert_raises(ArgumentError) do
+        Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', l_token: 42)
+      end
     end
   end
 end
