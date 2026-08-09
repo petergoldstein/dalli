@@ -243,6 +243,14 @@ module Dalli
           value_from_tokens(tokens, 'c').to_i
         end
 
+        # Detects the X presence flag, set when an item has been marked stale by a
+        # prior `md key I`.  Uses strict equality (Array#any? with a String pattern
+        # compares with ==) so a future value-bearing flag beginning with X cannot
+        # be mistaken for it.
+        def stale_from_tokens(tokens)
+          tokens.any?('X')
+        end
+
         def key_from_tokens(tokens)
           encoded_key = value_from_tokens(tokens, 'k')
           if tokens.delete('b')

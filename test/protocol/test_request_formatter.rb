@@ -114,6 +114,24 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       TXT
       assert_equal expected, Dalli::Protocol::Meta::RequestFormatter.multi_meta_get(['foo', 'bar€'], skip_flags: true)
     end
+
+    it 'requests the cas token on every line when return_cas is set' do
+      expected = <<~TXT
+        mg foo v f c k q s\r
+        mg YmFy4oKs b v f c k q s\r
+        mn\r
+      TXT
+      assert_equal expected, Dalli::Protocol::Meta::RequestFormatter.multi_meta_get(['foo', 'bar€'], return_cas: true)
+    end
+
+    it 'combines return_cas with skip_flags' do
+      expected = <<~TXT
+        mg foo v c k q s\r
+        mn\r
+      TXT
+      assert_equal expected,
+                   Dalli::Protocol::Meta::RequestFormatter.multi_meta_get(['foo'], skip_flags: true, return_cas: true)
+    end
   end
 
   describe 'meta_set' do
