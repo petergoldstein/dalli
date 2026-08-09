@@ -180,8 +180,8 @@ module Dalli
 
       # Pipelined delete - writes a quiet delete request without reading response.
       # Used by PipelinedDeleter for bulk operations.
-      def pipelined_delete(key)
-        req = RequestFormatter.meta_delete(key: key, quiet: true)
+      def pipelined_delete(key, req_options = nil)
+        req = RequestFormatter.meta_delete(key: key, quiet: true, **tombstone_kwargs(req_options))
         write(req)
       end
 
@@ -292,8 +292,8 @@ module Dalli
 
       # Single-server fast path for delete_multi. Writes all quiet delete requests
       # terminated by a noop, then consumes all responses.
-      def delete_multi_req(keys)
-        buffer = RequestFormatter.multi_meta_delete(keys)
+      def delete_multi_req(keys, req_options = nil)
+        buffer = RequestFormatter.multi_meta_delete(keys, **tombstone_kwargs(req_options))
         flushed_write(buffer)
         buffer.clear
         keys.size - response_processor.pipelined_delete_non_deletions
