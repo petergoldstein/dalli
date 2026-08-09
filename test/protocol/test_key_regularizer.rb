@@ -51,6 +51,36 @@ describe Dalli::Protocol::Meta::KeyRegularizer do
 
       refute Dalli::Protocol::Meta::KeyRegularizer.required?(key)
     end
+
+    # \s does not match NUL or most other control bytes, so an ASCII-only key
+    # containing one but no whitespace would otherwise slip past this check
+    # and reach the wire unencoded -- protocol.txt requires that a key "must
+    # not include control characters or whitespace."
+    it 'returns true for keys with embedded NUL bytes' do
+      key = "foo\x00bar"
+
+      assert Dalli::Protocol::Meta::KeyRegularizer.required?(key)
+    end
+
+    it 'returns true for keys with a non-NUL control byte (e.g. ESC)' do
+      key = "foo\x1Bbar"
+
+      assert Dalli::Protocol::Meta::KeyRegularizer.required?(key)
+    end
+
+    it 'returns true for keys containing DEL (0x7F)' do
+      key = "foo\x7Fbar"
+
+      assert Dalli::Protocol::Meta::KeyRegularizer.required?(key)
+    end
+
+    it 'returns true for every C0 control byte and DEL' do
+      ((0x00..0x1F).to_a + [0x7F]).each do |byte|
+        key = "foo#{byte.chr}bar"
+
+        assert Dalli::Protocol::Meta::KeyRegularizer.required?(key), "byte 0x#{byte.to_s(16)} was not caught"
+      end
+    end
   end
 
   describe '.encode' do
@@ -111,6 +141,22 @@ describe Dalli::Protocol::Meta::KeyRegularizer do
 
     it 'encode then decode returns original mixed content key' do
       original_key = 'user:日本語:profile 🎉'
+      encoded_key = Dalli::Protocol::Meta::KeyRegularizer.encode(original_key)
+      decoded_key = Dalli::Protocol::Meta::KeyRegularizer.decode(encoded_key)
+
+      assert_equal original_key, decoded_key
+    end
+
+    it 'encode then decode returns original key with an embedded NUL byte' do
+      original_key = "foo\x00bar"
+      encoded_key = Dalli::Protocol::Meta::KeyRegularizer.encode(original_key)
+      decoded_key = Dalli::Protocol::Meta::KeyRegularizer.decode(encoded_key)
+
+      assert_equal original_key, decoded_key
+    end
+
+    it 'encode then decode returns original key with a non-NUL control byte' do
+      original_key = "foo\x1Bbar"
       encoded_key = Dalli::Protocol::Meta::KeyRegularizer.encode(original_key)
       decoded_key = Dalli::Protocol::Meta::KeyRegularizer.decode(encoded_key)
 
