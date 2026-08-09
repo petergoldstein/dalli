@@ -24,6 +24,24 @@ describe 'Encoding' do
           assert_equal utf8, dc.get(utf_key)
         end
       end
+
+      # KeyRegularizer.required? previously missed embedded NUL bytes ('\s'
+      # doesn't match '\0'), so a key like this went on the wire unencoded --
+      # this proves it now round-trips through the base64 path instead, and
+      # (via the sibling key below) doesn't collide with a similar key that
+      # has no NUL.
+      it 'supports keys with an embedded NUL byte, distinct from a similar key without one' do
+        memcached_persistent(p) do |dc|
+          nul_key = "foo\x00bar"
+          plain_key = 'foobar'
+
+          dc.set(nul_key, 'nul_value')
+          dc.set(plain_key, 'plain_value')
+
+          assert_equal 'nul_value', dc.get(nul_key)
+          assert_equal 'plain_value', dc.get(plain_key)
+        end
+      end
     end
   end
 end

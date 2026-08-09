@@ -12,8 +12,15 @@ module Dalli
       module KeyRegularizer
         module_function
 
+        # \s does not match NUL. A key with an embedded NUL is ASCII-only and
+        # has no whitespace, so it would otherwise be written to the wire
+        # unencoded -- not a protocol-injection risk (the text protocol splits
+        # on CRLF, not NUL), but a downstream consumer that treats the key as
+        # a C string (memcached itself, a proxy, logging) could silently
+        # truncate at the NUL and act on a different, shorter key than Dalli
+        # believes it sent.
         def required?(key)
-          !key.ascii_only? || /\s/.match?(key)
+          !key.ascii_only? || /[\s\0]/.match?(key)
         end
 
         def encode(key)

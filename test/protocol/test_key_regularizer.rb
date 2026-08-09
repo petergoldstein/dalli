@@ -51,6 +51,15 @@ describe Dalli::Protocol::Meta::KeyRegularizer do
 
       refute Dalli::Protocol::Meta::KeyRegularizer.required?(key)
     end
+
+    # \s does not match NUL, so an ASCII-only key with an embedded NUL and no
+    # other whitespace would otherwise slip past this check and reach the
+    # wire unencoded.
+    it 'returns true for keys with embedded NUL bytes' do
+      key = "foo\x00bar"
+
+      assert Dalli::Protocol::Meta::KeyRegularizer.required?(key)
+    end
   end
 
   describe '.encode' do
@@ -111,6 +120,14 @@ describe Dalli::Protocol::Meta::KeyRegularizer do
 
     it 'encode then decode returns original mixed content key' do
       original_key = 'user:日本語:profile 🎉'
+      encoded_key = Dalli::Protocol::Meta::KeyRegularizer.encode(original_key)
+      decoded_key = Dalli::Protocol::Meta::KeyRegularizer.decode(encoded_key)
+
+      assert_equal original_key, decoded_key
+    end
+
+    it 'encode then decode returns original key with an embedded NUL byte' do
+      original_key = "foo\x00bar"
       encoded_key = Dalli::Protocol::Meta::KeyRegularizer.encode(original_key)
       decoded_key = Dalli::Protocol::Meta::KeyRegularizer.decode(encoded_key)
 

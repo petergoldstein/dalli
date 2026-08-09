@@ -38,6 +38,12 @@ Other changes:
 
 Bug Fixes:
 
+- Base64-encode keys containing embedded NUL bytes (#1148)
+  - `KeyRegularizer.required?` decided whether a key needed base64 encoding using `/\s/`, which does not match NUL -- a key that was otherwise ASCII-only and contained no whitespace (e.g. `"foo\x00bar"`) went out on the wire unencoded
+  - Not a command-injection risk: the text protocol splits commands on CRLF, not NUL. The risk is key confusion -- anything downstream that treats the key as a C string (memcached itself, a proxy, logging) could silently truncate at the NUL and act on a different, shorter key than Dalli believes it sent
+  - **Behavior change:** a key containing a NUL byte now round-trips through the base64 path already used for whitespace and non-ASCII keys, which is a different set of bytes on the wire than before. Any existing cache entries stored under the old, unencoded form of such a key will read as a miss after upgrading -- expected to be rare in practice, since embedding raw NUL bytes in a cache key is unusual
+  - Found while auditing `request_formatter.rb` during the routing-token work in #1130 / #1147; unrelated to that change and predates it
+
 - Retry transient network errors in `get_multi`, `set_multi` and `delete_multi` instead of silently swallowing them (#1149)
   - All three methods group keys by server and issue one request per server. Each per-server rescue clause caught `DalliError` and `NetworkError` together and swallowed both, just debug-logging -- since `RetryableNetworkError < NetworkError`, this also silently swallowed transient, retryable failures, dropping that server's keys from the result instead of the whole operation retrying (`get_multi`/`set_multi`'s single-server fast path did not even attempt a retry, on any failure)
   - Six rescue sites across `PipelinedGetter`, `PipelinedSetter`, `PipelinedDeleter` and the `single_server_*` fast paths now retry a transient `RetryableNetworkError`, matching sibling rescue sites in the same files that already did this correctly
