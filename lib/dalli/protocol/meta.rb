@@ -31,9 +31,10 @@ module Dalli
         response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
       end
 
-      def quiet_get_request(key)
+      def quiet_get_request(key, options = nil)
         # Skip bitflags in raw mode - saves 2 bytes per request and skips parsing
-        RequestFormatter.meta_get(key: key, return_cas: true, quiet: true, skip_flags: raw_mode?)
+        RequestFormatter.meta_get(key: key, return_cas: true, quiet: true, skip_flags: raw_mode?,
+                                  **routing_token_kwargs(options))
       end
 
       def gat(key, ttl, options = nil)
@@ -172,10 +173,10 @@ module Dalli
       # Delete Commands
       #
       # `options` supports the meta-delete keys :invalidate, :tombstone_ttl and
-      # :drop_value; see Dalli::Client#delete.
+      # :drop_value, plus :p_token/:l_token; see Dalli::Client#delete.
       def delete(key, cas, options = nil)
         req = RequestFormatter.meta_delete(key: key, cas: cas, quiet: quiet?,
-                                           **tombstone_kwargs(options))
+                                           **tombstone_kwargs(options), **routing_token_kwargs(options))
         write(req)
         @connection_manager.flush unless quiet?
         response_processor.meta_delete unless quiet?
@@ -184,7 +185,8 @@ module Dalli
       # Pipelined delete - writes a quiet delete request without reading response.
       # Used by PipelinedDeleter for bulk operations.
       def pipelined_delete(key, req_options = nil)
-        req = RequestFormatter.meta_delete(key: key, quiet: true, **tombstone_kwargs(req_options))
+        req = RequestFormatter.meta_delete(key: key, quiet: true,
+                                           **tombstone_kwargs(req_options), **routing_token_kwargs(req_options))
         write(req)
       end
 
@@ -248,9 +250,9 @@ module Dalli
       # Single-server fast path for get_multi. Inlines request formatting and
       # response parsing to minimize per-key overhead. Avoids the PipelinedGetter
       # machinery (IO.select, response buffering, server grouping).
-      def read_multi_req(keys)
+      def read_multi_req(keys, options = nil)
         is_raw = raw_mode?
-        buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw)
+        buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw, **routing_token_kwargs(options))
         flushed_write(buffer)
         buffer.clear
         read_multi_get_responses(is_raw)
@@ -261,9 +263,13 @@ module Dalli
       # from the hash, matching read_multi_req and the get_multi family; a
       # tombstoned item is present (it answers VA with the X flag) with
       # stale: true, which is the distinction callers need.
-      def read_multi_with_metadata_req(keys)
+      #
+      # Shared by both the single-server fast path and PipelinedGetter's
+      # per-server-group request, so this one change covers both routes.
+      def read_multi_with_metadata_req(keys, options = nil)
         is_raw = raw_mode?
-        buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw, return_cas: true)
+        buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw, return_cas: true,
+                                                       **routing_token_kwargs(options))
         flushed_write(buffer)
         buffer.clear
         read_multi_metadata_responses(is_raw)
@@ -323,7 +329,7 @@ module Dalli
           [key, @value_marshaller.store(key, raw_value, req_options)]
         end
 
-        buffer = RequestFormatter.multi_meta_set(entries, ttl: ttl)
+        buffer = RequestFormatter.multi_meta_set(entries, ttl: ttl, **routing_token_kwargs(req_options))
         flushed_write(buffer)
         buffer.clear
         response_processor.consume_all_responses_until_mn
@@ -332,7 +338,8 @@ module Dalli
       # Single-server fast path for delete_multi. Writes all quiet delete requests
       # terminated by a noop, then consumes all responses.
       def delete_multi_req(keys, req_options = nil)
-        buffer = RequestFormatter.multi_meta_delete(keys, **tombstone_kwargs(req_options))
+        buffer = RequestFormatter.multi_meta_delete(keys, **tombstone_kwargs(req_options),
+                                                    **routing_token_kwargs(req_options))
         flushed_write(buffer)
         buffer.clear
         keys.size - response_processor.pipelined_delete_non_deletions

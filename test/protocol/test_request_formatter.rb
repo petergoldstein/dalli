@@ -132,6 +132,17 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       assert_equal expected,
                    Dalli::Protocol::Meta::RequestFormatter.multi_meta_get(['foo'], skip_flags: true, return_cas: true)
     end
+
+    it 'applies routing tokens once, before the quiet flags' do
+      expected = <<~TXT
+        mg foo v f Ppod1 Lzone2 k q s\r
+        mg YmFy4oKs b v f Ppod1 Lzone2 k q s\r
+        mn\r
+      TXT
+      assert_equal expected,
+                   Dalli::Protocol::Meta::RequestFormatter.multi_meta_get(['foo', 'bar€'],
+                                                                          p_token: 'pod1', l_token: 'zone2')
+    end
   end
 
   describe 'meta_set' do
@@ -238,6 +249,20 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                                                                                       'bar€' => ['OTHER', 12]
                                                                                     }, ttl: 42)
     end
+
+    it 'applies routing tokens once, to every entry' do
+      expected = <<~TXT
+        ms foo 5 c F2433 MS q Ppod1\r
+        VALUE\r
+        ms YmFy4oKs 5 c b F12 MS q Ppod1\r
+        OTHER\r
+        mn\r
+      TXT
+      assert_equal expected, Dalli::Protocol::Meta::RequestFormatter.multi_meta_set({
+                                                                                      'foo' => ['VALUE', 2433],
+                                                                                      'bar€' => ['OTHER', 12]
+                                                                                    }, p_token: 'pod1')
+    end
   end
 
   describe 'meta_delete' do
@@ -328,6 +353,12 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                      Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, stale: true, quiet: true)
       end
     end
+
+    it 'appends routing tokens after quiet' do
+      assert_equal "md #{key} q Ppod1 Lzone2\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, quiet: true,
+                                                                       p_token: 'pod1', l_token: 'zone2')
+    end
   end
 
   describe 'multi_meta_delete' do
@@ -365,6 +396,15 @@ describe Dalli::Protocol::Meta::RequestFormatter do
 
         assert_equal 'tombstone_ttl requires invalidate: true', error.message
       end
+    end
+
+    it 'applies routing tokens once, to every key in the batch' do
+      expected = <<~TXT
+        md a q Ppod1\r
+        md b q Ppod1\r
+        mn\r
+      TXT
+      assert_equal expected, Dalli::Protocol::Meta::RequestFormatter.multi_meta_delete(%w[a b], p_token: 'pod1')
     end
   end
 

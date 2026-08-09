@@ -6,11 +6,11 @@ Unreleased
 
 Features:
 
-- Add opaque routing tokens: `:p_token` and `:l_token` request options (#1147)
-  - `get`, `gat`, `get_cas`, `get_with_metadata`, `fetch_with_lock`, `set`/`add`/`replace`/`set_cas`/`replace_cas`, `append`/`prepend`, `incr`/`decr`, and `cas`/`cas!` now accept per-request `:p_token`/`:l_token` options, appended to the wire protocol as `P<token>`/`L<token>`
+- Add opaque routing tokens: `:p_token` and `:l_token` request options (#1147, #1154)
+  - `get`, `gat`, `get_cas`, `get_with_metadata`, `fetch_with_lock`, `set`/`add`/`replace`/`set_cas`/`replace_cas`, `append`/`prepend`, `incr`/`decr`, `cas`/`cas!`, `delete`/`delete_cas`, and the bulk operations (`get_multi`, `get_multi_cas`, `get_multi_with_metadata`, `set_multi`, `delete_multi`) all accept per-request `:p_token`/`:l_token` options, appended to the wire protocol as `P<token>`/`L<token>` -- applied to every key on the bulk methods
   - memcached itself ignores these tokens; per the meta protocol spec they exist as hints for a proxy or router sitting between the client and memcached
   - CRLF and NUL bytes raise `ArgumentError` before the request reaches the socket, both in `Dalli::Client` and in `RequestFormatter`, so a bad token can't be used for wire-protocol injection and can't close the connection out from under the caller the way a formatter-only check would
-  - `get_multi`, `get_multi_cas`, `set_multi`, `delete_multi`, and `get_multi_with_metadata` do not accept these options yet
+  - The bulk methods and `delete`/`delete_cas` were deferred out of #1147 to avoid racing other in-flight PRs touching the same method signatures; #1154 completes them, including both the single-server fast path and the multi-server pipelined path for each
   - Extracted from #1130; thanks to Nick Herson for the original idea and Jianbin Chen for porting it forward
 
 - Support tombstone (mark-stale) deletes on `delete`, `delete_cas`, and `delete_multi` (#1145, #1153)

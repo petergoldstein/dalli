@@ -20,16 +20,18 @@ module Dalli
     ##
     # Yields, one at a time, keys and their values+attributes.
     #
+    # `req_options` accepts :p_token/:l_token, applied to every key in the batch.
+    #
     # A transient network error is retried automatically. If a server remains
     # unreachable after retrying, raises Dalli::NetworkError.
     #
-    def process(keys, &block)
+    def process(keys, req_options = nil, &block)
       return {} if keys.empty?
 
       @ring.lock do
         # Stores partial results collected during interleaved send phase
         @partial_results = {}
-        servers = setup_requests(keys)
+        servers = setup_requests(keys, req_options)
         start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
         # First yield any partial results collected during interleaved send
@@ -53,13 +55,15 @@ module Dalli
     # metadata path has no interleaving support, and the stale-aware callers it
     # serves fetch far smaller batches than get_multi does.
     #
-    def process_with_metadata(keys)
+    # `req_options` accepts :p_token/:l_token, applied to every key in the batch.
+    #
+    def process_with_metadata(keys, req_options = nil)
       return {} if keys.empty?
 
       @ring.lock do
         results = {}
         groups_for_keys(keys).each do |server, keys_for_server|
-          results.merge!(server.request(:read_multi_with_metadata_req, keys_for_server))
+          results.merge!(server.request(:read_multi_with_metadata_req, keys_for_server, req_options))
         rescue Dalli::RetryableNetworkError
           raise
         rescue DalliError, NetworkError => e
@@ -84,9 +88,9 @@ module Dalli
       @partial_results.clear
     end
 
-    def setup_requests(keys)
+    def setup_requests(keys, req_options = nil)
       groups = groups_for_keys(keys)
-      make_getkq_requests(groups)
+      make_getkq_requests(groups, req_options)
 
       # TODO: How does this exit on a NetworkError
       finish_queries(groups.keys)
@@ -100,15 +104,15 @@ module Dalli
     # on the wire by switching from getkq to getq, and using
     # the opaque value to match requests to responses.
     ##
-    def make_getkq_requests(groups)
+    def make_getkq_requests(groups, req_options = nil)
       groups.each do |server, keys_for_server|
         if keys_for_server.size <= INTERLEAVE_THRESHOLD
           # Small batch - send all at once (existing behavior)
-          server.request(:pipelined_get, keys_for_server)
+          server.request(:pipelined_get, keys_for_server, req_options)
         else
           # Large batch - interleave sends with response draining
           # Pass @partial_results directly to avoid hash allocation/merge overhead
-          server.request(:pipelined_get_interleaved, keys_for_server, CHUNK_SIZE, @partial_results)
+          server.request(:pipelined_get_interleaved, keys_for_server, CHUNK_SIZE, @partial_results, req_options)
         end
       # NetworkError (which RetryableNetworkError subclasses) must propagate:
       # #process's top-level rescue retries the whole pipelined get on it. This

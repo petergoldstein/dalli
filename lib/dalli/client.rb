@@ -155,21 +155,25 @@ module Dalli
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
     #
+    # `req_options` accepts :p_token/:l_token, applied to every key in the batch.
+    #
     # A transient network error is retried automatically. If a server remains
     # unreachable after retrying, raises Dalli::NetworkError rather than
     # silently omitting that server's keys from the result.
     #
     # @raise [Dalli::NetworkError] if a server is unreachable after retrying
     # rubocop:disable Style/ExplicitBlockArgument
-    def get_multi(*keys)
+    def get_multi(*keys, req_options: nil)
       keys.flatten!
       keys.compact!
       return {} if keys.empty?
 
+      validate_routing_tokens!(req_options)
+
       if block_given?
-        get_multi_yielding(keys) { |k, v| yield k, v }
+        get_multi_yielding(keys, req_options) { |k, v| yield k, v }
       else
-        get_multi_hash(keys)
+        get_multi_hash(keys, req_options)
       end
     end
     # rubocop:enable Style/ExplicitBlockArgument
@@ -194,19 +198,24 @@ module Dalli
     # same server; across multiple servers it follows per-server response
     # order instead, the same as #get_multi.
     #
+    # `req_options` accepts :p_token/:l_token, applied to every key in the batch.
+    #
     # @param keys [Array<String>] the keys to fetch
+    # @param req_options [Hash, nil] routing-token options
     # @return [Hash] key => { value:, cas:, stale:, miss: }
-    def get_multi_with_metadata(*keys, &block)
+    def get_multi_with_metadata(*keys, req_options: nil, &block)
       keys.flatten!
       keys.compact!
       return {} if keys.empty?
 
+      validate_routing_tokens!(req_options)
+
       results = Instrumentation.trace('get_multi_with_metadata',
                                       multi_trace_attrs('get_multi_with_metadata', keys.size, keys)) do
         if ring.servers.size == 1
-          single_server_get_multi_with_metadata(keys)
+          single_server_get_multi_with_metadata(keys, req_options)
         else
-          pipelined_getter.process_with_metadata(keys)
+          pipelined_getter.process_with_metadata(keys, req_options)
         end
       end
 
@@ -227,12 +236,16 @@ module Dalli
     # [value, cas_id]
     # If no block is given, returns a hash of
     #   { 'key' => [value, cas_id] }
-    def get_multi_cas(*keys)
+    #
+    # `req_options` accepts :p_token/:l_token, applied to every key in the batch.
+    def get_multi_cas(*keys, req_options: nil)
+      validate_routing_tokens!(req_options)
+
       if block_given?
-        pipelined_getter.process(keys) { |*args| yield(*args) }
+        pipelined_getter.process(keys, req_options) { |*args| yield(*args) }
       else
         {}.tap do |hash|
-          pipelined_getter.process(keys) { |k, data| hash[k] = data }
+          pipelined_getter.process(keys, req_options) { |k, data| hash[k] = data }
         end
       end
     end
@@ -370,7 +383,8 @@ module Dalli
     #
     # @param hash [Hash] key-value pairs to set
     # @param ttl [Integer] time-to-live in seconds (optional, uses default if not provided)
-    # @param req_options [Hash] options passed to each set operation
+    # @param req_options [Hash] options passed to each set operation; accepts
+    #   :p_token/:l_token, applied to every key in the batch
     # @return [void]
     # @raise [Dalli::NetworkError] if a server is unreachable after retrying
     #
@@ -378,6 +392,8 @@ module Dalli
     #   client.set_multi({ 'key1' => 'value1', 'key2' => 'value2' }, 300)
     def set_multi(hash, ttl = nil, req_options = nil)
       return if hash.empty?
+
+      validate_routing_tokens!(req_options)
 
       Instrumentation.trace('set_multi', multi_trace_attrs('set_multi', hash.size, hash.keys)) do
         if ring.servers.size == 1
@@ -427,6 +443,7 @@ module Dalli
     # `req_options` accepts the same meta-delete options as #delete.
     def delete_cas(key, cas = 0, req_options = nil)
       validate_delete_options!(req_options)
+      validate_routing_tokens!(req_options)
       perform(:delete, key, cas, req_options)
     end
 
@@ -449,6 +466,8 @@ module Dalli
     # - `:drop_value` (Boolean) — remove the item's value but leave the item, so
     #   a tombstone need not retain the old payload. On its own it is not a
     #   tombstone: reads are an ordinary hit with an empty value.
+    # - `:p_token`/`:l_token` (String) — opaque routing tokens for an
+    #   intermediate proxy or router; see #get.
     #
     #   dc.delete('key', invalidate: true, tombstone_ttl: 30, drop_value: true)
     #
@@ -485,6 +504,7 @@ module Dalli
       return 0 if keys.empty?
 
       validate_delete_options!(req_options)
+      validate_routing_tokens!(req_options)
 
       Instrumentation.trace('delete_multi', multi_trace_attrs('delete_multi', keys.size, keys)) do
         if ring.servers.size == 1
@@ -659,10 +679,10 @@ module Dalli
                           'db.memcached.miss_count' => key_count - hit_count)
     end
 
-    def get_multi_yielding(keys)
+    def get_multi_yielding(keys, req_options = nil)
       Instrumentation.trace_with_result('get_multi', get_multi_attributes(keys)) do |span|
         hit_count = 0
-        pipelined_getter.process(keys) do |k, data|
+        pipelined_getter.process(keys, req_options) do |k, data|
           hit_count += 1
           yield k, data.first
         end
@@ -671,13 +691,13 @@ module Dalli
       end
     end
 
-    def get_multi_hash(keys)
+    def get_multi_hash(keys, req_options = nil)
       Instrumentation.trace_with_result('get_multi', get_multi_attributes(keys)) do |span|
         hash = if ring.servers.size == 1
-                 single_server_get_multi(keys)
+                 single_server_get_multi(keys, req_options)
                else
                  {}.tap do |h|
-                   pipelined_getter.process(keys) { |k, data| h[k] = data.first }
+                   pipelined_getter.process(keys, req_options) { |k, data| h[k] = data.first }
                  end
                end
         record_hit_miss_metrics(span, keys.size, hash.size)
@@ -699,11 +719,11 @@ module Dalli
     # wrong result. Only server_for_key/single_server finding no live server
     # to route to at all is still silent, matching Ring#keys_grouped_by_server
     # dropping a key it can't route on both the single- and multi-server paths.
-    def single_server_get_multi(keys)
+    def single_server_get_multi(keys, req_options = nil)
       keys.map! { |k| @key_manager.validate_key(k.to_s) }
       return {} unless (server = single_server)
 
-      result = server.request(:read_multi_req, keys)
+      result = server.request(:read_multi_req, keys, req_options)
       result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
       result
     rescue Dalli::RetryableNetworkError => e
@@ -712,11 +732,11 @@ module Dalli
       retry
     end
 
-    def single_server_get_multi_with_metadata(keys)
+    def single_server_get_multi_with_metadata(keys, req_options = nil)
       keys.map! { |k| @key_manager.validate_key(k.to_s) }
       return {} unless (server = single_server)
 
-      result = server.request(:read_multi_with_metadata_req, keys)
+      result = server.request(:read_multi_with_metadata_req, keys, req_options)
       result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
       result
     rescue Dalli::NetworkError

@@ -55,16 +55,21 @@ module Dalli
           cmd << TERMINATOR
         end
 
-        def multi_meta_get(keys, skip_flags: false, return_cas: false)
+        def multi_meta_get(keys, skip_flags: false, return_cas: false, p_token: nil, l_token: nil)
           # In raw mode: "mg <key> v k q s\r\n" (no f flag, key at index 2)
           # Normal mode: "mg <key> v f k q s\r\n" (key at index 3)
           # With return_cas a "c" flag follows, which shifts those indexes --
           # callers of that variant locate tokens by flag rather than position.
+          # Routing tokens apply to every key in the batch, so the suffix is
+          # built once rather than per key.
           post_get = if return_cas
-                       skip_flags ? " v c k q s\r\n" : " v f c k q s\r\n"
+                       skip_flags ? ' v c' : ' v f c'
                      else
-                       skip_flags ? " v k q s\r\n" : " v f k q s\r\n"
+                       skip_flags ? ' v' : ' v f'
                      end
+          post_get += routing_tokens(p_token: p_token, l_token: l_token)
+          post_get += " k q s#{TERMINATOR}"
+
           buffer = ''.b
           keys.each do |key|
             buffer << 'mg ' << encoded_key(key) << post_get
@@ -90,7 +95,11 @@ module Dalli
           cmd << TERMINATOR
         end
 
-        def multi_meta_set(entries, ttl: nil)
+        def multi_meta_set(entries, ttl: nil, p_token: nil, l_token: nil)
+          # Routing tokens apply to every entry in the batch, so the suffix is
+          # built once rather than per entry.
+          token_suffix = routing_tokens(p_token: p_token, l_token: l_token)
+
           buffer = ''.b
           entries.each do |key, pair|
             value, bitflags = pair
@@ -98,12 +107,12 @@ module Dalli
             base64 = KeyRegularizer.required?(key)
             key = KeyRegularizer.encode(key) if base64
 
-            # Inline format: "ms <key> <size> c [b] F<flags> T<ttl> MS q\r\n"
+            # Inline format: "ms <key> <size> c [b] F<flags> T<ttl> MS q [P/L]\r\n"
             buffer << "ms #{key} #{value.bytesize} c"
             buffer << ' b' if base64
             buffer << " F#{bitflags}" if bitflags
             buffer << " T#{ttl}" if ttl
-            buffer << ' MS q' << TERMINATOR << value << TERMINATOR
+            buffer << ' MS q' << token_suffix << TERMINATOR << value << TERMINATOR
           end
           buffer << META_NOOP
         end
@@ -120,7 +129,8 @@ module Dalli
         #   emitting a request the server would apply differently than intended.
         # - drop_value (x flag): remove the item's value but leave the item, so a
         #   tombstone can be left without retaining the old payload.
-        def meta_delete(key:, cas: nil, ttl: nil, quiet: false, stale: false, drop_value: false)
+        def meta_delete(key:, cas: nil, ttl: nil, quiet: false, stale: false, drop_value: false,
+                        p_token: nil, l_token: nil)
           # Message uses this method's own parameter names (ttl/stale), not the
           # client-facing tombstone_ttl/invalidate names Dalli::Client validates
           # against -- this guard is also reachable by internal callers (tests,
@@ -133,18 +143,22 @@ module Dalli
           cmd << " T#{Integer(ttl)}" if ttl
           cmd << ' x' if drop_value # Drop the value but keep the item
           cmd << ' q' if quiet
+          cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << TERMINATOR
         end
 
-        # Tombstone flags apply to every key in the batch; see meta_delete.
-        def multi_meta_delete(keys, stale: false, ttl: nil, drop_value: false)
+        # Tombstone and routing-token flags apply to every key in the batch;
+        # see meta_delete.
+        def multi_meta_delete(keys, stale: false, ttl: nil, drop_value: false, p_token: nil, l_token: nil)
           raise ArgumentError, 'tombstone_ttl requires invalidate: true' if ttl && !stale
 
           suffix = +''
           suffix << ' I' if stale
           suffix << " T#{Integer(ttl)}" if ttl
           suffix << ' x' if drop_value
-          suffix << ' q' << TERMINATOR
+          suffix << ' q'
+          suffix << routing_tokens(p_token: p_token, l_token: l_token)
+          suffix << TERMINATOR
 
           buffer = ''.b
           keys.each do |key|
