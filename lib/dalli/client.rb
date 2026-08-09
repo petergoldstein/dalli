@@ -175,6 +175,53 @@ module Dalli
     # rubocop:enable Style/ExplicitBlockArgument
 
     ##
+    # Fetch multiple keys efficiently, returning a stale-aware metadata Hash per
+    # key.  If a block is given, yields key/metadata pairs one at a time.
+    #
+    # Like #get_multi and #get_multi_cas, keys that were not found are omitted
+    # from the result -- absence is the miss.  A tombstoned item (see #delete
+    # with the meta protocol's invalidate flag) is *not* a miss: it is returned
+    # with stale: true, possibly with an empty value, which is the distinction
+    # stale-aware callers need.
+    #
+    #   client.get_multi_with_metadata('a', 'b', 'absent')
+    #   # => { 'a' => { value: 'v', cas: 12, stale: false, miss: false },
+    #   #      'b' => { value: '',  cas: 13, stale: true,  miss: false } }
+    #
+    # Missing keys are `requested - result.keys`.
+    #
+    # Result key order matches request order only when every key lands on the
+    # same server; across multiple servers it follows per-server response
+    # order instead, the same as #get_multi.
+    #
+    # @param keys [Array<String>] the keys to fetch
+    # @return [Hash] key => { value:, cas:, stale:, miss: }
+    def get_multi_with_metadata(*keys, &block)
+      keys.flatten!
+      keys.compact!
+      return {} if keys.empty?
+
+      results = Instrumentation.trace('get_multi_with_metadata',
+                                      multi_trace_attrs('get_multi_with_metadata', keys.size, keys)) do
+        if ring.servers.size == 1
+          single_server_get_multi_with_metadata(keys)
+        else
+          pipelined_getter.process_with_metadata(keys)
+        end
+      end
+
+      if block
+        results.each(&block)
+        # Matches get_multi/get_multi_cas: nil when a block is given, so
+        # callers can't come to depend on a return value that block-form
+        # get_multi never provided.
+        return nil
+      end
+
+      results
+    end
+
+    ##
     # Fetch multiple keys efficiently, including available metadata such as CAS.
     # If a block is given, yields key/data pairs one a time.  Data is an array:
     # [value, cas_id]
@@ -375,12 +422,40 @@ module Dalli
 
     # Delete a key/value pair, verifying existing CAS.
     # Returns true if succeeded, and falsy otherwise.
-    def delete_cas(key, cas = 0)
-      perform(:delete, key, cas)
+    # Delete a key, optionally with a CAS check.
+    #
+    # `req_options` accepts the same meta-delete options as #delete.
+    def delete_cas(key, cas = 0, req_options = nil)
+      validate_delete_options!(req_options)
+      perform(:delete, key, cas, req_options)
     end
 
-    def delete(key)
-      delete_cas(key, 0)
+    ##
+    # Delete a key.
+    #
+    # `req_options` may include the memcached meta-delete options:
+    #
+    # - `:invalidate` (Boolean) — mark the item stale instead of removing it.
+    #   This is the tombstone: readers see `stale: true` from
+    #   #get_with_metadata and #get_multi_with_metadata, and the existing value
+    #   is still readable unless `:drop_value` is also set. A tombstoned key is
+    #   *not* a miss, which lets a reader tell "another process is repopulating
+    #   this" apart from "this was never here".
+    # - `:tombstone_ttl` (Integer seconds) — how long the stale marker lives.
+    #   Requires `:invalidate`; memcached only honors the TTL on a delete when
+    #   it accompanies the invalidate flag, so passing it alone raises
+    #   ArgumentError rather than sending a request the server would treat
+    #   differently than intended. Once it elapses, reads see a miss.
+    # - `:drop_value` (Boolean) — remove the item's value but leave the item, so
+    #   a tombstone need not retain the old payload. On its own it is not a
+    #   tombstone: reads are an ordinary hit with an empty value.
+    #
+    #   dc.delete('key', invalidate: true, tombstone_ttl: 30, drop_value: true)
+    #
+    # @param key [String] the key to delete
+    # @param req_options [Hash, nil] meta-delete options
+    def delete(key, req_options = nil)
+      delete_cas(key, 0, req_options)
     end
 
     ##
@@ -543,6 +618,30 @@ module Dalli
 
     private
 
+    # Raised before the request reaches a server: RequestFormatter enforces the
+    # same rule, but reaching it means unwinding through Protocol::Base#request,
+    # which logs the failure as unexpected and closes the connection.  A caller
+    # passing the wrong options should get a clean ArgumentError and keep its
+    # connection.
+    def validate_delete_options!(req_options)
+      return unless req_options.is_a?(Hash)
+
+      tombstone_ttl = req_options[:tombstone_ttl]
+      return unless tombstone_ttl
+
+      raise ArgumentError, 'tombstone_ttl requires invalidate: true' unless req_options[:invalidate]
+
+      # tombstone_kwargs coerces this with Integer(), deep inside the request
+      # path; validated here first so a bad value raises cleanly instead of
+      # unwinding through Protocol::Base#request, which would close the
+      # connection on the ArgumentError Integer() raises.
+      begin
+        Integer(tombstone_ttl)
+      rescue ArgumentError, TypeError
+        raise ArgumentError, "tombstone_ttl must be an integer, got #{tombstone_ttl.inspect}"
+      end
+    end
+
     def record_hit_miss_metrics(span, key_count, hit_count)
       return unless span
 
@@ -601,6 +700,17 @@ module Dalli
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying single-server get_multi because of network error' }
       retry
+    end
+
+    def single_server_get_multi_with_metadata(keys)
+      keys.map! { |k| @key_manager.validate_key(k.to_s) }
+      return {} unless (server = single_server)
+
+      result = server.request(:read_multi_with_metadata_req, keys)
+      result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
+      result
+    rescue Dalli::NetworkError
+      {}
     end
 
     def single_server_set_multi(hash, ttl, req_options)
