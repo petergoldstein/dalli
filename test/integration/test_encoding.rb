@@ -25,11 +25,11 @@ describe 'Encoding' do
         end
       end
 
-      # KeyRegularizer.required? previously missed embedded NUL bytes ('\s'
-      # doesn't match '\0'), so a key like this went on the wire unencoded --
-      # this proves it now round-trips through the base64 path instead, and
-      # (via the sibling key below) doesn't collide with a similar key that
-      # has no NUL.
+      # KeyRegularizer.required? previously missed embedded control bytes
+      # ('\s' doesn't match NUL or most of the rest of the C0 range), so a key
+      # like this went on the wire unencoded -- this proves it now round-trips
+      # through the base64 path instead, and (via the sibling key below)
+      # doesn't collide with a similar key that has no control byte.
       it 'supports keys with an embedded NUL byte, distinct from a similar key without one' do
         memcached_persistent(p) do |dc|
           nul_key = "foo\x00bar"
@@ -39,6 +39,19 @@ describe 'Encoding' do
           dc.set(plain_key, 'plain_value')
 
           assert_equal 'nul_value', dc.get(nul_key)
+          assert_equal 'plain_value', dc.get(plain_key)
+        end
+      end
+
+      it 'supports keys with a non-NUL control byte (e.g. ESC), distinct from a similar key without one' do
+        memcached_persistent(p) do |dc|
+          esc_key = "foo\x1Bbar"
+          plain_key = 'foobar'
+
+          dc.set(esc_key, 'esc_value')
+          dc.set(plain_key, 'plain_value')
+
+          assert_equal 'esc_value', dc.get(esc_key)
           assert_equal 'plain_value', dc.get(plain_key)
         end
       end

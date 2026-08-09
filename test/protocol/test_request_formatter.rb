@@ -557,10 +557,18 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       assert_encoded 'user:🎉:profile'
     end
 
-    # \s does not match NUL, so an ASCII-only key with an embedded NUL and no
-    # other whitespace previously reached the wire unencoded.
+    # \s does not match NUL or most other control bytes, so an ASCII-only key
+    # containing one but no whitespace previously reached the wire unencoded.
     it 'returns base64 encoded key for keys with an embedded NUL byte' do
       assert_encoded "foo\x00bar"
+    end
+
+    it 'returns base64 encoded key for keys with a non-NUL control byte (e.g. ESC)' do
+      assert_encoded "foo\x1Bbar"
+    end
+
+    it 'returns base64 encoded key for keys containing DEL (0x7F)' do
+      assert_encoded "foo\x7Fbar"
     end
 
     it 'handles empty keys' do
