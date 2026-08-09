@@ -27,9 +27,14 @@ describe 'Encoding' do
 
       # KeyRegularizer.required? previously missed embedded control bytes
       # ('\s' doesn't match NUL or most of the rest of the C0 range), so a key
-      # like this went on the wire unencoded -- this proves it now round-trips
-      # through the base64 path instead, and (via the sibling key below)
-      # doesn't collide with a similar key that has no control byte.
+      # like this went on the wire unencoded. This doesn't prove base64
+      # encoding is actually used on the wire -- real memcached's key
+      # tokenizer splits on whitespace, not other control bytes, so it parses
+      # such a key as ordinary content either way, and the unit-level tests in
+      # test_key_regularizer.rb / test_request_formatter.rb are what actually
+      # exercise the encoding path. This is an end-to-end functional check:
+      # such a key can still be set/get correctly, and (via the sibling key
+      # below) doesn't collide with a similar key that has no control byte.
       it 'supports keys with an embedded NUL byte, distinct from a similar key without one' do
         memcached_persistent(p) do |dc|
           nul_key = "foo\x00bar"
