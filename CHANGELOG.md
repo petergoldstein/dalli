@@ -13,11 +13,11 @@ Features:
   - `get_multi`, `get_multi_cas`, `set_multi`, `delete_multi`, and `get_multi_with_metadata` do not accept these options yet
   - Extracted from #1130; thanks to Nick Herson for the original idea and Jianbin Chen for porting it forward
 
-- Support tombstone (mark-stale) deletes on `delete` and `delete_cas` (#1145)
+- Support tombstone (mark-stale) deletes on `delete`, `delete_cas`, and `delete_multi` (#1145, #1153)
   - `:invalidate` marks the item stale instead of removing it, so `#get_with_metadata` / `#get_multi_with_metadata` report `stale: true` and a reader can tell "another process is repopulating this" apart from "this was never here" -- a tombstoned key is not a miss
   - `:tombstone_ttl` controls how long the stale marker lives; requires `:invalidate`, since memcached only honors the TTL on a delete when it accompanies the invalidate flag
   - `:drop_value` removes the item's value but leaves the item; on its own it is not a tombstone -- reads are an ordinary hit with an empty value
-  - `delete_multi` does not support these options yet
+  - `delete_multi` applies the same options to every key in the batch, on both the single-server and pipelined paths; its return value keeps counting keys the server found and acted on, so under `:invalidate` it reports how many keys were tombstoned rather than removed
   - Extracted from #1130; thanks to Jianbin Chen for this contribution
 
 - Add `:miss` and `:return_ttl_remaining` to `get_with_metadata` (#1143)
