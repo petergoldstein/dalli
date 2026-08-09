@@ -4,6 +4,38 @@ Dalli Changelog
 Unreleased
 ==========
 
+Features:
+
+- Add opaque routing tokens: `:p_token` and `:l_token` request options (#1147)
+  - `get`, `gat`, `get_cas`, `get_with_metadata`, `fetch_with_lock`, `set`/`add`/`replace`/`set_cas`/`replace_cas`, `append`/`prepend`, `incr`/`decr`, and `cas`/`cas!` now accept per-request `:p_token`/`:l_token` options, appended to the wire protocol as `P<token>`/`L<token>`
+  - memcached itself ignores these tokens; per the meta protocol spec they exist as hints for a proxy or router sitting between the client and memcached
+  - CRLF and NUL bytes raise `ArgumentError` before the request reaches the socket, both in `Dalli::Client` and in `RequestFormatter`, so a bad token can't be used for wire-protocol injection and can't close the connection out from under the caller the way a formatter-only check would
+  - `get_multi`, `get_multi_cas`, `set_multi`, `delete_multi`, and `get_multi_with_metadata` do not accept these options yet
+  - Extracted from #1130; thanks to Nick Herson for the original idea and Jianbin Chen for porting it forward
+
+- Support tombstone (mark-stale) deletes on `delete` and `delete_cas` (#1145)
+  - `:invalidate` marks the item stale instead of removing it, so `#get_with_metadata` / `#get_multi_with_metadata` report `stale: true` and a reader can tell "another process is repopulating this" apart from "this was never here" -- a tombstoned key is not a miss
+  - `:tombstone_ttl` controls how long the stale marker lives; requires `:invalidate`, since memcached only honors the TTL on a delete when it accompanies the invalidate flag
+  - `:drop_value` removes the item's value but leaves the item; on its own it is not a tombstone -- reads are an ordinary hit with an empty value
+  - `delete_multi` does not support these options yet
+  - Extracted from #1130; thanks to Jianbin Chen for this contribution
+
+- Add `:miss` and `:return_ttl_remaining` to `get_with_metadata` (#1143)
+  - `:miss` is now always present in the returned Hash, distinguishing a true miss from a stored `nil` under `cache_nils` or a tombstoned, stale hit -- neither of which a `nil` `:value` alone can tell apart
+  - `:return_ttl_remaining` exposes the meta protocol's `t` flag as `:ttl_remaining` (seconds remaining, or `-1` for an item with no expiry), following the same opt-in shape as `:return_hit_status` / `:return_last_access`
+  - Extracted from #1130; thanks to Jianbin Chen for this contribution
+
+- Add `get_multi_with_metadata` for stale-aware bulk reads (#1144)
+  - Returns `{ key => { value:, cas:, stale:, miss: } }` for the keys that were found; genuine misses are omitted, matching `get_multi` / `get_multi_cas` -- a tombstoned item is a hit at the protocol level, so it is still returned, with `stale: true`
+  - Routes to the same single-server fast path / pipelined-getter split as `get_multi`
+  - Extracted from #1130; thanks to Jianbin Chen for this contribution
+
+Other changes:
+
+- Raise the documented minimum supported memcached version to 1.6.27 (#1140)
+  - Groundwork for the features above: `drop_value` tombstone deletes require 1.6.27, the highest floor of anything landing from #1130
+  - Not enforced at runtime -- `MIN_SUPPORTED_MEMCACHED_VERSION` only gates the test harness and the README's support statement, so this changes no running client's behavior
+
 Bug Fixes:
 
 - Retry transient network errors in `get_multi`, `set_multi` and `delete_multi` instead of silently swallowing them (#1149)
