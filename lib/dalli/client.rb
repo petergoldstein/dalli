@@ -186,6 +186,10 @@ module Dalli
     #
     # Missing keys are `requested - result.keys`.
     #
+    # Result key order matches request order only when every key lands on the
+    # same server; across multiple servers it follows per-server response
+    # order instead, the same as #get_multi.
+    #
     # @param keys [Array<String>] the keys to fetch
     # @return [Hash] key => { value:, cas:, stale:, miss: }
     def get_multi_with_metadata(*keys, &block)
