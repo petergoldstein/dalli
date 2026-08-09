@@ -94,6 +94,110 @@ describe 'tombstone deletes' do
         end
       end
 
+      describe 'delete_multi' do
+        # Exercised on both routing paths: memcached_persistent yields a client
+        # with a two-entry ring (the pipelined deleter), single_server_client
+        # takes the single-server fast path.
+        it 'tombstones every key in the batch via the pipelined path' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.set('a', 'va')
+            dc.set('b', 'vb')
+
+            dc.delete_multi(%w[a b], invalidate: true)
+
+            assert_equal({ value: 'va', miss: false, stale: true }, metadata(dc, 'a'))
+            assert_equal({ value: 'vb', miss: false, stale: true }, metadata(dc, 'b'))
+          end
+        end
+
+        it 'tombstones every key in the batch via the single-server path' do
+          memcached_persistent(p) do |_dc, port|
+            dc = single_server_client(port)
+            dc.flush
+            dc.set('a', 'va')
+            dc.set('b', 'vb')
+
+            dc.delete_multi(%w[a b], invalidate: true, tombstone_ttl: 60)
+
+            assert_equal({ value: 'va', miss: false, stale: true }, metadata(dc, 'a'))
+            assert_equal({ value: 'vb', miss: false, stale: true }, metadata(dc, 'b'))
+          end
+        end
+
+        it 'still removes keys outright without invalidate' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.set('a', 'va')
+            dc.set('b', 'vb')
+
+            assert_equal 2, dc.delete_multi(%w[a b])
+            assert_equal({ value: nil, miss: true, stale: false }, metadata(dc, 'a'))
+          end
+        end
+
+        it 'drops the payload in bulk with drop_value' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.set('a', 'va')
+
+            dc.delete_multi(%w[a], invalidate: true, drop_value: true)
+
+            assert_equal({ value: '', miss: false, stale: true }, metadata(dc, 'a'))
+          end
+        end
+
+        # The count means "keys the server found and acted on". Only a key that
+        # did not exist decrements it, so tombstoning counts exactly as deleting
+        # does -- the caller chose the action.
+        it 'counts tombstoned keys the same as deleted ones' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.set('a', 'va')
+            dc.set('b', 'vb')
+
+            assert_equal 2, dc.delete_multi(%w[a b never_stored], invalidate: true)
+          end
+        end
+
+        it 'excludes keys that did not exist from the count' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.set('only', 'v')
+
+            assert_equal 1, dc.delete_multi(%w[only missing1 missing2], invalidate: true)
+          end
+        end
+
+        it 'raises for tombstone_ttl without invalidate' do
+          memcached_persistent(p) do |dc|
+            error = assert_raises(ArgumentError) { dc.delete_multi(%w[a b], tombstone_ttl: 30) }
+
+            assert_equal 'tombstone_ttl requires invalidate: true', error.message
+          end
+        end
+
+        it 'rejects bad options before touching the connection' do
+          memcached_persistent(p) do |_dc, port|
+            dc = single_server_client(port)
+            dc.flush
+            dc.set('survivor', 'value')
+            conn_mgr = dc.send(:ring).servers.first.instance_variable_get(:@connection_manager)
+
+            assert_raises(ArgumentError) { dc.delete_multi(%w[survivor], tombstone_ttl: 30) }
+
+            assert_predicate conn_mgr, :connected?, 'bad options must not tear down the connection'
+            assert_equal 'value', dc.get('survivor')
+          end
+        end
+
+        it 'returns 0 for an empty key list' do
+          memcached_persistent(p) do |dc|
+            assert_equal 0, dc.delete_multi([], invalidate: true)
+          end
+        end
+      end
+
       describe 'tombstone_ttl without invalidate' do
         it 'raises ArgumentError' do
           memcached_persistent(p) do |dc|
