@@ -287,7 +287,7 @@ module Dalli
         up!
       end
 
-      def pipelined_get(keys)
+      def pipelined_get(keys, options = nil)
         # Clear buffer to remove any stale data from interrupted operations.
         # Use clear (not reset) to keep pipeline_complete? = true, which is
         # the expected state before pipeline_response_setup is called.
@@ -295,7 +295,7 @@ module Dalli
 
         req = +''
         keys.each do |key|
-          req << quiet_get_request(key)
+          req << quiet_get_request(key, options)
         end
         # Could send noop here instead of in pipeline_response_setup
         write(req)
@@ -304,7 +304,7 @@ module Dalli
       # For large batches, interleave writing requests with draining responses.
       # This prevents socket buffer deadlock when sending many keys.
       # Populates the provided results hash with any responses drained during send.
-      def pipelined_get_interleaved(keys, chunk_size, results)
+      def pipelined_get_interleaved(keys, chunk_size, results, options = nil)
         # Initialize the response buffer for draining during send phase
         response_buffer.ensure_ready
 
@@ -312,7 +312,7 @@ module Dalli
           # Build and write this chunk of requests
           req = +''
           chunk.each do |key|
-            req << quiet_get_request(key)
+            req << quiet_get_request(key, options)
           end
           write(req)
           @connection_manager.flush
