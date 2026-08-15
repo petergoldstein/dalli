@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.1.0
+==========
+
 Features:
 
 - Add opaque routing tokens: `:p_token` and `:l_token` request options (#1147)
