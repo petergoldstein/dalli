@@ -6,7 +6,7 @@ Unreleased
 
 Performance:
 
-- Reduce Ruby overhead on the single-key `get` path by about 28% (#PR_NUMBER)
+- Reduce Ruby overhead on the single-key `get` path by about 28% (#1160)
   - A plain `get` builds its `mg` request with one string interpolation instead of going through `meta_get`'s keyword arguments, and skips option handling when called without options
   - A `VA <size> f<flags>` hit line is parsed in place instead of being split into tokens
   - The key check for control characters and whitespace uses a byte class that matches the same ASCII bytes as `[\p{Cntrl}\s]`, about 5x faster; this applies to every operation that sends a key
