@@ -23,6 +23,9 @@ module Dalli
         VERSION = 'VERSION'
         SERVER_ERROR = 'SERVER_ERROR'
 
+        VA_PREFIX = 'VA '
+        FLAGS_TOKEN_PREFIX = ' f'
+
         T_OK = [OK].freeze
         T_RESET = [RESET].freeze
         T_EN_HD = [EN, HD].freeze
@@ -39,11 +42,24 @@ module Dalli
         end
 
         def meta_get_with_value(cache_nils: false)
-          tokens = error_on_unexpected!(T_VA_EN_HD)
-          return cache_nils ? ::Dalli::NOT_FOUND : nil if tokens.first == EN
-          return true unless tokens.first == VA
+          line = read_line
+          # A hit ("VA <size> f<flags>") is parsed in place rather than split
+          # into tokens, which saves several allocations on the hottest path.
+          if line&.start_with?(VA_PREFIX)
+            return @value_marshaller.retrieve(read_data(size_from_va_line(line)), bitflags_from_va_line(line))
+          end
 
-          @value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens))
+          tokens = line&.split || []
+          case tokens.first
+          when EN
+            cache_nils ? ::Dalli::NOT_FOUND : nil
+          when VA # only reached for an unusually formatted hit line
+            @value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens))
+          when HD
+            true
+          else
+            raise_unexpected!(tokens)
+          end
         end
 
         def meta_get_with_value_and_cas
@@ -230,6 +246,10 @@ module Dalli
 
           return tokens if expected_codes.include?(tokens.first)
 
+          raise_unexpected!(tokens)
+        end
+
+        def raise_unexpected!(tokens)
           raise Dalli::ServerError, tokens.join(' ').to_s if tokens.first == SERVER_ERROR
 
           raise Dalli::DalliError, "Response error: #{tokens.first}"
@@ -237,6 +257,17 @@ module Dalli
 
         def bitflags_from_tokens(tokens)
           value_from_tokens(tokens, 'f').to_i
+        end
+
+        # String#to_i stops at the first non-digit, so these read one token's
+        # integer straight out of the header line without splitting it.
+        def size_from_va_line(line)
+          line.byteslice(VA_PREFIX.bytesize, line.bytesize).to_i
+        end
+
+        def bitflags_from_va_line(line)
+          idx = line.index(FLAGS_TOKEN_PREFIX, VA_PREFIX.bytesize)
+          idx ? line.byteslice(idx + FLAGS_TOKEN_PREFIX.bytesize, line.bytesize).to_i : 0
         end
 
         def cas_from_tokens(tokens)

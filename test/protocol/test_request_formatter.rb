@@ -3,6 +3,15 @@
 require_relative '../helper'
 
 describe Dalli::Protocol::Meta::RequestFormatter do
+  describe 'plain_meta_get' do
+    it 'matches meta_get with default flags' do
+      ['key', 'key with spaces', 'clé'].product([false, true]).each do |key, skip_flags|
+        assert_equal Dalli::Protocol::Meta::RequestFormatter.meta_get(key: key, skip_flags: skip_flags),
+                     Dalli::Protocol::Meta::RequestFormatter.plain_meta_get(key, skip_flags)
+      end
+    end
+  end
+
   describe 'meta_get' do
     let(:key) { SecureRandom.hex(4) }
     let(:ttl) { rand(1000..1999) }

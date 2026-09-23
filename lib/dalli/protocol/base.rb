@@ -17,8 +17,18 @@ module Dalli
       attr_accessor :weight, :options
 
       def_delegators :@value_marshaller, :serializer, :compressor, :compression_min_size, :compress_by_default?
-      def_delegators :@connection_manager, :name, :sock, :hostname, :port, :close, :connected?, :socket_timeout,
-                     :socket_type, :up!, :down!, :write, :reconnect_down_server?, :raise_down_error, :flushed_write
+      def_delegators :@connection_manager, :name, :sock, :hostname, :port, :close, :socket_timeout,
+                     :socket_type, :up!, :down!, :write, :reconnect_down_server?, :raise_down_error
+
+      # Delegated by hand rather than with def_delegators because they run on
+      # every request, and a plain method call is cheaper than a Forwardable one.
+      def connected?
+        @connection_manager.connected?
+      end
+
+      def flushed_write(bytes)
+        @connection_manager.flushed_write(bytes)
+      end
 
       def initialize(attribs, client_options = {})
         hostname, port, socket_type, @weight, user_creds = ServerConfigParser.parse(attribs)
@@ -257,10 +267,13 @@ module Dalli
       # wire-formatter level, where it can raise uniformly regardless of how
       # the token reached the formatter.
       def routing_token_kwargs(opts)
-        return {} unless opts.is_a?(Hash)
-        return {} unless opts[:p_token] || opts[:l_token]
+        return {} unless routing_tokens?(opts)
 
         { p_token: opts[:p_token], l_token: opts[:l_token] }
+      end
+
+      def routing_tokens?(opts)
+        opts.is_a?(Hash) && (opts[:p_token] || opts[:l_token]) ? true : false
       end
 
       # Maps the client-facing meta-delete options onto RequestFormatter's flag
