@@ -124,7 +124,7 @@ module Dalli
       # Returns true for an unmodified TCPSocket on Ruby 3.0+, or for resolv-replace >= 0.2.0
       # which forwards keyword arguments through its patch.
       # Returns false when monkey-patched by gems like socksify or resolv-replace < 0.2.0.
-      # rubocop:disable ThreadSafety/ClassInstanceVariable
+      # rubocop:disable-next ThreadSafety/ClassInstanceVariable
       def self.supports_connect_timeout?
         return @supports_connect_timeout if defined?(@supports_connect_timeout)
 
@@ -135,7 +135,6 @@ module Dalli
                                       end
                                     end
       end
-      # rubocop:enable ThreadSafety/ClassInstanceVariable
 
       def self.create_socket_with_timeout(host, port, options)
         if supports_connect_timeout?
@@ -192,14 +191,13 @@ module Dalli
 
       # Detect and cache the correct pack format for struct timeval on this platform.
       # Different architectures have different sizes for time_t and suseconds_t.
-      # rubocop:disable ThreadSafety/ClassInstanceVariable
+      # rubocop:disable-next ThreadSafety/ClassInstanceVariable
       def self.timeval_pack_format(sock)
         @timeval_pack_format ||= begin
           expected_size = sock.getsockopt(::Socket::SOL_SOCKET, ::Socket::SO_RCVTIMEO).data.bytesize
           TIMEVAL_PACK_FORMATS.find { |fmt| TIMEVAL_TEST_VALUES.pack(fmt).bytesize == expected_size } || 'll'
         end
       end
-      # rubocop:enable ThreadSafety/ClassInstanceVariable
 
       def self.pack_timeval(sock, seconds, microseconds)
         [seconds, microseconds].pack(timeval_pack_format(sock))

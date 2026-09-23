@@ -159,7 +159,7 @@ module Dalli
         response_processor.meta_set_append_prepend unless quiet?
       end
 
-      # rubocop:disable Metrics/ParameterLists
+      # rubocop:disable-next Metrics/ParameterLists
       def write_append_prepend_req(mode, key, value, ttl = nil, cas = nil, options = nil)
         ttl = TtlSanitizer.sanitize(ttl) if ttl
         req = RequestFormatter.meta_set(key: key, value: value,
@@ -168,7 +168,6 @@ module Dalli
         write("#{req}#{value}#{TERMINATOR}")
         @connection_manager.flush unless quiet?
       end
-      # rubocop:enable Metrics/ParameterLists
 
       # Delete Commands
       #
@@ -204,7 +203,7 @@ module Dalli
         decr_incr true, key, count, ttl, initial, options
       end
 
-      # rubocop:disable Metrics/ParameterLists
+      # rubocop:disable-next Metrics/ParameterLists
       def decr_incr(incr, key, delta, ttl, initial, options = nil)
         ttl = initial ? TtlSanitizer.sanitize(ttl) : nil # Only set a TTL if we want to set a value on miss
         write(RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial, incr: incr, ttl: ttl,
@@ -212,7 +211,6 @@ module Dalli
         @connection_manager.flush unless quiet?
         response_processor.decr_incr unless quiet?
       end
-      # rubocop:enable Metrics/ParameterLists
 
       # Other Commands
       def flush(delay = 0)

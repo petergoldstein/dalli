@@ -2,7 +2,6 @@
 
 require 'digest/md5'
 
-# encoding: ascii
 module Dalli
   ##
   # Dalli::Client is the main class which developers will use to interact with
@@ -162,7 +161,7 @@ module Dalli
     # silently omitting that server's keys from the result.
     #
     # @raise [Dalli::NetworkError] if a server is unreachable after retrying
-    # rubocop:disable Style/ExplicitBlockArgument
+    # rubocop:disable-next Style/ExplicitBlockArgument
     def get_multi(*keys, req_options: nil)
       keys.flatten!
       keys.compact!
@@ -176,7 +175,6 @@ module Dalli
         get_multi_hash(keys, req_options)
       end
     end
-    # rubocop:enable Style/ExplicitBlockArgument
 
     ##
     # Fetch multiple keys efficiently, returning a stale-aware metadata Hash per
