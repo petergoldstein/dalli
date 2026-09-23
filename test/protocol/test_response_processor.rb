@@ -385,6 +385,26 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
   end
 
   describe '#getk_response_from_buffer' do
+    it 'reads flags in any order, a base64 key, and a missing CAS' do
+      value = Marshal.dump('hello')
+      key = ['key with spaces'].pack('m0')
+      buf = "VA #{value.bytesize} s#{value.bytesize} k#{key} W b f1\r\n#{value}\r\n".b
+
+      status, cas, returned_key, returned_value, size = processor.getk_response_from_buffer(buf)
+
+      assert status
+      assert_equal 0, cas
+      assert_equal 'key with spaces', returned_key
+      assert_equal 'hello', returned_value
+      assert_equal buf.bytesize, size
+    end
+
+    it 'returns [0] when the body has not fully arrived' do
+      buf = "VA 5 f0 c1 kfoo s5\r\nhel".b
+
+      assert_equal [0], processor.getk_response_from_buffer(buf)
+    end
+
     it 'returns [0, nil, nil, nil, nil] when buffer has no header' do
       buf = 'incomplete'
       result = processor.getk_response_from_buffer(buf)

@@ -22,16 +22,19 @@ module Dalli
     #
     # `req_options` accepts :p_token/:l_token, applied to every key in the batch.
     #
+    # With return_cas: false the CAS value is not requested, and each yielded
+    # CAS is 0.
+    #
     # A transient network error is retried automatically. If a server remains
     # unreachable after retrying, raises Dalli::NetworkError.
     #
-    def process(keys, req_options = nil, &block)
+    def process(keys, req_options = nil, return_cas: true, &block)
       return {} if keys.empty?
 
       @ring.lock do
         # Stores partial results collected during interleaved send phase
         @partial_results = {}
-        servers = setup_requests(keys, req_options)
+        servers = setup_requests(keys, req_options, return_cas: return_cas)
         start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
         # First yield any partial results collected during interleaved send
@@ -88,71 +91,55 @@ module Dalli
       @partial_results.clear
     end
 
-    def setup_requests(keys, req_options = nil)
-      groups = groups_for_keys(keys)
-      make_getkq_requests(groups, req_options)
+    # Sends each server's queries and its terminating noop before building
+    # the next server's, so memcached is already answering the first servers
+    # while the rest are prepared. Returns the servers with a pending response.
+    def setup_requests(keys, req_options = nil, return_cas: true)
+      started = []
+      groups_for_keys(keys).each do |server, keys_for_server|
+        make_getkq_request(server, keys_for_server, req_options, return_cas: return_cas)
+        next unless server.connected?
 
-      # TODO: How does this exit on a NetworkError
-      finish_queries(groups.keys)
+        started << server
+        finish_query_for_server(server)
+      rescue Dalli::NetworkError
+        abort_without_timeout(started)
+        raise
+      rescue Dalli::DalliError
+        started.delete(server)
+      end
+      started
     end
 
     ##
-    # Loop through the server-grouped sets of keys, writing
-    # the corresponding getkq requests to the appropriate servers
+    # Writes the getkq requests for one server's keys
     #
     # It's worth noting that we could potentially reduce bytes
     # on the wire by switching from getkq to getq, and using
     # the opaque value to match requests to responses.
     ##
-    def make_getkq_requests(groups, req_options = nil)
-      groups.each do |server, keys_for_server|
-        if keys_for_server.size <= INTERLEAVE_THRESHOLD
-          # Small batch - send all at once (existing behavior)
-          server.request(:pipelined_get, keys_for_server, req_options)
-        else
-          # Large batch - interleave sends with response draining
-          # Pass @partial_results directly to avoid hash allocation/merge overhead
-          server.request(:pipelined_get_interleaved, keys_for_server, CHUNK_SIZE, @partial_results, req_options)
-        end
-      # NetworkError (which RetryableNetworkError subclasses) must propagate:
-      # #process's top-level rescue retries the whole pipelined get on it. This
-      # rescue used to catch DalliError and NetworkError together -- since
-      # NetworkError < DalliError, that silently swallowed RetryableNetworkError
-      # too, dropping this server's keys from the result on a transient hiccup
-      # instead of retrying, with nothing surfaced above debug-level logging.
-      # Only a non-network DalliError (this server genuinely can't serve these
-      # keys) should be swallowed here.
-      rescue Dalli::NetworkError
-        raise
-      rescue DalliError => e
-        Dalli.logger.debug { e.inspect }
-        Dalli.logger.debug { "unable to get keys for server #{server.name}" }
+    def make_getkq_request(server, keys_for_server, req_options = nil, return_cas: true)
+      if keys_for_server.size <= INTERLEAVE_THRESHOLD
+        # Small batch - send all at once (existing behavior)
+        server.request(:pipelined_get, keys_for_server, req_options, return_cas)
+      else
+        # Large batch - interleave sends with response draining
+        # Pass @partial_results directly to avoid hash allocation/merge overhead
+        server.request(:pipelined_get_interleaved, keys_for_server, CHUNK_SIZE, @partial_results, req_options)
       end
-    end
-
-    ##
-    # This loops through the servers that have keys in
-    # our set, sending the noop to terminate the set of queries.
-    ##
-    def finish_queries(servers)
-      deleted = Set.new
-
-      servers.each do |server|
-        next unless server.connected?
-
-        begin
-          finish_query_for_server(server)
-        rescue Dalli::NetworkError
-          raise
-        rescue Dalli::DalliError
-          deleted << server
-        end
-      end
-
-      servers.delete_if { |server| deleted.include?(server) }
+    # NetworkError (which RetryableNetworkError subclasses) must propagate:
+    # #process's top-level rescue retries the whole pipelined get on it. This
+    # rescue used to catch DalliError and NetworkError together -- since
+    # NetworkError < DalliError, that silently swallowed RetryableNetworkError
+    # too, dropping this server's keys from the result on a transient hiccup
+    # instead of retrying, with nothing surfaced above debug-level logging.
+    # Only a non-network DalliError (this server genuinely can't serve these
+    # keys) should be swallowed here.
     rescue Dalli::NetworkError
-      abort_without_timeout(servers)
       raise
+    rescue DalliError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { "unable to get keys for server #{server.name}" }
     end
 
     def finish_query_for_server(server)
@@ -230,8 +217,9 @@ module Dalli
       return [] if readable.nil?
 
       # For typical server counts (1-5), linear scan is faster than
-      # building and looking up a hash map
-      readable.filter_map { |sock| servers.find { |s| s.sock == sock } }
+      # building and looking up a hash map. Array#index scans in C and
+      # reuses the sockets already fetched above.
+      readable.filter_map { |sock| (idx = sockets.index(sock)) && servers[idx] }
     end
 
     def groups_for_keys(*keys)

@@ -124,6 +124,16 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       assert_equal expected, Dalli::Protocol::Meta::RequestFormatter.multi_meta_get(['foo', 'bar€'], skip_flags: true)
     end
 
+    it 'leaves off the terminating noop when terminate is false' do
+      expected = <<~TXT
+        mg foo v f c k q s\r
+        mg YmFy4oKs b v f c k q s\r
+      TXT
+      formatter = Dalli::Protocol::Meta::RequestFormatter
+
+      assert_equal expected, formatter.multi_meta_get(['foo', 'bar€'], return_cas: true, terminate: false)
+    end
+
     it 'requests the cas token on every line when return_cas is set' do
       expected = <<~TXT
         mg foo v f c k q s\r

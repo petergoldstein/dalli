@@ -100,7 +100,8 @@ describe 'routing tokens (p_token / l_token) passthrough -- bulk operations' do
 
         dc.get_multi(%w[a], req_options: BULK_ROUTING_OPTS)
 
-        assert_equal [%w[a], BULK_ROUTING_OPTS], seen_args
+        # The third argument is return_cas, false for plain get_multi
+        assert_equal [%w[a], BULK_ROUTING_OPTS], seen_args.first(2)
       end
     end
   end
