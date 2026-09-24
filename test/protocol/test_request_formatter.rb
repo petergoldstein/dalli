@@ -470,7 +470,6 @@ describe Dalli::Protocol::Meta::RequestFormatter do
     end
   end
 
-
   # GHSA-6wmv-xq9m-fmp7: numeric flag values are interpolated into the
   # command line, so each must be converted to an Integer rather than written
   # as given, or a String carrying CRLF injects further memcached commands.

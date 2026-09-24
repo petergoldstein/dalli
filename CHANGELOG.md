@@ -12,9 +12,6 @@ Security:
   - As defense in depth, `RequestFormatter` now converts every numeric flag it writes (`D`, `J`, `N`, `R`, `T`) to an Integer
   - Thanks to oss-security-shop for the report
 
-Unreleased
-==========
-
 5.0.6
 ==========
 
