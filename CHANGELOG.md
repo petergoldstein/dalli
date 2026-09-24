@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.0.7
+==========
+
 Security:
 
 - Fix memcached command injection through numeric arguments (GHSA-6wmv-xq9m-fmp7)
