@@ -225,6 +225,8 @@ module Dalli
     def fetch_with_lock(key, ttl: nil, lock_ttl: 30, recache_threshold: nil, req_options: nil, &block)
       raise ArgumentError, 'Block is required for fetch_with_lock' unless block_given?
 
+      validate_integer!(:lock_ttl, lock_ttl)
+      validate_integer!(:recache_threshold, recache_threshold)
       key = key.to_s
       key = @key_manager.validate_key(key)
 
@@ -400,6 +402,8 @@ module Dalli
     ##
     # Incr adds the given amount to the counter on the memcached server.
     # Amt must be a positive integer value.
+    # Default, if given, must be an Integer (or a String of decimal digits);
+    # anything else raises ArgumentError.
     #
     # If default is nil, the counter must already exist or the operation
     # will fail and will return nil.  Otherwise this method will return
@@ -412,6 +416,7 @@ module Dalli
     # If the value already exists, it must have been set with raw: true
     def incr(key, amt = 1, ttl = nil, default = nil)
       check_positive!(amt)
+      validate_integer!(:default, default)
 
       perform(:incr, key, amt.to_i, ttl_or_default(ttl), default)
     end
@@ -419,6 +424,8 @@ module Dalli
     ##
     # Decr subtracts the given amount from the counter on the memcached server.
     # Amt must be a positive integer value.
+    # Default, if given, must be an Integer (or a String of decimal digits);
+    # anything else raises ArgumentError.
     #
     # memcached counters are unsigned and cannot hold negative values.  Calling
     # decr on a counter which is 0 will just return 0.
@@ -434,6 +441,7 @@ module Dalli
     # If the value already exists, it must have been set with raw: true
     def decr(key, amt = 1, ttl = nil, default = nil)
       check_positive!(amt)
+      validate_integer!(:default, default)
 
       perform(:decr, key, amt.to_i, ttl_or_default(ttl), default)
     end
@@ -615,6 +623,19 @@ module Dalli
 
     def check_positive!(amt)
       raise ArgumentError, "Positive values only: #{amt}" if amt.negative?
+    end
+
+    # Numeric arguments that become meta protocol flags (GHSA-6wmv-xq9m-fmp7).
+    # RequestFormatter converts them to Integer as the wire-level backstop;
+    # checking here too raises a clean ArgumentError before the request
+    # starts, instead of Protocol::Base#request logging it as unexpected and
+    # closing the connection.
+    def validate_integer!(name, value)
+      return if value.nil?
+
+      value.is_a?(String) ? Integer(value, 10) : Integer(value)
+    rescue ArgumentError, TypeError, FloatDomainError
+      raise ArgumentError, "#{name} must be an Integer, got #{value.inspect}"
     end
 
     def cas_core(key, always_set, ttl = nil, req_options = nil)
