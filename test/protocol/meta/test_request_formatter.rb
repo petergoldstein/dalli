@@ -353,4 +353,37 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                    Dalli::Protocol::Meta::RequestFormatter.flush(delay: delay, quiet: true)
     end
   end
+
+  # GHSA-6wmv-xq9m-fmp7: numeric flag values are interpolated into the
+  # command line, so each must be converted to an Integer rather than written
+  # as given, or a String carrying CRLF injects further memcached commands.
+  describe 'numeric flag validation' do
+    let(:formatter) { Dalli::Protocol::Meta::RequestFormatter }
+    let(:payload) { "1\r\nflush_all\r\n" }
+
+    {
+      'meta_arithmetic initial' => ->(f, v) { f.meta_arithmetic(key: 'ctr', delta: 1, initial: v) },
+      'meta_arithmetic delta' => ->(f, v) { f.meta_arithmetic(key: 'ctr', delta: v, initial: nil) },
+      'meta_arithmetic ttl' => ->(f, v) { f.meta_arithmetic(key: 'ctr', delta: 1, initial: 0, ttl: v) },
+      'meta_get ttl' => ->(f, v) { f.meta_get(key: 'k', ttl: v) },
+      'meta_get vivify_ttl' => ->(f, v) { f.meta_get(key: 'k', vivify_ttl: v) },
+      'meta_get recache_ttl' => ->(f, v) { f.meta_get(key: 'k', recache_ttl: v) },
+      'meta_set ttl' => ->(f, v) { f.meta_set(key: 'k', value: 'v', ttl: v) },
+      'meta_delete ttl' => ->(f, v) { f.meta_delete(key: 'k', ttl: v) }
+    }.each do |name, build|
+      it "rejects a CRLF-bearing #{name}" do
+        error = assert_raises(ArgumentError) { build.call(formatter, payload) }
+        assert_match(/must be an Integer/, error.message)
+      end
+
+      it "rejects a non-numeric #{name}" do
+        assert_raises(ArgumentError) { build.call(formatter, 'abc') }
+        assert_raises(ArgumentError) { build.call(formatter, Object.new) }
+      end
+
+      it "accepts a decimal String #{name} and writes it as an Integer" do
+        assert_equal build.call(formatter, 10), build.call(formatter, '010')
+      end
+    end
+  end
 end

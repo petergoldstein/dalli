@@ -1,6 +1,17 @@
 Dalli Changelog
 =====================
 
+Unreleased
+==========
+
+Security:
+
+- Fix memcached command injection through numeric arguments with the meta protocol (GHSA-6wmv-xq9m-fmp7)
+  - With `protocol: :meta`, the `default` argument of `incr`/`decr`, and `fetch_with_lock`'s `lock_ttl` and `recache_threshold`, were written into the command without conversion, so a String containing CRLF injected additional memcached commands (e.g. `set`, `flush_all`) on the connection. The default binary protocol is not affected
+  - These arguments must now be Integers, or Strings of decimal digits; anything else raises `ArgumentError` before a request is sent
+  - As defense in depth, the meta `RequestFormatter` now converts every numeric flag it writes (`D`, `J`, `N`, `R`, `T`) to an Integer
+  - Thanks to oss-security-shop for the report
+
 4.3.3
 ==========
 
