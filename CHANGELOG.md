@@ -4,6 +4,15 @@ Dalli Changelog
 Unreleased
 ==========
 
+Security:
+
+- Fix memcached command injection through numeric arguments (GHSA-6wmv-xq9m-fmp7)
+  - The `default` argument of `incr`/`decr`, and `fetch_with_lock`'s `lock_ttl` and `recache_threshold`, were written into the meta protocol command without conversion, so a String containing CRLF injected additional memcached commands (e.g. `set`, `flush_all`) on the connection
+  - These arguments must now be Integers, or Strings of decimal digits; anything else raises `ArgumentError` before a request is sent
+  - As defense in depth, `RequestFormatter` now converts every numeric flag it writes (`D`, `J`, `N`, `R`, `T`) to an Integer
+  - Affects 3.2.0 and later (3.2.x only with `protocol: :meta`); fixed in 5.1.1 and 4.3.4
+  - Thanks to oss-security-shop for the report
+
 Performance:
 
 - Reduce Ruby overhead on the single-key `get` path by about 28% (#1160)
