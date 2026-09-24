@@ -94,3 +94,53 @@ describe 'Dalli::Socket::TCP' do
     end
   end
 end
+
+describe 'Dalli::Socket::InstanceMethods#read_available' do
+  # Returns scripted read_nonblock results in order and counts the calls
+  def scripted_socket(results, buffered: false)
+    sock = Object.new
+    sock.extend(Dalli::Socket::InstanceMethods)
+    calls = 0
+    sock.define_singleton_method(:read_nonblock) do |_len, buf = nil, exception: true|
+      raise 'unexpected extra read' unless exception == false && calls < results.size
+
+      calls += 1
+      result = results[calls - 1]
+      next result unless result.is_a?(String)
+
+      buf ? buf.replace(result) : result
+    end
+    sock.define_singleton_method(:buffered_data?) { buffered }
+    sock.define_singleton_method(:read_calls) { calls }
+    sock
+  end
+
+  let(:full_chunk) { 'x' * Dalli::Socket::InstanceMethods::READ_CHUNK_SIZE }
+
+  it 'stops after a short read instead of reading again for :wait_readable' do
+    sock = scripted_socket(['short'])
+
+    assert_equal 'short', sock.read_available(''.b)
+    assert_equal 1, sock.read_calls
+  end
+
+  it 'keeps reading after a full chunk' do
+    sock = scripted_socket([full_chunk, 'tail'])
+
+    assert_equal "#{full_chunk}tail", sock.read_available(''.b)
+    assert_equal 2, sock.read_calls
+  end
+
+  it 'keeps reading after a short read while data is still buffered in-process' do
+    sock = scripted_socket(['part', :wait_readable], buffered: true)
+
+    assert_equal 'part', sock.read_available
+    assert_equal 2, sock.read_calls
+  end
+
+  it 'returns an empty buffer when nothing is available' do
+    sock = scripted_socket([:wait_readable])
+
+    assert_equal '', sock.read_available(''.b)
+  end
+end
