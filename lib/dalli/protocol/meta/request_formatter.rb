@@ -21,7 +21,7 @@ module Dalli
           cmd << ' v f' if value
           cmd << ' c' if return_cas
           cmd << ' b' if base64
-          cmd << " T#{ttl}" if ttl
+          cmd << " T#{integer_flag(:ttl, ttl)}" if ttl
           cmd << ' k q s' if quiet # Return the key in the response if quiet
           cmd + TERMINATOR
         end
@@ -32,7 +32,7 @@ module Dalli
           cmd << ' b' if base64
           cmd << " F#{bitflags}" if bitflags
           cmd << cas_string(cas)
-          cmd << " T#{ttl}" if ttl
+          cmd << " T#{integer_flag(:ttl, ttl)}" if ttl
           cmd << " M#{mode_to_token(mode)}"
           cmd << ' q' if quiet
           cmd << TERMINATOR
@@ -44,7 +44,7 @@ module Dalli
           cmd = "md #{key}"
           cmd << ' b' if base64
           cmd << cas_string(cas)
-          cmd << " T#{ttl}" if ttl
+          cmd << " T#{integer_flag(:ttl, ttl)}" if ttl
           cmd << ' q' if quiet
           cmd + TERMINATOR
         end
@@ -52,10 +52,10 @@ module Dalli
         def self.meta_arithmetic(key:, delta:, initial:, incr: true, cas: nil, ttl: nil, base64: false, quiet: false)
           cmd = "ma #{key} v"
           cmd << ' b' if base64
-          cmd << " D#{delta}" if delta
-          cmd << " J#{initial}" if initial
+          cmd << " D#{integer_flag(:delta, delta)}" if delta
+          cmd << " J#{integer_flag(:initial, initial)}" if initial
           # Always set a TTL if an initial value is specified
-          cmd << " N#{ttl || 0}" if ttl || initial
+          cmd << " N#{ttl ? integer_flag(:ttl, ttl) : 0}" if ttl || initial
           cmd << cas_string(cas)
           cmd << ' q' if quiet
           cmd << " M#{incr ? 'I' : 'D'}"
@@ -103,6 +103,18 @@ module Dalli
           end
         end
         # rubocop:enable Metrics/MethodLength
+
+        # Numeric flag values are written straight into the command line, so a
+        # value that isn't an integer -- e.g. a String carrying CRLF -- would let
+        # the caller inject further memcached commands (GHSA-6wmv-xq9m-fmp7).
+        # Converting to Integer means only digits ever reach the wire. Strings
+        # are parsed as base 10 so "010" means 10, as memcached would read it,
+        # rather than octal 8.
+        def self.integer_flag(name, value)
+          value.is_a?(String) ? Integer(value, 10) : Integer(value)
+        rescue ArgumentError, TypeError, FloatDomainError
+          raise ArgumentError, "#{name} must be an Integer, got #{value.inspect}"
+        end
 
         def self.cas_string(cas)
           cas = parse_to_64_bit_int(cas, nil)
