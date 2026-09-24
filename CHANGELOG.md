@@ -30,7 +30,7 @@ Performance:
   - Pipelined replies are parsed in one pass over the returned flags
   - Routing many keys checks each server's `alive?` once per call instead of twice per key, and the ring's binary search runs over plain integers
   - Thanks to Julian Richard Contreras for this contribution
-- Skip the empty read at the end of each pipelined `read_available` call (#PR_NUMBER)
+- Skip the empty read at the end of each pipelined `read_available` call (#1164)
   - A read shorter than the chunk size means the socket is drained, so the extra `read_nonblock` that only returned `:wait_readable` is gone; the `IO.select` loop still picks up anything that arrives later
   - Saves one syscall per server per multi-server `get_multi`; on 4 servers a 3-key `get_multi` goes from 16% to 5% slower than 2.7.11 in the #930 benchmark
   - TLS sockets also check `SSLSocket#pending`, since `IO.select` cannot see data OpenSSL has buffered
