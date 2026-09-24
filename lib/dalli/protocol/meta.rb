@@ -24,8 +24,8 @@ module Dalli
 
       # Retrieval Commands
       def get(key, options = nil)
-        # Fast path for the common case of no per-request options
-        if options.nil?
+        # Fast path for the common case of no per-request options (nil or false)
+        unless options
           flushed_write(RequestFormatter.plain_meta_get(key, raw_mode?))
           return response_processor.meta_get_with_value
         end
