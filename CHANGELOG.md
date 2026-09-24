@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.2.9
+==========
+
 Security:
 
 - Fix memcached command injection through the `incr`/`decr` default with the meta protocol (GHSA-6wmv-xq9m-fmp7)
