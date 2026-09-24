@@ -630,6 +630,7 @@ module Dalli
     alias reset close
 
     CACHE_NILS = { cache_nils: true }.freeze
+    EMPTY_ATTRIBUTES = {}.freeze
 
     def not_found?(val)
       cache_nils ? val == ::Dalli::NOT_FOUND : val.nil?
@@ -680,7 +681,7 @@ module Dalli
     def get_multi_yielding(keys, req_options = nil)
       Instrumentation.trace_with_result('get_multi', get_multi_attributes(keys)) do |span|
         hit_count = 0
-        pipelined_getter.process(keys, req_options) do |k, data|
+        pipelined_getter.process(keys, req_options, return_cas: false) do |k, data|
           hit_count += 1
           yield k, data.first
         end
@@ -695,7 +696,7 @@ module Dalli
                  single_server_get_multi(keys, req_options)
                else
                  {}.tap do |h|
-                   pipelined_getter.process(keys, req_options) { |k, data| h[k] = data.first }
+                   pipelined_getter.process(keys, req_options, return_cas: false) { |k, data| h[k] = data.first }
                  end
                end
         record_hit_miss_metrics(span, keys.size, hash.size)
@@ -763,8 +764,9 @@ module Dalli
       retry
     end
 
+    # Only built when tracing is on, since the Hash is thrown away otherwise
     def get_multi_attributes(keys)
-      multi_trace_attrs('get_multi', keys.size, keys)
+      Instrumentation.enabled? ? multi_trace_attrs('get_multi', keys.size, keys) : EMPTY_ATTRIBUTES
     end
 
     def trace_attrs(operation, key, server)

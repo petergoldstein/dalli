@@ -3,6 +3,46 @@
 require_relative 'helper'
 
 describe 'Ring' do
+  describe 'alive? checks' do
+    # Counts alive? calls instead of touching the network
+    def counting_ring(alive: true)
+      ring = Dalli::Ring.new(['localhost:12345', 'localhost:12346'], {})
+      calls = Hash.new(0)
+      ring.servers.each do |server|
+        server.define_singleton_method(:alive?) do
+          calls[server] += 1
+          alive
+        end
+      end
+      [ring, calls]
+    end
+
+    it 'checks each server once when grouping many keys' do
+      ring, calls = counting_ring
+      keys = Array.new(200) { |i| "key#{i}" }
+
+      groups = ring.keys_grouped_by_server(keys)
+
+      assert_equal 2, groups.size
+      assert_equal 200, groups.values.sum(&:size)
+      assert_equal [1, 1], calls.values
+    end
+
+    it 'checks the chosen server once per single-key lookup' do
+      ring, calls = counting_ring
+
+      ring.server_for_key('test')
+
+      assert_equal 1, calls.values.sum
+    end
+
+    it 'groups keys under nil when no server is alive' do
+      ring, = counting_ring(alive: false)
+
+      assert_equal({ nil => %w[a b] }, ring.keys_grouped_by_server(%w[a b]))
+    end
+  end
+
   describe 'a ring of servers' do
     it 'have the continuum sorted by value' do
       servers = ['localhost:11211', 'localhost:9500']

@@ -47,6 +47,13 @@ module Dalli
                                   **routing_token_kwargs(options))
       end
 
+      # Same requests as quiet_get_request for each key, built in one pass
+      # and without the trailing noop.
+      def quiet_get_requests(keys, options = nil, return_cas: true)
+        RequestFormatter.multi_meta_get(keys, skip_flags: raw_mode?, return_cas: return_cas, terminate: false,
+                                              **routing_token_kwargs(options))
+      end
+
       def gat(key, ttl, options = nil)
         ttl = TtlSanitizer.sanitize(ttl)
         skip_flags = raw_mode? || (options && options[:raw])

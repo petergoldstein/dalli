@@ -17,7 +17,7 @@ module Dalli
       attr_accessor :weight, :options
 
       def_delegators :@value_marshaller, :serializer, :compressor, :compression_min_size, :compress_by_default?
-      def_delegators :@connection_manager, :name, :sock, :hostname, :port, :close, :socket_timeout,
+      def_delegators :@connection_manager, :name, :hostname, :port, :close, :socket_timeout,
                      :socket_type, :up!, :down!, :write, :reconnect_down_server?, :raise_down_error
 
       # Delegated by hand rather than with def_delegators because they run on
@@ -28,6 +28,12 @@ module Dalli
 
       def flushed_write(bytes)
         @connection_manager.flushed_write(bytes)
+      end
+
+      # Written out rather than delegated: a multi-server get_multi calls it for
+      # every server, and a plain method call is cheaper than a Forwardable one.
+      def sock
+        @connection_manager.sock
       end
 
       def initialize(attribs, client_options = {})
@@ -300,18 +306,17 @@ module Dalli
         up!
       end
 
-      def pipelined_get(keys, options = nil)
+      # return_cas = false leaves the c flag off each request, for callers
+      # (plain get_multi) that discard the CAS value. It is positional because
+      # #request forwards only positional arguments.
+      def pipelined_get(keys, options = nil, return_cas = true) # rubocop:disable Style/OptionalBooleanParameter
         # Clear buffer to remove any stale data from interrupted operations.
         # Use clear (not reset) to keep pipeline_complete? = true, which is
         # the expected state before pipeline_response_setup is called.
         response_buffer.clear
 
-        req = +''
-        keys.each do |key|
-          req << quiet_get_request(key, options)
-        end
-        # Could send noop here instead of in pipeline_response_setup
-        write(req)
+        # The terminating noop is sent by pipeline_response_setup
+        write(quiet_get_requests(keys, options, return_cas: return_cas))
       end
 
       # For large batches, interleave writing requests with draining responses.

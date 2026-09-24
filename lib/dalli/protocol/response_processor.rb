@@ -25,6 +25,11 @@ module Dalli
 
         VA_PREFIX = 'VA '
         FLAGS_TOKEN_PREFIX = ' f'
+        BYTE_B = 'b'.ord
+        BYTE_C = 'c'.ord
+        BYTE_F = 'f'.ord
+        BYTE_K = 'k'.ord
+        BYTE_S = 's'.ord
 
         T_OK = [OK].freeze
         T_RESET = [RESET].freeze
@@ -197,11 +202,6 @@ module Dalli
           non_deletions
         end
 
-        def full_response_from_buffer(tokens, body, resp_size)
-          value = @value_marshaller.retrieve(body, bitflags_from_tokens(tokens))
-          [tokens.first == VA, cas_from_tokens(tokens), key_from_tokens(tokens), value, resp_size]
-        end
-
         ##
         # This method returns an array of values used in a pipelined
         # getk process.  The first value is the number of bytes by
@@ -221,8 +221,20 @@ module Dalli
           tokens = header.split
           header_len = header.bytesize + TERMINATOR.length
 
-          # The body len is removed from the tokens array
-          body_len = body_len_from_tokens(tokens)
+          # Read the s, f, c and k flags and the b marker in one pass. As with
+          # value_from_tokens, the first token for each flag wins.
+          size = bitflags = cas = key = nil
+          base64 = false
+          tokens.each do |token|
+            case token.getbyte(0)
+            when BYTE_S then size ||= token
+            when BYTE_F then bitflags ||= token
+            when BYTE_C then cas ||= token
+            when BYTE_K then key ||= token
+            when BYTE_B then base64 ||= token == 'b'
+            end
+          end
+          body_len = flag_int(size, 's')
 
           # We have a complete response that has no body.
           # This is either the response to the terminating
@@ -238,7 +250,16 @@ module Dalli
           # The full response is in our buffer, so parse it and return
           # the values
           body = buf.byteslice(offset + header_len, body_len)
-          full_response_from_buffer(tokens, body, resp_size)
+          value = @value_marshaller.retrieve(body, flag_int(bitflags, 'f'))
+          key = key ? key.delete_prefix!('k') : 0
+          key = KeyRegularizer.decode(key) if base64
+          [tokens.first == VA, flag_int(cas, 'c'), key, value, resp_size]
+        end
+
+        # Integer value of a flag token such as "f123", or 0 when absent.
+        # Strips the prefix in place, like value_from_tokens.
+        def flag_int(token, flag)
+          token ? token.delete_prefix!(flag).to_i : 0
         end
 
         def error_on_unexpected!(expected_codes)
@@ -310,10 +331,6 @@ module Dalli
         # The t flag returns t<seconds>.
         def ttl_remaining_from_tokens(tokens)
           value_from_tokens(tokens, 't').to_i
-        end
-
-        def body_len_from_tokens(tokens)
-          value_from_tokens(tokens, 's').to_i
         end
 
         def value_from_tokens(tokens, flag)

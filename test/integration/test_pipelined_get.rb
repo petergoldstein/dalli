@@ -245,6 +245,62 @@ describe 'Pipelined Get' do
         end
       end
 
+      describe 'multi-server get_multi' do
+        def with_two_server_client(protocol, **options)
+          memcached_persistent(protocol, 21_345) do |_, port1|
+            memcached_persistent(protocol, 21_346) do |_, port2|
+              dc = Dalli::Client.new(["localhost:#{port1}", "localhost:#{port2}"], options)
+              dc.flush
+              yield dc
+            end
+          end
+        end
+
+        let(:keys) { Array.new(40) { |i| "key#{i}" } + ['key with spaces', 'clé'] }
+
+        it 'returns every value, in both hash and block form, across servers' do
+          with_two_server_client(p) do |dc|
+            keys.each { |k| dc.set(k, "v:#{k}") }
+            groups = dc.send(:ring).keys_grouped_by_server(keys.dup)
+
+            assert_equal 2, groups.size, 'keys should span both servers'
+
+            expected = keys.to_h { |k| [k, "v:#{k}"] }
+
+            assert_equal expected, dc.get_multi(keys + ['absent'])
+
+            yielded = {}
+            dc.get_multi(keys) { |k, v| yielded[k] = v }
+
+            assert_equal expected, yielded
+          end
+        end
+
+        it 'strips the namespace from returned keys' do
+          with_two_server_client(p, namespace: 'ns') do |dc|
+            keys.each { |k| dc.set(k, k) }
+
+            assert_equal keys.to_h { |k| [k, k] }, dc.get_multi(keys)
+          end
+        end
+
+        it 'still returns real CAS values from get_multi_cas' do
+          with_two_server_client(p) do |dc|
+            keys.each { |k| dc.set(k, k) }
+            result = dc.get_multi_cas(keys)
+
+            assert_equal keys.sort, result.keys.sort
+            keys.each do |k|
+              value, cas = result[k]
+
+              assert_equal k, value
+              assert_equal dc.get_cas(k).last, cas
+              assert_operator cas, :>, 0
+            end
+          end
+        end
+      end
+
       describe 'pipelined_get_interleaved' do
         it 'works with chunked requests' do
           memcached_persistent(p) do |dc|

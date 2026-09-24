@@ -62,7 +62,9 @@ module Dalli
           skip_flags ? "mg #{encoded_key(key)} v#{TERMINATOR}" : "mg #{encoded_key(key)} v f#{TERMINATOR}"
         end
 
-        def multi_meta_get(keys, skip_flags: false, return_cas: false, p_token: nil, l_token: nil)
+        # Pass terminate: false to leave off the trailing noop, for callers
+        # (the pipelined get) that send it separately.
+        def multi_meta_get(keys, skip_flags: false, return_cas: false, terminate: true, p_token: nil, l_token: nil)
           # In raw mode: "mg <key> v k q s\r\n" (no f flag, key at index 2)
           # Normal mode: "mg <key> v f k q s\r\n" (key at index 3)
           # With return_cas a "c" flag follows, which shifts those indexes --
@@ -81,7 +83,7 @@ module Dalli
           keys.each do |key|
             buffer << 'mg ' << encoded_key(key) << post_get
           end
-          buffer << 'mn' << TERMINATOR
+          terminate ? buffer << 'mn' << TERMINATOR : buffer
         end
 
         def meta_set(key:, value:, bitflags: nil, cas: nil, ttl: nil, mode: :set, quiet: false,
