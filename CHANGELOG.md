@@ -11,11 +11,19 @@ Performance:
   - A `VA <size> f<flags>` hit line is parsed in place instead of being split into tokens
   - The key check for control characters and whitespace uses a byte class that matches the same ASCII bytes as `[\p{Cntrl}\s]`, about 5x faster; this applies to every operation that sends a key
   - Allocations per `get` hit drop from 23 to 16
+  - Thanks to Julian Richard Contreras for this contribution
 - Speed up multi-server `get_multi` by about 30% (4 servers, 100 keys), and bring small batches in line with 2.7.11 (#1161)
   - Each server's queries and terminating noop are sent before the next server's are built, so memcached answers earlier servers while later ones are prepared
   - A server's queries are built in one pass with `RequestFormatter.multi_meta_get`, and plain `get_multi` no longer requests the CAS value it discards (`get_multi_cas` still does)
   - Pipelined replies are parsed in one pass over the returned flags
   - Routing many keys checks each server's `alive?` once per call instead of twice per key, and the ring's binary search runs over plain integers
+  - Thanks to Julian Richard Contreras for this contribution
+
+Development:
+
+- Fix offenses reported by RuboCop 1.91 and require `rubocop >= 1.91` (#1162)
+  - RuboCop 1.91 adds `Style/DirectiveScope`; single-statement `disable`/`enable` pairs become `disable-next` directives, which older RuboCop versions do not recognize
+  - Removes a misplaced `# encoding: ascii` comment in `client.rb` that Ruby had always ignored
 
 5.1.0
 ==========
