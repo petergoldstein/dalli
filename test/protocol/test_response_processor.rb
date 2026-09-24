@@ -33,6 +33,41 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
         assert_equal test_value, result
         io_source.verify
       end
+
+      it 'reads the flags when they are not the first returned flag' do
+        test_value = 'hello world'
+        serialized = Marshal.dump(test_value)
+
+        expect_read_line("VA #{serialized.bytesize} W f1 X")
+        expect_read_data(serialized, serialized.bytesize)
+
+        assert_equal test_value, processor.meta_get_with_value
+        io_source.verify
+      end
+
+      it 'treats a missing flags token as flags 0 (raw mode)' do
+        expect_read_line('VA 5')
+        expect_read_data('hello', 5)
+
+        assert_equal 'hello', processor.meta_get_with_value
+        io_source.verify
+      end
+    end
+
+    describe 'when the response is unexpected' do
+      it 'raises ServerError on SERVER_ERROR' do
+        expect_read_line('SERVER_ERROR out of memory')
+
+        err = assert_raises(Dalli::ServerError) { processor.meta_get_with_value }
+        assert_equal 'SERVER_ERROR out of memory', err.message
+      end
+
+      it 'raises DalliError on any other response' do
+        expect_read_line('NS')
+
+        err = assert_raises(Dalli::DalliError) { processor.meta_get_with_value }
+        assert_equal 'Response error: NS', err.message
+      end
     end
 
     describe 'when key is not found (EN response)' do

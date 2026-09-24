@@ -55,6 +55,13 @@ module Dalli
           cmd << TERMINATOR
         end
 
+        # Fast path for the common single-key get with no optional flags.
+        # Produces the same bytes as meta_get(key: key, skip_flags: skip_flags)
+        # without the keyword-argument handling and incremental string building.
+        def plain_meta_get(key, skip_flags)
+          skip_flags ? "mg #{encoded_key(key)} v#{TERMINATOR}" : "mg #{encoded_key(key)} v f#{TERMINATOR}"
+        end
+
         def multi_meta_get(keys, skip_flags: false, return_cas: false, p_token: nil, l_token: nil)
           # In raw mode: "mg <key> v k q s\r\n" (no f flag, key at index 2)
           # Normal mode: "mg <key> v f k q s\r\n" (key at index 3)

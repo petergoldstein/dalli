@@ -8,6 +8,16 @@ describe 'operations' do
   MemcachedManager.supported_protocols.each do |p|
     describe "using the #{p} protocol" do
       describe 'get' do
+        it 'treats false request options the same as no options' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.set('a', 'value')
+
+            assert_equal 'value', dc.get('a', false)
+            assert_nil dc.get('missing', false)
+          end
+        end
+
         it 'returns the value on a hit' do
           memcached_persistent(p) do |dc|
             dc.flush

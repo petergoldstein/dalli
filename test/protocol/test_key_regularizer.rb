@@ -4,6 +4,15 @@ require_relative '../helper'
 
 describe Dalli::Protocol::Meta::KeyRegularizer do
   describe '.required?' do
+    it 'flags exactly the ASCII bytes that are control characters or whitespace' do
+      (0..127).each do |byte|
+        key = "a#{byte.chr}b"
+
+        assert_equal(/[\p{Cntrl}\s]/.match?(key), Dalli::Protocol::Meta::KeyRegularizer.required?(key),
+                     "byte 0x#{byte.to_s(16)}")
+      end
+    end
+
     it 'returns false for simple ASCII keys' do
       key = 'simple_key_123'
 

@@ -24,9 +24,19 @@ module Dalli
 
       # Retrieval Commands
       def get(key, options = nil)
+        # Fast path for the common case of no per-request options (nil or false)
+        unless options
+          flushed_write(RequestFormatter.plain_meta_get(key, raw_mode?))
+          return response_processor.meta_get_with_value
+        end
+
         # Skip bitflags in raw mode - saves 2 bytes per request and skips parsing
-        skip_flags = raw_mode? || (options && options[:raw])
-        req = RequestFormatter.meta_get(key: key, skip_flags: skip_flags, **routing_token_kwargs(options))
+        skip_flags = raw_mode? || options[:raw]
+        req = if routing_tokens?(options)
+                RequestFormatter.meta_get(key: key, skip_flags: skip_flags, **routing_token_kwargs(options))
+              else
+                RequestFormatter.plain_meta_get(key, skip_flags)
+              end
         flushed_write(req)
         response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
       end
