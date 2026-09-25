@@ -261,6 +261,80 @@ describe 'Quiet behavior' do
         end
       end
 
+      describe 'on a multi-server ring' do
+        def with_two_server_client(protocol)
+          memcached_persistent(protocol, 21_345) do |_, port1|
+            memcached_persistent(protocol, 21_346) do |_, port2|
+              dc = Dalli::Client.new(["localhost:#{port1}", "localhost:#{port2}"])
+              dc.flush
+              yield dc
+            end
+          end
+        end
+
+        # Records the port of every server sent a noop
+        def record_noops(client)
+          noops = []
+          client.send(:ring).servers.each do |server|
+            original = server.method(:request)
+            server.define_singleton_method(:request) do |opkey, *args|
+              noops << port if opkey == :noop
+              original.call(opkey, *args)
+            end
+          end
+          noops
+        end
+
+        # The first "<prefix><n>" key that the ring maps to server
+        def key_on(client, server, prefix = 'key')
+          (1..).lazy.map { |i| "#{prefix}#{i}" }.find { |k| client.send(:ring).server_for_key(k) == server }
+        end
+
+        it 'only sends the terminating noop to servers that received quiet requests' do
+          with_two_server_client(p) do |dc|
+            first, second = dc.send(:ring).servers
+            key = key_on(dc, first)
+            noops = record_noops(dc)
+
+            dc.quiet { dc.set(key, 'v') }
+
+            assert_equal [first.port], noops
+            assert_equal 'v', dc.get(key)
+            refute_predicate first, :quiet_responses_pending?
+            refute_predicate second, :quiet_responses_pending?
+          end
+        end
+
+        it 'sends no noop when the block makes no requests' do
+          with_two_server_client(p) do |dc|
+            noops = record_noops(dc)
+
+            dc.quiet { nil }
+
+            assert_empty noops
+          end
+        end
+
+        it 'does not corrupt later reads when quiet deletes miss on several servers' do
+          with_two_server_client(p) do |dc|
+            first, second = dc.send(:ring).servers
+            a = key_on(dc, first)
+            b = key_on(dc, second)
+            dc.set(a, 'av')
+            dc.set(b, 'bv')
+
+            # Each quiet delete misses, leaving an NF reply on that server's socket
+            dc.multi do
+              dc.delete(key_on(dc, first, 'missing'))
+              dc.delete(key_on(dc, second, 'missing'))
+            end
+
+            assert_equal 'av', dc.get(a)
+            assert_equal 'bv', dc.get(b)
+          end
+        end
+      end
+
       describe 'quiet? method' do
         it 'has protocol instances that respond to quiet?' do
           memcached_persistent(p) do |dc|

@@ -18,7 +18,8 @@ module Dalli
 
       def_delegators :@value_marshaller, :serializer, :compressor, :compression_min_size, :compress_by_default?
       def_delegators :@connection_manager, :name, :hostname, :port, :close, :socket_timeout,
-                     :socket_type, :up!, :down!, :write, :reconnect_down_server?, :raise_down_error
+                     :socket_type, :up!, :down!, :write, :reconnect_down_server?, :raise_down_error,
+                     :quiet_responses_pending?
 
       # Delegated by hand rather than with def_delegators because they run on
       # every request, and a plain method call is cheaper than a Forwardable one.
@@ -59,6 +60,9 @@ module Dalli
           request_completed = false
           @connection_manager.start_request!
           response = send(opkey, *args)
+          # Quiet requests can leave replies on the socket; remember that so the
+          # end of the quiet block knows this server needs draining
+          @connection_manager.mark_quiet_responses_pending! if quiet? && opkey != :noop
 
           # pipelined_get/pipelined_get_interleaved emit query but don't read the response(s)
           @connection_manager.finish_request! unless %i[pipelined_get pipelined_get_interleaved].include?(opkey)
