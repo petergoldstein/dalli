@@ -20,6 +20,7 @@ Performance:
   - Ending the block used to send a noop to every server in the ring and wait for each reply, one after another, so its cost grew with ring size even when the block touched one server (or none)
   - Each connection now records when a quiet request is written, and the block's drain skips the others; servers that were never connected are no longer connected just to be drained
   - With ~300us of network round trip, `multi { set }` on a 16-server ring goes from 4.9ms to 0.32ms; an empty block no longer touches the network
+  - Thanks to Julian Richard Contreras for this contribution
 
 5.1.1
 ==========
