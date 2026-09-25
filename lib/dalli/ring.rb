@@ -87,8 +87,13 @@ module Dalli
       end
     end
 
+    # Drains the replies left by quiet requests. Only servers that were sent a
+    # quiet request need it, so the others (and servers never connected) are
+    # skipped rather than each costing a noop round trip.
     def pipeline_consume_and_ignore_responses
       @servers.each do |s|
+        next unless s.quiet_responses_pending?
+
         s.request(:noop)
       rescue Dalli::NetworkError
         # Ignore this error, as it indicates the socket is unavailable
