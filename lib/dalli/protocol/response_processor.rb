@@ -24,7 +24,9 @@ module Dalli
         SERVER_ERROR = 'SERVER_ERROR'
 
         VA_PREFIX = 'VA '
+        HD_PREFIX = 'HD '
         FLAGS_TOKEN_PREFIX = ' f'
+        CAS_TOKEN_PREFIX = ' c'
         BYTE_B = 'b'.ord
         BYTE_C = 'c'.ord
         BYTE_F = 'f'.ord
@@ -125,7 +127,13 @@ module Dalli
         end
 
         def meta_set_with_cas
-          tokens = error_on_unexpected!(T_HD_NS_NF_EX)
+          line = read_line
+          # A stored item ("HD c<cas>") is parsed in place rather than split into tokens
+          # Search from just after "HD": the " c" token starts at the space that follows it
+          return flag_from_line(line, CAS_TOKEN_PREFIX, HD.bytesize) if line&.start_with?(HD_PREFIX)
+
+          tokens = line&.split || []
+          raise_unexpected!(tokens) unless T_HD_NS_NF_EX.include?(tokens.first)
           return false unless tokens.first == HD
 
           cas_from_tokens(tokens)
@@ -139,7 +147,13 @@ module Dalli
         end
 
         def meta_delete
-          tokens = error_on_unexpected!(T_HD_NF_EX)
+          line = read_line
+          # The two common replies, compared as whole lines instead of split into tokens
+          return true if line == HD
+          return false if line == NF
+
+          tokens = line&.split || []
+          raise_unexpected!(tokens) unless T_HD_NF_EX.include?(tokens.first)
           tokens.first == HD
         end
 
@@ -287,8 +301,13 @@ module Dalli
         end
 
         def bitflags_from_va_line(line)
-          idx = line.index(FLAGS_TOKEN_PREFIX, VA_PREFIX.bytesize)
-          idx ? line.byteslice(idx + FLAGS_TOKEN_PREFIX.bytesize, line.bytesize).to_i : 0
+          flag_from_line(line, FLAGS_TOKEN_PREFIX, VA_PREFIX.bytesize)
+        end
+
+        # Integer value of the first " <flag><digits>" token at or after start, or 0
+        def flag_from_line(line, token_prefix, start)
+          idx = line.index(token_prefix, start)
+          idx ? line.byteslice(idx + token_prefix.bytesize, line.bytesize).to_i : 0
         end
 
         def cas_from_tokens(tokens)

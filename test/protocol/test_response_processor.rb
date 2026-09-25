@@ -150,6 +150,40 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
   end
 
   describe '#meta_set_with_cas' do
+    it 'reads the CAS when it is the first flag' do
+      expect_read_line('HD c7')
+
+      assert_equal 7, processor.meta_set_with_cas
+      io_source.verify
+    end
+
+    it 'reads the CAS when other flags come first' do
+      expect_read_line('HD b c42')
+
+      assert_equal 42, processor.meta_set_with_cas
+      io_source.verify
+    end
+
+    it 'returns 0 for an HD response without a CAS' do
+      expect_read_line('HD')
+
+      assert_equal 0, processor.meta_set_with_cas
+      io_source.verify
+    end
+
+    it 'raises ServerError on SERVER_ERROR' do
+      expect_read_line('SERVER_ERROR out of memory')
+
+      assert_raises(Dalli::ServerError) { processor.meta_set_with_cas }
+    end
+
+    it 'raises DalliError on an unexpected response' do
+      expect_read_line('EN')
+
+      err = assert_raises(Dalli::DalliError) { processor.meta_set_with_cas }
+      assert_equal 'Response error: EN', err.message
+    end
+
     it 'returns CAS value on HD response' do
       cas_value = 98_765
       expect_read_line("HD c#{cas_value}")
@@ -209,6 +243,20 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
   end
 
   describe '#meta_delete' do
+    it 'returns false on EX (CAS mismatch)' do
+      expect_read_line('EX')
+
+      refute processor.meta_delete
+      io_source.verify
+    end
+
+    it 'raises DalliError on an unexpected response' do
+      expect_read_line('NS')
+
+      err = assert_raises(Dalli::DalliError) { processor.meta_delete }
+      assert_equal 'Response error: NS', err.message
+    end
+
     it 'returns true on HD response' do
       expect_read_line('HD')
 
