@@ -164,6 +164,31 @@ describe Dalli::Protocol::Meta::RequestFormatter do
     end
   end
 
+  describe 'plain_meta_set' do
+    let(:formatter) { Dalli::Protocol::Meta::RequestFormatter }
+
+    it 'matches meta_set for a plain set' do
+      ['key', 'key with spaces', 'clé'].product([nil, 0, 5], [nil, 0, 300]).each do |key, bitflags, ttl|
+        assert_equal formatter.meta_set(key: key, value: 'abc', bitflags: bitflags, ttl: ttl),
+                     formatter.plain_meta_set(key, 3, bitflags, ttl)
+      end
+    end
+
+    it 'rejects a non-integer ttl like meta_set does' do
+      assert_raises(ArgumentError) { formatter.meta_set(key: 'k', value: 'v', ttl: '10 x') }
+      assert_raises(ArgumentError) { formatter.plain_meta_set('k', 1, 0, '10 x') }
+    end
+  end
+
+  describe 'plain_meta_delete' do
+    it 'matches meta_delete with no options' do
+      ['key', 'key with spaces', 'clé'].each do |key|
+        assert_equal Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key),
+                     Dalli::Protocol::Meta::RequestFormatter.plain_meta_delete(key)
+      end
+    end
+  end
+
   describe 'meta_set' do
     let(:key) { SecureRandom.hex(4) }
     let(:hexlen) { rand(500..999) }

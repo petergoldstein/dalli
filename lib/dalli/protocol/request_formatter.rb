@@ -63,6 +63,19 @@ module Dalli
           skip_flags ? "mg #{encoded_key(key)} v#{TERMINATOR}" : "mg #{encoded_key(key)} v f#{TERMINATOR}"
         end
 
+        # Fast path for a plain set: mode :set, not quiet, no CAS and no routing
+        # tokens. Produces the same bytes as meta_set(key:, value:, bitflags:, ttl:)
+        # without the keyword-argument handling and incremental string building.
+        def plain_meta_set(key, value_bytesize, bitflags, ttl)
+          flags = bitflags ? " F#{bitflags}" : ''
+          flags += " T#{integer_flag(:ttl, ttl)}" if ttl
+          if KeyRegularizer.required?(key)
+            "ms #{KeyRegularizer.encode(key)} #{value_bytesize} c b#{flags} MS#{TERMINATOR}"
+          else
+            "ms #{key} #{value_bytesize} c#{flags} MS#{TERMINATOR}"
+          end
+        end
+
         # Pass terminate: false to leave off the trailing noop, for callers
         # (the pipelined get) that send it separately.
         def multi_meta_get(keys, skip_flags: false, return_cas: false, terminate: true, p_token: nil, l_token: nil)
@@ -156,6 +169,11 @@ module Dalli
           cmd << ' q' if quiet
           cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << TERMINATOR
+        end
+
+        # Same bytes as meta_delete(key: key), without the keyword-argument handling
+        def plain_meta_delete(key)
+          "md #{encoded_key(key)}#{TERMINATOR}"
         end
 
         # Tombstone and routing-token flags apply to every key in the batch;

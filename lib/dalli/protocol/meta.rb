@@ -157,10 +157,15 @@ module Dalli
       def write_storage_req(mode, key, raw_value, ttl = nil, cas = nil, options = {}, quiet: quiet?)
         (value, bitflags) = @value_marshaller.store(key, raw_value, options)
         ttl = TtlSanitizer.sanitize(ttl) if ttl
-        req = RequestFormatter.meta_set(key: key, value: value,
-                                        bitflags: bitflags, cas: cas,
-                                        ttl: ttl, mode: mode, quiet: quiet,
-                                        **routing_token_kwargs(options))
+        # eql?(0): only Integer 0 means "no CAS" here; anything else takes the general path
+        req = if mode == :set && !quiet && (cas.nil? || cas.eql?(0)) && !routing_tokens?(options)
+                RequestFormatter.plain_meta_set(key, value.bytesize, bitflags, ttl)
+              else
+                RequestFormatter.meta_set(key: key, value: value,
+                                          bitflags: bitflags, cas: cas,
+                                          ttl: ttl, mode: mode, quiet: quiet,
+                                          **routing_token_kwargs(options))
+              end
         write("#{req}#{value}#{TERMINATOR}")
         @connection_manager.flush unless quiet
       end
@@ -191,8 +196,13 @@ module Dalli
       # `options` supports the meta-delete keys :invalidate, :tombstone_ttl and
       # :drop_value, plus :p_token/:l_token; see Dalli::Client#delete.
       def delete(key, cas, options = nil)
-        req = RequestFormatter.meta_delete(key: key, cas: cas, quiet: quiet?,
-                                           **tombstone_kwargs(options), **routing_token_kwargs(options))
+        # Fast path for a plain delete: no options, no CAS, not quiet
+        req = if options.nil? && (cas.nil? || cas.eql?(0)) && !quiet?
+                RequestFormatter.plain_meta_delete(key)
+              else
+                RequestFormatter.meta_delete(key: key, cas: cas, quiet: quiet?,
+                                             **tombstone_kwargs(options), **routing_token_kwargs(options))
+              end
         write(req)
         @connection_manager.flush unless quiet?
         response_processor.meta_delete unless quiet?
