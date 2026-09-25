@@ -11,7 +11,7 @@ Performance:
   - Saves one syscall per server per multi-server `get_multi`; on 4 servers a 3-key `get_multi` goes from 16% to 5% slower than 2.7.11 in the #930 benchmark
   - TLS sockets also check `SSLSocket#pending`, since `IO.select` cannot see data OpenSSL has buffered
   - Thanks to Julian Richard Contreras for this contribution
-- Reduce Ruby overhead on plain `set` and `delete` (#PR_NUMBER)
+- Reduce Ruby overhead on plain `set` and `delete` (#1166)
   - A `set` with no CAS, routing tokens or quiet mode builds its `ms` request with one string interpolation (`RequestFormatter.plain_meta_set`), and a `delete` with no options uses `plain_meta_delete`; both produce the same bytes as before
   - `HD c<cas>`, `HD` and `NF` replies are parsed without splitting them into tokens
   - Allocations per `set` drop from 22 to 18, and per `delete` from 12 to 7
