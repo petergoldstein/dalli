@@ -15,6 +15,7 @@ Performance:
   - A `set` with no CAS, routing tokens or quiet mode builds its `ms` request with one string interpolation (`RequestFormatter.plain_meta_set`), and a `delete` with no options uses `plain_meta_delete`; both produce the same bytes as before
   - `HD c<cas>`, `HD` and `NF` replies are parsed without splitting them into tokens
   - Allocations per `set` drop from 22 to 18, and per `delete` from 12 to 7
+  - Thanks to Julian Richard Contreras for this contribution
 
 5.1.1
 ==========
