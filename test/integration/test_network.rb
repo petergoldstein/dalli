@@ -145,6 +145,20 @@ describe 'Network' do
           end
         end
 
+        it 'reads large pipelined replies over SSL' do
+          memcached_ssl_persistent(p) do |dc|
+            # 150KB of replies spans many TLS records, so read_available sees
+            # both short and full-chunk reads on the pipelined path
+            values = Array.new(50) { |i| ["big#{i}", ('a'..'z').to_a.sample * 3_000] }.to_h
+            values.each { |k, v| dc.set(k, v) }
+
+            yielded = {}
+            dc.get_multi(values.keys) { |k, v| yielded[k] = v } # the block form uses the pipelined path
+
+            assert_equal values, yielded
+          end
+        end
+
         it 'allow TCP connections to be configured for keepalive' do
           memcached_persistent(p) do |_, port|
             dc = Dalli::Client.new("localhost:#{port}", keepalive: true)

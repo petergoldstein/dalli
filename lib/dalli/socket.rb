@@ -12,22 +12,29 @@ module Dalli
     # Common methods for all socket implementations.
     ##
     module InstanceMethods
+      READ_CHUNK_SIZE = 8196
+
+      # Reads whatever is available without blocking. A read that returns less
+      # than a full chunk means the socket was drained, so we stop there rather
+      # than spend another read_nonblock call just to get :wait_readable back.
+      # Callers keep waiting on IO.select for anything that arrives later.
       def read_available(reusable_buffer = nil)
         if reusable_buffer
-          value = read_nonblock(8196, reusable_buffer, exception: false)
+          value = read_nonblock(READ_CHUNK_SIZE, reusable_buffer, exception: false)
           case value
           when :wait_writable, :wait_readable
             return reusable_buffer.clear
           when nil
             raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}"
           end
+          return value if drained_after?(value)
         else
           value = ''.b
         end
 
         buffer = ''.b
         loop do
-          result = read_nonblock(8196, buffer, exception: false)
+          result = read_nonblock(READ_CHUNK_SIZE, buffer, exception: false)
           case result
           when :wait_writable, :wait_readable
             buffer.clear
@@ -36,8 +43,19 @@ module Dalli
             raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}"
           else
             value << result
+            return value if drained_after?(result)
           end
         end
+      end
+
+      # True when a read came back short and nothing is left buffered in-process.
+      def drained_after?(chunk)
+        chunk.bytesize < READ_CHUNK_SIZE && !buffered_data?
+      end
+
+      # Plain sockets keep nothing buffered in-process. See SSLSocket.
+      def buffered_data?
+        false
       end
 
       FILTERED_OUT_OPTIONS = %i[username password].freeze
@@ -81,6 +99,13 @@ module Dalli
 
       def options
         io.options
+      end
+
+      # OpenSSL can hold decrypted bytes that IO.select won't report as readable.
+      # With OpenSSL's default (no read-ahead) a short read has already used up
+      # the current record, so this is normally 0; it guards read-ahead setups.
+      def buffered_data?
+        pending.positive?
       end
 
       unless method_defined?(:wait_readable)
