@@ -4,6 +4,15 @@ Dalli Changelog
 Unreleased
 ==========
 
+Features:
+
+- Add the opt-in `defer_drain` client option (#PR_NUMBER)
+  - With `defer_drain: true`, a `quiet`/`multi` block no longer waits at its end for the replies to its requests. The requests are still sent right away; the replies are read with one noop per server just before the next non-quiet request to that server
+  - Adds `Client#drain_deferred_responses`, to drain at a boundary of the caller's choosing (the end of a web request or job)
+  - Tradeoff: an error reply to a quiet request surfaces (and is discarded) at that later point, not at the end of the block
+  - Off by default, so existing behavior is unchanged
+  - Based on work by Matt Dick
+
 Performance:
 
 - Skip the empty read at the end of each pipelined `read_available` call (#1164)
