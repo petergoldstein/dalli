@@ -10,7 +10,6 @@ jobs:
       fail-fast: false
       matrix:
         ruby-version:
-          - head
           - '3.3'
           - '3.2'
           - '3.1'
