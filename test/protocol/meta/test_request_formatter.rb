@@ -260,6 +260,7 @@ describe Dalli::Protocol::Meta::RequestFormatter do
     }.each do |name, build|
       it "rejects a CRLF-bearing #{name}" do
         error = assert_raises(ArgumentError) { build.call(formatter, payload) }
+
         assert_match(/must be an Integer/, error.message)
       end
 
