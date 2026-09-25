@@ -4,6 +4,13 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.2.10
+==========
+
+- Fix `Rack::Session::Dalli` with connection_pool 3.x, which only accepts keyword arguments (backport of #1051)
+- Add `logger` as a runtime dependency, since it is no longer a default gem as of Ruby 4.0 (backport of #1010, olleolleolle)
+- CI: patch memcached 1.5.22 so it builds on ubuntu-22.04, and run tests there (backport of #1033)
+
 3.2.9
 ==========
 
