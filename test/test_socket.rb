@@ -144,3 +144,35 @@ describe 'Dalli::Socket::InstanceMethods#read_available' do
     assert_equal '', sock.read_available(''.b)
   end
 end
+
+describe 'Dalli::Socket::SSLSocket#read_available' do
+  # A real SSLSocket instance (no connection) with scripted reads and
+  # pending counts, so the class's own buffered_data? override is exercised
+  def scripted_ssl_socket(reads, pendings)
+    sock = Dalli::Socket::SSLSocket.allocate
+    read_calls = 0
+    sock.define_singleton_method(:read_nonblock) do |_len, _buf = nil, exception: true|
+      raise 'unexpected extra read' unless exception == false && read_calls < reads.size
+
+      read_calls += 1
+      reads[read_calls - 1]
+    end
+    sock.define_singleton_method(:pending) { pendings.shift || 0 }
+    sock.define_singleton_method(:read_calls) { read_calls }
+    sock
+  end
+
+  it 'keeps reading after a short read while OpenSSL still has data buffered' do
+    sock = scripted_ssl_socket(['part', 'rest', :wait_readable], [5, 0])
+
+    assert_equal 'partrest', sock.read_available
+    assert_equal 2, sock.read_calls
+  end
+
+  it 'stops after a short read once OpenSSL has nothing buffered' do
+    sock = scripted_ssl_socket(['part'], [0])
+
+    assert_equal 'part', sock.read_available
+    assert_equal 1, sock.read_calls
+  end
+end
