@@ -254,16 +254,15 @@ module Dalli
     # breaking change reserved for a future major version. This lets callers
     # opt in to the structured shape today.
     #
-    # Result key order follows #get_multi_with_metadata's own -- request
-    # order only when every key lands on the same server, per-server response
-    # order otherwise. Not rebuilt into requested-key order here; see the
-    # open question on #1130 about whether that should be a separate,
-    # explicit guarantee.
+    # Result key order follows #get_multi_with_metadata's own: request order
+    # only when every key lands on the same server, per-server response order
+    # otherwise.
     #
     # @param keys [Array<String>] the keys to fetch
+    # @param req_options [Hash, nil] see #get_multi_with_metadata
     # @return [Hash] key => Dalli::CacheResult
-    def get_multi_with_metadata_result(*keys)
-      get_multi_with_metadata(*keys).transform_values { |hash| CacheResult.new(hash) }
+    def get_multi_with_metadata_result(*keys, req_options: nil)
+      get_multi_with_metadata(*keys, req_options: req_options).transform_values { |hash| CacheResult.new(hash) }
     end
 
     ##

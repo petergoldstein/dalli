@@ -108,6 +108,24 @@ describe 'CacheResult adapter methods' do
             assert_empty dc.get_multi_with_metadata_result([])
           end
         end
+
+        it 'forwards req_options to #get_multi_with_metadata' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.set('a', 'va')
+
+            results = dc.get_multi_with_metadata_result('a', req_options: { p_token: 'pod1' })
+
+            assert_equal ['a'], results.keys
+            assert_equal 'va', results['a'].value
+
+            # Reaching routing-token validation proves the options weren't
+            # swallowed as an extra key
+            assert_raises(ArgumentError) do
+              dc.get_multi_with_metadata_result('a', req_options: { p_token: "pod1\r\nflush_all" })
+            end
+          end
+        end
       end
     end
   end
