@@ -150,6 +150,22 @@ module Dalli
     end
 
     ##
+    # Like #get_with_metadata, but wraps the result in a Dalli::CacheResult
+    # instead of returning a Hash.
+    #
+    # Interim adapter (see #1130 / #1151): #get_with_metadata itself keeps
+    # returning a Hash, since changing that return type is a breaking change
+    # reserved for a future major version. This lets callers opt in to the
+    # structured shape today.
+    #
+    # @param key [String] the cache key
+    # @param options [Hash] see #get_with_metadata
+    # @return [Dalli::CacheResult]
+    def get_with_metadata_result(key, options = {})
+      CacheResult.new(get_with_metadata(key, options))
+    end
+
+    ##
     # Fetch multiple keys efficiently.
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
@@ -226,6 +242,27 @@ module Dalli
       end
 
       results
+    end
+
+    ##
+    # Like #get_multi_with_metadata, but wraps each entry's Hash in a
+    # Dalli::CacheResult instead. Missing keys are still omitted; no block
+    # form.
+    #
+    # Interim adapter (see #1130 / #1151): #get_multi_with_metadata itself
+    # keeps returning a Hash of Hashes, since changing that return type is a
+    # breaking change reserved for a future major version. This lets callers
+    # opt in to the structured shape today.
+    #
+    # Result key order follows #get_multi_with_metadata's own: request order
+    # only when every key lands on the same server, per-server response order
+    # otherwise.
+    #
+    # @param keys [Array<String>] the keys to fetch
+    # @param req_options [Hash, nil] see #get_multi_with_metadata
+    # @return [Hash] key => Dalli::CacheResult
+    def get_multi_with_metadata_result(*keys, req_options: nil)
+      get_multi_with_metadata(*keys, req_options: req_options).transform_values { |hash| CacheResult.new(hash) }
     end
 
     ##
