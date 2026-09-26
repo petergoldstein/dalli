@@ -42,6 +42,7 @@ module Dalli
         warn_uri_credentials(user_creds)
         @options = client_options.merge(user_creds)
         @raw_mode = client_options[:raw]
+        @defer_drain = client_options[:defer_drain] ? true : false
         @value_marshaller = @raw_mode ? StringMarshaller.new(@options) : ValueMarshaller.new(@options)
         @connection_manager = ConnectionManager.new(hostname, port, socket_type, @options)
       end
@@ -59,6 +60,7 @@ module Dalli
         begin
           request_completed = false
           @connection_manager.start_request!
+          drain_deferred_quiet_responses(opkey)
           response = send(opkey, *args)
           # Quiet requests can leave replies on the socket; remember that so the
           # end of the quiet block knows this server needs draining
@@ -220,6 +222,14 @@ module Dalli
 
       ALLOWED_QUIET_OPS = %i[add replace set delete incr decr append prepend flush noop].freeze
       private_constant :ALLOWED_QUIET_OPS
+
+      # With defer_drain, quiet blocks leave their replies unread. Read them
+      # before any non-quiet request, which reads a reply of its own.
+      def drain_deferred_quiet_responses(opkey)
+        return unless @defer_drain && !quiet? && opkey != :noop && @connection_manager.quiet_responses_pending?
+
+        noop
+      end
 
       def verify_allowed_quiet!(opkey)
         return if ALLOWED_QUIET_OPS.include?(opkey)
