@@ -54,7 +54,10 @@ module Dalli
     #                  to its requests. The requests are still sent right away; their replies are read (with one noop
     #                  per server) just before the next non-quiet request to that server, or by
     #                  #drain_deferred_responses. The tradeoff: an error reply to a quiet request surfaces, and is
-    #                  discarded, at that later point rather than when the block ends.
+    #                  discarded, at that later point rather than when the block ends. Replies memcached sends for
+    #                  quiet requests (NF, NS, errors) wait on the connection until then, so a client that only makes
+    #                  quiet requests should call #drain_deferred_responses periodically. See "Deferred Draining" in
+    #                  the README.
     #
     def initialize(servers = nil, options = {})
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
@@ -376,9 +379,13 @@ module Dalli
 
     ##
     # Reads and discards the replies still pending from quiet requests, on the
-    # servers that have any. Only needed with the defer_drain option, for
-    # callers that want this done at a boundary of their choosing (the end of
-    # a web request or background job) instead of before the next read.
+    # servers that have any. Only needed with the defer_drain option.
+    #
+    # Normally the next non-quiet request to a server drains its pending
+    # replies first. A client that only makes quiet requests (for example, a
+    # worker that only issues quiet deletes) never does, so its replies keep
+    # accumulating on the socket; call this periodically, such as after each
+    # batch or job. It sends nothing to servers with no quiet requests pending.
     def drain_deferred_responses
       @ring&.pipeline_consume_and_ignore_responses
       nil

@@ -11,7 +11,8 @@ Features:
   - Adds `Client#drain_deferred_responses`, to drain at a boundary of the caller's choosing (the end of a web request or job)
   - Tradeoff: an error reply to a quiet request surfaces (and is discarded) at that later point, not at the end of the block
   - Off by default, so existing behavior is unchanged
-  - Based on work by Matt Dick
+  - Replies memcached sends for quiet requests wait on the connection until they're drained, so a client that only makes quiet requests should call `drain_deferred_responses` periodically; see "Deferred Draining" in the README
+  - Thanks to Julian Richard Contreras and Matt Dick for this contribution
 
 Performance:
 
