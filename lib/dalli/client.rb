@@ -50,6 +50,14 @@ module Dalli
     #                        +:include+ logs the full operation and key(s), +:obfuscate+ replaces keys with "?",
     #                        +nil+ (default) omits the attribute entirely.
     # - :otel_peer_service - when set, adds a +peer.service+ span attribute with this value for logical service naming.
+    # - :defer_drain - defaults to false. When true, a quiet/multi block no longer waits at its end for the replies
+    #                  to its requests. The requests are still sent right away; their replies are read (with one noop
+    #                  per server) just before the next non-quiet request to that server, or by
+    #                  #drain_deferred_responses. The tradeoff: an error reply to a quiet request surfaces, and is
+    #                  discarded, at that later point rather than when the block ends. Replies memcached sends for
+    #                  quiet requests (NF, NS, errors) wait on the connection until then, so a client that only makes
+    #                  quiet requests should call #drain_deferred_responses periodically. See "Deferred Draining" in
+    #                  the README.
     #
     def initialize(servers = nil, options = {})
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
@@ -392,7 +400,8 @@ module Dalli
     # arithmetic (incr, decr), flush and delete operations.  Use of
     # unsupported operations inside a block will raise an error.
     #
-    # Any error replies will be discarded at the end of the block, and
+    # Any error replies will be discarded at the end of the block (or, with
+    # the defer_drain option, before the next non-quiet request), and
     # Dalli client methods invoked inside the block will not
     # have return values
     def quiet
@@ -400,10 +409,24 @@ module Dalli
       Thread.current[::Dalli::QUIET] = true
       yield
     ensure
-      @ring&.pipeline_consume_and_ignore_responses
+      @ring&.pipeline_consume_and_ignore_responses unless @options[:defer_drain]
       Thread.current[::Dalli::QUIET] = old
     end
     alias multi quiet
+
+    ##
+    # Reads and discards the replies still pending from quiet requests, on the
+    # servers that have any. Only needed with the defer_drain option.
+    #
+    # Normally the next non-quiet request to a server drains its pending
+    # replies first. A client that only makes quiet requests (for example, a
+    # worker that only issues quiet deletes) never does, so its replies keep
+    # accumulating on the socket; call this periodically, such as after each
+    # batch or job. It sends nothing to servers with no quiet requests pending.
+    def drain_deferred_responses
+      @ring&.pipeline_consume_and_ignore_responses
+      nil
+    end
 
     def set(key, value, ttl = nil, req_options = nil)
       set_cas(key, value, 0, ttl, req_options)

@@ -11,6 +11,13 @@ Features:
   - `value`, `cas`, `hit_before`, `last_access` and `ttl_remaining` readers (the last three are `nil` unless requested), plus `miss?`, `hit?`, `stale?`, `won_recache?` and `lost_recache?` predicates
   - Results are frozen, and a Hash that claims to be both a miss and stale raises `ArgumentError`
   - `#get_multi_with_metadata_result` omits misses and accepts `req_options:`, like `#get_multi_with_metadata`; it has no block form
+- Add the opt-in `defer_drain` client option (#1168)
+  - With `defer_drain: true`, a `quiet`/`multi` block no longer waits at its end for the replies to its requests. The requests are still sent right away; the replies are read with one noop per server just before the next non-quiet request to that server
+  - Adds `Client#drain_deferred_responses`, to drain at a boundary of the caller's choosing (the end of a web request or job)
+  - Tradeoff: an error reply to a quiet request surfaces (and is discarded) at that later point, not at the end of the block
+  - Off by default, so existing behavior is unchanged
+  - Replies memcached sends for quiet requests wait on the connection until they're drained, so a client that only makes quiet requests should call `drain_deferred_responses` periodically; see "Deferred Draining" in the README
+  - Thanks to Julian Richard Contreras and Matt Dick for this contribution
 
 Performance:
 

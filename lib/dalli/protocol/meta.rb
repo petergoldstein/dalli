@@ -167,7 +167,7 @@ module Dalli
                                           **routing_token_kwargs(options))
               end
         write("#{req}#{value}#{TERMINATOR}")
-        @connection_manager.flush unless quiet
+        finish_write(quiet)
       end
       # rubocop:enable Metrics/ParameterLists
 
@@ -188,7 +188,7 @@ module Dalli
                                         cas: cas, ttl: ttl, mode: mode, quiet: quiet?,
                                         **routing_token_kwargs(options))
         write("#{req}#{value}#{TERMINATOR}")
-        @connection_manager.flush unless quiet?
+        finish_write(quiet?)
       end
 
       # Delete Commands
@@ -204,7 +204,7 @@ module Dalli
                                              **tombstone_kwargs(options), **routing_token_kwargs(options))
               end
         write(req)
-        @connection_manager.flush unless quiet?
+        finish_write(quiet?)
         response_processor.meta_delete unless quiet?
       end
 
@@ -235,19 +235,28 @@ module Dalli
         ttl = initial ? TtlSanitizer.sanitize(ttl) : nil # Only set a TTL if we want to set a value on miss
         write(RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial, incr: incr, ttl: ttl,
                                                quiet: quiet?, **routing_token_kwargs(options)))
-        @connection_manager.flush unless quiet?
+        finish_write(quiet?)
         response_processor.decr_incr unless quiet?
       end
 
       # Other Commands
       def flush(delay = 0)
         write(RequestFormatter.flush(delay: delay))
-        @connection_manager.flush unless quiet?
+        finish_write(quiet?)
         response_processor.flush unless quiet?
       end
 
       # Noop is a keepalive operation but also used to demarcate the end of a set of pipelined commands.
       # We need to read all the responses at once.
+      # A write that expects a reply is flushed so the reply can be read. A write
+      # in a quiet block stays buffered until the block's noop, unless
+      # defer_drain is on: then no noop follows at the end of the block, so it is
+      # flushed right away. (pipelined_set passes quiet: true outside a quiet
+      # block; its caller flushes with a terminating noop.)
+      def finish_write(quiet)
+        @connection_manager.flush if !quiet || (@defer_drain && quiet?)
+      end
+
       def noop
         write_noop
         result = response_processor.consume_all_responses_until_mn

@@ -49,6 +49,32 @@ Dalli::Client.new('localhost:11211', namespace: 'myapp', namespace_separator: '/
 
 The separator must be a single non-alphanumeric character. Valid examples: `:`, `/`, `|`, `.`, `-`, `_`, `#`
 
+### Deferred Draining
+
+By default, a `quiet` (or `multi`) block ends by waiting for the replies memcached still sends for its quiet requests, one round trip for each server the block wrote to. With `defer_drain: true`, the block returns without waiting:
+
+```ruby
+dc = Dalli::Client.new('localhost:11211', defer_drain: true)
+
+dc.quiet { dc.set('key', 'value') } # returns without a round trip
+dc.get('key')                       # first drains that connection with a noop, then gets the value
+```
+
+The requests are still sent right away. Their replies stay unread on the connection until the next non-quiet request to that server, which reads them first with one `noop`. Error replies to quiet requests are discarded either way. With `defer_drain` they're discarded at that later point instead of at the end of the block.
+
+**Replies accumulate until a non-quiet request drains them.** memcached still replies to some quiet requests: `NF` for a quiet `delete`, `incr` or `decr` of a missing key, `NS` for an `add` or `replace` that didn't store, and error replies. Those replies wait on the socket. A client that mixes quiet writes with reads (or other non-quiet requests) to the same servers drains them as it goes, and needs nothing more.
+
+A client that only ever makes quiet requests, such as a worker that only issues quiet deletes, never sends that next request. Its unread replies keep growing, and if they fill the connection's socket buffers, the connection can stall until a socket timeout closes it and Dalli reconnects. Workloads like that should call `drain_deferred_responses` periodically, for example after each batch or job:
+
+```ruby
+jobs.each do |job|
+  job.keys.each { |key| dc.quiet { dc.delete(key) } }
+  dc.drain_deferred_responses # reads and discards the replies waiting on each server
+end
+```
+
+`drain_deferred_responses` only sends a `noop` to servers that were sent quiet requests since they were last drained, so calling it when nothing is pending costs nothing.
+
 ## Security Note
 
 By default, Dalli uses Ruby's Marshal for serialization. Deserializing untrusted data with Marshal can lead to remote code execution. If you cache user-controlled data, consider using a safer serializer:
