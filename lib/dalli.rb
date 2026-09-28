@@ -63,6 +63,7 @@ require_relative 'dalli/instrumentation'
 
 require_relative 'dalli/flags'
 require_relative 'dalli/compressor'
+require_relative 'dalli/cache_result'
 require_relative 'dalli/client'
 require_relative 'dalli/key_manager'
 require_relative 'dalli/pipelined_getter'
