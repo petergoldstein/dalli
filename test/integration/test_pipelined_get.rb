@@ -258,6 +258,25 @@ describe 'Pipelined Get' do
 
         let(:keys) { Array.new(40) { |i| "key#{i}" } + ['key with spaces', 'clé'] }
 
+        it 'returns an empty value without cutting off the rest of its server' do
+          with_two_server_client(p, raw: true) do |dc|
+            big = 'x' * 20_000
+            many = Array.new(100) { |i| "key#{i}" }
+            many.each { |k| dc.set(k, big) }
+            dc.set('key5', '')
+            expected = many.to_h { |k| [k, k == 'key5' ? '' : big] }
+
+            assert_equal expected, dc.get_multi(many)
+
+            yielded = {}
+            dc.get_multi(many) { |k, v| yielded[k] = v }
+
+            assert_equal expected, yielded
+            # Nothing is left unread on either connection
+            many.each { |k| assert_equal expected[k], dc.get(k) }
+          end
+        end
+
         it 'returns every value, in both hash and block form, across servers' do
           with_two_server_client(p) do |dc|
             keys.each { |k| dc.set(k, "v:#{k}") }
