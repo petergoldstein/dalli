@@ -447,6 +447,22 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
       assert_equal buf.bytesize, size
     end
 
+    it 'returns an empty value for a VA 0 hit, consuming its terminator' do
+      buf = "VA 0 f0 kfoo s0\r\n\r\nMN\r\n".b
+
+      status, cas, key, value, size = processor.getk_response_from_buffer(buf)
+
+      assert status
+      assert_equal 0, cas
+      assert_equal 'foo', key
+      assert_equal '', value
+      assert_equal "VA 0 f0 kfoo s0\r\n\r\n".bytesize, size
+    end
+
+    it 'returns [0] for a VA 0 hit whose terminator has not arrived' do
+      assert_equal [0], processor.getk_response_from_buffer("VA 0 f0 kfoo s0\r\n".b)
+    end
+
     it 'returns [0] when the body has not fully arrived' do
       buf = "VA 5 f0 c1 kfoo s5\r\nhel".b
 

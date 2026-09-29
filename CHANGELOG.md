@@ -37,6 +37,15 @@ Performance:
   - With ~300us of network round trip, `multi { set }` on a 16-server ring goes from 4.9ms to 0.32ms; an empty block no longer touches the network
   - Thanks to Julian Richard Contreras for this contribution
 
+Bug fixes:
+
+- Fix multi-server `get_multi` stopping at an empty value
+  - The pipelined reply parser took a hit on a zero-length value (`VA 0`) for the terminating `MN`, so that server's remaining keys were silently missing from the result
+  - Its value terminator and any replies not yet parsed stayed on the connection, so with large values the next command on it could fail with `Dalli::DalliError: Response error`
+  - An empty value is now returned as `''`, like a single-key `get` and single-server `get_multi`
+  - Affects the meta protocol since 3.2.0 (the default since 5.0.0)
+  - Thanks to Julian Richard Contreras for this contribution
+
 5.1.1
 ==========
 
