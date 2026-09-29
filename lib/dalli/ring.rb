@@ -36,9 +36,10 @@ module Dalli
 
     def continuum=(entries)
       @continuum = entries
-      # Plain integers, so the binary search in server_for_hash_key needn't
-      # call Entry#value at each step
+      # Plain integers, so the lookup in server_for_hash_key needn't call
+      # Entry#value at each step
       @continuum_values = entries&.map(&:value)
+      build_buckets
     end
 
     # alive_cache (optional) remembers each server's alive? result, so a
@@ -55,15 +56,17 @@ module Dalli
       raise Dalli::RingError, 'No server available'
     end
 
+    # Tries the key's own server first, then (with failover) up to 19
+    # rehashes of "<try><key>". The first try is outside the loop because it
+    # is almost always the one that's used.
     def server_from_continuum(key, alive_cache = nil)
-      hkey = hash_for(key)
-      20.times do |try|
-        server = server_for_hash_key(hkey)
+      server = server_for_hash_key(hash_for(key))
+      return server if server_alive?(server, alive_cache)
+      return nil unless @failover
 
+      19.times do |try|
+        server = server_for_hash_key(hash_for("#{try}#{key}"))
         return server if server_alive?(server, alive_cache)
-        break unless @failover
-
-        hkey = hash_for("#{try}#{key}")
       end
       nil
     end
@@ -126,22 +129,41 @@ module Dalli
     def server_alive?(server, alive_cache)
       return server.alive? unless alive_cache
 
-      alive_cache.fetch(server) { alive_cache[server] = server.alive? }
+      alive = alive_cache[server]
+      alive.nil? ? (alive_cache[server] = server.alive?) : alive
     end
 
     def entry_count_for(server, total_servers, total_weight)
       ((total_servers * POINTS_PER_SERVER * server.weight) / Float(total_weight)).floor
     end
 
-    def server_for_hash_key(hash_key)
-      # Find the closest index in the Ring with value <= the given value
-      entryidx = @continuum_values.bsearch_index { |value| value > hash_key }
-      if entryidx.nil?
-        entryidx = @continuum.size - 1
-      else
-        entryidx -= 1
+    # Hash values are 32 bits. Splitting that range into about one bucket per
+    # continuum entry, and noting the first entry at or after each bucket's
+    # start, lets server_for_hash_key skip the binary search: it starts at the
+    # key's bucket and steps over the few entries before the key's hash.
+    def build_buckets
+      return unless @continuum_values
+
+      bits = [@continuum_values.size.bit_length, 1].max
+      @bucket_shift = 32 - bits
+      @bucket_first = Array.new(1 << bits)
+      idx = 0
+      size = @continuum_values.size
+      @bucket_first.each_index do |bucket|
+        floor = bucket << @bucket_shift
+        idx += 1 while idx < size && @continuum_values[idx] < floor
+        @bucket_first[bucket] = idx
       end
-      @continuum[entryidx].server
+    end
+
+    def server_for_hash_key(hash_key)
+      # Find the last entry with value <= hash_key, wrapping around to the
+      # last entry when every value is greater (idx - 1 is then -1)
+      idx = @bucket_first[hash_key >> @bucket_shift]
+      values = @continuum_values
+      size = values.size
+      idx += 1 while idx < size && values[idx] <= hash_key
+      @continuum[idx - 1].server
     end
 
     def build_continuum(servers)

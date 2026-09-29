@@ -27,6 +27,7 @@ module Dalli
         HD_PREFIX = 'HD '
         FLAGS_TOKEN_PREFIX = ' f'
         CAS_TOKEN_PREFIX = ' c'
+        KEY_TOKEN_PREFIX = ' k'
         BYTE_B = 'b'.ord
         BYTE_C = 'c'.ord
         BYTE_F = 'f'.ord
@@ -231,6 +232,11 @@ module Dalli
           term_idx = buf.byteindex(TERMINATOR, offset)
           return [0] unless term_idx
 
+          if buf.byteslice(offset, VA_PREFIX.bytesize) == VA_PREFIX
+            response = va_response_from_buffer(buf, offset, term_idx)
+            return response if response
+          end
+
           header = buf.byteslice(offset, term_idx - offset)
           tokens = header.split
           header_len = header.bytesize + TERMINATOR.length
@@ -272,6 +278,43 @@ module Dalli
           [tokens.first == VA, flag_int(cas, 'c'), key, value, resp_size]
         end
 
+        # getk_response_from_buffer for a "VA ..." header, read in place
+        # without allocating the header, its tokens or the flag strings.
+        # Gives the same result as the token path. Returns nil to fall back to
+        # it when the header has no s flag or a zero size.
+        def va_response_from_buffer(buf, offset, term_idx)
+          size = bitflags = cas = key = nil
+          base64 = false
+          pos = buf.byteindex(' ', offset + VA_PREFIX.bytesize)
+          while pos && pos < term_idx
+            start = pos + 1
+            pos = buf.byteindex(' ', start)
+            stop = pos && pos < term_idx ? pos : term_idx
+            case buf.getbyte(start)
+            when BYTE_S then size ||= flag_int_at(buf, start, stop)
+            when BYTE_F then bitflags ||= flag_int_at(buf, start, stop)
+            when BYTE_C then cas ||= flag_int_at(buf, start, stop)
+            when BYTE_K then key ||= buf.byteslice(start + 1, stop - start - 1)
+            when BYTE_B then base64 ||= stop == start + 1
+            end
+          end
+          return nil if size.nil? || size.zero?
+
+          header_len = term_idx - offset + TERMINATOR.length
+          resp_size = header_len + size + TERMINATOR.length
+          return [0] unless buf.bytesize >= offset + resp_size
+
+          value = @value_marshaller.retrieve(buf.byteslice(offset + header_len, size), bitflags || 0)
+          key = KeyRegularizer.decode(key) if base64 && key
+          [true, cas || 0, key || 0, value, resp_size]
+        end
+
+        # Integer value of a flag's token in buf, after its one-byte prefix,
+        # as flag_int would read it
+        def flag_int_at(buf, start, stop)
+          buf.byteslice(start + 1, stop - start - 1).to_i
+        end
+
         # Integer value of a flag token such as "f123", or 0 when absent.
         # Strips the prefix in place, like value_from_tokens.
         def flag_int(token, flag)
@@ -304,6 +347,22 @@ module Dalli
 
         def bitflags_from_va_line(line)
           flag_from_line(line, FLAGS_TOKEN_PREFIX, VA_PREFIX.bytesize)
+        end
+
+        # The key from a VA line's k flag, decoded when the line has the b flag,
+        # or nil when there is no k flag
+        def key_from_va_line(line)
+          idx = line.index(KEY_TOKEN_PREFIX, VA_PREFIX.bytesize)
+          return unless idx
+
+          start = idx + KEY_TOKEN_PREFIX.bytesize
+          stop = line.index(' ', start) || line.index(TERMINATOR, start) || line.bytesize
+          key = line.byteslice(start, stop - start)
+          base64_flag_in_line?(line) ? KeyRegularizer.decode(key) : key
+        end
+
+        def base64_flag_in_line?(line)
+          line.include?(' b ') || line.end_with?(" b#{TERMINATOR}", ' b')
         end
 
         # Integer value of the first " <flag><digits>" token at or after start, or 0

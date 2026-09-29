@@ -95,6 +95,41 @@ describe 'Ring' do
           assert_predicate ring.server_for_key('test'), :alive?
         end
       end
+
+      # The server a binary search of the continuum picks: the last entry with
+      # value <= hash, or the last entry when every value is greater
+      def searched_server(ring, hash)
+        idx = ring.continuum.bsearch_index { |entry| entry.value > hash }
+        ring.continuum[(idx || ring.continuum.size) - 1].server
+      end
+
+      it 'maps hashes to the same server as a binary search of the continuum' do
+        [(1..2), (1..16), (1..50)].each do |ports|
+          ring = Dalli::Ring.new(ports.map { |p| "localhost:#{p}:#{(p % 3) + 1}" }, {})
+          values = ring.continuum.map(&:value)
+          hashes = values + values.map { |v| v - 1 } + values.map { |v| v + 1 } +
+                   [0, (2**32) - 1] + Array.new(2000) { rand(2**32) }
+          hashes.select! { |h| h.between?(0, (2**32) - 1) }
+
+          hashes.each do |hash|
+            assert_same searched_server(ring, hash), ring.send(:server_for_hash_key, hash), "hash #{hash}"
+          end
+        end
+      end
+
+      it 'fails over to the server the rehashed key maps to' do
+        ring = Dalli::Ring.new(%w[localhost:12345 localhost:12346 localhost:12347], {})
+        dead = ring.servers.first
+        ring.servers.each { |s| s.define_singleton_method(:alive?) { !equal?(dead) } }
+
+        100.times do |i|
+          key = "key#{i}"
+          attempts = [key] + Array.new(19) { |try| "#{try}#{key}" }
+          expected = attempts.map { |k| searched_server(ring, Zlib.crc32(k)) }.find { |s| !s.equal?(dead) }
+
+          assert_same expected, ring.server_for_key(key)
+        end
+      end
     end
 
     it 'detect when a dead server is up again' do
