@@ -50,6 +50,10 @@ module Dalli
     #                   useful for injecting a FIPS compliant hash object.
     # - :protocol - one of either :binary or :meta, defaulting to :binary.  This sets the protocol that Dalli uses
     #               to communicate with memcached.
+    # - :otel_db_statement - controls the +db.query.text+ span attribute when OpenTelemetry is loaded.
+    #                        +:include+ logs the full operation and key(s), +:obfuscate+ replaces keys with "?",
+    #                        +nil+ (default) omits the attribute entirely.
+    # - :otel_peer_service - when set, adds a +peer.service+ span attribute with this value for logical service naming.
     #
     def initialize(servers = nil, options = {})
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
@@ -139,8 +143,8 @@ module Dalli
       key = key.to_s
       key = @key_manager.validate_key(key)
 
-      Instrumentation.trace('get_with_metadata', { 'db.operation' => 'get_with_metadata' }) do
-        server = ring.server_for_key(key)
+      server = ring.server_for_key(key)
+      Instrumentation.trace('get_with_metadata', trace_attrs('get_with_metadata', key, server)) do
         server.request(:meta_get, key, options)
       end
     rescue NetworkError => e
@@ -238,11 +242,14 @@ module Dalli
       raise ArgumentError, 'Block is required for fetch_with_lock' unless block_given?
 
       raise_unless_meta_protocol!
+      validate_integer!(:lock_ttl, lock_ttl)
+      validate_integer!(:recache_threshold, recache_threshold)
 
       key = key.to_s
       key = @key_manager.validate_key(key)
 
-      Instrumentation.trace('fetch_with_lock', { 'db.operation' => 'fetch_with_lock' }) do
+      server = ring.server_for_key(key)
+      Instrumentation.trace('fetch_with_lock', trace_attrs('fetch_with_lock', key, server)) do
         fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options, &block)
       end
     rescue NetworkError => e
@@ -323,10 +330,7 @@ module Dalli
     def set_multi(hash, ttl = nil, req_options = nil)
       return if hash.empty?
 
-      Instrumentation.trace('set_multi', {
-                              'db.operation' => 'set_multi',
-                              'db.memcached.key_count' => hash.size
-                            }) do
+      Instrumentation.trace('set_multi', multi_trace_attrs('set_multi', hash.size, hash.keys)) do
         pipelined_setter.process(hash, ttl_or_default(ttl), req_options)
       end
     end
@@ -383,10 +387,7 @@ module Dalli
     def delete_multi(keys)
       return if keys.empty?
 
-      Instrumentation.trace('delete_multi', {
-                              'db.operation' => 'delete_multi',
-                              'db.memcached.key_count' => keys.size
-                            }) do
+      Instrumentation.trace('delete_multi', multi_trace_attrs('delete_multi', keys.size, keys)) do
         pipelined_deleter.process(keys)
       end
     end
@@ -408,6 +409,8 @@ module Dalli
     ##
     # Incr adds the given amount to the counter on the memcached server.
     # Amt must be a positive integer value.
+    # Default, if given, must be an Integer (or a String of decimal digits);
+    # anything else raises ArgumentError.
     #
     # If default is nil, the counter must already exist or the operation
     # will fail and will return nil.  Otherwise this method will return
@@ -420,6 +423,7 @@ module Dalli
     # If the value already exists, it must have been set with raw: true
     def incr(key, amt = 1, ttl = nil, default = nil)
       check_positive!(amt)
+      validate_integer!(:default, default)
 
       perform(:incr, key, amt.to_i, ttl_or_default(ttl), default)
     end
@@ -427,6 +431,8 @@ module Dalli
     ##
     # Decr subtracts the given amount from the counter on the memcached server.
     # Amt must be a positive integer value.
+    # Default, if given, must be an Integer (or a String of decimal digits);
+    # anything else raises ArgumentError.
     #
     # memcached counters are unsigned and cannot hold negative values.  Calling
     # decr on a counter which is 0 will just return 0.
@@ -442,6 +448,7 @@ module Dalli
     # If the value already exists, it must have been set with raw: true
     def decr(key, amt = 1, ttl = nil, default = nil)
       check_positive!(amt)
+      validate_integer!(:default, default)
 
       perform(:decr, key, amt.to_i, ttl_or_default(ttl), default)
     end
@@ -527,8 +534,8 @@ module Dalli
     def record_hit_miss_metrics(span, key_count, hit_count)
       return unless span
 
-      span.set_attribute('db.memcached.hit_count', hit_count)
-      span.set_attribute('db.memcached.miss_count', key_count - hit_count)
+      span.add_attributes('db.memcached.hit_count' => hit_count,
+                          'db.memcached.miss_count' => key_count - hit_count)
     end
 
     def get_multi_yielding(keys)
@@ -553,11 +560,42 @@ module Dalli
     end
 
     def get_multi_attributes(keys)
-      { 'db.operation' => 'get_multi', 'db.memcached.key_count' => keys.size }
+      multi_trace_attrs('get_multi', keys.size, keys)
+    end
+
+    def trace_attrs(operation, key, server)
+      attrs = { 'db.operation.name' => operation, 'server.address' => server.hostname }
+      attrs['server.port'] = server.port if server.socket_type == :tcp
+      attrs['peer.service'] = @options[:otel_peer_service] if @options[:otel_peer_service]
+      add_query_text(attrs, operation, key)
+    end
+
+    def multi_trace_attrs(operation, key_count, keys)
+      attrs = { 'db.operation.name' => operation, 'db.memcached.key_count' => key_count }
+      attrs['peer.service'] = @options[:otel_peer_service] if @options[:otel_peer_service]
+      add_query_text(attrs, operation, keys)
+    end
+
+    def add_query_text(attrs, operation, key_or_keys)
+      case @options[:otel_db_statement]
+      when :include
+        attrs['db.query.text'] = "#{operation} #{Array(key_or_keys).join(' ')}"
+      when :obfuscate
+        attrs['db.query.text'] = "#{operation} ?"
+      end
+      attrs
     end
 
     def check_positive!(amt)
       raise ArgumentError, "Positive values only: #{amt}" if amt.negative?
+    end
+
+    # Numeric arguments that become meta protocol flags (GHSA-6wmv-xq9m-fmp7).
+    # Checked before the request starts so a bad value raises a clean
+    # ArgumentError, instead of Protocol::Base#request logging it as
+    # unexpected and closing the connection.
+    def validate_integer!(name, value)
+      Dalli::Protocol::Meta::RequestFormatter.integer_flag(name, value) unless value.nil?
     end
 
     def cas_core(key, always_set, ttl = nil, req_options = nil)
@@ -621,13 +659,10 @@ module Dalli
       key = @key_manager.validate_key(key)
 
       server = ring.server_for_key(key)
-      Instrumentation.trace(op.to_s, {
-                              'db.operation' => op.to_s,
-                              'server.address' => server.name
-                            }) do
+      Instrumentation.trace(op.to_s, trace_attrs(op.to_s, key, server)) do
         server.request(op, key, *args)
       end
-    rescue NetworkError => e
+    rescue RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying request with new server' }
       retry

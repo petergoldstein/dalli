@@ -199,7 +199,7 @@ module Dalli
       def reconnect!(message)
         close
         sleep(options[:socket_failure_delay]) if options[:socket_failure_delay]
-        raise Dalli::NetworkError, message
+        raise Dalli::RetryableNetworkError, message
       end
 
       def reset_down_info

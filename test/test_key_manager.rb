@@ -98,6 +98,85 @@ describe 'KeyManager' do
         end
       end
     end
+
+    describe 'namespace_separator' do
+      describe 'when there is no explicit namespace_separator parameter provided' do
+        let(:options) { { namespace: 'myapp' } }
+
+        it 'uses colon as default separator' do
+          assert_equal ':', key_manager.namespace_separator
+          assert_equal 'myapp:testkey', key_manager.key_with_namespace('testkey')
+        end
+      end
+
+      describe 'when there is an explicit namespace_separator parameter provided' do
+        let(:options) { { namespace: 'myapp', namespace_separator: '/' } }
+
+        it 'uses the specified separator' do
+          assert_equal '/', key_manager.namespace_separator
+          assert_equal 'myapp/testkey', key_manager.key_with_namespace('testkey')
+        end
+
+        it 'correctly strips the namespace with custom separator' do
+          assert_equal 'testkey', key_manager.key_without_namespace('myapp/testkey')
+        end
+
+        it 'uses the custom separator in namespace_regexp' do
+          assert_equal(%r{\Amyapp/}, key_manager.namespace_regexp)
+        end
+      end
+
+      describe 'when namespace_separator is used with a Proc namespace' do
+        let(:options) { { namespace: proc { 'dynamic' }, namespace_separator: '/' } }
+
+        it 'uses the custom separator with dynamic namespace' do
+          assert_equal 'dynamic/testkey', key_manager.key_with_namespace('testkey')
+          assert_equal(%r{\Adynamic/}, key_manager.namespace_regexp)
+        end
+      end
+
+      describe 'validation' do
+        it 'accepts valid separators' do
+          %w[: / | . - _ # @ ! ~ ^ & * +].each do |sep|
+            km = Dalli::KeyManager.new(namespace: 'test', namespace_separator: sep)
+
+            assert_equal sep, km.namespace_separator
+          end
+        end
+
+        it 'rejects alphanumeric separators' do
+          %w[a Z 0 9].each do |sep|
+            err = assert_raises ArgumentError do
+              Dalli::KeyManager.new(namespace: 'test', namespace_separator: sep)
+            end
+            assert_match(/non-alphanumeric/, err.message)
+          end
+        end
+
+        it 'rejects whitespace separators' do
+          [' ', "\t", "\n"].each do |sep|
+            err = assert_raises ArgumentError do
+              Dalli::KeyManager.new(namespace: 'test', namespace_separator: sep)
+            end
+            assert_match(/non-alphanumeric/, err.message)
+          end
+        end
+
+        it 'rejects multi-character separators' do
+          err = assert_raises ArgumentError do
+            Dalli::KeyManager.new(namespace: 'test', namespace_separator: '::')
+          end
+          assert_match(/single/, err.message)
+        end
+
+        it 'rejects empty string separator' do
+          err = assert_raises ArgumentError do
+            Dalli::KeyManager.new(namespace: 'test', namespace_separator: '')
+          end
+          assert_match(/single/, err.message)
+        end
+      end
+    end
   end
 
   describe 'validate_key' do

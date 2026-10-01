@@ -32,22 +32,8 @@ module Dalli
       end
 
       def store(value, req_options, bitflags)
-        if req_options
-          return [value.to_s, bitflags] if req_options[:raw]
-
-          # If the value is a simple string, going through serialization is costly
-          # for no benefit other than preserving encoding.
-          # Assuming most strings are either UTF-8 or BINARY we can just store
-          # that information in the bitflags.
-          if req_options[:string_fastpath] && value.instance_of?(String)
-            case value.encoding
-            when Encoding::BINARY
-              return [value, bitflags]
-            when Encoding::UTF_8
-              return [value, bitflags | FLAG_UTF8]
-            end
-          end
-        end
+        return store_raw(value, bitflags) if req_options&.dig(:raw)
+        return store_string_fastpath(value, bitflags) if use_string_fastpath?(value, req_options)
 
         [serialize_value(value), bitflags | FLAG_SERIALIZED]
       end
@@ -84,6 +70,30 @@ module Dalli
       end
 
       private
+
+      def store_raw(value, bitflags)
+        unless value.is_a?(String)
+          raise Dalli::MarshalError, "Dalli raw mode requires string values, got: #{value.class}"
+        end
+
+        [value, bitflags]
+      end
+
+      # If the value is a simple string, going through serialization is costly
+      # for no benefit other than preserving encoding.
+      # Assuming most strings are either UTF-8 or BINARY we can just store
+      # that information in the bitflags.
+      def store_string_fastpath(value, bitflags)
+        case value.encoding
+        when Encoding::BINARY then [value, bitflags]
+        when Encoding::UTF_8 then [value, bitflags | FLAG_UTF8]
+        else [serialize_value(value), bitflags | FLAG_SERIALIZED]
+        end
+      end
+
+      def use_string_fastpath?(value, req_options)
+        req_options&.dig(:string_fastpath) && value.instance_of?(String)
+      end
 
       def warn_if_marshal_default(protocol_options)
         return if protocol_options.key?(:serializer)

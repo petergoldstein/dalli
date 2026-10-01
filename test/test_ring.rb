@@ -28,7 +28,7 @@ describe 'Ring' do
 
     it 'raise when no servers are available/defined' do
       ring = Dalli::Ring.new([], TestServer, {})
-      assert_raises Dalli::RingError, message: 'No server available' do
+      assert_error Dalli::RingError, /No server available/ do
         ring.server_for_key('test')
       end
     end
@@ -37,7 +37,7 @@ describe 'Ring' do
       it "raise correctly when it's not alive" do
         servers = ['localhost:12345']
         ring = Dalli::Ring.new(servers, Dalli::Protocol::Binary, {})
-        assert_raises Dalli::RingError, message: 'No server available' do
+        assert_error Dalli::RingError, /No server available/ do
           ring.server_for_key('test')
         end
       end
@@ -57,7 +57,7 @@ describe 'Ring' do
       it 'raise correctly when no server is alive' do
         servers = ['localhost:12345', 'localhost:12346']
         ring = Dalli::Ring.new(servers, Dalli::Protocol::Binary, {})
-        assert_raises Dalli::RingError, message: 'No server available' do
+        assert_error Dalli::RingError, /No server available/ do
           ring.server_for_key('test')
         end
       end

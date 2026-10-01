@@ -146,12 +146,49 @@ describe Dalli::Protocol::ValueSerializer do
     describe 'when the request options value for the :raw key is true' do
       let(:req_options) { { raw: true } }
 
-      it 'does not call the serializer and just converts the input value to a string' do
-        val, newbitflags = vs.store(raw_value, req_options, bitflags)
+      describe 'with a string value' do
+        let(:string_value) { 'test string value' }
 
-        assert_equal val, raw_value.to_s
-        assert_equal newbitflags, bitflags
-        serializer.verify
+        it 'returns the string without serialization' do
+          val, newbitflags = vs.store(string_value, req_options, bitflags)
+
+          assert_equal string_value, val
+          assert_equal bitflags, newbitflags
+          serializer.verify
+        end
+      end
+
+      describe 'with a nil value' do
+        it 'raises MarshalError' do
+          error = assert_raises Dalli::MarshalError do
+            vs.store(nil, req_options, bitflags)
+          end
+
+          assert_match(/raw mode requires string values/, error.message)
+          assert_match(/NilClass/, error.message)
+        end
+      end
+
+      describe 'with a non-string value' do
+        it 'raises MarshalError' do
+          error = assert_raises Dalli::MarshalError do
+            vs.store(raw_value, req_options, bitflags)
+          end
+
+          assert_match(/raw mode requires string values/, error.message)
+          assert_match(/Object/, error.message)
+        end
+      end
+
+      describe 'with an integer value' do
+        it 'raises MarshalError' do
+          error = assert_raises Dalli::MarshalError do
+            vs.store(123, req_options, bitflags)
+          end
+
+          assert_match(/raw mode requires string values/, error.message)
+          assert_match(/Integer/, error.message)
+        end
       end
     end
 

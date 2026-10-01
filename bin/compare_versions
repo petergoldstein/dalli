@@ -1,0 +1,292 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Cross-version Dalli benchmark for investigating performance regression (Issue #930)
+#
+# Installs a specific Dalli version from RubyGems via bundler/inline and runs
+# identical workloads against a local memcached instance.
+#
+# Environment variables:
+#   DALLI_VERSION   - Dalli gem version to benchmark (e.g., "2.7.11", "4.3.2", "5.0.0")
+#   DALLI_PROTOCOL  - Protocol to use: "binary" or "meta" (ignored for 2.x and 5.x)
+#   BENCH_TIME      - Benchmark time in seconds per test (default: 8)
+#   BENCH_WARMUP    - Warmup time in seconds (default: 3)
+#   BENCH_PORT      - Memcached port (default: auto-selected)
+#
+# Usage:
+#   DALLI_VERSION=2.7.11 ruby bin/compare_versions
+#   DALLI_VERSION=4.3.2 DALLI_PROTOCOL=binary ruby bin/compare_versions
+#   DALLI_VERSION=4.3.2 DALLI_PROTOCOL=meta ruby bin/compare_versions
+#   DALLI_VERSION=5.0.0 ruby bin/compare_versions
+#
+# Recommended: run all versions on the same Ruby (e.g., Ruby 3.3) for consistency:
+#   rbenv shell 3.3.4
+#   DALLI_VERSION=2.7.11 ruby bin/compare_versions
+#   DALLI_VERSION=4.3.2 DALLI_PROTOCOL=binary ruby bin/compare_versions
+#   DALLI_VERSION=4.3.2 DALLI_PROTOCOL=meta ruby bin/compare_versions
+#   DALLI_VERSION=5.0.0 ruby bin/compare_versions
+
+dalli_version = ENV.fetch('DALLI_VERSION') do
+  abort 'DALLI_VERSION env var required (e.g., 2.7.11, 4.3.2, 5.0.0)'
+end
+
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'benchmark-ips'
+  gem 'dalli', dalli_version
+  gem 'logger'
+end
+
+require 'benchmark/ips'
+require 'dalli'
+require 'socket'
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+dalli_protocol = ENV.fetch('DALLI_PROTOCOL', nil)
+bench_time     = (ENV['BENCH_TIME'] || 8).to_i
+bench_warmup   = (ENV['BENCH_WARMUP'] || 3).to_i
+memcached_port = (ENV['BENCH_PORT'] || 0).to_i
+
+# Determine effective protocol based on version
+major_version = Gem::Version.new(dalli_version).segments.first
+effective_protocol = case major_version
+                     when 0..2
+                       'binary'
+                     when 5..99
+                       'meta'
+                     else
+                       dalli_protocol || 'meta'
+                     end
+
+puts '=' * 70
+puts 'Dalli Cross-Version Benchmark'
+puts '=' * 70
+puts "  Dalli version:  #{dalli_version}"
+puts "  Protocol:       #{effective_protocol}"
+puts "  Ruby:           #{RUBY_DESCRIPTION}"
+yjit_status = defined?(RubyVM::YJIT) && RubyVM::YJIT.respond_to?(:enabled?) ? RubyVM::YJIT.enabled? : 'N/A'
+puts "  YJIT:           #{yjit_status}"
+puts "  Bench time:     #{bench_time}s"
+puts "  Warmup:         #{bench_warmup}s"
+
+# ---------------------------------------------------------------------------
+# Start a dedicated memcached instance
+# ---------------------------------------------------------------------------
+
+def find_memcached
+  ['', '/opt/homebrew/bin/', '/usr/local/bin/', '/usr/bin/'].each do |prefix|
+    path = "#{prefix}memcached"
+    version_output = `#{path} -h 2>&1`.lines.first.to_s.strip
+    return [path, Regexp.last_match(1)] if version_output =~ /^memcached (\d+\.\d+\.\d+)/
+  end
+  abort 'Could not find memcached binary'
+end
+
+def find_available_port
+  server = TCPServer.new('127.0.0.1', 0)
+  port = server.addr[1]
+  server.close
+  port
+end
+
+memcached_bin, memcached_version = find_memcached
+memcached_port = find_available_port if memcached_port.zero?
+
+puts "  Memcached:      #{memcached_version} on port #{memcached_port}"
+puts '=' * 70
+puts
+
+# Start memcached
+memcached_pid = spawn("#{memcached_bin} -p #{memcached_port} -m 64 -l 127.0.0.1",
+                      out: '/dev/null', err: '/dev/null')
+at_exit do
+  begin
+    Process.kill('TERM', memcached_pid)
+  rescue StandardError
+    nil
+  end
+  begin
+    Process.wait(memcached_pid)
+  rescue StandardError
+    nil
+  end
+end
+
+# Wait for memcached to be ready
+20.times do
+  s = TCPSocket.new('127.0.0.1', memcached_port)
+  s.close
+  break
+rescue Errno::ECONNREFUSED
+  sleep 0.1
+end
+
+# ---------------------------------------------------------------------------
+# Build Dalli client with version-appropriate options
+# ---------------------------------------------------------------------------
+
+server_addr = "127.0.0.1:#{memcached_port}"
+
+client_options = { compress: false }
+
+# Dalli 3.x+ supports the protocol option; 2.x does not
+client_options[:protocol] = :meta if major_version >= 3 && major_version < 5 && effective_protocol == 'meta'
+
+# Dalli 2.x uses :raw differently and doesn't have a NoopSerializer-style option,
+# but we can use raw: true for string values to skip Marshal
+client = Dalli::Client.new(server_addr, **client_options)
+
+puts 'Setting up test data...'
+
+# ---------------------------------------------------------------------------
+# Test data — realistic small payloads
+# ---------------------------------------------------------------------------
+
+small_value   = 'x' * 100      # 100 bytes — typical cache value
+medium_value  = 'y' * 1_000    # 1 KB
+marshal_value = { user_id: 42, name: 'test', email: 'test@example.com', roles: %w[admin user] }
+
+# Pre-populate keys for get and get_multi tests
+client.set('bench_raw', small_value, 3600, raw: true)
+client.set('bench_medium', medium_value, 3600, raw: true)
+client.set('bench_marshal', marshal_value, 3600)
+
+# Pre-populate keys for get_multi (6 keys matching reported workload)
+multi_keys = (1..6).map { |i| "multi_#{i}" }
+multi_keys.each { |k| client.set(k, small_value, 3600, raw: true) }
+
+# Pre-populate a counter for incr tests
+client.set('bench_counter', '0', 3600, raw: true)
+
+# Verify everything works
+raise 'raw get failed' unless client.get('bench_raw', raw: true) == small_value
+raise 'marshal get failed' unless client.get('bench_marshal') == marshal_value
+raise 'get_multi failed' unless client.get_multi(*multi_keys).size == 6
+
+puts "Setup complete. Running benchmarks...\n\n"
+
+# ---------------------------------------------------------------------------
+# GC Suite — benchmark without GC skewing results
+# ---------------------------------------------------------------------------
+
+# Disables GC during benchmark iterations to reduce noise
+class GCSuite
+  def warming(*) = run_gc
+  def running(*) = run_gc
+  def warmup_stats(*) = GC.enable
+  def add_report(*) = GC.enable
+
+  private
+
+  def run_gc
+    GC.enable
+    GC.start
+    GC.disable
+  end
+end
+
+suite = GCSuite.new
+
+# ---------------------------------------------------------------------------
+# Benchmarks
+# ---------------------------------------------------------------------------
+
+results = {}
+
+# --- Single key GET (raw string) ---
+puts '>>> get (raw, 100B)'
+Benchmark.ips do |x|
+  x.config(warmup: bench_warmup, time: bench_time, suite: suite)
+  x.report("get_raw [#{dalli_version}]") do
+    client.get('bench_raw', raw: true)
+  end
+  x.report("get_medium_raw [#{dalli_version}]") do
+    client.get('bench_medium', raw: true)
+  end
+  results[:get_raw] = x
+end
+
+puts
+
+# --- Single key GET (marshalled object) ---
+puts '>>> get (marshalled)'
+Benchmark.ips do |x|
+  x.config(warmup: bench_warmup, time: bench_time, suite: suite)
+  x.report("get_marshal [#{dalli_version}]") do
+    client.get('bench_marshal')
+  end
+  results[:get_marshal] = x
+end
+
+puts
+
+# --- Single key SET (raw string) ---
+puts '>>> set (raw, 100B)'
+Benchmark.ips do |x|
+  x.config(warmup: bench_warmup, time: bench_time, suite: suite)
+  x.report("set_raw [#{dalli_version}]") do
+    client.set('bench_raw', small_value, 3600, raw: true)
+  end
+  results[:set_raw] = x
+end
+
+puts
+
+# --- Single key SET (marshalled object) ---
+puts '>>> set (marshalled)'
+Benchmark.ips do |x|
+  x.config(warmup: bench_warmup, time: bench_time, suite: suite)
+  x.report("set_marshal [#{dalli_version}]") do
+    client.set('bench_marshal', marshal_value, 3600)
+  end
+  results[:set_marshal] = x
+end
+
+puts
+
+# --- get_multi (6 keys — matches reported workload) ---
+puts '>>> get_multi (6 keys)'
+Benchmark.ips do |x|
+  x.config(warmup: bench_warmup, time: bench_time, suite: suite)
+  x.report("get_multi_6 [#{dalli_version}]") do
+    client.get_multi(*multi_keys)
+  end
+  results[:get_multi] = x
+end
+
+puts
+
+# --- Mixed workload (interleaved set/get) ---
+puts '>>> mixed (set + get interleaved)'
+Benchmark.ips do |x|
+  x.config(warmup: bench_warmup, time: bench_time, suite: suite)
+  x.report("mixed [#{dalli_version}]") do
+    client.set('bench_mixed', small_value, 3600, raw: true)
+    client.get('bench_mixed', raw: true)
+    client.set('bench_mixed2', medium_value, 3600, raw: true)
+    client.get('bench_mixed2', raw: true)
+  end
+  results[:mixed] = x
+end
+
+puts
+
+# --- Increment ---
+puts '>>> incr'
+Benchmark.ips do |x|
+  x.config(warmup: bench_warmup, time: bench_time, suite: suite)
+  x.report("incr [#{dalli_version}]") do
+    client.incr('bench_counter', 1)
+  end
+  results[:incr] = x
+end
+
+puts
+puts '=' * 70
+puts "Benchmark complete for Dalli #{dalli_version} (#{effective_protocol})"
+puts '=' * 70

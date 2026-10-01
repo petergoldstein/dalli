@@ -7,6 +7,13 @@ module Dalli
   # Contains logic for the pipelined gets implemented by the client.
   ##
   class PipelinedGetter
+    # For large batches, interleave sends with response draining to prevent
+    # socket buffer deadlock. Only kicks in above this threshold.
+    INTERLEAVE_THRESHOLD = 10_000
+
+    # Number of keys to send before draining responses during interleaved mode
+    CHUNK_SIZE = 10_000
+
     def initialize(ring, key_manager)
       @ring = ring
       @key_manager = key_manager
@@ -19,14 +26,29 @@ module Dalli
       return {} if keys.empty?
 
       @ring.lock do
+        # Stores partial results collected during interleaved send phase
+        @partial_results = {}
         servers = setup_requests(keys)
-        start_time = Time.now
+        start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+        # First yield any partial results collected during interleaved send
+        yield_partial_results(&block)
+
         servers = fetch_responses(servers, start_time, @ring.socket_timeout, &block) until servers.empty?
       end
-    rescue NetworkError => e
+    rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying pipelined gets because of timeout' }
       retry
+    end
+
+    private
+
+    def yield_partial_results
+      @partial_results.each_pair do |key, value_list|
+        yield @key_manager.key_without_namespace(key), value_list
+      end
+      @partial_results.clear
     end
 
     def setup_requests(keys)
@@ -47,7 +69,14 @@ module Dalli
     ##
     def make_getkq_requests(groups)
       groups.each do |server, keys_for_server|
-        server.request(:pipelined_get, keys_for_server)
+        if keys_for_server.size <= INTERLEAVE_THRESHOLD
+          # Small batch - send all at once (existing behavior)
+          server.request(:pipelined_get, keys_for_server)
+        else
+          # Large batch - interleave sends with response draining
+          # Pass @partial_results directly to avoid hash allocation/merge overhead
+          server.request(:pipelined_get_interleaved, keys_for_server, CHUNK_SIZE, @partial_results)
+        end
       rescue DalliError, NetworkError => e
         Dalli.logger.debug { e.inspect }
         Dalli.logger.debug { "unable to get keys for server #{server.name}" }
@@ -114,13 +143,13 @@ module Dalli
       servers
     rescue NetworkError
       # Abort and raise if we encountered a network error.  This triggers
-      # a retry at the top level.
+      # a retry at the top level on RetryableNetworkError.
       abort_without_timeout(servers)
       raise
     end
 
     def remaining_time(start, timeout)
-      elapsed = Time.now - start
+      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
       return 0 if elapsed > timeout
 
       timeout - elapsed
@@ -139,8 +168,8 @@ module Dalli
     # Processes responses from a server.  Returns true if there are no
     # additional responses from this server.
     def process_server(server)
-      server.pipeline_next_responses.each_pair do |key, value_list|
-        yield @key_manager.key_without_namespace(key), value_list
+      server.pipeline_next_responses do |key, value, cas|
+        yield @key_manager.key_without_namespace(key), [value, cas]
       end
 
       server.pipeline_complete?
@@ -149,18 +178,13 @@ module Dalli
     def servers_with_response(servers, timeout)
       return [] if servers.empty?
 
-      # TODO: - This is a bit challenging.  Essentially the PipelinedGetter
-      # is a reactor, but without the benefit of a Fiber or separate thread.
-      # My suspicion is that we may want to try and push this down into the
-      # individual servers, but I'm not sure.  For now, we keep the
-      # mapping between the alerted object (the socket) and the
-      # corrresponding server here.
-      server_map = servers.each_with_object({}) { |s, h| h[s.sock] = s }
-
-      readable, = IO.select(server_map.keys, nil, nil, timeout)
+      sockets = servers.map(&:sock)
+      readable, = IO.select(sockets, nil, nil, timeout)
       return [] if readable.nil?
 
-      readable.map { |sock| server_map[sock] }
+      # For typical server counts (1-5), linear scan is faster than
+      # building and looking up a hash map
+      readable.filter_map { |sock| servers.find { |s| s.sock == sock } }
     end
 
     def groups_for_keys(*keys)

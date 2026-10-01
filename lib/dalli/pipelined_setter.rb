@@ -28,7 +28,7 @@ module Dalli
         servers = setup_requests(hash, ttl, req_options)
         finish_requests(servers)
       end
-    rescue NetworkError => e
+    rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying pipelined sets because of network error' }
       retry

@@ -2,6 +2,10 @@ name: Tests
 
 on: [push, pull_request]
 
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -17,6 +21,7 @@ jobs:
           - '3.2'
           - '3.1'
           - jruby-10
+          - truffleruby
         memcached-version: ['1.5.22', '1.6.40']
 
     name: "Ruby ${{ matrix.ruby-version }} / Memcached ${{ matrix.memcached-version }}"

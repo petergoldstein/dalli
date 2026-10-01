@@ -1,6 +1,115 @@
 Dalli Changelog
 =====================
 
+Unreleased
+==========
+
+4.3.4
+==========
+
+Security:
+
+- Fix memcached command injection through numeric arguments with the meta protocol (GHSA-6wmv-xq9m-fmp7)
+  - With `protocol: :meta`, the `default` argument of `incr`/`decr`, and `fetch_with_lock`'s `lock_ttl` and `recache_threshold`, were written into the command without conversion, so a String containing CRLF injected additional memcached commands (e.g. `set`, `flush_all`) on the connection. The default binary protocol is not affected
+  - These arguments must now be Integers, or Strings of decimal digits; anything else raises `ArgumentError` before a request is sent
+  - As defense in depth, the meta `RequestFormatter` now converts every numeric flag it writes (`D`, `J`, `N`, `R`, `T`) to an Integer
+  - Thanks to oss-security-shop for the report
+
+4.3.3
+==========
+
+Performance:
+
+- Reduce object allocations in pipelined get response processing (#1072)
+  - Offset-based `ResponseBuffer`: track a read offset instead of slicing a new string after every parsed response; compact only when the consumed portion exceeds 4KB and more than half the buffer
+  - Inline response processor parsing: avoid intermediate array allocations from `split`-based header parsing in both binary and meta protocols
+  - Block-based `pipeline_next_responses`: yield `(key, value, cas)` directly when a block is given, avoiding per-call Hash allocation
+  - `PipelinedGetter`: replace Hash-based socket-to-server mapping with linear scan (faster for typical 1-5 server counts); use `Process.clock_gettime(CLOCK_MONOTONIC)` instead of `Time.now`
+- Add cross-version benchmark script (`bin/compare_versions`) for reproducible performance comparisons across Dalli versions
+
+Bug Fixes:
+
+- Skip OTel integration tests when meta protocol is unavailable (#1072)
+
+4.3.2
+==========
+
+OpenTelemetry:
+
+- Migrate to stable OTel semantic conventions
+  - `db.system` renamed to `db.system.name`
+  - `db.operation` renamed to `db.operation.name`
+  - `server.address` now contains hostname only; `server.port` is a separate integer attribute
+  - `get_with_metadata` and `fetch_with_lock` now include `server.address`/`server.port`
+- Add `db.query.text` span attribute with configurable modes
+  - `:otel_db_statement` option: `:include`, `:obfuscate`, or `nil` (default: omitted)
+- Add `peer.service` span attribute
+  - `:otel_peer_service` option for logical service naming
+
+4.3.1
+==========
+
+Bug Fixes:
+
+- Fix socket compatibility with gems that monkey-patch TCPSocket (#996, #1012)
+  - Gems like `socksify` and `resolv-replace` modify `TCPSocket#initialize`, breaking Ruby 3.0+'s `connect_timeout:` keyword argument
+  - Detection now uses parameter signature checking instead of gem-specific method detection
+  - Falls back to `Timeout.timeout` when monkey-patching is detected
+  - Detection result is cached for performance
+
+- Fix network retry bug with `socket_max_failures: 0` (#1065)
+  - Previously, setting `socket_max_failures: 0` could still cause retries due to error handling
+  - Introduced `RetryableNetworkError` subclass to distinguish retryable vs non-retryable errors
+  - `down!` now raises non-retryable `NetworkError`, `reconnect!` raises `RetryableNetworkError`
+  - Thanks to Graham Cooper (Shopify) for this fix
+
+- Fix "character class has duplicated range" Ruby warning (#1067)
+  - Fixed regex in `KeyManager::VALID_NAMESPACE_SEPARATORS` that caused warnings on newer Ruby versions
+  - Thanks to Hartley McGuire for this fix
+
+Improvements:
+
+- Add StrictWarnings test helper to catch Ruby warnings early (#1067)
+
+- Use bulk attribute setter for OpenTelemetry spans (#1068)
+  - Reduces lock acquisitions when setting span attributes
+  - Thanks to Robert Laurin (Shopify) for this optimization
+
+- Fix double recording of exceptions on OpenTelemetry spans (#1069)
+  - OpenTelemetry's `in_span` method already records exceptions and sets error status automatically
+  - Removed redundant explicit exception recording that caused exceptions to appear twice in traces
+  - Thanks to Robert Laurin (Shopify) for this fix
+
+4.3.0
+==========
+
+New Features:
+
+- Add `namespace_separator` option to customize the separator between namespace and key (#1019)
+  - Default is `:` for backward compatibility
+  - Must be a single non-alphanumeric character (e.g., `:`, `/`, `|`, `.`)
+  - Example: `Dalli::Client.new(servers, namespace: 'myapp', namespace_separator: '/')`
+
+Bug Fixes:
+
+- Fix architecture-dependent struct timeval packing for socket timeouts (#1034)
+  - Detects correct pack format for time_t and suseconds_t on each platform
+  - Fixes timeout issues on architectures with 64-bit time_t
+
+- Fix get_multi hanging with large key counts (#776, #941)
+  - Add interleaved read/write for pipelined gets to prevent socket buffer deadlock
+  - For batches over 10,000 keys per server, requests are now sent in chunks
+
+- **Breaking:** Enforce string-only values in raw mode (#1022)
+  - `set(key, nil, raw: true)` now raises `MarshalError` instead of storing `""`
+  - `set(key, 123, raw: true)` now raises `MarshalError` instead of storing `"123"`
+  - This matches the behavior of client-level `raw: true` mode
+  - To store counters, use string values: `set('counter', '0', raw: true)`
+
+CI:
+
+- Add TruffleRuby to CI test matrix (#988)
+
 4.2.0
 ==========
 

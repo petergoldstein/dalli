@@ -21,7 +21,7 @@ Gem::Specification.new do |s|
 
   s.metadata = {
     'bug_tracker_uri' => 'https://github.com/petergoldstein/dalli/issues',
-    'changelog_uri' => 'https://github.com/petergoldstein/dalli/blob/main/CHANGELOG.md',
+    'changelog_uri' => 'https://github.com/petergoldstein/dalli/blob/v4.3/CHANGELOG.md',
     'rubygems_mfa_required' => 'true'
   }
 
