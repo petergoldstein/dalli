@@ -335,26 +335,25 @@ module Dalli
 
       def read_multi_get_responses(is_raw)
         hash = {}
-        key_index = is_raw ? 2 : 3
         while (line = @connection_manager.read_line)
           break if line.start_with?('MN')
           next unless line.start_with?('VA ')
 
-          key, value = parse_multi_get_value(line, key_index, is_raw)
+          key, value = parse_multi_get_value(line, is_raw)
           hash[key] = value if key
         end
         hash
       end
 
-      def parse_multi_get_value(line, key_index, is_raw)
-        tokens = line.chomp!(TERMINATOR).split
-        value = @connection_manager.read(tokens[1].to_i + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
-        raw_key = tokens[key_index]
-        return unless raw_key
+      # Reads the "VA <size> [f<flags>] k<key> ..." line in place rather than
+      # splitting it into tokens
+      def parse_multi_get_value(line, is_raw)
+        processor = response_processor
+        value = @connection_manager.read(processor.size_from_va_line(line) + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+        key = processor.key_from_va_line(line)
+        return unless key
 
-        key = raw_key[1..]
-        key = KeyRegularizer.decode(key) if tokens.include?('b')
-        bitflags = is_raw ? 0 : response_processor.bitflags_from_tokens(tokens)
+        bitflags = is_raw ? 0 : processor.bitflags_from_va_line(line)
         [key, @value_marshaller.retrieve(value, bitflags)]
       end
 

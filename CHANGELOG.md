@@ -36,6 +36,11 @@ Performance:
   - Each connection now records when a quiet request is written, and the block's drain skips the others; servers that were never connected are no longer connected just to be drained
   - With ~300us of network round trip, `multi { set }` on a 16-server ring goes from 4.9ms to 0.32ms; an empty block no longer touches the network
   - Thanks to Julian Richard Contreras for this contribution
+- Reduce Ruby overhead in `get_multi` reply parsing and key routing (#1169)
+  - `VA` reply headers are read in place instead of being split into tokens, on both the multi-server (pipelined) and single-server paths; results are unchanged, and unusual headers still take the token path
+  - A key's server is found through a bucket table over the ring's continuum instead of a binary search, and the key's own server is tried before the failover loop; the server chosen for every key is unchanged
+  - Allocations for a 100-key `get_multi` on 4 servers drop from 1,500 to 1,104; over loopback it goes from 301us to 243us
+  - Thanks to Julian Richard Contreras for this contribution
 
 Bug fixes:
 
