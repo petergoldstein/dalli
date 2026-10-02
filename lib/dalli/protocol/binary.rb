@@ -76,7 +76,7 @@ module Dalli
         storage_req(opkey, key, value, ttl, cas, options)
       end
 
-      # rubocop:disable Metrics/ParameterLists
+      # rubocop:disable-next Metrics/ParameterLists
       def storage_req(opkey, key, value, ttl, cas, options)
         (value, bitflags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
@@ -88,7 +88,6 @@ module Dalli
         @connection_manager.flush unless quiet?
         response_processor.storage_response unless quiet?
       end
-      # rubocop:enable Metrics/ParameterLists
 
       def append(key, value)
         opkey = quiet? ? :appendq : :append

@@ -6,9 +6,8 @@ describe Dalli::Protocol::ValueSerializer do
   describe 'marshal security warning' do
     before do
       # Reset the class variable before each test
-      # rubocop:disable Style/ClassVars
+      # rubocop:disable-next Style/ClassVars
       Dalli::Protocol::ValueSerializer.class_variable_set(:@@marshal_warning_logged, false)
-      # rubocop:enable Style/ClassVars
     end
 
     it 'logs a warning when using default Marshal serializer' do

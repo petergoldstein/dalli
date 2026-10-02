@@ -142,3 +142,32 @@ describe 'Pipelined Get' do
     end
   end
 end
+
+describe 'Pipelined Get on a multi-server ring' do
+  MemcachedManager.supported_protocols.each do |p|
+    describe "using the #{p} protocol" do
+      it 'returns an empty value without cutting off the rest of its server' do
+        memcached_persistent(p, 21_345) do |_, port1|
+          memcached_persistent(p, 21_346) do |_, port2|
+            dc = Dalli::Client.new(["localhost:#{port1}", "localhost:#{port2}"], raw: true, protocol: p)
+            dc.flush
+            big = 'x' * 20_000
+            many = Array.new(100) { |i| "key#{i}" }
+            many.each { |k| dc.set(k, big) }
+            dc.set('key5', '')
+            expected = many.to_h { |k| [k, k == 'key5' ? '' : big] }
+
+            assert_equal expected, dc.get_multi(many)
+
+            yielded = {}
+            dc.get_multi(many) { |k, v| yielded[k] = v }
+
+            assert_equal expected, yielded
+            # Nothing is left unread on either connection
+            many.each { |k| assert_equal expected[k], dc.get(k) }
+          end
+        end
+      end
+    end
+  end
+end
