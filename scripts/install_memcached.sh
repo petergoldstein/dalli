@@ -5,7 +5,10 @@ set -euo pipefail
 version=$MEMCACHED_VERSION
 
 sudo apt-get -y remove memcached
-sudo apt-get install libevent-dev
+# Refresh the runner image's package index first: when Ubuntu replaces a package
+# version, the stale index points at files the mirrors no longer serve (404).
+sudo apt-get update
+sudo apt-get -y install libevent-dev
 
 echo Installing Memcached version ${version}
 
