@@ -143,8 +143,10 @@ module Dalli
           # We have a complete response that has no body.
           # This is either the response to the terminating
           # noop or, if the status is not MN, an intermediate
-          # error response that needs to be discarded.
-          return [header_len, true, nil, nil, nil] if body_len.zero?
+          # error response that needs to be discarded. A hit
+          # on an empty value (VA 0) still has a body -- just
+          # its terminator -- so it's parsed below as a value.
+          return [header_len, true, nil, nil, nil] if no_body?(tokens, body_len)
 
           resp_size = header_len + body_len + TERMINATOR.length
           # The header is in the buffer, but the body is not.  As we don't have
@@ -155,6 +157,11 @@ module Dalli
           # the values
           body = buf.slice(header_len, body_len)
           full_response_from_buffer(tokens, body, resp_size)
+        end
+
+        # A zero-size reply has no body unless it's a VA (a hit on an empty value)
+        def no_body?(tokens, body_len)
+          body_len.zero? && tokens.first != VA
         end
 
         def contains_header?(buf)
