@@ -6,9 +6,8 @@ require_relative '../helper'
 # StandardError) so that blanket `rescue StandardError` clauses don't
 # accidentally swallow scheduler-driven fiber cancellation.  We reproduce that
 # hierarchy locally to avoid pulling the `async` gem just for the signal class.
-# rubocop:disable Lint/InheritException
+# rubocop:disable-next Lint/InheritException
 class FiberCancellation < Exception; end
-# rubocop:enable Lint/InheritException
 
 describe 'fiber concurrency' do
   # `Async::Stop < Exception` but NOT `< StandardError`, so when the scheduler

@@ -16,6 +16,10 @@ Bug fixes:
   - Affects the meta protocol since 3.2.0 (the default since 5.0.0)
   - Thanks to Julian Richard Contreras for this contribution
 
+Development:
+
+- Fix offenses reported by RuboCop 1.91 and require `rubocop >= 1.91` (backport of #1162)
+
 5.0.7
 ==========
 
