@@ -4,6 +4,18 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.0.8
+==========
+
+Bug fixes:
+
+- Fix multi-server `get_multi` stopping at an empty value (#1170)
+  - The pipelined reply parser took a hit on a zero-length value (`VA 0`) for the terminating `MN`, so that server's remaining keys were silently missing from the result
+  - Its value terminator and any replies not yet parsed stayed on the connection and were read as the replies to later commands on it. Those commands could fail with `Dalli::DalliError: Response error`, or a single-key `get` could silently return another key's value
+  - An empty value is now returned as `''`, like a single-key `get` and single-server `get_multi`
+  - Affects the meta protocol since 3.2.0 (the default since 5.0.0)
+  - Thanks to Julian Richard Contreras for this contribution
+
 5.0.7
 ==========
 
