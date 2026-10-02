@@ -16,11 +16,10 @@ module Rack
       attr_reader :data
 
       # Don't freeze this until we fix the specs/implementation
-      # rubocop:disable Style/MutableConstant
+      # rubocop:disable-next Style/MutableConstant
       DEFAULT_DALLI_OPTIONS = {
         namespace: 'rack:session'
       }
-      # rubocop:enable Style/MutableConstant
 
       # Brings in a new Rack::Session::Dalli middleware with the given
       # `:memcache_server`. The server is either a hostname, or a

@@ -153,7 +153,7 @@ module Dalli
         response_processor.meta_set_append_prepend unless quiet?
       end
 
-      # rubocop:disable Metrics/ParameterLists
+      # rubocop:disable-next Metrics/ParameterLists
       def write_append_prepend_req(mode, key, value, ttl = nil, cas = nil, _options = {})
         ttl = TtlSanitizer.sanitize(ttl) if ttl
         req = RequestFormatter.meta_set(key: key, value: value,
@@ -161,7 +161,6 @@ module Dalli
         write("#{req}#{value}#{TERMINATOR}")
         @connection_manager.flush unless quiet?
       end
-      # rubocop:enable Metrics/ParameterLists
 
       # Delete Commands
       def delete(key, cas)
