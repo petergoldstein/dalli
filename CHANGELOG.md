@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.2.0
+==========
+
 Features:
 
 - Add `Dalli::CacheResult`, returned by the new `#get_with_metadata_result` and `#get_multi_with_metadata_result` (#1156)
