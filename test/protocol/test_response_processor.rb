@@ -463,6 +463,54 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
       assert_equal [0], processor.getk_response_from_buffer("VA 0 f0 kfoo s0\r\n".b)
     end
 
+    it 'parses VA headers in place with the same results as the token path' do
+      tokens_only = Dalli::Protocol::Meta::ResponseProcessor.new(io_source, value_marshaller)
+      tokens_only.define_singleton_method(:va_response_from_buffer) { |*| nil }
+      value = Marshal.dump('hello')
+      b64 = ['k€y'].pack('m0')
+      headers = [
+        "VA #{value.bytesize} f1 kfoo s#{value.bytesize}\r\n#{value}\r\n",
+        "VA #{value.bytesize} f1 c42 kfoo s#{value.bytesize}\r\n#{value}\r\n",
+        "VA 5 f4 kbar s5\r\nhello\r\n",
+        "VA 5 s5 f0 kbar\r\nhello\r\n",
+        "VA 5 f0 k#{b64} b s5\r\nhello\r\n",
+        "VA 5 b f0 k#{b64} s5\r\nhello\r\n",
+        "VA 5 f0 kbar s5 f7 c1 c2 kother\r\nhello\r\n",
+        "VA 5 kbar s5\r\nhello\r\n",
+        "VA 5 f0 s5\r\nhello\r\n",
+        "VA 5 f0 kbar s5 bx W Z\r\nhello\r\n",
+        "VA 5 f4x kbar s5\r\nhello\r\n",
+        "VA 5 f0 kbar s5\r\nhel",
+        'VA 5 f0 kbar s5',
+        "VA 0 f0 kbar s0\r\n\r\n",
+        "VA 5 f0 kbar\r\nhello\r\n"
+      ]
+
+      headers.each do |response|
+        # A non-zero offset, as when earlier responses are still in the buffer
+        buf = "HD\r\n#{response}MN\r\n".b
+
+        assert_equal tokens_only.getk_response_from_buffer(buf.dup, 4),
+                     processor.getk_response_from_buffer(buf.dup, 4), response.inspect
+      end
+      # and the in-place parse is what handles a normal hit
+      hit = headers.first.b
+
+      assert_equal 'hello', processor.send(:va_response_from_buffer, hit, 0, hit.index("\r\n"))[3]
+    end
+
+    it 'reads the key from a VA line' do
+      b64 = ['k€y'].pack('m0')
+
+      assert_equal 'foo', processor.key_from_va_line("VA 5 f0 kfoo s5\r\n")
+      assert_equal 'foo', processor.key_from_va_line("VA 5 kfoo s5\r\n")
+      assert_equal 'foo', processor.key_from_va_line("VA 5 f0 kfoo\r\n")
+      assert_equal 'b', processor.key_from_va_line("VA 5 f0 kb s5\r\n")
+      assert_equal 'k€y', processor.key_from_va_line("VA 5 f0 k#{b64} b s5\r\n").force_encoding(Encoding::UTF_8)
+      assert_equal 'k€y', processor.key_from_va_line("VA 5 f0 k#{b64} s5 b\r\n").force_encoding(Encoding::UTF_8)
+      assert_nil processor.key_from_va_line("VA 5 f0 s5\r\n")
+    end
+
     it 'returns [0] when the body has not fully arrived' do
       buf = "VA 5 f0 c1 kfoo s5\r\nhel".b
 
