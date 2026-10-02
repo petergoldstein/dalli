@@ -45,11 +45,10 @@ module Memcached
     # Launches a memcached process using the memcached method in this module,
     # but sets terminate_process to false ensuring that the process persists
     # past execution of the block argument.
-    # rubocop:disable Metrics/ParameterLists
+    # rubocop:disable-next Metrics/ParameterLists
     def memcached_persistent(protocol = :binary, port_or_socket = 21_345, args = '', client_options = {}, &)
       memcached(protocol, port_or_socket, args, client_options, terminate_process: false, &)
     end
-    # rubocop:enable Metrics/ParameterLists
 
     # Launches a persistent memcached process, configured to use SSL
     def memcached_ssl_persistent(protocol = :binary, port_or_socket = rand(21_397..21_896), &)

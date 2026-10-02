@@ -3,7 +3,6 @@
 require 'digest/md5'
 require 'set'
 
-# encoding: ascii
 module Dalli
   ##
   # Dalli::Client is the main class which developers will use to interact with
@@ -152,7 +151,7 @@ module Dalli
     # Fetch multiple keys efficiently.
     # If a block is given, yields key/value pairs one at a time.
     # Otherwise returns a hash of { 'key' => 'value', 'key2' => 'value1' }
-    # rubocop:disable Style/ExplicitBlockArgument
+    # rubocop:disable-next Style/ExplicitBlockArgument
     def get_multi(*keys)
       keys.flatten!
       keys.compact!
@@ -164,7 +163,6 @@ module Dalli
         get_multi_hash(keys)
       end
     end
-    # rubocop:enable Style/ExplicitBlockArgument
 
     ##
     # Fetch multiple keys efficiently, including available metadata such as CAS.

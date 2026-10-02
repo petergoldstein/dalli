@@ -88,7 +88,7 @@ module Dalli
         }.freeze
         FORMAT = BODY_FORMATS.transform_values { |v| REQ_HEADER_FORMAT + v }
 
-        # rubocop:disable Metrics/ParameterLists
+        # rubocop:disable-next Metrics/ParameterLists
         def self.standard_request(opkey:, key: nil, value: nil, opaque: 0, cas: 0, bitflags: nil, ttl: nil)
           extra_len = (bitflags.nil? ? 0 : 4) + (ttl.nil? ? 0 : 4)
           key_len = key.nil? ? 0 : key.bytesize
@@ -97,7 +97,6 @@ module Dalli
           body = [bitflags, ttl, key, value].compact
           (header + body).pack(FORMAT[opkey])
         end
-        # rubocop:enable Metrics/ParameterLists
 
         def self.decr_incr_request(opkey:, key: nil, count: nil, initial: nil, expiry: nil)
           extra_len = 20

@@ -16,6 +16,10 @@ Bug fixes:
   - Affects only clients using `protocol: :meta`; the default binary protocol is not affected
   - Thanks to Julian Richard Contreras for this contribution
 
+Development:
+
+- Fix offenses reported by RuboCop 1.91 and require `rubocop >= 1.91` (backport of #1162)
+
 4.3.4
 ==========
 

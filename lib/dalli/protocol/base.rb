@@ -94,7 +94,7 @@ module Dalli
       # When a block is given, yields (key, value, cas) for each response,
       # avoiding intermediate Hash allocation. Returns nil.
       # Without a block, returns a Hash of { key => [value, cas] }.
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
+      # rubocop:disable-next Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def pipeline_next_responses(&block)
         reconnect_on_pipeline_complete!
         values = nil
@@ -128,7 +128,6 @@ module Dalli
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
         @connection_manager.error_on_request!(e)
       end
-      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       # Abort current pipelined get. Generally used to signal an external
       # timeout during pipelined get.  The underlying socket is
