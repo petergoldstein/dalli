@@ -28,3 +28,5 @@ Metrics/MethodLength:
 # Configuration parameters: CountComments, CountAsOne.
 Metrics/ModuleLength:
   Max: 108
+  Exclude:
+    - 'test/utils/memcached_manager.rb'

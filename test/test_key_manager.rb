@@ -296,7 +296,12 @@ describe 'KeyManager' do
       end
 
       describe 'when the key with namespace is shorter than 250 characters' do
-        let(:keylen) { rand(250 - (half_namespace_len * 2)) + 1 }
+        # The stored key is "<namespace>:<key>", and KeyManager truncates when
+        # that exceeds 250 characters.  The namespace is SecureRandom.hex, so it
+        # is twice half_namespace_len; with the separator that leaves 249 - it
+        # for the key itself.  Generating up to 250 - it produced a 251
+        # character key roughly one run in 250, which truncated and failed.
+        let(:keylen) { rand(1..(249 - (half_namespace_len * 2))) }
         let(:alphanum) { [('a'..'z').to_a, ('A'..'Z').to_a, ('0'..'9').to_a].flatten }
         let(:key) { Array.new(keylen) { alphanum.sample }.join }
 
