@@ -4,6 +4,13 @@ Dalli Changelog
 Unreleased
 ==========
 
+Development:
+
+- Fix flaky failover tests (#1184)
+  - Their ports were inside Linux's ephemeral port range (32768-60999), so an earlier client connection could hold one as its local port. memcached then couldn't bind it on IPv4 and listened on IPv6 only, and the test's client marked that server down. They now use ports in the 26xxx range
+  - The test helper now waits until memcached accepts connections, instead of sleeping a fixed 0.1s after starting it
+- Refresh apt's package index before installing libevent in CI, so a stale runner image can't break every memcached build (#1172)
+
 5.2.0
 ==========
 
