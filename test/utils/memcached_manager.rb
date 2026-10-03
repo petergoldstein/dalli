@@ -63,9 +63,42 @@ module MemcachedManager
       rescue Errno::ECHILD, Errno::ESRCH
         # Ignore errors
       end
-      sleep 0.1
+      @running_pids[key] = pid
+      confirm_started(pid, port_or_socket)
       pid
     end
+  end
+
+  # A fixed sleep after spawning was not proof the server was listening.  On a
+  # busy runner memcached could take longer, and the retry in
+  # start_and_flush_with_retry skips the flush that would have caught it.  A
+  # test's client then hit ECONNREFUSED on its first request and marked the
+  # server down for down_retry_delay (30s), so a "surviving" server in the
+  # failover tests was already unavailable before the other one was killed.
+  START_TIMEOUT_SECONDS = 5
+  def self.confirm_started(pid, port_or_socket)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + START_TIMEOUT_SECONDS
+    loop do
+      return if accepting?(port_or_socket)
+      raise "memcached for #{port_or_socket} exited before accepting connections" if Process.wait(pid, Process::WNOHANG)
+
+      if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        raise "memcached for #{port_or_socket} not accepting connections " \
+              "#{START_TIMEOUT_SECONDS}s after being started"
+      end
+
+      sleep 0.01
+    end
+  end
+
+  def self.accepting?(port_or_socket)
+    port = port_or_socket.to_i
+    return port_accepting?(port) unless port.zero?
+
+    UNIXSocket.new(port_or_socket).close
+    true
+  rescue SystemCallError
+    false
   end
 
   def self.stop(port_or_socket)
