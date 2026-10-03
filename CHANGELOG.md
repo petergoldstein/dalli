@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+Development:
+
+- Fix three flaky tests: the `KeyManager` namespace key-length test, the Rack session freshness test, and `MemcachedManager`'s start and stop handling (backport of #1141, #1183)
+
 3.2.11
 ==========
 
