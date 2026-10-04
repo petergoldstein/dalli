@@ -24,6 +24,16 @@ latest release. Earlier 1.6.x servers are not supported: the meta protocol
 rejects unknown flags outright, so features added after a server's release fail
 with `CLIENT_ERROR invalid flag` rather than degrading.
 
+### Known Ruby issue: crash on an interrupted socket read
+
+Dalli sets socket timeouts with `IO#timeout`. Ruby 3.3.0–3.3.7 and 3.4.0–3.4.2 have a bug ([Ruby #21195](https://bugs.ruby-lang.org/issues/21195)) where a timed read interrupted by a signal aborts the whole process:
+
+```
+[BUG] rb_sys_fail_path_in(io_fillbuf, fd:N ) - errno == 0
+```
+
+The crash is inside Ruby itself, so it can't be rescued. It's fixed in Ruby 3.3.8 and 3.4.3. If you see this crash, upgrade to one of those versions or later.
+
 ## Configuration Options
 
 ### Namespace
