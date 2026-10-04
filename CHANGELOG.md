@@ -6,13 +6,13 @@ Unreleased
 
 Notes:
 
-- Document Ruby bug #21195, a VM crash (`[BUG] rb_sys_fail_path_in(io_fillbuf, ...) - errno == 0`) when a socket read using `IO#timeout` is interrupted by a signal, in the README (#PR_NUMBER)
+- Document [Ruby bug 21195](https://bugs.ruby-lang.org/issues/21195), a VM crash (`[BUG] rb_sys_fail_path_in(io_fillbuf, ...) - errno == 0`) when a socket read using `IO#timeout` is interrupted by a signal, in the README (#1188)
   - Affects Ruby 3.2.x, 3.3.0–3.3.7 and 3.4.0–3.4.2. Fixed in 3.3.8 and 3.4.3; Ruby 3.2 reached end of life without the fix
   - Ruby 3.1 doesn't use `IO#timeout` and isn't affected
 
 Development:
 
-- Drop Ruby 3.2 from the CI matrix, since that bug intermittently crashed its test runs (#PR_NUMBER)
+- Drop Ruby 3.2 from the CI matrix, since that bug intermittently crashed its test runs (#1188)
 - Fix three flaky tests: the `KeyManager` namespace key-length test, the Rack session freshness test, and `MemcachedManager`'s start and stop handling (backport of #1141, #1182)
 - Fix flaky failover tests: move their ports out of Linux's ephemeral port range, and wait for memcached to accept connections after starting it (backport of #1184)
 
