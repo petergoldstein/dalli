@@ -11,6 +11,7 @@ Notes:
 
 Development:
 
+- Add a security policy (`SECURITY.md`), give every workflow a least-privilege token, and pin third-party actions by commit SHA (#1190)
 - Fix flaky failover tests (#1184)
   - Their ports were inside Linux's ephemeral port range (32768-60999), so an earlier client connection could hold one as its local port. memcached then couldn't bind it on IPv4 and listened on IPv6 only, and the test's client marked that server down. They now use ports in the 26xxx range
   - The test helper now waits until memcached accepts connections, instead of sleeping a fixed 0.1s after starting it
