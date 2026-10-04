@@ -6,12 +6,15 @@ concurrency:
   group: profiles-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Memcached 1.6.45
       working-directory: scripts
       env:
@@ -21,7 +24,7 @@ jobs:
         ./install_memcached.sh
         memcached -d
     - name: Set up Ruby
-      uses: ruby/setup-ruby@v1
+      uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
       with:
         ruby-version: 3.4
         bundler-cache: true # 'bundle install' and cache
@@ -31,7 +34,7 @@ jobs:
     # click to view the run you are interested in (ex https://github.com/petergoldstein/dalli/actions/runs/13296952241)
     # in the artifacts section, download the profile results
     - name: Upload profile results
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: profile-results
         path: |
