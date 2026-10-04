@@ -7,6 +7,7 @@ Unreleased
 Development:
 
 - Fix three flaky tests: the `KeyManager` namespace key-length test, the Rack session freshness test, and `MemcachedManager`'s start and stop handling (backport of #1141, #1181)
+- Fix flaky failover tests: move their ports out of Linux's ephemeral port range, and wait for memcached to accept connections after starting it (backport of #1184)
 
 5.0.8
 ==========
