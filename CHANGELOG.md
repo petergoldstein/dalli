@@ -6,7 +6,7 @@ Unreleased
 
 Notes:
 
-- Document [Ruby bug 21195](https://bugs.ruby-lang.org/issues/21195), a VM crash (`[BUG] rb_sys_fail_path_in(io_fillbuf, ...) - errno == 0`) when a socket read using `IO#timeout` is interrupted by a signal, in the README (#PR_NUMBER)
+- Document [Ruby bug 21195](https://bugs.ruby-lang.org/issues/21195), a VM crash (`[BUG] rb_sys_fail_path_in(io_fillbuf, ...) - errno == 0`) when a socket read using `IO#timeout` is interrupted by a signal, in the README (#1189)
   - Affects Ruby 3.3.0–3.3.7 and 3.4.0–3.4.2; fixed in 3.3.8 and 3.4.3
 
 Development:
