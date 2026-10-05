@@ -61,7 +61,7 @@ module Dalli
         @compressor_accepts_max_bytes =
           begin
             compressor.method(:decompress).parameters.any? do |type, name|
-              %i[key keyreq].include?(type) && name == :max_bytes
+              name == :max_bytes && (type == :key || type == :keyreq)
             end
           rescue NameError # an object without a reflectable decompress method
             false
