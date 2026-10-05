@@ -13,6 +13,40 @@ describe 'Network' do
           end
         end
 
+        # On this line the meta protocol's line reads rely on SO_RCVTIMEO,
+        # which some Rubies and platforms ignore, so a silent server can block
+        # the read itself rather than exercising the retries. Binary only.
+        if p == :binary
+          # Each retry used to reconnect successfully, which reset the failure
+          # count, so a server that accepts connections but never answers was
+          # retried forever and the caller hung.
+          it 'gives up on a server that accepts connections but never answers' do
+            server = TCPServer.new('127.0.0.1', 19_456)
+            acceptor = Thread.new do
+              loop do
+                Thread.new(server.accept) do |sock|
+                  while (line = sock.gets)
+                    sock.write("VERSION 1.6.45\r\n") if line.start_with?('version')
+                  end
+                rescue IOError, SystemCallError
+                  nil
+                end
+              end
+            rescue IOError
+              nil
+            end
+            dc = Dalli::Client.new('127.0.0.1:19456', socket_timeout: 0.3, protocol: p)
+            started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+            # The ring reports a server it has marked down as a RingError
+            assert_raises(Dalli::NetworkError, Dalli::RingError) { dc.get('anykey') }
+            assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 5
+          ensure
+            server&.close
+            acceptor&.kill
+          end
+        end
+
         describe 'with a fake server' do
           it 'handle connection reset' do
             memcached_mock(lambda(&:close)) do
