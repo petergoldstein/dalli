@@ -22,7 +22,7 @@ module Dalli
       def get(key, options = nil)
         req = RequestFormatter.standard_request(opkey: :get, key: key)
         write(req)
-        response_processor.get(cache_nils: cache_nils?(options))
+        response_processor.get(cache_nils: cache_nils?(options), raw: raw_request?(options))
       end
 
       def quiet_get_request(key)
@@ -33,7 +33,7 @@ module Dalli
         ttl = TtlSanitizer.sanitize(ttl)
         req = RequestFormatter.standard_request(opkey: :gat, key: key, ttl: ttl)
         write(req)
-        response_processor.get(cache_nils: cache_nils?(options))
+        response_processor.get(cache_nils: cache_nils?(options), raw: raw_request?(options))
       end
 
       def touch(key, ttl)

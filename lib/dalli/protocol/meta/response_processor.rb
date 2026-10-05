@@ -27,12 +27,15 @@ module Dalli
           @value_marshaller = value_marshaller
         end
 
-        def meta_get_with_value(cache_nils: false)
+        # raw: true returns the value as stored, without deserializing or
+        # decompressing it, whatever flags it was stored with
+        def meta_get_with_value(cache_nils: false, raw: false)
           tokens = error_on_unexpected!([VA, EN, HD])
           return cache_nils ? ::Dalli::NOT_FOUND : nil if tokens.first == EN
           return true unless tokens.first == VA
 
-          @value_marshaller.retrieve(read_line, bitflags_from_tokens(tokens))
+          value = read_line
+          raw ? value : @value_marshaller.retrieve(value, bitflags_from_tokens(tokens))
         end
 
         def meta_get_with_value_and_cas
