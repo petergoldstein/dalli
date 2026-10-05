@@ -99,7 +99,15 @@ module Dalli
         reconnect_on_pipeline_complete!
         values = nil
 
-        response_buffer.read
+        # Only the read is socket I/O. The caller's block runs below, outside
+        # this rescue, so an Errno or Timeout::Error it raises reaches the
+        # caller instead of being mistaken for a network failure (which closed
+        # the connection and retried the whole get_multi, yielding keys twice).
+        begin
+          response_buffer.read
+        rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
+          @connection_manager.error_on_request!(e)
+        end
 
         status, cas, key, value = response_buffer.process_single_getk_response
         # status is not nil only if we have a full response to parse
@@ -125,8 +133,6 @@ module Dalli
         end
 
         values || {}
-      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
-        @connection_manager.error_on_request!(e)
       end
 
       # Abort current pipelined get. Generally used to signal an external
