@@ -140,13 +140,14 @@ module Dalli
 
           tokens, header_len, body_len = tokens_from_header_buffer(buf)
 
-          # We have a complete response that has no body.
-          # This is either the response to the terminating
-          # noop or, if the status is not MN, an intermediate
-          # error response that needs to be discarded. A hit
-          # on an empty value (VA 0) still has a body -- just
-          # its terminator -- so it's parsed below as a value.
-          return [header_len, true, nil, nil, nil] if no_body?(tokens, body_len)
+          # A complete response with no body. Only the terminating noop's MN
+          # ends the pipeline. Any other bodyless reply (CLIENT_ERROR,
+          # SERVER_ERROR, ...) answers one key's request: report it with a
+          # false status so the caller skips it and keeps reading. Treating it
+          # as the end would leave the remaining replies on the connection for
+          # later commands to read as their own. A hit on an empty value (VA 0)
+          # still has a body -- just its terminator -- so it's parsed below.
+          return [header_len, tokens.first == MN, nil, nil, nil] if no_body?(tokens, body_len)
 
           resp_size = header_len + body_len + TERMINATOR.length
           # The header is in the buffer, but the body is not.  As we don't have
