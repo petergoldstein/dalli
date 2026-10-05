@@ -187,14 +187,27 @@ module Dalli
 
       # JRuby doesn't support IO#timeout=, so use custom readfull implementation
       # CRuby 3.3+ has IO#timeout= which makes IO#read work with timeouts
+      # memcached can't store an item larger than 1 GiB (its -I maximum), so a
+      # reply claiming more (or a negative size) is malformed or hostile.
+      # IO#read allocates the full count up front, so check before reading.
+      MAX_READ_BYTES = (1024 * 1024 * 1024) + 2 # plus the value's trailing "\r\n"
+
+      def check_read_size!(count)
+        return if count.between?(0, MAX_READ_BYTES)
+
+        raise Dalli::DalliError, "Reply size #{count} from #{name} is out of range"
+      end
+
       if RUBY_ENGINE == 'jruby'
         def read(count)
+          check_read_size!(count)
           @sock.readfull(count)
         rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
           error_on_request!(e)
         end
       else
         def read(count)
+          check_read_size!(count)
           read_bytes(count)
         rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
           error_on_request!(e)
