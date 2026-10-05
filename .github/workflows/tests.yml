@@ -1,6 +1,11 @@
 name: Tests
 
-on: [push, pull_request]
+# Pushes to other branches are covered by their pull request's run, so a PR
+# branch isn't tested twice
+on:
+  push:
+    branches: [main, '*-stable']
+  pull_request:
 
 jobs:
   test:
