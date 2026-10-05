@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+Notes:
+
+- Document how long keys are shortened, and that a short key written in the same form names the same item, in the README's security note
+
 5.2.1
 ==========
 
