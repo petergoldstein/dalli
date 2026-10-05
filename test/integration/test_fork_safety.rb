@@ -97,6 +97,10 @@ describe 'Fork safety of the inherited connection' do
             exit!(0)
           end
           Process.wait(pid)
+          # Give memcached time to act on a close_notify from the child, which
+          # would close the shared connection. Nothing arrives when the child
+          # leaves the TLS session alone.
+          parent_sock.to_io.wait_readable(0.5)
 
           with_nil_logger do
             assert_equal 'parent_value', dc.get('tls_fork_key')
