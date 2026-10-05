@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+Development:
+
+- Fix flaky failover tests: move their ports out of Linux's ephemeral port range, and wait for memcached to accept connections after starting it (backport of #1184)
+
 5.1.3
 ==========
 
