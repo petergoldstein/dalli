@@ -63,7 +63,7 @@ module Dalli
       # Pipelined set - writes a quiet set request without reading response.
       # Used by PipelinedSetter for bulk operations.
       def pipelined_set(key, value, ttl, options)
-        storage_req(:setq, key, value, ttl, 0, options)
+        storage_req(:setq, key, value, ttl, 0, options, quiet: true)
       end
 
       def add(key, value, ttl, options)
@@ -77,7 +77,7 @@ module Dalli
       end
 
       # rubocop:disable-next Metrics/ParameterLists
-      def storage_req(opkey, key, value, ttl, cas, options)
+      def storage_req(opkey, key, value, ttl, cas, options, quiet: quiet?)
         (value, bitflags) = @value_marshaller.store(key, value, options)
         ttl = TtlSanitizer.sanitize(ttl)
 
@@ -85,8 +85,8 @@ module Dalli
                                                 value: value, bitflags: bitflags,
                                                 ttl: ttl, cas: cas)
         write(req)
-        @connection_manager.flush unless quiet?
-        response_processor.storage_response unless quiet?
+        @connection_manager.flush unless quiet
+        response_processor.storage_response unless quiet
       end
 
       def append(key, value)
