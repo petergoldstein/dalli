@@ -6,6 +6,7 @@ Unreleased
 
 Development:
 
+- Run the Tests, RuboCop and Profiles workflows on pushes to `main` and the `*-stable` branches only, so a pull request's branch isn't tested twice (backport of #1198)
 - Fix flaky failover tests: move their ports out of Linux's ephemeral port range, and wait for memcached to accept connections after starting it (backport of #1184)
 
 5.1.3
