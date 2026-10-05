@@ -23,6 +23,9 @@ module Dalli
         VERSION = 'VERSION'
         SERVER_ERROR = 'SERVER_ERROR'
 
+        # memcached can't store an item larger than 1 GiB (its -I maximum)
+        MAX_VALUE_BYTES = 1024 * 1024 * 1024
+
         T_OK = [OK].freeze
         T_RESET = [RESET].freeze
         T_EN_HD = [EN, HD].freeze
@@ -210,6 +213,7 @@ module Dalli
           # still has a body -- just its terminator -- so it's parsed below.
           return [tokens.first == MN, header_len] if body_len.zero? && tokens.first != VA
 
+          check_value_size!(body_len)
           resp_size = header_len + body_len + TERMINATOR.length
           # The header is in the buffer, but the body is not.  As we don't have
           # a complete response, don't advance the buffer
@@ -276,6 +280,14 @@ module Dalli
           else
             0
           end
+        end
+
+        # A pipelined reply claiming an impossible size would otherwise have the
+        # buffer wait for (and accumulate) that many bytes
+        def check_value_size!(size)
+          return if size.between?(0, MAX_VALUE_BYTES)
+
+          raise Dalli::DalliError, "Reply value size #{size} is out of range"
         end
 
         def read_line
