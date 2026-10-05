@@ -96,7 +96,7 @@ module Dalli
       def meta_get(key, options = {})
         encoded_key, base64 = KeyRegularizer.encode(key)
         req = RequestFormatter.meta_get(
-          key: encoded_key, value: true, return_cas: true, base64: base64,
+          key: encoded_key, value: true, return_cas: true, base64: base64, skip_flags: raw_request?(options),
           vivify_ttl: options[:vivify_ttl], recache_ttl: options[:recache_ttl],
           return_hit_status: options[:return_hit_status],
           return_last_access: options[:return_last_access], skip_lru_bump: options[:skip_lru_bump]

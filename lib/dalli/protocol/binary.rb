@@ -23,7 +23,7 @@ module Dalli
         req = RequestFormatter.standard_request(opkey: :get, key: key)
         write(req)
         @connection_manager.flush
-        response_processor.get(cache_nils: cache_nils?(options))
+        response_processor.get(cache_nils: cache_nils?(options), raw: raw_request?(options))
       end
 
       def quiet_get_request(key)
@@ -35,7 +35,7 @@ module Dalli
         req = RequestFormatter.standard_request(opkey: :gat, key: key, ttl: ttl)
         write(req)
         @connection_manager.flush
-        response_processor.get(cache_nils: cache_nils?(options))
+        response_processor.get(cache_nils: cache_nils?(options), raw: raw_request?(options))
       end
 
       def touch(key, ttl)

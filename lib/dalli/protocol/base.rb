@@ -34,6 +34,13 @@ module Dalli
         @raw_mode
       end
 
+      # True when values should come back as stored: the client is in raw mode,
+      # or this request passed raw: true. A stored value is then never
+      # deserialized or decompressed for a caller who asked for raw bytes.
+      def raw_request?(options)
+        raw_mode? || (options.is_a?(Hash) && options[:raw]) ? true : false
+      end
+
       # Chokepoint method for error handling and ensuring liveness
       def request(opkey, *args)
         verify_state(opkey)
