@@ -711,6 +711,17 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       end
     end
 
+    it 'rejects whitespace and control characters, which would add meta flags' do
+      ['pod1 T1', 'pod1 q', ' x', 'x ', "tab\there", "x\x7F", "x\x01"].each do |token|
+        assert_raises(ArgumentError) do
+          Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', p_token: token)
+        end
+        assert_raises(ArgumentError) do
+          Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: 'foo', l_token: token)
+        end
+      end
+    end
+
     it 'rejects non-String tokens' do
       assert_raises(ArgumentError) do
         Dalli::Protocol::Meta::RequestFormatter.meta_get(key: 'foo', l_token: 42)

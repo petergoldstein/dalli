@@ -37,6 +37,7 @@ module Dalli
         @sock = nil
         @pid = nil
 
+        @fail_count = 0
         reset_down_info
       end
 
@@ -85,6 +86,8 @@ module Dalli
       def down!
         close
         log_down_detected
+        # Once down_retry_delay passes, the server gets a full set of attempts
+        @fail_count = 0
 
         @error = $ERROR_INFO&.class&.name
         @msg ||= $ERROR_INFO&.message
@@ -163,6 +166,11 @@ module Dalli
         raise '[Dalli] No request in progress. This may be a bug in Dalli.' unless @request_in_progress
 
         @request_in_progress = false
+        # A completed request is what proves the server healthy again, so the
+        # failure count resets here rather than on reconnect: a server that
+        # accepts connections but never answers would otherwise reset it on
+        # every retry and never reach socket_max_failures.
+        @fail_count = 0
       end
 
       def abort_request!
@@ -246,8 +254,9 @@ module Dalli
         raise Dalli::RetryableNetworkError, message
       end
 
+      # Called on connect. Deliberately leaves @fail_count alone; see
+      # finish_request!.
       def reset_down_info
-        @fail_count = 0
         @down_at = nil
         @last_down_at = nil
         @msg = nil
