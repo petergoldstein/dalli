@@ -14,17 +14,22 @@ someone else does, and to harden the project around them.
 
 ## 1. Repository and release hardening
 
-- [ ] **Branch protection** on `main`, `5-1-stable`, `5-0-stable`, `4-3-stable`
-      and `3-2-stable`: require a pull request and passing status checks.
-- [ ] **Secret scanning and push protection:** enable both.
+- [x] **Branch protection** on `main` and every `*-stable` branch, as one
+      repository ruleset ("Protect main and stable branches"): changes need a
+      pull request (no approvals required, since there's one maintainer), and
+      the branches can't be deleted or force-pushed. Admins can bypass only
+      when merging a pull request, which covers merging a security advisory's
+      private fork. Required status checks aren't set yet, because the test
+      jobs are named after Ruby and memcached versions that change over time.
+- [x] **Secret scanning and push protection:** both enabled.
 - [x] **Least-privilege workflow tokens:** add a top-level
       `permissions: contents: read` to every workflow, and widen it only where
-      a job needs more (as `release.yml` and CodeQL already do).
+      a job needs more (as `release.yml` and CodeQL already do). (#1190)
 - [x] **Pin third-party actions by commit SHA.** Dependabot's weekly
-      `github-actions` updates keep the pins current.
+      `github-actions` updates keep the pins current. (#1190)
 - [x] **`SECURITY.md`:** which release lines get security fixes, and how to
       report a vulnerability (GitHub private vulnerability reporting is
-      already enabled).
+      already enabled). (#1190)
 - [ ] **Gem publishing:** consider RubyGems trusted publishing from CI, so
       released gems are built from tagged commits rather than on a local
       machine. MFA is already required (`rubygems_mfa_required`).
@@ -32,6 +37,8 @@ someone else does, and to harden the project around them.
       items above.
 
 ## 2. Code audit, by attack surface
+
+*Status: in progress (started 2026-10-04).*
 
 Each area gets a structured review. Anything suspicious gets a proof of concept
 before it's treated as real, and real findings go through a private advisory.
@@ -53,6 +60,8 @@ before it's treated as real, and real findings go through a private advisory.
       log or exception messages.
 
 ## 3. Automated testing for these bug classes
+
+*Status: in progress (started 2026-10-04).*
 
 - [ ] **Property tests on request building:** generated inputs (keys, options,
       numeric arguments) must always produce exactly one command line, with no
