@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+Development:
+
+- Run the Tests, RuboCop and Profiles workflows on pushes to `main` and the `*-stable` branches only, so a pull request's branch isn't tested twice (backport of #1198)
+
 4.3.6
 ==========
 
