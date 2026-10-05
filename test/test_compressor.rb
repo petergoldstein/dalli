@@ -37,7 +37,7 @@ end
     end
 
     it 'stops a decompression bomb without inflating it fully' do
-      bomb = compressor.compress("\0" * (64 * 1024 * 1024))
+      bomb = compressor.compress("\0" * (16 * 1024 * 1024))
 
       assert_raises(Dalli::UnmarshalError) { compressor.decompress(bomb, max_bytes: 1024 * 1024) }
     end
