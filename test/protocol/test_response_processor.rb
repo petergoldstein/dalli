@@ -381,7 +381,6 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
       assert_equal [0], processor.getk_response_from_buffer("VA 0 f0 kfoo s0\r\n".b)
     end
 
-
     it 'rejects a pipelined reply that claims an impossible value size' do
       ["VA 4294967296 f0 kfoo s4294967296\r\n", "VA 4294967296 s4294967296 f0 kfoo\r\n"].each do |line|
         assert_raises(Dalli::DalliError) { processor.getk_response_from_buffer(line.b) }

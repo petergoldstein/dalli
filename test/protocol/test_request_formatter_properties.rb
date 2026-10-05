@@ -91,6 +91,28 @@ describe 'RequestFormatter properties' do
     end
   end
 
+  # The formatter's methods and keywords differ between release lines. Calls go
+  # through call_formatter, which passes only the keywords this version
+  # accepts, so an unsupported keyword never looks like a rejected input.
+  keyword_types = %i[key keyreq].freeze
+
+  define_method(:keywords_for) do |name|
+    formatter.method(name).parameters.filter_map { |type, param| param if keyword_types.include?(type) }
+  end
+
+  define_method(:call_formatter) do |name, *positional, **keywords|
+    formatter.public_send(name, *positional, **keywords.slice(*keywords_for(name)))
+  end
+
+  # Routing tokens only count when this version's method accepts them
+  define_method(:tokens_for) do |name, tokens|
+    keywords_for(name).include?(:p_token) ? tokens : {}
+  end
+
+  define_method(:available) do |names|
+    names.select { |name| formatter.respond_to?(name) }
+  end
+
   # Runs one formatter call; returns nil when the input was rejected
   define_method(:attempt) do |&blk|
     blk.call
@@ -104,8 +126,8 @@ describe 'RequestFormatter properties' do
       p_token = random_token
       l_token = random_token
       tokens = { 'P' => p_token, 'L' => l_token }
-      case_name = %i[meta_get meta_set meta_delete meta_arithmetic plain_meta_get plain_meta_set
-                     plain_meta_delete].sample(random: rng)
+      case_name = available(%i[meta_get meta_set meta_delete meta_arithmetic plain_meta_get plain_meta_set
+                               plain_meta_delete]).sample(random: rng)
       args = nil
 
       out = attempt do
@@ -115,33 +137,33 @@ describe 'RequestFormatter properties' do
                    recache_ttl: maybe(lambda {
                      random_numeric
                    }), quiet: rng.rand < 0.5, p_token: p_token, l_token: l_token }
-          formatter.meta_get(**args)
+          call_formatter(:meta_get, **args)
         when :meta_set
           args = { key: key, value: random_string(key_chars, 30), bitflags: rng.rand(0..5), cas: maybe(lambda {
             random_numeric
           }),
                    ttl: maybe(-> { random_numeric }), quiet: rng.rand < 0.5, p_token: p_token, l_token: l_token }
-          formatter.meta_set(**args)
+          call_formatter(:meta_set, **args)
         when :meta_delete
           args = { key: key, cas: maybe(-> { random_numeric }), stale: true, ttl: maybe(-> { random_numeric }),
                    p_token: p_token, l_token: l_token }
-          formatter.meta_delete(**args)
+          call_formatter(:meta_delete, **args)
         when :meta_arithmetic
           args = { key: key, delta: maybe(-> { random_numeric }), initial: maybe(-> { random_numeric }),
                    ttl: maybe(-> { random_numeric }), p_token: p_token, l_token: l_token }
-          formatter.meta_arithmetic(**args)
+          call_formatter(:meta_arithmetic, **args)
         when :plain_meta_get
           tokens = {}
           args = [key, rng.rand < 0.5]
-          formatter.plain_meta_get(*args)
+          call_formatter(:plain_meta_get, *args)
         when :plain_meta_set
           tokens = {}
           args = [key, rng.rand(0..1000), rng.rand(0..5), maybe(-> { random_numeric })]
-          formatter.plain_meta_set(*args)
+          call_formatter(:plain_meta_set, *args)
         when :plain_meta_delete
           tokens = {}
           args = [key]
-          formatter.plain_meta_delete(*args)
+          call_formatter(:plain_meta_delete, *args)
         end
       end
       next if out.nil?
@@ -152,7 +174,7 @@ describe 'RequestFormatter properties' do
       commands = frame(bytes)
 
       assert_equal 1, commands.size, "#{context} produced #{commands.size} commands: #{out.inspect}"
-      assert_command_line(commands[0][0], key, tokens)
+      assert_command_line(commands[0][0], key, tokens_for(case_name, tokens))
     rescue Minitest::Assertion => e
       raise e.class, "#{e.message}\n#{context || "seed=#{seed} iteration=#{i}"}"
     end
@@ -164,21 +186,21 @@ describe 'RequestFormatter properties' do
       p_token = random_token
       l_token = random_token
       tokens = { 'P' => p_token, 'L' => l_token }
-      case_name = %i[multi_meta_get multi_meta_delete multi_meta_set].sample(random: rng)
+      case_name = available(%i[multi_meta_get multi_meta_delete multi_meta_set]).sample(random: rng)
       args = nil
 
       out = attempt do
         case case_name
         when :multi_meta_get
           args = [keys, { return_cas: rng.rand < 0.5, p_token: p_token, l_token: l_token }]
-          formatter.multi_meta_get(keys, **args[1])
+          call_formatter(:multi_meta_get, keys, **args[1])
         when :multi_meta_delete
           args = [keys, { stale: true, ttl: maybe(-> { random_numeric }), p_token: p_token, l_token: l_token }]
-          formatter.multi_meta_delete(keys, **args[1])
+          call_formatter(:multi_meta_delete, keys, **args[1])
         when :multi_meta_set
           entries = keys.to_h { |k| [k, [random_string(key_chars, 30), rng.rand(0..5)]] }
           args = [entries, { ttl: maybe(-> { random_numeric }), p_token: p_token, l_token: l_token }]
-          formatter.multi_meta_set(entries, **args[1])
+          call_formatter(:multi_meta_set, entries, **args[1])
         end
       end
       next if out.nil?
@@ -189,7 +211,7 @@ describe 'RequestFormatter properties' do
       assert_equal keys.size + 1, commands.size, "#{context} produced #{commands.size} commands"
       assert_equal 'mn', commands.last[0], context
       commands[0...-1].each_with_index do |(header, _), idx|
-        assert_command_line(header, keys[idx], tokens)
+        assert_command_line(header, keys[idx], tokens_for(case_name, tokens))
       end
     rescue Minitest::Assertion => e
       raise e.class, "#{e.message}\n#{context || "seed=#{seed} iteration=#{i}"}"

@@ -209,7 +209,6 @@ describe 'Pipelined Get' do
           end
         end
 
-
         it 'lets an exception raised by the block reach the caller, without retrying' do
           with_two_server_client(p) do |dc|
             keys = Array.new(20) { |i| "k#{i}" }
