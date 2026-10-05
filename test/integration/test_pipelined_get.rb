@@ -209,6 +209,24 @@ describe 'Pipelined Get' do
           end
         end
 
+
+        it 'lets an exception raised by the block reach the caller, without retrying' do
+          with_two_server_client(p) do |dc|
+            keys = Array.new(20) { |i| "k#{i}" }
+            keys.each { |k| dc.set(k, "v-#{k}") }
+            yields = Hash.new(0)
+
+            assert_raises(Timeout::Error) do
+              dc.get_multi(keys) do |k, _|
+                yields[k] += 1
+                raise Timeout::Error, 'from the application' if yields.size == 3
+              end
+            end
+
+            assert_equal [1], yields.values.uniq
+            assert_equal 'v-k7', dc.get('k7')
+          end
+        end
         it 'returns every value and keeps the connection aligned when a key is long once base64-encoded' do
           with_two_server_client(p) do |dc|
             many = Array.new(2000) { |i| "user:#{i}:token" }
