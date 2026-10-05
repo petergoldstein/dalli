@@ -30,9 +30,10 @@ describe 'Compressor' do
         memcached(p, 29_199) do |_dc|
           bomb = Dalli::Compressor.compress("\0" * (16 * 1024 * 1024))
           sock = TCPSocket.new('127.0.0.1', 29_199)
-          sock.write("ms bomb #{bomb.bytesize} F#{Dalli::Protocol::ValueCompressor::FLAG_COMPRESSED}\r\n#{bomb}\r\n")
+          # The classic text protocol's set, which every memcached version accepts
+          sock.write("set bomb #{Dalli::Protocol::ValueCompressor::FLAG_COMPRESSED} 0 #{bomb.bytesize}\r\n#{bomb}\r\n")
 
-          assert_equal "HD\r\n", sock.gets
+          assert_equal "STORED\r\n", sock.gets
           sock.close
 
           capped = Dalli::Client.new('127.0.0.1:29199', decompressed_max_bytes: 1024 * 1024, protocol: p)
