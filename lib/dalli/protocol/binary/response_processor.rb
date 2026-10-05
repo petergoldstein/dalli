@@ -199,6 +199,17 @@ module Dalli
         # The remaining three values in the array are the ResponseHeader,
         # key, and value.
         ##
+        # memcached can't store an item larger than 1 GiB (its -I maximum). A
+        # pipelined reply claiming an impossible size would otherwise have the
+        # buffer wait for (and accumulate) that many bytes.
+        MAX_BODY_BYTES = 1024 * 1024 * 1024
+
+        def check_body_size!(size)
+          return if size <= MAX_BODY_BYTES
+
+          raise Dalli::DalliError, "Reply body size #{size} is out of range"
+        end
+
         def getk_response_from_buffer(buf, offset = 0)
           # There's no header in the buffer, so don't advance
           return [0, nil, nil, nil, nil] unless buf && buf.bytesize >= offset + ResponseHeader::SIZE
@@ -211,6 +222,8 @@ module Dalli
           # noop or, if the status is not zero, an intermediate
           # error response that needs to be discarded.
           return [ResponseHeader::SIZE, resp_header.ok?, resp_header.cas, nil, nil] if body_len.zero?
+
+          check_body_size!(body_len)
 
           resp_size = ResponseHeader::SIZE + body_len
           # The header is in the buffer, but the body is not.  As we don't have

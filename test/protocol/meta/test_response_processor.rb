@@ -323,6 +323,12 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
   end
 
   describe '#getk_response_from_buffer' do
+    it 'rejects a pipelined reply that claims an impossible value size' do
+      ["VA 4294967296 f0 kfoo s4294967296\r\n", "VA 4294967296 s4294967296 f0 kfoo\r\n"].each do |line|
+        assert_raises(Dalli::DalliError) { processor.getk_response_from_buffer(line.b) }
+      end
+    end
+
     it 'returns [0, nil, nil, nil, nil] when buffer has no header' do
       buf = 'incomplete'
       result = processor.getk_response_from_buffer(buf)

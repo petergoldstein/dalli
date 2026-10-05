@@ -238,6 +238,16 @@ describe Dalli::Protocol::ConnectionManager do
     end
   end
 
+  describe '#read size check' do
+    # Reading allocates the whole count up front, so an impossible size from
+    # a hostile server is rejected before reading
+    it 'rejects sizes over the largest item memcached can store, and negative sizes' do
+      [(1024 * 1024 * 1024) + 3, 4 * 1024 * 1024 * 1024, -1].each do |count|
+        assert_raises(Dalli::DalliError) { connection_manager.read(count) }
+      end
+    end
+  end
+
   describe '#up!' do
     it 'resets down info, but not the failure count' do
       connection_manager.instance_variable_set(:@fail_count, 1)
