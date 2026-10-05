@@ -23,6 +23,9 @@ module Dalli
 
       OPTIONS = DEFAULTS.keys.freeze
 
+      KEYWORD_PARAMETER_TYPES = %i[key keyreq].freeze
+      private_constant :KEYWORD_PARAMETER_TYPES
+
       def initialize(client_options)
         @compression_options =
           DEFAULTS.merge(client_options.slice(*OPTIONS))
@@ -61,7 +64,7 @@ module Dalli
         @compressor_accepts_max_bytes =
           begin
             compressor.method(:decompress).parameters.any? do |type, name|
-              name == :max_bytes && (type == :key || type == :keyreq)
+              name == :max_bytes && KEYWORD_PARAMETER_TYPES.include?(type)
             end
           rescue NameError # an object without a reflectable decompress method
             false
