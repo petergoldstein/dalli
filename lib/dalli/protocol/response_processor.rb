@@ -24,6 +24,8 @@ module Dalli
         SERVER_ERROR = 'SERVER_ERROR'
 
         VA_PREFIX = 'VA '
+        # memcached can't store an item larger than 1 GiB (its -I maximum)
+        MAX_VALUE_BYTES = 1024 * 1024 * 1024
         HD_PREFIX = 'HD '
         FLAGS_TOKEN_PREFIX = ' f'
         CAS_TOKEN_PREFIX = ' c'
@@ -256,14 +258,16 @@ module Dalli
           end
           body_len = flag_int(size, 's')
 
-          # We have a complete response that has no body.
-          # This is either the response to the terminating
-          # noop or, if the status is not MN, an intermediate
-          # error response that needs to be discarded. A hit
-          # on an empty value (VA 0) still has a body -- just
-          # its terminator -- so it's parsed below as a value.
-          return [true, header_len] if body_len.zero? && tokens.first != VA
+          # A complete response with no body. Only the terminating noop's MN
+          # ends the pipeline. Any other bodyless reply (CLIENT_ERROR,
+          # SERVER_ERROR, ...) answers one key's request: report it with a
+          # false status so the caller skips it and keeps reading. Treating it
+          # as the end would leave the remaining replies on the connection for
+          # later commands to read as their own. A hit on an empty value (VA 0)
+          # still has a body -- just its terminator -- so it's parsed below.
+          return [tokens.first == MN, header_len] if body_len.zero? && tokens.first != VA
 
+          check_value_size!(body_len)
           resp_size = header_len + body_len + TERMINATOR.length
           # The header is in the buffer, but the body is not.  As we don't have
           # a complete response, don't advance the buffer
@@ -300,6 +304,7 @@ module Dalli
           end
           return nil if size.nil? || size.zero?
 
+          check_value_size!(size)
           header_len = term_idx - offset + TERMINATOR.length
           resp_size = header_len + size + TERMINATOR.length
           return [0] unless buf.bytesize >= offset + resp_size
@@ -422,6 +427,14 @@ module Dalli
           else
             0
           end
+        end
+
+        # A pipelined reply claiming an impossible size would otherwise have the
+        # buffer wait for (and accumulate) that many bytes
+        def check_value_size!(size)
+          return if size.between?(0, MAX_VALUE_BYTES)
+
+          raise Dalli::DalliError, "Reply value size #{size} is out of range"
         end
 
         def read_line

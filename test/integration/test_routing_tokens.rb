@@ -189,6 +189,20 @@ describe 'routing tokens (p_token / l_token) passthrough' do
       end
     end
 
+    # A space would split the token into extra meta flags on the same request
+    # (e.g. "route T1" setting an item's TTL to 1 second on a read).
+    it 'rejects tokens containing whitespace with ArgumentError, leaving the item untouched' do
+      memcached_persistent do |dc|
+        dc.set('safe_key', 'val', 0)
+
+        assert_raises(ArgumentError) { dc.get('safe_key', p_token: 'route T1') }
+        assert_raises(ArgumentError) { dc.delete('safe_key', l_token: "route\tI") }
+        sleep 1.2
+
+        assert_equal 'val', dc.get('safe_key')
+      end
+    end
+
     it 'rejects non-String tokens with ArgumentError' do
       memcached_persistent do |dc|
         assert_raises(ArgumentError) do

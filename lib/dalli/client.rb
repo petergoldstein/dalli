@@ -881,7 +881,7 @@ module Dalli
     # check means unwinding through Protocol::Base#request, which logs the
     # failure as unexpected and closes the connection -- a caller passing a
     # bad token should get a clean ArgumentError and keep its connection.
-    ROUTING_TOKEN_FORBIDDEN = /[\r\n\0]/
+    ROUTING_TOKEN_FORBIDDEN = /[\x00-\x20\x7F]/
     private_constant :ROUTING_TOKEN_FORBIDDEN
 
     def validate_routing_tokens!(req_options)
@@ -897,7 +897,9 @@ module Dalli
       # here (it would also excuse [] / {} from the type check below).
       return if value.nil? || (value.is_a?(String) && value.empty?)
       raise ArgumentError, "#{name} must be a String, got #{value.class}" unless value.is_a?(String)
-      raise ArgumentError, "#{name} must not contain CRLF or null bytes" if value.match?(ROUTING_TOKEN_FORBIDDEN)
+      return unless value.match?(ROUTING_TOKEN_FORBIDDEN)
+
+      raise ArgumentError, "#{name} must not contain whitespace or control characters"
     end
 
     def cas_core(key, always_set, ttl = nil, req_options = nil)

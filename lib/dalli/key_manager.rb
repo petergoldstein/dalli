@@ -58,7 +58,7 @@ module Dalli
       raise ArgumentError, 'key cannot be blank' unless key&.length&.positive?
 
       key = key_with_namespace(key)
-      key.length > MAX_KEY_LENGTH ? truncated_key(key) : key
+      wire_length(key) > MAX_KEY_LENGTH ? truncated_key(key) : key
     end
 
     ##
@@ -122,7 +122,25 @@ module Dalli
     ##
     def truncated_key(key)
       digest = digest_class.hexdigest(key)
-      "#{key[0, prefix_length(digest)]}#{TRUNCATED_KEY_SEPARATOR}#{digest}"
+      prefix = key[0, prefix_length(digest)]
+      truncated = "#{prefix}#{TRUNCATED_KEY_SEPARATOR}#{digest}"
+      # A prefix with whitespace or non-ASCII characters sends the whole key
+      # base64-encoded, which can still be too long on the wire; shorten it.
+      while wire_length(truncated) > MAX_KEY_LENGTH
+        prefix = prefix[0...-1]
+        truncated = "#{prefix}#{TRUNCATED_KEY_SEPARATOR}#{digest}"
+      end
+      truncated
+    end
+
+    # memcached's key limit applies to the key as sent: in bytes, and after
+    # base64 encoding when the key needs it. A key can be within the limit in
+    # characters and still be rejected, and memcached's CLIENT_ERROR for it
+    # must never reach a pipelined get.
+    def wire_length(key)
+      return key.bytesize unless Dalli::Protocol::Meta::KeyRegularizer.required?(key)
+
+      ((key.bytesize + 2) / 3) * 4
     end
 
     def prefix_length(digest)

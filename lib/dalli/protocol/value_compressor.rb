@@ -15,10 +15,16 @@ module Dalli
         compress: true,
         compressor: ::Dalli::Compressor,
         # min byte size to attempt compression
-        compression_min_size: 4 * 1024 # 4K
+        compression_min_size: 4 * 1024, # 4K
+        # max size a stored value may decompress to (nil: no limit). Guards
+        # against a small compressed value expanding into gigabytes on read.
+        decompressed_max_bytes: 128 * 1024 * 1024 # 128 MiB
       }.freeze
 
       OPTIONS = DEFAULTS.keys.freeze
+
+      KEYWORD_PARAMETER_TYPES = %i[key keyreq].freeze
+      private_constant :KEYWORD_PARAMETER_TYPES
 
       def initialize(client_options)
         @compression_options =
@@ -34,14 +40,35 @@ module Dalli
       end
 
       def retrieve(value, bitflags)
-        compressed = bitflags.anybits?(Flags::COMPRESSED)
-        compressed ? compressor.decompress(value) : value
+        return value unless bitflags.anybits?(Flags::COMPRESSED)
+
+        max_bytes = @compression_options[:decompressed_max_bytes]
+        # Custom compressors that only define decompress(data) keep working,
+        # without the limit
+        if max_bytes && compressor_accepts_max_bytes?
+          compressor.decompress(value, max_bytes: max_bytes)
+        else
+          compressor.decompress(value)
+        end
 
       # TODO: We likely want to move this rescue into the Dalli::Compressor / Dalli::GzipCompressor
       # itself, since not all compressors necessarily use Zlib.  For now keep it here, so the behavior
       # of custom compressors doesn't change.
       rescue Zlib::Error
         raise UnmarshalError, "Unable to uncompress value: #{$ERROR_INFO.message}"
+      end
+
+      def compressor_accepts_max_bytes?
+        return @compressor_accepts_max_bytes if defined?(@compressor_accepts_max_bytes)
+
+        @compressor_accepts_max_bytes =
+          begin
+            compressor.method(:decompress).parameters.any? do |type, name|
+              name == :max_bytes && KEYWORD_PARAMETER_TYPES.include?(type)
+            end
+          rescue NameError # an object without a reflectable decompress method
+            false
+          end
       end
 
       def compress_by_default?
