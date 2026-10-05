@@ -265,6 +265,52 @@ describe 'KeyManager' do
     end
   end
 
+  describe 'validate_key wire length' do
+    let(:key_manager) { Dalli::KeyManager.new({ protocol: :meta }) }
+
+    def wire_bytes(key)
+      Dalli::Protocol::Meta::KeyRegularizer.encode(key).first.bytesize
+    end
+
+    it 'leaves keys that fit on the wire unchanged' do
+      # 186 raw bytes is the most that base64-encodes within 250 bytes
+      ['a' * 250, "#{'k' * 184} x", 'é' * 93].each do |key|
+        assert_equal key, key_manager.validate_key(key)
+      end
+    end
+
+    it 'truncates keys that are short enough in characters but too long once base64-encoded' do
+      ["search:#{'é' * 130}", 'é' * 250, "#{'k' * 185} x", ' ' * 260, '😀' * 100].each do |key|
+        validated = key_manager.validate_key(key)
+
+        refute_equal key, validated
+        assert_operator wire_bytes(validated), :<=, 250,
+                        "#{key[0, 20].inspect} is #{wire_bytes(validated)} bytes on the wire"
+        assert_includes validated, ':md5:'
+      end
+    end
+
+    it 'gives different keys different truncated forms' do
+      a = key_manager.validate_key('é' * 200)
+      b = key_manager.validate_key("#{'é' * 199}è")
+
+      refute_equal a, b
+    end
+
+    it 'measures in bytes for the binary protocol, which sends keys unencoded' do
+      binary = Dalli::KeyManager.new({})
+
+      assert_equal "#{'k' * 184} x", binary.validate_key("#{'k' * 184} x")
+      assert_equal 'é' * 125, binary.validate_key('é' * 125)
+      ["search:#{'é' * 130}", 'é' * 126, '😀' * 100].each do |key|
+        validated = binary.validate_key(key)
+
+        refute_equal key, validated
+        assert_operator validated.bytesize, :<=, 250
+      end
+    end
+  end
+
   describe 'key_with_namespace' do
     let(:raw_key) { SecureRandom.hex(10) }
     let(:key_manager) { Dalli::KeyManager.new(options) }

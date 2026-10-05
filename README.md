@@ -25,6 +25,18 @@ The name is a variant of Salvador Dali for his famous painting [The Persistence 
 * [Forum](https://github.com/petergoldstein/dalli/discussions/categories/q-a) - If you have questions about Dalli, please post them here.
 * [Client API](https://www.rubydoc.info/gems/dalli) - Ruby documentation for the `Dalli::Client` API
 
+## Security Note
+
+By default, Dalli uses Ruby's Marshal for serialization. Deserializing untrusted data with Marshal can lead to remote code execution. If you cache user-controlled data, or your memcached server could be written to by someone else, consider using a safer serializer:
+
+```ruby
+Dalli::Client.new('localhost:11211', serializer: Dalli::JSONSerializer)
+```
+
+`Dalli::JSONSerializer` reads values with `JSON.parse`, so it only ever returns plain hashes, arrays, strings, numbers, booleans and `nil`. Passing the `JSON` module itself (`serializer: JSON`) reads values with `JSON.load`, which can create objects of other classes from a stored `json_class` key and is not recommended for data an attacker might write.
+
+Per-request `raw: true` returns the stored bytes without deserializing or decompressing them, on every read method that accepts it (`get` and `fetch`).
+
 ## Development
 
 After checking out the repo, run `bin/setup` to install dependencies. You can run `bin/console` for an interactive prompt that will allow you to experiment.

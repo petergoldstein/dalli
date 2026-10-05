@@ -27,6 +27,12 @@ module Dalli
         @connection_manager = ConnectionManager.new(hostname, port, socket_type, @options)
       end
 
+      # True when this request passed raw: true. A stored value is then
+      # returned as stored, never deserialized or decompressed.
+      def raw_request?(options)
+        options.is_a?(Hash) && options[:raw] ? true : false
+      end
+
       # Chokepoint method for error handling and ensuring liveness
       def request(opkey, *args)
         verify_state(opkey)

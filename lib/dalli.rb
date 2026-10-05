@@ -57,6 +57,7 @@ end
 require_relative 'dalli/version'
 
 require_relative 'dalli/compressor'
+require_relative 'dalli/json_serializer'
 require_relative 'dalli/client'
 require_relative 'dalli/key_manager'
 require_relative 'dalli/pipelined_getter'

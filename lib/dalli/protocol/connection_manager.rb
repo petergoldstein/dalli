@@ -38,6 +38,7 @@ module Dalli
         @sock = nil
         @pid = nil
 
+        @fail_count = 0
         reset_down_info
       end
 
@@ -84,6 +85,8 @@ module Dalli
       def down!
         close
         log_down_detected
+        # Once down_retry_delay passes, the server gets a full set of attempts
+        @fail_count = 0
 
         @error = $ERROR_INFO&.class&.name
         @msg ||= $ERROR_INFO&.message
@@ -113,13 +116,20 @@ module Dalli
         return unless @sock
 
         begin
-          @sock.close
+          close_socket
         rescue StandardError
           nil
         end
         @sock = nil
         @pid = nil
         abort_request!
+      end
+
+      # A forked child shares the parent's connection, so it closes only its
+      # own file descriptor. Closing the TLS socket itself would send
+      # close_notify and end the parent's TLS session.
+      def close_socket
+        fork_detected? ? @sock.to_io.close : @sock.close
       end
 
       def connected?
@@ -140,6 +150,11 @@ module Dalli
         raise '[Dalli] No request in progress. This may be a bug in Dalli.' unless @request_in_progress
 
         @request_in_progress = false
+        # A completed request is what proves the server healthy again, so the
+        # failure count resets here rather than on reconnect: a server that
+        # accepts connections but never answers would otherwise reset it on
+        # every retry and never reach socket_max_failures.
+        @fail_count = 0
       end
 
       def abort_request!
@@ -154,7 +169,19 @@ module Dalli
         error_on_request!(e)
       end
 
+      # memcached can't store an item larger than 1 GiB (its -I maximum), so a
+      # reply claiming more (or a negative size) is malformed or hostile.
+      # Reading allocates the full count up front, so check before reading.
+      MAX_READ_BYTES = (1024 * 1024 * 1024) + 2 # plus the value's trailing "\r\n"
+
+      def check_read_size!(count)
+        return if count.between?(0, MAX_READ_BYTES)
+
+        raise Dalli::DalliError, "Reply size #{count} from #{name} is out of range"
+      end
+
       def read(count)
+        check_read_size!(count)
         @sock.readfull(count)
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
         error_on_request!(e)
@@ -195,8 +222,9 @@ module Dalli
         raise Dalli::NetworkError, message
       end
 
+      # Called on connect. Deliberately leaves @fail_count alone; see
+      # finish_request!.
       def reset_down_info
-        @fail_count = 0
         @down_at = nil
         @last_down_at = nil
         @msg = nil
@@ -222,8 +250,8 @@ module Dalli
       def close_on_fork
         message = 'Fork detected, re-connecting child process...'
         Dalli.logger.info { message }
-        # Close socket on a fork, setting us up for reconnect
-        # on next request.
+        # Closes the inherited socket without touching the parent's
+        # connection, setting us up for reconnect on next request.
         close
         raise Dalli::NetworkError, message
       end

@@ -27,7 +27,7 @@ module Dalli
         encoded_key, base64 = KeyRegularizer.encode(key)
         req = RequestFormatter.meta_get(key: encoded_key, base64: base64)
         write(req)
-        response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
+        response_processor.meta_get_with_value(cache_nils: cache_nils?(options), raw: raw_request?(options))
       end
 
       def quiet_get_request(key)
@@ -40,7 +40,7 @@ module Dalli
         encoded_key, base64 = KeyRegularizer.encode(key)
         req = RequestFormatter.meta_get(key: encoded_key, ttl: ttl, base64: base64)
         write(req)
-        response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
+        response_processor.meta_get_with_value(cache_nils: cache_nils?(options), raw: raw_request?(options))
       end
 
       def touch(key, ttl)
