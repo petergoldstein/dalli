@@ -3,12 +3,13 @@
 require_relative '../helper'
 
 # Differential fuzzing of the reply parsers. Random, valid memcached reply
-# streams for a multi-key get are fed to the pipelined parser in random-sized
-# chunks, and each hit is also parsed by the single-key parser. Both must
-# return exactly the generated keys and values, and the pipelined parser must
-# consume the whole stream, ending at the MN. A parser that mis-frames a reply
-# can leave bytes on the connection that a later command reads as its own
-# reply, which is how #1170 could return one key's value for another.
+# streams for a multi-key get, with error replies mixed in, are fed to the
+# pipelined parser in random-sized chunks, and each hit is also parsed by the
+# single-key parser. Both must return exactly the generated keys and values,
+# and the pipelined parser must consume the whole stream, ending at the MN.
+# A parser that mis-frames a reply can leave bytes on the connection that a
+# later command reads as its own reply, which is how one key's value could be
+# returned for another (#1170, and error replies ending a pipeline early).
 #
 # Inputs are generated from a seed; set PROPERTY_SEED to reproduce a failure
 # and PROPERTY_ITERATIONS to run more cases.
@@ -19,6 +20,7 @@ describe 'ResponseProcessor fuzzing' do
   key_chars = [*'a'..'z', *'A'..'Z', *'0'..'9', ':', '_', ' ', "\t", 'é']
   # Value fragments that look like protocol text, mixed with ordinary bytes
   value_parts = ['', 'x', "\r\n", "\r\nMN\r\n", 'VA 0 ', 's0', "\0", 'EN', 'é', 'abc' * 50]
+  error_lines = ["CLIENT_ERROR bad command line format\r\n", "SERVER_ERROR out of memory storing object\r\n", "EN\r\n"]
 
   # Serves read_line / read from a fixed byte string, like the connection
   fake_io = Class.new do
@@ -87,7 +89,7 @@ describe 'ResponseProcessor fuzzing' do
           _status, _cas, key, value = response
           flunk("duplicate result for #{key.inspect}") if results.key?(key)
           results[key] = value
-        else
+        elsif response.first
           finished = true
           break
         end
@@ -102,7 +104,11 @@ describe 'ResponseProcessor fuzzing' do
 
     iterations.times do |i|
       expected = Array.new(rng.rand(1..8)) { [random_key, random_value] }.uniq(&:first).to_h
-      stream = expected.map { |k, v| hit_reply(k, v) }.join.b + "MN\r\n".b
+      replies = expected.map { |k, v| hit_reply(k, v) }
+      # Bodyless replies for one key's request (an over-long key, a server
+      # error, a proxy that ignores q) must be skipped, not taken as the MN
+      rng.rand(0..2).times { replies.insert(rng.rand(0..replies.size), error_lines.sample(random: rng)) }
+      stream = replies.join.b + "MN\r\n".b
       context = "seed=#{seed} iteration=#{i} replies=#{stream.inspect}"
 
       [processor, token_only].each do |parser|

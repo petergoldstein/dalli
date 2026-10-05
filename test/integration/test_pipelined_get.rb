@@ -198,6 +198,38 @@ describe 'Pipelined Get' do
         end
       end
 
+      describe 'multi-server get_multi' do
+        def with_two_server_client(protocol, **options)
+          memcached_persistent(protocol, 21_345) do |_, port1|
+            memcached_persistent(protocol, 21_346) do |_, port2|
+              dc = Dalli::Client.new(["localhost:#{port1}", "localhost:#{port2}"], options)
+              dc.flush
+              yield dc
+            end
+          end
+        end
+
+        it 'returns every value and keeps the connection aligned when a key is long once base64-encoded' do
+          with_two_server_client(p) do |dc|
+            many = Array.new(2000) { |i| "user:#{i}:token" }
+            many.each_slice(500) { |slice| dc.set_multi(slice.to_h { |k| [k, "token-for-#{k}"] }) }
+            dc.set('victim:email', 'victim@example.com')
+            # Under 250 characters, but over 250 bytes once base64-encoded
+            long_key = "search:#{'é' * 130}"
+            dc.set(long_key, 'search-result')
+
+            result = dc.get_multi_cas(long_key, *many)
+
+            # A truncated key comes back under its truncated form, as for any
+            # key over the limit, so check the value rather than the key
+            assert_equal many.size + 1, result.size
+            assert_includes result.values.map(&:first), 'search-result'
+            assert_equal 'victim@example.com', dc.get('victim:email')
+            assert_equal 'token-for-user:5:token', dc.get('user:5:token')
+          end
+        end
+      end
+
       describe 'pipelined_get_interleaved' do
         it 'works with chunked requests' do
           memcached_persistent(p) do |dc|

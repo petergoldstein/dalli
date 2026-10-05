@@ -380,5 +380,25 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
     it 'returns [0] for a VA 0 hit whose terminator has not arrived' do
       assert_equal [0], processor.getk_response_from_buffer("VA 0 f0 kfoo s0\r\n".b)
     end
+
+    it 'skips a bodyless error reply instead of treating it as the end of the pipeline' do
+      error = "CLIENT_ERROR bad command line format\r\n"
+      buf = "#{error}VA 1 f0 kfoo s1\r\nx\r\nMN\r\n".b
+
+      assert_equal [false, error.bytesize], processor.getk_response_from_buffer(buf)
+
+      status, _cas, key, value, size = processor.getk_response_from_buffer(buf, error.bytesize)
+
+      assert status
+      assert_equal 'foo', key
+      assert_equal 'x', value
+      assert_equal [true, "MN\r\n".bytesize], processor.getk_response_from_buffer(buf, error.bytesize + size)
+    end
+
+    it 'skips SERVER_ERROR and EN replies the same way' do
+      ["SERVER_ERROR out of memory storing object\r\n", "EN\r\n"].each do |line|
+        assert_equal [false, line.bytesize], processor.getk_response_from_buffer(line.b)
+      end
+    end
   end
 end
