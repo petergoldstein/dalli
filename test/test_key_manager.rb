@@ -344,6 +344,44 @@ describe 'KeyManager' do
     end
   end
 
+  # memcached's 250-byte limit applies to the key as sent: in bytes, and after
+  # base64 encoding for keys with whitespace or non-ASCII characters. A key
+  # within the limit in characters could still be rejected with CLIENT_ERROR.
+  describe 'validate_key wire length' do
+    let(:key_manager) { Dalli::KeyManager.new({}) }
+
+    def wire_bytes(key)
+      return key.bytesize unless Dalli::Protocol::Meta::KeyRegularizer.required?(key)
+
+      Dalli::Protocol::Meta::KeyRegularizer.encode(key).bytesize
+    end
+
+    it 'leaves keys that fit on the wire unchanged' do
+      # 186 raw bytes is the most that base64-encodes within 250 bytes
+      ['a' * 250, "#{'k' * 184} x", 'é' * 93].each do |key|
+        assert_equal key, key_manager.validate_key(key)
+      end
+    end
+
+    it 'truncates keys that are short enough in characters but too long once base64-encoded' do
+      ["search:#{'é' * 130}", 'é' * 250, "#{'k' * 185} x", ' ' * 260, '😀' * 100].each do |key|
+        validated = key_manager.validate_key(key)
+
+        refute_equal key, validated
+        assert_operator wire_bytes(validated), :<=, 250,
+                        "#{key[0, 20].inspect} is #{wire_bytes(validated)} bytes on the wire"
+        assert_includes validated, ':md5:'
+      end
+    end
+
+    it 'gives different keys different truncated forms' do
+      a = key_manager.validate_key('é' * 200)
+      b = key_manager.validate_key("#{'é' * 199}è")
+
+      refute_equal a, b
+    end
+  end
+
   describe 'key_with_namespace' do
     let(:raw_key) { SecureRandom.hex(10) }
     let(:key_manager) { Dalli::KeyManager.new(options) }
