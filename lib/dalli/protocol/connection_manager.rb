@@ -116,13 +116,20 @@ module Dalli
         return unless @sock
 
         begin
-          @sock.close
+          close_socket
         rescue StandardError
           nil
         end
         @sock = nil
         @pid = nil
         abort_request!
+      end
+
+      # A forked child shares the parent's connection, so it closes only its
+      # own file descriptor. Closing the TLS socket itself would send
+      # close_notify and end the parent's TLS session.
+      def close_socket
+        fork_detected? ? @sock.to_io.close : @sock.close
       end
 
       def connected?
@@ -243,8 +250,8 @@ module Dalli
       def close_on_fork
         message = 'Fork detected, re-connecting child process...'
         Dalli.logger.info { message }
-        # Close socket on a fork, setting us up for reconnect
-        # on next request.
+        # Closes the inherited socket without touching the parent's
+        # connection, setting us up for reconnect on next request.
         close
         raise Dalli::NetworkError, message
       end
