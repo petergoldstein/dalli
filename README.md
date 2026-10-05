@@ -97,6 +97,19 @@ Dalli::Client.new('localhost:11211', serializer: Dalli::JSONSerializer)
 
 Per-request `raw: true` returns the stored bytes without deserializing or decompressing them, on every read method (`get`, `get_multi`, `get_cas`, `get_with_metadata` and `fetch`).
 
+### Long keys
+
+memcached limits keys to 250 bytes. Dalli shortens a longer key (counting its namespace) to the start of the key, followed by `:md5:` and a hex digest of the whole key:
+
+```ruby
+dc.set("report:#{'x' * 300}", 'data')
+# stored under "report:xxx...xxx:md5:<32 hex characters>"
+```
+
+The shortened key is an ordinary memcached key, so a short key written in exactly that form names the same item, and reading or writing it reads or overwrites the long key's value. This only matters if untrusted input can choose an entire cache key. If it can, hash the untrusted part yourself so the key never needs shortening, or reject keys that contain `:md5:`.
+
+The digest is MD5 by default. `digest_class:` takes any object that responds to `hexdigest`, such as `Digest::SHA256`. Changing it renames every shortened key, so existing entries for long keys are missed once.
+
 See the [5.0-Upgrade.md](5.0-Upgrade.md) guide for upgrade information.
 
 ## OpenTelemetry Tracing

@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+Notes:
+
+- Document how long keys are shortened, and that a short key written in the same form names the same item, in the README's security note (#1200)
+
 Development:
 
 - Run the Tests, RuboCop and Profiles workflows on pushes to `main` and the `*-stable` branches only, so a pull request's branch isn't tested twice (once for the push and once for the pull request) (#1198)
