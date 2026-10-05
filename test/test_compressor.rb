@@ -45,5 +45,15 @@ end
     it 'has no limit without max_bytes' do
       assert_equal data.b, compressor.decompress(compressed).b
     end
+
+    it 'inflates a value whose compressed form spans many input slices' do
+      # Random bytes barely compress, so this is several slices long
+      mixed = Random.new(42).bytes(300_000) + ('xyz' * 100_000)
+      packed = compressor.compress(mixed)
+
+      assert_operator packed.bytesize, :>, 4 * Dalli::Compressor::INFLATE_SLICE_BYTES
+      assert_equal mixed.b, compressor.decompress(packed, max_bytes: mixed.bytesize).b
+      assert_raises(Dalli::UnmarshalError) { compressor.decompress(packed, max_bytes: mixed.bytesize - 1) }
+    end
   end
 end
