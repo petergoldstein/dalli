@@ -6,6 +6,11 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
   let(:processor) { Dalli::Protocol::Meta::ResponseProcessor.new(nil, Dalli::Protocol::ValueMarshaller.new({})) }
 
   describe '#getk_response_from_buffer' do
+    it 'rejects a pipelined reply that claims an impossible value size' do
+      ["VA 4294967296 f0 kfoo s4294967296\r\n", "VA 4294967296 s4294967296 f0 kfoo\r\n"].each do |line|
+        assert_raises(Dalli::DalliError) { processor.getk_response_from_buffer(line.b) }
+      end
+    end
     it 'returns an empty value for a VA 0 hit, consuming its terminator' do
       buf = +"VA 0 f0 kfoo s0\r\n\r\nMN\r\n"
 
@@ -35,13 +40,15 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
 
       assert_equal [error.bytesize, false, nil, nil, nil], processor.getk_response_from_buffer(buf)
 
-      size, status, _cas, key, value = processor.getk_response_from_buffer(buf, error.bytesize)
+      # The response buffer drops each parsed reply from the front
+      rest = buf.byteslice(error.bytesize..)
+      size, status, _cas, key, value = processor.getk_response_from_buffer(rest)
 
       assert status
       assert_equal 'foo', key
       assert_equal 'x', value
       assert_equal ["MN\r\n".bytesize, true, nil, nil, nil],
-                   processor.getk_response_from_buffer(buf, error.bytesize + size)
+                   processor.getk_response_from_buffer(rest.byteslice(size..))
     end
 
     it 'skips SERVER_ERROR and EN replies the same way' do

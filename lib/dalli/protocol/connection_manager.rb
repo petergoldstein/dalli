@@ -162,7 +162,19 @@ module Dalli
         error_on_request!(e)
       end
 
+      # memcached can't store an item larger than 1 GiB (its -I maximum), so a
+      # reply claiming more (or a negative size) is malformed or hostile.
+      # Reading allocates the full count up front, so check before reading.
+      MAX_READ_BYTES = (1024 * 1024 * 1024) + 2 # plus the value's trailing "\r\n"
+
+      def check_read_size!(count)
+        return if count.between?(0, MAX_READ_BYTES)
+
+        raise Dalli::DalliError, "Reply size #{count} from #{name} is out of range"
+      end
+
       def read(count)
+        check_read_size!(count)
         @sock.readfull(count)
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
         error_on_request!(e)

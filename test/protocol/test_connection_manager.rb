@@ -3,6 +3,18 @@
 require_relative '../helper'
 
 describe Dalli::Protocol::ConnectionManager do
+  describe '#read size check' do
+    let(:connection_manager) { Dalli::Protocol::ConnectionManager.new('localhost', 11_211, :tcp, {}) }
+
+    # Reading allocates the whole count up front, so an impossible size from
+    # a hostile server is rejected before reading
+    it 'rejects sizes over the largest item memcached can store, and negative sizes' do
+      [(1024 * 1024 * 1024) + 3, 4 * 1024 * 1024 * 1024, -1].each do |count|
+        assert_raises(Dalli::DalliError) { connection_manager.read(count) }
+      end
+    end
+  end
+
   describe 'failure counting' do
     let(:manager) do
       Dalli::Protocol::ConnectionManager.new('localhost', 11_211, :tcp,
