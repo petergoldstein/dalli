@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../helper'
+require 'io/wait' # IO#wait_readable, for Rubies before 3.2
 
 describe 'Fork safety' do
   # Skip tests if fork is not supported (e.g., JRuby)
