@@ -32,7 +32,9 @@ describe 'Fork safety of the inherited connection' do
       # Closing the TLS socket in the child would send close_notify on the
       # session the parent is still using.
       it 'leaves the parent TLS session usable after a forked child closes the client' do
-        memcached_ssl_persistent(protocol) do |dc, _port|
+        # A fixed port: the helper's default random range is shared with
+        # tests that start memcached without TLS
+        memcached_ssl_persistent(protocol, 21_951) do |dc, _port|
           dc.set('tls_fork_key', 'parent_value')
           server = dc.instance_variable_get(:@ring).servers.first
           parent_sock = server.sock
