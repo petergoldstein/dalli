@@ -263,6 +263,12 @@ describe Dalli::Protocol::Binary::ResponseProcessor do
   end
 
   describe '#getk_response_from_buffer' do
+    it 'rejects a pipelined reply that claims an impossible body size' do
+      header = create_header(status: 0, key_len: 3, extra_len: 4, body_len: 0xFFFF_FFFF)
+
+      assert_raises(Dalli::DalliError) { processor.getk_response_from_buffer(header) }
+    end
+
     it 'returns [0, nil, nil, nil, nil] when buffer is too small for header' do
       small_buf = 'x' * 10
       result = processor.getk_response_from_buffer(small_buf)

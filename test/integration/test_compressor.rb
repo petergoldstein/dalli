@@ -24,6 +24,25 @@ describe 'Compressor' do
         end
       end
 
+      # Anyone who can write to memcached can store a small value flagged as
+      # compressed that expands enormously; reading it must stop at the limit
+      it 'refuses to decompress a value past decompressed_max_bytes' do
+        memcached(p, 29_199) do |_dc|
+          bomb = Dalli::Compressor.compress("\0" * (16 * 1024 * 1024))
+          sock = TCPSocket.new('127.0.0.1', 29_199)
+          # The classic text protocol's set, which every memcached version accepts
+          sock.write("set bomb #{Dalli::Protocol::ValueCompressor::FLAG_COMPRESSED} 0 #{bomb.bytesize}\r\n#{bomb}\r\n")
+
+          assert_equal "STORED\r\n", sock.gets
+          sock.close
+
+          capped = Dalli::Client.new('127.0.0.1:29199', decompressed_max_bytes: 1024 * 1024, protocol: p)
+
+          assert_raises(Dalli::UnmarshalError) { capped.get('bomb') }
+          assert_equal 16 * 1024 * 1024, Dalli::Client.new('127.0.0.1:29199', protocol: p).get('bomb').bytesize
+        end
+      end
+
       it 'support a custom compressor' do
         memcached(p, 29_199) do |_dc|
           memcache = Dalli::Client.new('127.0.0.1:29199', { compressor: NoopCompressor })

@@ -323,6 +323,12 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
   end
 
   describe '#getk_response_from_buffer' do
+    it 'rejects a pipelined reply that claims an impossible value size' do
+      ["VA 4294967296 f0 kfoo s4294967296\r\n", "VA 4294967296 s4294967296 f0 kfoo\r\n"].each do |line|
+        assert_raises(Dalli::DalliError) { processor.getk_response_from_buffer(line.b) }
+      end
+    end
+
     it 'returns [0, nil, nil, nil, nil] when buffer has no header' do
       buf = 'incomplete'
       result = processor.getk_response_from_buffer(buf)
@@ -352,6 +358,27 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
 
     it 'waits for the terminator of a VA 0 hit' do
       assert_equal [0, nil, nil, nil, nil], processor.getk_response_from_buffer("VA 0 f0 kfoo s0\r\n".b)
+    end
+
+    it 'skips a bodyless error reply instead of treating it as the end of the pipeline' do
+      error = "CLIENT_ERROR bad command line format\r\n"
+      buf = "#{error}VA 1 f0 kfoo s1\r\nx\r\nMN\r\n".b
+
+      assert_equal [error.bytesize, false, nil, nil, nil], processor.getk_response_from_buffer(buf)
+
+      size, status, _cas, key, value = processor.getk_response_from_buffer(buf, error.bytesize)
+
+      assert status
+      assert_equal 'foo', key
+      assert_equal 'x', value
+      assert_equal ["MN\r\n".bytesize, true, nil, nil, nil],
+                   processor.getk_response_from_buffer(buf, error.bytesize + size)
+    end
+
+    it 'skips SERVER_ERROR and EN replies the same way' do
+      ["SERVER_ERROR out of memory storing object\r\n", "EN\r\n"].each do |line|
+        assert_equal [line.bytesize, false, nil, nil, nil], processor.getk_response_from_buffer(line.b)
+      end
     end
   end
 end

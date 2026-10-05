@@ -4,6 +4,42 @@ Dalli Changelog
 Unreleased
 ==========
 
+4.3.6
+==========
+
+Security:
+
+- Fix pipelined `get_multi` returning one key's value for another after an error reply (GHSA-p6pm-ch9v-44vx)
+  - The pipelined reply parser took any reply without a body for the end of the batch. An error reply for one key (`CLIENT_ERROR`, `SERVER_ERROR`, or `EN` from a proxy) ended it early, and the replies still on the connection were read as the replies to later commands, so a `get` could return another key's value
+  - Keys are now measured in bytes as sent (after base64 encoding when the meta protocol needs it). A key under 250 characters but over 250 bytes, for example one with many non-ASCII characters, passed validation:
+    - with the meta protocol, memcached rejected it with the error reply above
+    - with the binary protocol, memcached dropped the connection, and `get` or `get_multi` with that key retried forever
+  - Such keys are now truncated like other long keys; keys that worked before are unchanged
+  - The reply parser affects `protocol: :meta` since 3.2.0; the key length affects both protocols; fixed in 5.2.1, 5.1.3, 5.0.9, 4.3.6 and 3.2.12
+- Stop retrying an unresponsive server forever (GHSA-4qp6-2jcr-596v)
+  - A server that accepted connections but never answered (or dropped the connection on a request) was retried forever, hanging the caller, because each successful reconnect reset the failure count. Requests now fail after `socket_max_failures` attempts and the server is marked down, as when it can't be reached at all; it gets a full set of attempts again after `down_retry_delay`
+  - Affects all versions; fixed in 5.2.1, 5.1.3, 5.0.9, 4.3.6 and 3.2.12
+- Limit decompressed and reply value sizes (GHSA-3553-vcg5-72jw)
+  - Values flagged as compressed were inflated without limit, so a small stored value could expand to gigabytes on read, whatever the client's `compress` or `serializer` settings. The new `decompressed_max_bytes` option (default 128 MiB; `nil` disables it) makes a read that would pass it raise `Dalli::UnmarshalError`. Custom compressors whose `decompress` takes only the data keep working, without the limit
+  - The value size in a reply (a meta `VA` size or a binary body length) was used to read or buffer that many bytes, so a malicious server could make the client allocate gigabytes. Sizes over 1 GiB, memcached's largest item, now raise `Dalli::DalliError` before reading
+  - Affects all versions; fixed in 5.2.1, 5.1.3, 5.0.9, 4.3.6 and 3.2.12
+- Honor per-request `raw: true` on reads, and add `Dalli::JSONSerializer` (GHSA-wr87-m4jw-29x5)
+  - With the binary protocol, `get`, `gat` and `fetch`, and with the meta protocol, `get_with_metadata`, ignored a per-request `raw: true` and deserialized the value according to its stored flags, so a caller who asked for raw bytes could still have `Marshal.load` run on data someone else wrote to memcached. They now return the stored bytes
+  - The `raw` part affects binary `get` and `gat` in all versions, and `get_with_metadata` since 4.2.0
+  - `serializer: JSON` reads values with `JSON.load`, which on json gem versions before 3.0 creates an object of the class named in a stored `json_class` key when the json additions are loaded. The new `Dalli::JSONSerializer` reads with `JSON.parse` and only returns plain JSON types. The README and the Marshal security warning now recommend it; `serializer: JSON` itself is unchanged
+  - The `serializer: JSON` part affects any version used with the json gem before 3.0
+- Keep a forked child from writing to or closing the parent's connection (GHSA-w39f-xq2m-4g8x)
+  - A child forked while the parent had requests buffered but not yet sent, such as quiet writes inside a `quiet` block, sent them again when it closed the client or reconnected: quiet writes ran twice, and the parent's later replies could be read as the replies to other requests, returning one key's value for another. Dalli now buffers requests itself and a forked child discards them
+  - Affects 4.2.0 and later; fixed in 5.2.1, 5.1.3, 5.0.9 and 4.3.6
+  - With TLS, a forked child that closed the client (or reconnected after detecting the fork) sent a TLS close on the connection the parent was still using, ending the parent's session. A forked child now closes only its own copy of the socket
+  - Affects all versions with TLS; fixed in 5.2.1, 5.1.3, 5.0.9, 4.3.6 and 3.2.12
+
+Bug fixes:
+
+- An exception raised by a `get_multi` block (such as `Timeout::Error`) was treated as a network failure: swallowed, with the whole `get_multi` retried and keys yielded twice. It now reaches the caller
+- Fix `set_multi` with the binary protocol
+  - Each quiet `setq` waited for a reply memcached never sends for a successful write, so `set_multi` timed out on its first key without storing anything (and, with retries, hung or marked the server down). Affects 4.2.0 and later
+
 Notes:
 
 - Document [Ruby bug 21195](https://bugs.ruby-lang.org/issues/21195), a VM crash (`[BUG] rb_sys_fail_path_in(io_fillbuf, ...) - errno == 0`) when a socket read using `IO#timeout` is interrupted by a signal, in the README (#1188)

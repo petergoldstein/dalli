@@ -37,7 +37,10 @@ module Dalli
         @request_in_progress = false
         @sock = nil
         @pid = nil
+        @write_buffer = []
+        @write_buffer_bytes = 0
 
+        @fail_count = 0
         reset_down_info
       end
 
@@ -53,7 +56,8 @@ module Dalli
         Dalli.logger.debug { "Dalli::Server#connect #{name}" }
 
         @sock = memcached_socket
-        @sock.sync = false # Enable buffered I/O for better performance
+        # Writes are buffered in @write_buffer instead; see WRITE_BUFFER_FLUSH_BYTES
+        @sock.sync = true
         @pid = PIDCache.pid
         @request_in_progress = false
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError, SocketError => e
@@ -85,6 +89,8 @@ module Dalli
       def down!
         close
         log_down_detected
+        # Once down_retry_delay passes, the server gets a full set of attempts
+        @fail_count = 0
 
         @error = $ERROR_INFO&.class&.name
         @msg ||= $ERROR_INFO&.message
@@ -114,13 +120,21 @@ module Dalli
         return unless @sock
 
         begin
-          @sock.close
+          close_socket
         rescue StandardError
           nil
         end
         @sock = nil
         @pid = nil
+        discard_write_buffer
         abort_request!
+      end
+
+      # A forked child shares the parent's connection, so it closes only its
+      # own file descriptor. Closing the TLS socket itself would send
+      # close_notify and end the parent's TLS session.
+      def close_socket
+        fork_detected? ? @sock.to_io.close : @sock.close
       end
 
       def connected?
@@ -141,6 +155,11 @@ module Dalli
         raise '[Dalli] No request in progress. This may be a bug in Dalli.' unless @request_in_progress
 
         @request_in_progress = false
+        # A completed request is what proves the server healthy again, so the
+        # failure count resets here rather than on reconnect: a server that
+        # accepts connections but never answers would otherwise reset it on
+        # every retry and never reach socket_max_failures.
+        @fail_count = 0
       end
 
       def abort_request!
@@ -148,6 +167,7 @@ module Dalli
       end
 
       def read_line
+        flush_write_buffer
         data = @sock.gets("\r\n")
         error_on_request!('EOF in read_line') if data.nil?
         data
@@ -155,27 +175,53 @@ module Dalli
         error_on_request!(e)
       end
 
+      # memcached can't store an item larger than 1 GiB (its -I maximum), so a
+      # reply claiming more (or a negative size) is malformed or hostile.
+      # Reading allocates the full count up front, so check before reading.
+      MAX_READ_BYTES = (1024 * 1024 * 1024) + 2 # plus the value's trailing "\r\n"
+
+      def check_read_size!(count)
+        return if count.between?(0, MAX_READ_BYTES)
+
+        raise Dalli::DalliError, "Reply size #{count} from #{name} is out of range"
+      end
+
       def read(count)
+        check_read_size!(count)
+        flush_write_buffer
         @sock.readfull(count)
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
         error_on_request!(e)
       end
 
+      # Requests are buffered here rather than in the socket's own IO buffer
+      # (the socket is sync). Ruby flushes an IO's write buffer when any process
+      # holding it closes or finalizes the IO, so after a fork a child could
+      # send bytes the parent had buffered but not sent yet: a quiet write would
+      # run twice, or the parent's replies would shift onto the wrong requests.
+      # A forked child discards this buffer instead. Like IO's own buffer, it
+      # is sent once it grows past this size, or when a reply is read.
+      WRITE_BUFFER_FLUSH_BYTES = 64 * 1024
+
       def write(bytes)
-        @sock.write(bytes)
-      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS => e
+        @write_buffer << bytes
+        @write_buffer_bytes += bytes.bytesize
+        flush_write_buffer if @write_buffer_bytes >= WRITE_BUFFER_FLUSH_BYTES
+        bytes.bytesize
+      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, IOError => e
         error_on_request!(e)
       end
 
       def flush
-        @sock.flush
-      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS => e
+        flush_write_buffer
+      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, IOError => e
         error_on_request!(e)
       end
 
       # Non-blocking read.  Here to support the operation
       # of the get_multi operation
       def read_nonblock
+        flush_write_buffer
         @sock.read_available
       end
 
@@ -202,8 +248,9 @@ module Dalli
         raise Dalli::RetryableNetworkError, message
       end
 
+      # Called on connect. Deliberately leaves @fail_count alone; see
+      # finish_request!.
       def reset_down_info
-        @fail_count = 0
         @down_at = nil
         @last_down_at = nil
         @msg = nil
@@ -228,7 +275,8 @@ module Dalli
       def reconnect_on_fork
         message = 'Fork detected, re-connecting child process...'
         Dalli.logger.info { message }
-        # Close socket on a fork and reconnect immediately
+        # Drops anything the parent had buffered, closes the inherited socket
+        # without touching the parent's connection, and reconnects immediately
         close
         establish_connection
       end
@@ -254,6 +302,20 @@ module Dalli
 
         time = Time.now - @down_at
         Dalli.logger.warn { format('%<name>s is back (downtime was %<time>.3f seconds)', name: name, time: time) }
+      end
+
+      private
+
+      def flush_write_buffer
+        return if @write_buffer.empty?
+
+        @sock.write(*@write_buffer)
+        discard_write_buffer
+      end
+
+      def discard_write_buffer
+        @write_buffer.clear
+        @write_buffer_bytes = 0
       end
     end
   end

@@ -146,6 +146,57 @@ end
 describe 'Pipelined Get on a multi-server ring' do
   MemcachedManager.supported_protocols.each do |p|
     describe "using the #{p} protocol" do
+      it 'keeps the connection aligned when a key is long once base64-encoded' do
+        memcached_persistent(p, 21_345) do |_, port1|
+          memcached_persistent(p, 21_346) do |_, port2|
+            dc = Dalli::Client.new(["localhost:#{port1}", "localhost:#{port2}"], protocol: p)
+            dc.flush
+            many = Array.new(2000) { |i| "user:#{i}:token" }
+            dc.quiet { many.each { |k| dc.set(k, "token-for-#{k}") } }
+            dc.set('victim:email', 'victim@example.com')
+            # Under 250 characters, but over 250 bytes (and further over once
+            # base64-encoded for the meta protocol)
+            long_key = "search:#{'é' * 130}"
+            dc.set(long_key, 'search-result')
+
+            result = dc.get_multi_cas(long_key, *many)
+
+            many.each { |k| assert_equal "token-for-#{k}", result[k]&.first }
+            # A truncated key comes back under its truncated form, as for any
+            # key over the limit, so check the value rather than the key
+            assert_includes result.values.map(&:first), 'search-result'
+            assert_equal 'search-result', dc.get(long_key)
+            assert_equal 'victim@example.com', dc.get('victim:email')
+            assert_equal 'token-for-user:5:token', dc.get('user:5:token')
+          end
+        end
+      end
+
+      # The block used to run inside the pipeline's socket-error rescue, so an
+      # Errno or Timeout::Error it raised was treated as a network failure:
+      # swallowed, with the whole get_multi retried and keys yielded twice.
+      it 'lets an exception raised by the block reach the caller, without retrying' do
+        memcached_persistent(p, 21_345) do |_, port1|
+          memcached_persistent(p, 21_346) do |_, port2|
+            dc = Dalli::Client.new(["localhost:#{port1}", "localhost:#{port2}"], protocol: p)
+            dc.flush
+            keys = Array.new(20) { |i| "k#{i}" }
+            keys.each { |k| dc.set(k, "v-#{k}") }
+            yields = Hash.new(0)
+
+            assert_raises(Timeout::Error) do
+              dc.get_multi(keys) do |k, _|
+                yields[k] += 1
+                raise Timeout::Error, 'from the application' if yields.size == 3
+              end
+            end
+
+            assert_equal [1], yields.values.uniq
+            assert_equal 'v-k7', dc.get('k7')
+          end
+        end
+      end
+
       it 'returns an empty value without cutting off the rest of its server' do
         memcached_persistent(p, 21_345) do |_, port1|
           memcached_persistent(p, 21_346) do |_, port2|

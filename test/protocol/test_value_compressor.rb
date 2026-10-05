@@ -431,6 +431,38 @@ describe Dalli::Protocol::ValueCompressor do
     end
   end
 
+  describe 'decompressed_max_bytes' do
+    let(:data) { 'abc' * 100_000 }
+    let(:compressed) { Dalli::Compressor.compress(data) }
+    let(:bitflags) { Dalli::Protocol::ValueCompressor::FLAG_COMPRESSED }
+
+    it 'defaults to 128 MiB' do
+      assert_equal 128 * 1024 * 1024, Dalli::Protocol::ValueCompressor::DEFAULTS[:decompressed_max_bytes]
+    end
+
+    it 'rejects values that decompress past the configured limit' do
+      vc = Dalli::Protocol::ValueCompressor.new(decompressed_max_bytes: 1024)
+
+      assert_raises(Dalli::UnmarshalError) { vc.retrieve(compressed, bitflags) }
+    end
+
+    it 'can be disabled with nil' do
+      vc = Dalli::Protocol::ValueCompressor.new(decompressed_max_bytes: nil)
+
+      assert_equal data.b, vc.retrieve(compressed, bitflags).b
+    end
+
+    it 'still calls a custom compressor that only defines decompress(data)' do
+      custom = Class.new do
+        def self.compress(data) = Zlib::Deflate.deflate(data)
+        def self.decompress(data) = Zlib::Inflate.inflate(data)
+      end
+      vc = Dalli::Protocol::ValueCompressor.new(compressor: custom, decompressed_max_bytes: 1024)
+
+      assert_equal data.b, vc.retrieve(compressed, bitflags).b
+    end
+  end
+
   describe 'retrieve' do
     let(:raw_value) { SecureRandom.hex(8) }
     let(:decompressed_dummy) { SecureRandom.hex(8) }
