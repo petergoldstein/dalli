@@ -100,7 +100,7 @@ module Dalli
         Dalli.logger.warn 'SECURITY WARNING: Dalli is using Marshal for serialization. ' \
                           'Marshal can execute arbitrary code during deserialization. ' \
                           'If your memcached server could be compromised, consider using ' \
-                          'a safer serializer like JSON: Dalli::Client.new(servers, serializer: JSON)'
+                          'a safer serializer: Dalli::Client.new(servers, serializer: Dalli::JSONSerializer)'
         @@marshal_warning_logged = true # rubocop:disable Style/ClassVars
       end
     end

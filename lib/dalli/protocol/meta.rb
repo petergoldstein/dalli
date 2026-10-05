@@ -43,15 +43,15 @@ module Dalli
 
       def quiet_get_request(key, options = nil)
         # Skip bitflags in raw mode - saves 2 bytes per request and skips parsing
-        RequestFormatter.meta_get(key: key, return_cas: true, quiet: true, skip_flags: raw_mode?,
+        RequestFormatter.meta_get(key: key, return_cas: true, quiet: true, skip_flags: raw_request?(options),
                                   **routing_token_kwargs(options))
       end
 
       # Same requests as quiet_get_request for each key, built in one pass
       # and without the trailing noop.
       def quiet_get_requests(keys, options = nil, return_cas: true)
-        RequestFormatter.multi_meta_get(keys, skip_flags: raw_mode?, return_cas: return_cas, terminate: false,
-                                              **routing_token_kwargs(options))
+        RequestFormatter.multi_meta_get(keys, skip_flags: raw_request?(options), return_cas: return_cas,
+                                              terminate: false, **routing_token_kwargs(options))
       end
 
       def gat(key, ttl, options = nil)
@@ -72,7 +72,8 @@ module Dalli
       # TODO: This is confusing, as there's a cas command in memcached
       # and this isn't it.  Maybe rename?  Maybe eliminate?
       def cas(key, options = nil)
-        req = RequestFormatter.meta_get(key: key, value: true, return_cas: true, **routing_token_kwargs(options))
+        req = RequestFormatter.meta_get(key: key, value: true, return_cas: true, skip_flags: raw_request?(options),
+                                        **routing_token_kwargs(options))
         flushed_write(req)
         response_processor.meta_get_with_value_and_cas
       end
@@ -103,7 +104,7 @@ module Dalli
       #   - :last_access - seconds since last access (only if return_last_access: true)
       def meta_get(key, options = {})
         req = RequestFormatter.meta_get(
-          key: key, value: true, return_cas: true,
+          key: key, value: true, return_cas: true, skip_flags: raw_request?(options),
           vivify_ttl: options[:vivify_ttl], recache_ttl: options[:recache_ttl],
           return_hit_status: options[:return_hit_status],
           return_last_access: options[:return_last_access],
@@ -288,7 +289,7 @@ module Dalli
       # response parsing to minimize per-key overhead. Avoids the PipelinedGetter
       # machinery (IO.select, response buffering, server grouping).
       def read_multi_req(keys, options = nil)
-        is_raw = raw_mode?
+        is_raw = raw_request?(options)
         buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw, **routing_token_kwargs(options))
         flushed_write(buffer)
         buffer.clear
@@ -304,7 +305,7 @@ module Dalli
       # Shared by both the single-server fast path and PipelinedGetter's
       # per-server-group request, so this one change covers both routes.
       def read_multi_with_metadata_req(keys, options = nil)
-        is_raw = raw_mode?
+        is_raw = raw_request?(options)
         buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw, return_cas: true,
                                                        **routing_token_kwargs(options))
         flushed_write(buffer)
