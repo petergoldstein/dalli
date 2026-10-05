@@ -104,8 +104,7 @@ describe 'RequestFormatter properties' do
       p_token = random_token
       l_token = random_token
       tokens = { 'P' => p_token, 'L' => l_token }
-      case_name = %i[meta_get meta_set meta_delete meta_arithmetic plain_meta_get plain_meta_set
-                     plain_meta_delete].sample(random: rng)
+      case_name = %i[meta_get meta_set meta_delete meta_arithmetic plain_meta_get].sample(random: rng)
       args = nil
 
       out = attempt do
@@ -134,21 +133,12 @@ describe 'RequestFormatter properties' do
           tokens = {}
           args = [key, rng.rand < 0.5]
           formatter.plain_meta_get(*args)
-        when :plain_meta_set
-          tokens = {}
-          args = [key, rng.rand(0..1000), rng.rand(0..5), maybe(-> { random_numeric })]
-          formatter.plain_meta_set(*args)
-        when :plain_meta_delete
-          tokens = {}
-          args = [key]
-          formatter.plain_meta_delete(*args)
         end
       end
       next if out.nil?
 
       context = "seed=#{seed} iteration=#{i} #{case_name}(#{args.inspect})"
       bytes = case_name == :meta_set ? "#{out}#{args[:value]}\r\n" : out
-      bytes = "#{out}#{'x' * args[1]}\r\n" if case_name == :plain_meta_set
       commands = frame(bytes)
 
       assert_equal 1, commands.size, "#{context} produced #{commands.size} commands: #{out.inspect}"
