@@ -117,6 +117,25 @@ describe Dalli::Protocol::ConnectionManager do
     end
   end
 
+  describe 'failure counting' do
+    let(:manager) { Dalli::Protocol::ConnectionManager.new('localhost', 11_211, :tcp, { socket_max_failures: 2 }) }
+
+    it 'keeps counting failures across a reconnect until a request succeeds' do
+      assert_raises(Dalli::RetryableNetworkError) { manager.error_on_request!('first failure') }
+      manager.up! # a successful reconnect must not reset the count
+
+      assert_raises(Dalli::NetworkError) { manager.error_on_request!('second failure') }
+    end
+
+    it 'resets the count when a request completes' do
+      assert_raises(Dalli::RetryableNetworkError) { manager.error_on_request!('first failure') }
+      manager.start_request!
+      manager.finish_request!
+
+      assert_raises(Dalli::RetryableNetworkError) { manager.error_on_request!('next failure') }
+    end
+  end
+
   describe '#request_in_progress?' do
     it 'returns false initially' do
       refute_predicate connection_manager, :request_in_progress?
@@ -248,8 +267,8 @@ describe Dalli::Protocol::ConnectionManager do
   end
 
   describe '#up!' do
-    it 'resets down info' do
-      connection_manager.instance_variable_set(:@fail_count, 5)
+    it 'resets down info, but not the failure count' do
+      connection_manager.instance_variable_set(:@fail_count, 1)
       connection_manager.instance_variable_set(:@down_at, Time.now)
       connection_manager.instance_variable_set(:@last_down_at, Time.now)
 
@@ -257,7 +276,9 @@ describe Dalli::Protocol::ConnectionManager do
         connection_manager.up!
       end
 
-      assert_equal 0, connection_manager.instance_variable_get(:@fail_count)
+      # A reconnect alone doesn't prove the server healthy; the count resets
+      # when a request completes (see 'failure counting')
+      assert_equal 1, connection_manager.instance_variable_get(:@fail_count)
       assert_nil connection_manager.instance_variable_get(:@down_at)
       assert_nil connection_manager.instance_variable_get(:@last_down_at)
     end

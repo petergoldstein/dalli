@@ -200,11 +200,11 @@ module Dalli
         # specifications to a proxy or router inbetween a client and a
         # memcached daemon."
         #
-        # Empty / nil tokens are treated as no-ops. CRLF and null bytes are
-        # rejected with ArgumentError to prevent the token from being used as a
-        # wire-protocol injection vector (e.g. "foo\r\nflush_all\r\n" would
-        # otherwise be parsed as a second command by memcached or any
-        # intermediate proxy/LB).
+        # Empty / nil tokens are treated as no-ops. Whitespace and control
+        # characters are rejected with ArgumentError so a token can't be used
+        # for wire-protocol injection: CRLF would add a second command (e.g.
+        # "foo\r\nflush_all\r\n"), and a space would add meta flags to this one
+        # (e.g. "foo T1" changing an item's TTL on a read).
         def routing_tokens(p_token: nil, l_token: nil)
           # Only an empty *String* is a no-op. Checking respond_to?(:empty?)
           # instead would also swallow p_token: [] / {} before the type check
@@ -261,15 +261,18 @@ module Dalli
 
         private
 
-        # Disallowed bytes: CR, LF, NUL. Any of these embedded in a routing
-        # token would let the caller inject a second wire-protocol command.
-        ROUTING_TOKEN_FORBIDDEN = /[\r\n\0]/
+        # Disallowed bytes: whitespace and control characters. CR, LF or NUL
+        # would let a token inject a second command; a space would let it add
+        # meta flags (T, N, I, q, ...) to the request it rides on.
+        ROUTING_TOKEN_FORBIDDEN = /[\x00-\x20\x7F]/
         private_constant :ROUTING_TOKEN_FORBIDDEN
 
         def validate_routing_token!(name, value)
           return if value.nil?
           raise ArgumentError, "#{name} must be a String, got #{value.class}" unless value.is_a?(String)
-          raise ArgumentError, "#{name} must not contain CRLF or null bytes" if value.match?(ROUTING_TOKEN_FORBIDDEN)
+          return unless value.match?(ROUTING_TOKEN_FORBIDDEN)
+
+          raise ArgumentError, "#{name} must not contain whitespace or control characters"
         end
 
         # Numeric flag values are written straight into the command line, so a
