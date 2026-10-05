@@ -258,6 +258,87 @@ describe Dalli::Protocol::ConnectionManager do
     end
   end
 
+  describe 'write buffering' do
+    # Records what reaches the socket, and how it was closed.
+    let(:socket) do
+      Class.new do
+        attr_reader :written, :closed_via
+
+        def initialize
+          @written = []
+        end
+
+        def write(*parts)
+          @written << parts.join
+          parts.sum(&:bytesize)
+        end
+
+        def gets(_sep)
+          "HD\r\n"
+        end
+
+        def close
+          @closed_via = :close
+        end
+
+        def to_io
+          sock = self
+          Object.new.tap { |io| io.define_singleton_method(:close) { sock.instance_variable_set(:@closed_via, :fd) } }
+        end
+      end.new
+    end
+
+    before { connection_manager.instance_variable_set(:@sock, socket) }
+
+    it 'holds writes until flushed' do
+      connection_manager.write("mn\r\n")
+      connection_manager.write("mn\r\n")
+
+      assert_empty socket.written
+
+      connection_manager.flush
+
+      assert_equal ["mn\r\nmn\r\n"], socket.written
+    end
+
+    it 'sends the buffer once it grows past the flush size' do
+      big = 'x' * Dalli::Protocol::ConnectionManager::WRITE_BUFFER_FLUSH_BYTES
+
+      connection_manager.write(big)
+
+      assert_equal [big], socket.written
+    end
+
+    it 'sends pending writes before reading a reply' do
+      connection_manager.write("mn\r\n")
+
+      assert_equal "HD\r\n", connection_manager.read_line
+      assert_equal ["mn\r\n"], socket.written
+    end
+
+    it 'discards pending writes, and closes only the file descriptor, in a forked child' do
+      connection_manager.instance_variable_set(:@pid, -1) # Impossible PID
+      connection_manager.write("ma counter q\r\n")
+
+      connection_manager.close
+
+      assert_empty socket.written
+      assert_equal :fd, socket.closed_via
+    end
+
+    it 'discards pending writes when closed' do
+      connection_manager.instance_variable_set(:@pid, Process.pid)
+      connection_manager.write("ma counter q\r\n")
+
+      connection_manager.close
+      connection_manager.instance_variable_set(:@sock, socket)
+      connection_manager.flush
+
+      assert_empty socket.written
+      assert_equal :close, socket.closed_via
+    end
+  end
+
   describe '#fork_detected?' do
     it 'returns false when pid is nil' do
       refute_predicate connection_manager, :fork_detected?
