@@ -85,7 +85,7 @@ module Dalli
       #   - :last_access - seconds since last access (only if return_last_access: true)
       def meta_get(key, options = {})
         req = RequestFormatter.meta_get(
-          key: key, value: true, return_cas: true,
+          key: key, value: true, return_cas: true, skip_flags: raw_request?(options),
           vivify_ttl: options[:vivify_ttl], recache_ttl: options[:recache_ttl],
           return_hit_status: options[:return_hit_status],
           return_last_access: options[:return_last_access], skip_lru_bump: options[:skip_lru_bump]
