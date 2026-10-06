@@ -38,14 +38,16 @@ module Dalli
           raw ? value : @value_marshaller.retrieve(value, bitflags_from_tokens(tokens))
         end
 
-        def meta_get_with_value_and_cas
+        # raw: true returns the value as stored; see #meta_get_with_value
+        def meta_get_with_value_and_cas(raw: false)
           tokens = error_on_unexpected!([VA, EN, HD])
           return [nil, 0] if tokens.first == EN
 
           cas = cas_from_tokens(tokens)
           return [nil, cas] unless tokens.first == VA
 
-          [@value_marshaller.retrieve(read_line, bitflags_from_tokens(tokens)), cas]
+          value = read_line
+          [raw ? value : @value_marshaller.retrieve(value, bitflags_from_tokens(tokens)), cas]
         end
 
         def meta_get_without_value

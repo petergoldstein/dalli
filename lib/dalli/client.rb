@@ -388,7 +388,8 @@ module Dalli
     end
 
     def cas_core(key, always_set, ttl = nil, req_options = nil)
-      (value, cas) = perform(:cas, key)
+      # req_options reaches the read too, so raw: true returns the stored bytes
+      (value, cas) = perform(:cas, key, req_options)
       return if value.nil? && !always_set
 
       newvalue = yield(value)

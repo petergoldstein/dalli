@@ -102,7 +102,8 @@ module Dalli
           true
         end
 
-        def data_cas_response
+        # raw: true returns the value as stored; see #get
+        def data_cas_response(raw: false)
           resp_header, body = read_response
           return [nil, resp_header.cas] if resp_header.not_found?
           return [nil, false] if resp_header.not_stored?
@@ -110,7 +111,7 @@ module Dalli
           raise_on_not_ok!(resp_header)
           return [nil, resp_header.cas] unless body
 
-          [unpack_response_body(resp_header, body, true).last, resp_header.cas]
+          [unpack_response_body(resp_header, body, !raw).last, resp_header.cas]
         end
 
         # Returns the new value for the key, if found and updated
