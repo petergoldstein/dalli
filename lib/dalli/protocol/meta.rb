@@ -322,7 +322,9 @@ module Dalli
           next unless line.start_with?('VA ')
 
           tokens = line.chomp!(TERMINATOR).split
-          value = @connection_manager.read(tokens[1].to_i + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+          size = tokens[1].to_i
+          response_processor.check_value_size!(size)
+          value = @connection_manager.read(size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
           stale = response_processor.stale_from_tokens(tokens)
           cas = response_processor.cas_from_tokens(tokens)
           bitflags = is_raw ? 0 : response_processor.bitflags_from_tokens(tokens)
@@ -350,7 +352,9 @@ module Dalli
       # splitting it into tokens
       def parse_multi_get_value(line, is_raw)
         processor = response_processor
-        value = @connection_manager.read(processor.size_from_va_line(line) + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+        size = processor.size_from_va_line(line)
+        processor.check_value_size!(size)
+        value = @connection_manager.read(size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
         key = processor.key_from_va_line(line)
         return unless key
 

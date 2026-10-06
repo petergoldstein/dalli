@@ -261,7 +261,9 @@ module Dalli
             when BYTE_B then base64 ||= token == 'b'
             end
           end
-          body_len = flag_int(size, 's')
+          # memcached also gives the size positionally ("VA <size> ..."); use it
+          # when there's no s flag rather than reading the value as replies
+          body_len = size ? flag_int(size, 's') : positional_size(tokens)
 
           # A complete response with no body. Only the terminating noop's MN
           # ends the pipeline. Any other bodyless reply (CLIENT_ERROR,
@@ -282,7 +284,11 @@ module Dalli
           # the values
           body = buf.byteslice(offset + header_len, body_len)
           value = retrieve(body, raw ? 0 : flag_int(bitflags, 'f'), raw)
-          key = key ? key.delete_prefix!('k') : 0
+          # A hit with no key can't be matched to a request: skip it (false
+          # status) rather than yield it, or take it for the end of the pipeline
+          return [false, resp_size] unless key
+
+          key = key.delete_prefix!('k')
           key = KeyRegularizer.decode(key) if base64
           [tokens.first == VA, flag_int(cas, 'c'), key, value, resp_size]
         end
@@ -315,8 +321,11 @@ module Dalli
           return [0] unless buf.bytesize >= offset + resp_size
 
           value = retrieve(buf.byteslice(offset + header_len, size), raw ? 0 : bitflags || 0, raw)
-          key = KeyRegularizer.decode(key) if base64 && key
-          [true, cas || 0, key || 0, value, resp_size]
+          # Skipped like the token path does; see getk_response_from_buffer
+          return [false, resp_size] unless key
+
+          key = KeyRegularizer.decode(key) if base64
+          [true, cas || 0, key, value, resp_size]
         end
 
         # Integer value of a flag's token in buf, after its one-byte prefix,
@@ -441,6 +450,11 @@ module Dalli
 
         # A pipelined reply claiming an impossible size would otherwise have the
         # buffer wait for (and accumulate) that many bytes
+        # The size given right after "VA", or 0 when it isn't a number
+        def positional_size(tokens)
+          tokens.first == VA && tokens[1]&.match?(/\A\d+\z/) ? tokens[1].to_i : 0
+        end
+
         def check_value_size!(size)
           return if size.between?(0, MAX_VALUE_BYTES)
 
@@ -457,6 +471,9 @@ module Dalli
         end
 
         def read_data(data_size)
+          # Checked before the terminator is added: -1 or -2 would otherwise
+          # read 1 or 0 bytes and leave the connection out of step
+          check_value_size!(data_size)
           @io_source.read(data_size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
         end
       end
