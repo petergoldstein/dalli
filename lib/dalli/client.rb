@@ -599,7 +599,8 @@ module Dalli
     end
 
     def cas_core(key, always_set, ttl = nil, req_options = nil)
-      (value, cas) = perform(:cas, key)
+      # req_options reaches the read too, so raw: true returns the stored bytes
+      (value, cas) = perform(:cas, key, req_options)
       return if value.nil? && !always_set
 
       newvalue = yield(value)
@@ -608,7 +609,12 @@ module Dalli
 
     def fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options)
       server = ring.server_for_key(key)
-      result = server.request(:meta_get, key, { vivify_ttl: lock_ttl, recache_ttl: recache_threshold })
+      # req_options (e.g. raw: true) reaches the read too. It's the base, not
+      # the override: fetch_with_lock's own lock_ttl/recache_threshold win.
+      meta_options = req_options.is_a?(Hash) ? req_options.dup : {}
+      meta_options[:vivify_ttl] = lock_ttl
+      meta_options[:recache_ttl] = recache_threshold
+      result = server.request(:meta_get, key, meta_options)
 
       return result[:value] unless result[:won_recache]
 

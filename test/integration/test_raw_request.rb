@@ -41,6 +41,31 @@ describe 'per-request raw option' do
           assert_equal({ 'secret' => 'value' }, dc.get_with_metadata('rk')[:value])
         end
       end
+
+      it 'returns raw bytes to the cas and cas! reads' do
+        memcached_persistent(p) do |dc|
+          dc.flush
+          store_serialized(dc, 'c1')
+          store_serialized(dc, 'c2')
+          seen = []
+
+          dc.cas('c1', nil, raw: true) { |v| (seen << v).last }
+          dc.cas!('c2', nil, raw: true) { |v| (seen << v).last }
+
+          assert_equal [payload] * 2, seen
+        end
+      end
+
+      it 'returns raw bytes from fetch_with_lock' do
+        skip 'fetch_with_lock requires the meta protocol' unless p == :meta
+
+        memcached_persistent(p) do |dc|
+          dc.flush
+          store_serialized(dc, 'c3')
+
+          assert_equal(payload, dc.fetch_with_lock('c3', req_options: { raw: true }) { 'computed' })
+        end
+      end
     end
   end
 end
