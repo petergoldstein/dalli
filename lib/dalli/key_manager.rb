@@ -125,15 +125,18 @@ module Dalli
     ##
     def truncated_key(key)
       digest = digest_class.hexdigest(key)
-      prefix = key[0, prefix_length(digest)]
+      prefix = key[0, [prefix_length(digest), 0].max]
       truncated = "#{prefix}#{TRUNCATED_KEY_SEPARATOR}#{digest}"
       # A prefix with whitespace or non-ASCII characters sends the whole key
       # base64-encoded, which can still be too long on the wire; shorten it.
-      while wire_length(truncated) > MAX_KEY_LENGTH
+      while wire_length(truncated) > MAX_KEY_LENGTH && !prefix.empty?
         prefix = prefix[0...-1]
         truncated = "#{prefix}#{TRUNCATED_KEY_SEPARATOR}#{digest}"
       end
-      truncated
+      return truncated if wire_length(truncated) <= MAX_KEY_LENGTH
+
+      # Only possible with a digest_class whose digests aren't short hex strings
+      raise ArgumentError, "#{digest_class} digests are too long to fit in a truncated key"
     end
 
     # memcached's key limit applies to the key as sent: in bytes, and, with

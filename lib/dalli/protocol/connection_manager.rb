@@ -58,7 +58,7 @@ module Dalli
         @sock = memcached_socket
         # Writes are buffered in @write_buffer instead; see WRITE_BUFFER_FLUSH_BYTES
         @sock.sync = true
-        @pid = PIDCache.pid
+        @pid = Process.pid
         @request_in_progress = false
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError, SocketError => e
         # SocketError = DNS resolution failure
@@ -204,7 +204,10 @@ module Dalli
       WRITE_BUFFER_FLUSH_BYTES = 64 * 1024
 
       def write(bytes)
-        @write_buffer << bytes
+        # A copy: the caller may change its string before the buffer is sent
+        # (the meta protocol writes a value string as its own part), as Ruby's
+        # IO buffer copied on write
+        @write_buffer << (bytes.frozen? ? bytes : bytes.dup)
         @write_buffer_bytes += bytes.bytesize
         flush_write_buffer if @write_buffer_bytes >= WRITE_BUFFER_FLUSH_BYTES
         bytes.bytesize
@@ -282,7 +285,11 @@ module Dalli
       end
 
       def fork_detected?
-        @pid && @pid != PIDCache.pid
+        # Process.pid rather than PIDCache: PIDCache is refreshed by a
+        # Process._fork hook, and another library's fork hook (such as
+        # connection_pool closing its connections) can run in the child before
+        # it, which would close the parent's TLS session as if it were ours.
+        @pid && @pid != Process.pid
       end
 
       def log_down_detected
@@ -306,11 +313,30 @@ module Dalli
 
       private
 
+      # One write per flush. A TLS socket sends each argument of
+      # write(*parts) as its own record and system call, so the parts are
+      # joined first.
       def flush_write_buffer
         return if @write_buffer.empty?
 
-        @sock.write(*@write_buffer)
+        @sock.write(@write_buffer.size == 1 ? @write_buffer.first : joined_write_buffer)
         discard_write_buffer
+      end
+
+      # Joined as bytes: requests can mix UTF-8 and binary strings, which
+      # String#<< refuses to combine when both hold non-ASCII bytes
+      if String.method_defined?(:append_as_bytes)
+        def joined_write_buffer
+          out = String.new(capacity: @write_buffer_bytes, encoding: Encoding::BINARY)
+          @write_buffer.each { |part| out.append_as_bytes(part) }
+          out
+        end
+      else
+        def joined_write_buffer
+          out = String.new(capacity: @write_buffer_bytes, encoding: Encoding::BINARY)
+          @write_buffer.each { |part| out << part.b }
+          out
+        end
       end
 
       def discard_write_buffer

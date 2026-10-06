@@ -134,14 +134,18 @@ module Dalli
     def get_with_metadata(key, options = {})
       raise_unless_meta_protocol!
 
-      key = key.to_s
-      key = @key_manager.validate_key(key)
+      # A retry re-runs this method with its original arguments, so `key` must
+      # stay as the caller gave it; reassigning it would add the namespace again.
+      validated_key = @key_manager.validate_key(key.to_s)
 
-      server = ring.server_for_key(key)
-      Instrumentation.trace('get_with_metadata', trace_attrs('get_with_metadata', key, server)) do
-        server.request(:meta_get, key, options)
+      server = ring.server_for_key(validated_key)
+      Instrumentation.trace('get_with_metadata', trace_attrs('get_with_metadata', validated_key, server)) do
+        server.request(:meta_get, validated_key, options)
       end
-    rescue NetworkError => e
+    # Only a retryable error is retried. The NetworkError raised when a server
+    # is marked down is final, as in #perform; retrying it looped forever once
+    # down_retry_delay let the same server be tried again.
+    rescue RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying get_with_metadata with new server' }
       retry
@@ -238,14 +242,17 @@ module Dalli
       validate_integer!(:lock_ttl, lock_ttl)
       validate_integer!(:recache_threshold, recache_threshold)
 
-      key = key.to_s
-      key = @key_manager.validate_key(key)
+      # Left unchanged for the retry below; see get_with_metadata
+      validated_key = @key_manager.validate_key(key.to_s)
 
-      server = ring.server_for_key(key)
-      Instrumentation.trace('fetch_with_lock', trace_attrs('fetch_with_lock', key, server)) do
-        fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options, &block)
+      server = ring.server_for_key(validated_key)
+      Instrumentation.trace('fetch_with_lock', trace_attrs('fetch_with_lock', validated_key, server)) do
+        fetch_with_lock_request(validated_key, ttl, lock_ttl, recache_threshold, req_options, &block)
       end
-    rescue NetworkError => e
+    # Only a retryable error is retried. The NetworkError raised when a server
+    # is marked down is final, as in #perform; retrying it looped forever once
+    # down_retry_delay let the same server be tried again.
+    rescue RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying fetch_with_lock with new server' }
       retry
@@ -592,7 +599,8 @@ module Dalli
     end
 
     def cas_core(key, always_set, ttl = nil, req_options = nil)
-      (value, cas) = perform(:cas, key)
+      # req_options reaches the read too, so raw: true returns the stored bytes
+      (value, cas) = perform(:cas, key, req_options)
       return if value.nil? && !always_set
 
       newvalue = yield(value)
@@ -601,7 +609,12 @@ module Dalli
 
     def fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options)
       server = ring.server_for_key(key)
-      result = server.request(:meta_get, key, { vivify_ttl: lock_ttl, recache_ttl: recache_threshold })
+      # req_options (e.g. raw: true) reaches the read too. It's the base, not
+      # the override: fetch_with_lock's own lock_ttl/recache_threshold win.
+      meta_options = req_options.is_a?(Hash) ? req_options.dup : {}
+      meta_options[:vivify_ttl] = lock_ttl
+      meta_options[:recache_ttl] = recache_threshold
+      result = server.request(:meta_get, key, meta_options)
 
       return result[:value] unless result[:won_recache]
 

@@ -45,6 +45,92 @@ describe 'Network' do
             server&.close
             acceptor&.kill
           end
+
+          # get_with_metadata requires the meta protocol
+          if p == :meta
+            # get_with_metadata and fetch_with_lock also retried the final
+            # NetworkError raised when the server is marked down, so with
+            # down_retry_delay: 0 they retried the same server forever.
+            it 'gives up in get_with_metadata and fetch_with_lock with down_retry_delay: 0' do
+              server = TCPServer.new('127.0.0.1', 19_457)
+              acceptor = Thread.new do
+                loop do
+                  Thread.new(server.accept) do |sock|
+                    while (line = sock.gets)
+                      sock.write("VERSION 1.6.45\r\n") if line.start_with?('version')
+                    end
+                  rescue IOError, SystemCallError
+                    nil
+                  end
+                end
+              rescue IOError
+                nil
+              end
+              dc = Dalli::Client.new('127.0.0.1:19457', socket_timeout: 0.2, down_retry_delay: 0, protocol: p)
+
+              [-> { dc.get_with_metadata('k') }, -> { dc.fetch_with_lock('k') { 'v' } }].each do |call|
+                started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+                assert_raises(Dalli::NetworkError, Dalli::RingError) { call.call }
+                assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 5
+              end
+            ensure
+              server&.close
+              acceptor&.kill
+            end
+          end
+        end
+
+        # The fake server below speaks the meta protocol
+        if p == :meta
+          # A get_multi that runs out of time overall isn't a socket failure, so
+          # slow ones in a row must not mark the server down.
+          it 'keeps a server that answers get_multi slowly' do
+            server = TCPServer.new('127.0.0.1', 19_459)
+            acceptor = Thread.new do
+              loop do
+                Thread.new(server.accept) do |sock|
+                  pending = []
+                  while (line = sock.gets)
+                    words = line.split
+                    case words.first
+                    when 'version' then sock.write("VERSION 1.6.45\r\n")
+                    when 'mg' then pending << words[1]
+                    when 'ms'
+                      sock.read(words[2].to_i + 2)
+                      sock.write("HD\r\n")
+                    when 'mn'
+                      first, *rest = pending
+                      sock.write("VA 1 f0 k#{first} s1\r\nv\r\n")
+                      sleep 0.5 # longer than the client's socket_timeout
+                      rest.each { |k| sock.write("VA 1 f0 k#{k} s1\r\nv\r\n") }
+                      sock.write("MN\r\n")
+                      pending.clear
+                    end
+                  end
+                rescue IOError, SystemCallError
+                  nil
+                end
+              end
+            rescue IOError
+              nil
+            end
+            dc = Dalli::Client.new('127.0.0.1:19459', socket_timeout: 0.3, protocol: p)
+
+            with_nil_logger do
+              3.times do
+                yielded = []
+                dc.get_multi('a', 'b', 'c') { |k, _| yielded << k }
+
+                assert_equal ['a'], yielded
+              end
+            end
+
+            assert dc.set('after', 'ok')
+          ensure
+            server&.close
+            acceptor&.kill
+          end
         end
 
         describe 'with a fake server' do

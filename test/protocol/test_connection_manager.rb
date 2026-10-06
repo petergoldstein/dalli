@@ -263,6 +263,28 @@ describe Dalli::Protocol::ConnectionManager do
       assert_equal ["mn\r\nmn\r\n"], socket.written
     end
 
+    # A TLS socket sends each argument of write(*parts) as its own record
+    it 'sends a flush as one write of one string, joining mixed encodings as bytes' do
+      calls = []
+      sock = Object.new
+      sock.define_singleton_method(:write) do |*parts|
+        calls << parts
+        parts.sum(&:bytesize)
+      end
+      connection_manager.instance_variable_set(:@sock, sock)
+      utf8 = 'clé'
+      binary = "\xFF\xFE".b
+
+      connection_manager.write(utf8)
+      connection_manager.write(binary)
+      connection_manager.flush
+
+      assert_equal 1, calls.size
+      assert_equal 1, calls[0].size
+      assert_equal utf8.b + binary, calls[0][0]
+      assert_equal Encoding::BINARY, calls[0][0].encoding
+    end
+
     it 'sends the buffer once it grows past the flush size' do
       big = 'x' * Dalli::Protocol::ConnectionManager::WRITE_BUFFER_FLUSH_BYTES
 
@@ -310,6 +332,16 @@ describe Dalli::Protocol::ConnectionManager do
       connection_manager.instance_variable_set(:@pid, Dalli::PIDCache.pid)
 
       refute_predicate connection_manager, :fork_detected?
+    end
+
+    # PIDCache can still hold the parent's pid in a forked child, while
+    # another library's fork hook runs
+    it 'compares against the real pid, not PIDCache' do
+      connection_manager.instance_variable_set(:@pid, Process.pid + 1)
+
+      Dalli::PIDCache.stub(:pid, Process.pid + 1) do
+        assert_predicate connection_manager, :fork_detected?
+      end
     end
 
     it 'returns true when pid differs from current process' do
