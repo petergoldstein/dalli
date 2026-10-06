@@ -328,6 +328,7 @@ module Dalli
         # Use clear (not reset) to keep pipeline_complete? = true, which is
         # the expected state before pipeline_response_setup is called.
         response_buffer.clear
+        response_buffer.raw = raw_request?(options)
 
         # The terminating noop is sent by pipeline_response_setup
         write(quiet_get_requests(keys, options, return_cas: return_cas))
@@ -339,6 +340,7 @@ module Dalli
       def pipelined_get_interleaved(keys, chunk_size, results, options = nil)
         # Initialize the response buffer for draining during send phase
         response_buffer.ensure_ready
+        response_buffer.raw = raw_request?(options)
 
         keys.each_slice(chunk_size) do |chunk|
           # Build and write this chunk of requests
