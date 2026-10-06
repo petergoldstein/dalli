@@ -374,7 +374,8 @@ describe 'KeyManager' do
       long = Module.new { def self.hexdigest(_) = 'f' * 300 }
 
       [wide, long].each do |digest|
-        manager = Dalli::KeyManager.new({ digest_class: digest })
+        # The meta protocol, where a non-ASCII digest is sent base64-encoded
+        manager = Dalli::KeyManager.new({ digest_class: digest, protocol: :meta })
 
         assert_raises(ArgumentError) { Timeout.timeout(2) { manager.validate_key('a' * 300) } }
       end
