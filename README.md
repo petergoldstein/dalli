@@ -123,6 +123,10 @@ The digest is MD5 by default. `digest_class:` takes any object that responds to 
 
 See the [5.0-Upgrade.md](5.0-Upgrade.md) guide for upgrade information.
 
+### Counters and verify_reply_keys
+
+memcached names an item made by auto-create for a base64-encoded key (one with whitespace, control or non-ASCII characters) by its raw key bytes in later replies. Since 5.2.3, Dalli creates counters for such keys with an add rather than auto-create. Items created before then, or by other clients, can still be named that way until memcached is upgraded to MEMCACHED_FIXED_VERSION or later. If keys passed to `incr` or `decr` with an initial value can contain untrusted input, set `verify_reply_keys: true` until then: multi-gets then ignore replies for keys they didn't request, at a cost of about 15% per multi-get.
+
 ## TLS
 
 Pass an `OpenSSL::SSL::SSLContext` as `ssl_context:` to connect over TLS. Certificate and hostname verification come only from that context: Dalli adds no checks of its own. A bare `OpenSSL::SSL::SSLContext.new` verifies nothing, so it accepts any certificate from any server. Configure the context to verify both:
