@@ -157,6 +157,10 @@ module Dalli
         end
 
         def full_response_from_buffer(tokens, body, resp_size)
+          # A hit with no key can't be matched to a request: skip it (false
+          # status) rather than yield it, or take it for the end of the pipeline
+          return [resp_size, false, nil, nil, nil] unless tokens.any? { |t| t.start_with?('k') }
+
           value = @value_marshaller.retrieve(body, bitflags_from_tokens(tokens))
           [resp_size, tokens.first == VA, cas_from_tokens(tokens), key_from_tokens(tokens), value]
         end
@@ -205,6 +209,11 @@ module Dalli
         # pipelined reply claiming an impossible size would otherwise have the
         # buffer wait for (and accumulate) that many bytes.
         MAX_VALUE_BYTES = 1024 * 1024 * 1024
+
+        # The size given right after "VA", or 0 when it isn't a number
+        def positional_size(tokens)
+          tokens.first == VA && tokens[1]&.match?(/\A\d+\z/) ? tokens[1].to_i : 0
+        end
 
         def check_value_size!(size)
           return if size.between?(0, MAX_VALUE_BYTES)
@@ -257,7 +266,9 @@ module Dalli
         end
 
         def body_len_from_tokens(tokens)
-          size = value_from_tokens(tokens, 's')&.to_i
+          # memcached also gives the size positionally ("VA <size> ..."); use it
+          # when there's no s flag rather than reading the value as replies
+          size = tokens.any? { |t| t.start_with?('s') } ? value_from_tokens(tokens, 's')&.to_i : positional_size(tokens)
           check_value_size!(size) if size
           size
         end
@@ -279,6 +290,9 @@ module Dalli
         end
 
         def read_data(data_size)
+          # Checked before the terminator is added: -1 or -2 would otherwise
+          # read 1 or 0 bytes and leave the connection out of step
+          check_value_size!(data_size)
           @io_source.read(data_size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
         end
       end
