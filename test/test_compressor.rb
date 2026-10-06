@@ -42,6 +42,14 @@ end
       assert_raises(Dalli::UnmarshalError) { compressor.decompress(bomb, max_bytes: 1024 * 1024) }
     end
 
+    # Bytes after the end of the compressed stream aren't part of the value,
+    # whichever path inflates it
+    it 'ignores data after the end of the stream, as without max_bytes' do
+      ["#{compressed}TRAILER", compressed + compressed, compressed + ('x' * 200_000)].each do |input|
+        assert_equal compressor.decompress(input).b, compressor.decompress(input, max_bytes: 10_000_000).b
+      end
+    end
+
     it 'has no limit without max_bytes' do
       assert_equal data.b, compressor.decompress(compressed).b
     end
