@@ -47,4 +47,18 @@ describe Dalli::Protocol::ConnectionManager do
       assert_nil manager.instance_variable_get(:@down_at)
     end
   end
+
+  describe '#fork_detected?' do
+    let(:connection_manager) { Dalli::Protocol::ConnectionManager.new('localhost', 11_211, :tcp, {}) }
+
+    # PIDCache can still hold the parent's pid in a forked child, while
+    # another library's fork hook runs
+    it 'compares against the real pid, not PIDCache' do
+      connection_manager.instance_variable_set(:@pid, Process.pid + 1)
+
+      Dalli::PIDCache.stub(:pid, Process.pid + 1) do
+        assert_predicate connection_manager, :fork_detected?
+      end
+    end
+  end
 end

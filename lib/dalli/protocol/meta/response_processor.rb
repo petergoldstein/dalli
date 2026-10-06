@@ -38,14 +38,16 @@ module Dalli
           raw ? value : @value_marshaller.retrieve(value, bitflags_from_tokens(tokens))
         end
 
-        def meta_get_with_value_and_cas
+        # raw: true returns the value as stored; see #meta_get_with_value
+        def meta_get_with_value_and_cas(raw: false)
           tokens = error_on_unexpected!([VA, EN, HD])
           return [nil, 0] if tokens.first == EN
 
           cas = cas_from_tokens(tokens)
           return [nil, cas] unless tokens.first == VA
 
-          [@value_marshaller.retrieve(read_line, bitflags_from_tokens(tokens)), cas]
+          value = read_line
+          [raw ? value : @value_marshaller.retrieve(value, bitflags_from_tokens(tokens)), cas]
         end
 
         def meta_get_without_value
@@ -123,6 +125,10 @@ module Dalli
         end
 
         def full_response_from_buffer(tokens, body, resp_size)
+          # A hit with no key can't be matched to a request: skip it (false
+          # status) rather than yield it, or take it for the end of the pipeline
+          return [resp_size, false, nil, nil, nil] unless tokens.any? { |t| t.start_with?('k') }
+
           value = @value_marshaller.retrieve(body, bitflags_from_tokens(tokens))
           [resp_size, tokens.first == VA, cas_from_tokens(tokens), key_from_tokens(tokens), value]
         end
@@ -168,6 +174,11 @@ module Dalli
         # buffer wait for (and accumulate) that many bytes.
         MAX_VALUE_BYTES = 1024 * 1024 * 1024
 
+        # The size given right after "VA", or 0 when it isn't a number
+        def positional_size(tokens)
+          tokens.first == VA && tokens[1]&.match?(/\A\d+\z/) ? tokens[1].to_i : 0
+        end
+
         def check_value_size!(size)
           return if size.between?(0, MAX_VALUE_BYTES)
 
@@ -209,7 +220,9 @@ module Dalli
         end
 
         def body_len_from_tokens(tokens)
-          size = value_from_tokens(tokens, 's')&.to_i
+          # memcached also gives the size positionally ("VA <size> ..."); use it
+          # when there's no s flag rather than reading the value as replies
+          size = tokens.any? { |t| t.start_with?('s') } ? value_from_tokens(tokens, 's')&.to_i : positional_size(tokens)
           check_value_size!(size) if size
           size
         end

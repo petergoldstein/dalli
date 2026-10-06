@@ -29,6 +29,20 @@ describe 'per-request raw option' do
           assert_equal({ 'secret' => 'value' }, dc.get('rk'))
         end
       end
+
+      it 'returns raw bytes to the cas and cas! reads' do
+        memcached_persistent(p) do |dc|
+          dc.flush
+          store_serialized(dc, 'c1')
+          store_serialized(dc, 'c2')
+          seen = []
+
+          dc.cas('c1', nil, raw: true) { |v| (seen << v).last }
+          dc.cas!('c2', nil, raw: true) { |v| (seen << v).last }
+
+          assert_equal [payload] * 2, seen
+        end
+      end
     end
   end
 end

@@ -6,6 +6,26 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
   let(:processor) { Dalli::Protocol::Meta::ResponseProcessor.new(nil, Dalli::Protocol::ValueMarshaller.new({})) }
 
   describe '#getk_response_from_buffer' do
+    # Malformed hits (a broken or hostile server or proxy): each must be
+    # skipped or read whole, never yielded under a made-up key, taken for the
+    # end of the pipeline, or allowed to leave bytes on the connection.
+    it 'skips a hit with no key' do
+      ["VA 1 f0 s1\r\nx\r\n", "VA 1 s1 b\r\nx\r\n", "VA 0 s0 b\r\n\r\n"].each do |reply|
+        assert_equal [reply.bytesize, false, nil, nil, nil], processor.getk_response_from_buffer(reply.b), reply.inspect
+      end
+    end
+
+    it 'reads a hit with no s flag using the size after VA' do
+      reply = "VA 5 f0 kfoo\r\nhello\r\n"
+
+      size, status, _cas, key, value = processor.getk_response_from_buffer("#{reply}MN\r\n".b)
+
+      assert status
+      assert_equal 'foo', key
+      assert_equal 'hello', value
+      assert_equal reply.bytesize, size
+    end
+
     it 'rejects a pipelined reply that claims an impossible value size' do
       ["VA 4294967296 f0 kfoo s4294967296\r\n", "VA 4294967296 s4294967296 f0 kfoo\r\n"].each do |line|
         assert_raises(Dalli::DalliError) { processor.getk_response_from_buffer(line.b) }
