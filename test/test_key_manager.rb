@@ -291,11 +291,20 @@ describe 'KeyManager' do
     end
 
     it 'raises rather than looping or returning an over-long key for a digest that is too long' do
-      wide = Module.new { def self.hexdigest(_) = "\xFF".b * 200 }
-      long = Module.new { def self.hexdigest(_) = 'f' * 300 }
+      wide = Module.new do
+        def self.hexdigest(_)
+          "\xFF".b * 200
+        end
+      end
+      long = Module.new do
+        def self.hexdigest(_)
+          'f' * 300
+        end
+      end
 
       [wide, long].each do |digest|
-        manager = Dalli::KeyManager.new({ digest_class: digest })
+        # The meta protocol, where a non-ASCII digest is sent base64-encoded
+        manager = Dalli::KeyManager.new({ digest_class: digest, protocol: :meta })
 
         assert_raises(ArgumentError) { Timeout.timeout(2) { manager.validate_key('a' * 300) } }
       end

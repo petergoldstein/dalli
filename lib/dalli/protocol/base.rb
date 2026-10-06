@@ -124,7 +124,7 @@ module Dalli
       def pipeline_abort
         response_buffer.clear
         @connection_manager.abort_request!
-        return true unless connected?
+        return unless connected?
 
         # Closes the connection, which ensures that our connection is in a
         # clean state for future requests. The get_multi ran out of time
@@ -133,7 +133,7 @@ module Dalli
         # otherwise mark a healthy server down.
         Dalli.logger.warn { "#{name} didn't finish a get_multi within socket_timeout; closing the connection" }
         @connection_manager.close
-        true
+        nil
       end
 
       # Did the last call to #pipeline_response_setup complete successfully?
