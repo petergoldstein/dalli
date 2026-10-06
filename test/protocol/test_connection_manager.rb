@@ -312,6 +312,16 @@ describe Dalli::Protocol::ConnectionManager do
       refute_predicate connection_manager, :fork_detected?
     end
 
+    # PIDCache can still hold the parent's pid in a forked child, while
+    # another library's fork hook runs
+    it 'compares against the real pid, not PIDCache' do
+      connection_manager.instance_variable_set(:@pid, Process.pid + 1)
+
+      Dalli::PIDCache.stub(:pid, Process.pid + 1) do
+        assert_predicate connection_manager, :fork_detected?
+      end
+    end
+
     it 'returns true when pid differs from current process' do
       connection_manager.instance_variable_set(:@pid, -1) # Impossible PID
 

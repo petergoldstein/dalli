@@ -58,7 +58,7 @@ module Dalli
         @sock = memcached_socket
         # Writes are buffered in @write_buffer instead; see WRITE_BUFFER_FLUSH_BYTES
         @sock.sync = true
-        @pid = PIDCache.pid
+        @pid = Process.pid
         @request_in_progress = false
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError, SocketError => e
         # SocketError = DNS resolution failure
@@ -282,7 +282,11 @@ module Dalli
       end
 
       def fork_detected?
-        @pid && @pid != PIDCache.pid
+        # Process.pid rather than PIDCache: PIDCache is refreshed by a
+        # Process._fork hook, and another library's fork hook (such as
+        # connection_pool closing its connections) can run in the child before
+        # it, which would close the parent's TLS session as if it were ours.
+        @pid && @pid != Process.pid
       end
 
       def log_down_detected
