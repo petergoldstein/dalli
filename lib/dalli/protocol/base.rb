@@ -203,10 +203,13 @@ module Dalli
         @connection_manager.abort_request!
         return true unless connected?
 
-        # Closes the connection, which ensures that our connection
-        # is in a clean state for future requests
-        @connection_manager.error_on_request!('External timeout')
-      rescue NetworkError
+        # Closes the connection, which ensures that our connection is in a
+        # clean state for future requests. The get_multi ran out of time
+        # overall rather than hitting a socket error, so it doesn't count
+        # toward socket_max_failures: two slow get_multis in a row would
+        # otherwise mark a healthy server down.
+        Dalli.logger.warn { "#{name} didn't finish a get_multi within socket_timeout; closing the connection" }
+        @connection_manager.close
         true
       end
 
@@ -342,6 +345,7 @@ module Dalli
         # Use clear (not reset) to keep pipeline_complete? = true, which is
         # the expected state before pipeline_response_setup is called.
         response_buffer.clear
+        response_buffer.raw = raw_request?(options)
 
         # The terminating noop is sent by pipeline_response_setup
         write(quiet_get_requests(keys, options, return_cas: return_cas))
@@ -353,6 +357,7 @@ module Dalli
       def pipelined_get_interleaved(keys, chunk_size, results, options = nil)
         # Initialize the response buffer for draining during send phase
         response_buffer.ensure_ready
+        response_buffer.raw = raw_request?(options)
 
         keys.each_slice(chunk_size) do |chunk|
           # Build and write this chunk of requests

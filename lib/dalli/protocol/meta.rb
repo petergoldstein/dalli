@@ -38,7 +38,7 @@ module Dalli
                 RequestFormatter.plain_meta_get(key, skip_flags)
               end
         flushed_write(req)
-        response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
+        response_processor.meta_get_with_value(cache_nils: cache_nils?(options), raw: raw_request?(options))
       end
 
       def quiet_get_request(key, options = nil)
@@ -59,7 +59,7 @@ module Dalli
         skip_flags = raw_mode? || (options && options[:raw])
         req = RequestFormatter.meta_get(key: key, ttl: ttl, skip_flags: skip_flags, **routing_token_kwargs(options))
         flushed_write(req)
-        response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
+        response_processor.meta_get_with_value(cache_nils: cache_nils?(options), raw: raw_request?(options))
       end
 
       def touch(key, ttl)
@@ -75,7 +75,7 @@ module Dalli
         req = RequestFormatter.meta_get(key: key, value: true, return_cas: true, skip_flags: raw_request?(options),
                                         **routing_token_kwargs(options))
         flushed_write(req)
-        response_processor.meta_get_with_value_and_cas
+        response_processor.meta_get_with_value_and_cas(raw: raw_request?(options))
       end
 
       # Comprehensive meta get with support for all metadata flags.
@@ -116,7 +116,7 @@ module Dalli
         response_processor.meta_get_with_metadata(
           cache_nils: cache_nils?(options), return_hit_status: options[:return_hit_status],
           return_last_access: options[:return_last_access],
-          return_ttl_remaining: options[:return_ttl_remaining]
+          return_ttl_remaining: options[:return_ttl_remaining], raw: raw_request?(options)
         )
       end
 
@@ -322,7 +322,9 @@ module Dalli
           next unless line.start_with?('VA ')
 
           tokens = line.chomp!(TERMINATOR).split
-          value = @connection_manager.read(tokens[1].to_i + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+          size = tokens[1].to_i
+          response_processor.check_value_size!(size)
+          value = @connection_manager.read(size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
           stale = response_processor.stale_from_tokens(tokens)
           cas = response_processor.cas_from_tokens(tokens)
           bitflags = is_raw ? 0 : response_processor.bitflags_from_tokens(tokens)
@@ -350,7 +352,9 @@ module Dalli
       # splitting it into tokens
       def parse_multi_get_value(line, is_raw)
         processor = response_processor
-        value = @connection_manager.read(processor.size_from_va_line(line) + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+        size = processor.size_from_va_line(line)
+        processor.check_value_size!(size)
+        value = @connection_manager.read(size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
         key = processor.key_from_va_line(line)
         return unless key
 

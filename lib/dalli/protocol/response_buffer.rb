@@ -15,6 +15,9 @@ module Dalli
     # when advancing through parsed responses.
     ##
     class ResponseBuffer
+      # Whether the current pipeline was requested with raw: true
+      attr_writer :raw
+
       def initialize(io_source, response_processor)
         @io_source = io_source
         @response_processor = response_processor
@@ -39,7 +42,7 @@ module Dalli
       # Attempts to process a single response from the buffer,
       # advancing the offset past the consumed bytes.
       def process_single_getk_response
-        response = @response_processor.getk_response_from_buffer(@buffer, @offset)
+        response = @response_processor.getk_response_from_buffer(@buffer, @offset, raw: @raw || false)
         @offset += response.pop
         response
       end
