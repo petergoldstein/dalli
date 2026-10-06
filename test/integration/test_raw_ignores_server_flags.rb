@@ -22,7 +22,9 @@ describe 'raw reads with flags the server sends unasked' do
             when 'mg'
               key = words[1]
               b = words.include?('b') ? ' b' : ''
-              sock.write("VA #{payload.bytesize} f1 c7 k#{key}#{b} s#{payload.bytesize}\r\n#{payload}\r\n")
+              # Key and size where memcached puts them for this request, with
+              # the flags it never asked for added at the end
+              sock.write("VA #{payload.bytesize} k#{key}#{b} s#{payload.bytesize} f1 c7\r\n#{payload}\r\n")
             end
           end
         rescue IOError, SystemCallError
