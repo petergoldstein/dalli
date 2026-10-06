@@ -44,6 +44,40 @@ describe 'Network' do
             server&.close
             acceptor&.kill
           end
+
+          # get_with_metadata requires the meta protocol
+          if p == :meta
+            # get_with_metadata and fetch_with_lock also retried the final
+            # NetworkError raised when the server is marked down, so with
+            # down_retry_delay: 0 they retried the same server forever.
+            it 'gives up in get_with_metadata and fetch_with_lock with down_retry_delay: 0' do
+              server = TCPServer.new('127.0.0.1', 19_457)
+              acceptor = Thread.new do
+                loop do
+                  Thread.new(server.accept) do |sock|
+                    while (line = sock.gets)
+                      sock.write("VERSION 1.6.45\r\n") if line.start_with?('version')
+                    end
+                  rescue IOError, SystemCallError
+                    nil
+                  end
+                end
+              rescue IOError
+                nil
+              end
+              dc = Dalli::Client.new('127.0.0.1:19457', socket_timeout: 0.2, down_retry_delay: 0, protocol: p)
+
+              [-> { dc.get_with_metadata('k') }, -> { dc.fetch_with_lock('k') { 'v' } }].each do |call|
+                started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+                assert_raises(Dalli::NetworkError, Dalli::RingError) { call.call }
+                assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 5
+              end
+            ensure
+              server&.close
+              acceptor&.kill
+            end
+          end
         end
 
         describe 'with a fake server' do
