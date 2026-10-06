@@ -144,7 +144,10 @@ module Dalli
       Instrumentation.trace('get_with_metadata', trace_attrs('get_with_metadata', validated_key, server)) do
         server.request(:meta_get, validated_key, options)
       end
-    rescue NetworkError => e
+    # Only a retryable error is retried. The NetworkError raised when a server
+    # is marked down is final, as in #perform; retrying it looped forever once
+    # down_retry_delay let the same server be tried again.
+    rescue RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying get_with_metadata with new server' }
       retry
@@ -310,7 +313,10 @@ module Dalli
       Instrumentation.trace('fetch_with_lock', trace_attrs('fetch_with_lock', validated_key, server)) do
         fetch_with_lock_request(validated_key, ttl, lock_ttl, recache_threshold, req_options, &block)
       end
-    rescue NetworkError => e
+    # Only a retryable error is retried. The NetworkError raised when a server
+    # is marked down is final, as in #perform; retrying it looped forever once
+    # down_retry_delay let the same server be tried again.
+    rescue RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying fetch_with_lock with new server' }
       retry
