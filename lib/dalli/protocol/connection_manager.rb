@@ -204,7 +204,10 @@ module Dalli
       WRITE_BUFFER_FLUSH_BYTES = 64 * 1024
 
       def write(bytes)
-        @write_buffer << bytes
+        # A copy: the caller may change its string before the buffer is sent
+        # (the meta protocol writes a value string as its own part), as Ruby's
+        # IO buffer copied on write
+        @write_buffer << (bytes.frozen? ? bytes : bytes.dup)
         @write_buffer_bytes += bytes.bytesize
         flush_write_buffer if @write_buffer_bytes >= WRITE_BUFFER_FLUSH_BYTES
         bytes.bytesize
