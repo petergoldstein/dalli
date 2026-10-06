@@ -28,7 +28,7 @@ module Dalli
         skip_flags = raw_mode? || (options && options[:raw])
         req = RequestFormatter.meta_get(key: key, skip_flags: skip_flags)
         flushed_write(req)
-        response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
+        response_processor.meta_get_with_value(cache_nils: cache_nils?(options), raw: raw_request?(options))
       end
 
       def quiet_get_request(key)
@@ -41,7 +41,7 @@ module Dalli
         skip_flags = raw_mode? || (options && options[:raw])
         req = RequestFormatter.meta_get(key: key, ttl: ttl, skip_flags: skip_flags)
         flushed_write(req)
-        response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
+        response_processor.meta_get_with_value(cache_nils: cache_nils?(options), raw: raw_request?(options))
       end
 
       def touch(key, ttl)
@@ -53,10 +53,10 @@ module Dalli
 
       # TODO: This is confusing, as there's a cas command in memcached
       # and this isn't it.  Maybe rename?  Maybe eliminate?
-      def cas(key)
-        req = RequestFormatter.meta_get(key: key, value: true, return_cas: true)
+      def cas(key, options = nil)
+        req = RequestFormatter.meta_get(key: key, value: true, return_cas: true, skip_flags: raw_request?(options))
         flushed_write(req)
-        response_processor.meta_get_with_value_and_cas
+        response_processor.meta_get_with_value_and_cas(raw: raw_request?(options))
       end
 
       # Comprehensive meta get with support for all metadata flags.
@@ -93,7 +93,7 @@ module Dalli
         flushed_write(req)
         response_processor.meta_get_with_metadata(
           cache_nils: cache_nils?(options), return_hit_status: options[:return_hit_status],
-          return_last_access: options[:return_last_access]
+          return_last_access: options[:return_last_access], raw: raw_request?(options)
         )
       end
 
