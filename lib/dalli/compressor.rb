@@ -39,7 +39,12 @@ module Dalli
       out = String.new(encoding: Encoding::BINARY)
       0.step(data.bytesize - 1, INFLATE_SLICE_BYTES) do |pos|
         inflate_slice(inflater, data.byteslice(pos, INFLATE_SLICE_BYTES), out, max_bytes)
+        # Anything after the end of the stream isn't part of the value, as
+        # with Zlib::Inflate.inflate; finish would return it as output
+        break if inflater.finished?
       end
+      return out if inflater.finished?
+
       append_within_limit(out, inflater.finish, max_bytes)
     ensure
       inflater.close
