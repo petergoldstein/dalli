@@ -38,7 +38,7 @@ module Dalli
                 RequestFormatter.plain_meta_get(key, skip_flags)
               end
         flushed_write(req)
-        response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
+        response_processor.meta_get_with_value(cache_nils: cache_nils?(options), raw: raw_request?(options))
       end
 
       def quiet_get_request(key, options = nil)
@@ -59,7 +59,7 @@ module Dalli
         skip_flags = raw_mode? || (options && options[:raw])
         req = RequestFormatter.meta_get(key: key, ttl: ttl, skip_flags: skip_flags, **routing_token_kwargs(options))
         flushed_write(req)
-        response_processor.meta_get_with_value(cache_nils: cache_nils?(options))
+        response_processor.meta_get_with_value(cache_nils: cache_nils?(options), raw: raw_request?(options))
       end
 
       def touch(key, ttl)
@@ -75,7 +75,7 @@ module Dalli
         req = RequestFormatter.meta_get(key: key, value: true, return_cas: true, skip_flags: raw_request?(options),
                                         **routing_token_kwargs(options))
         flushed_write(req)
-        response_processor.meta_get_with_value_and_cas
+        response_processor.meta_get_with_value_and_cas(raw: raw_request?(options))
       end
 
       # Comprehensive meta get with support for all metadata flags.
@@ -116,7 +116,7 @@ module Dalli
         response_processor.meta_get_with_metadata(
           cache_nils: cache_nils?(options), return_hit_status: options[:return_hit_status],
           return_last_access: options[:return_last_access],
-          return_ttl_remaining: options[:return_ttl_remaining]
+          return_ttl_remaining: options[:return_ttl_remaining], raw: raw_request?(options)
         )
       end
 

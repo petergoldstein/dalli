@@ -51,12 +51,15 @@ module Dalli
           @value_marshaller = value_marshaller
         end
 
-        def meta_get_with_value(cache_nils: false)
+        # raw: true (a request made with raw: true) returns the value as stored,
+        # ignoring any flags in the reply. The request didn't ask for flags, so
+        # a reply carrying them anyway must not get the value deserialized.
+        def meta_get_with_value(cache_nils: false, raw: false)
           line = read_line
           # A hit ("VA <size> f<flags>") is parsed in place rather than split
           # into tokens, which saves several allocations on the hottest path.
           if line&.start_with?(VA_PREFIX)
-            return @value_marshaller.retrieve(read_data(size_from_va_line(line)), bitflags_from_va_line(line))
+            return retrieve(read_data(size_from_va_line(line)), raw ? 0 : bitflags_from_va_line(line), raw)
           end
 
           tokens = line&.split || []
@@ -64,7 +67,7 @@ module Dalli
           when EN
             cache_nils ? ::Dalli::NOT_FOUND : nil
           when VA # only reached for an unusually formatted hit line
-            @value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens))
+            retrieve(read_data(tokens[1].to_i), raw ? 0 : bitflags_from_tokens(tokens), raw)
           when HD
             true
           else
@@ -72,14 +75,14 @@ module Dalli
           end
         end
 
-        def meta_get_with_value_and_cas
+        def meta_get_with_value_and_cas(raw: false)
           tokens = error_on_unexpected!(T_VA_EN_HD)
           return [nil, 0] if tokens.first == EN
 
           cas = cas_from_tokens(tokens)
           return [nil, cas] unless tokens.first == VA
 
-          [@value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens)), cas]
+          [retrieve(read_data(tokens[1].to_i), raw ? 0 : bitflags_from_tokens(tokens), raw), cas]
         end
 
         def meta_get_without_value
@@ -99,13 +102,13 @@ module Dalli
         # Used by meta_get for comprehensive metadata retrieval.
         # Supports thundering herd protection (N/R flags) and metadata flags (h/l/u).
         def meta_get_with_metadata(cache_nils: false, return_hit_status: false, return_last_access: false,
-                                   return_ttl_remaining: false)
+                                   return_ttl_remaining: false, raw: false)
           tokens = error_on_unexpected!(T_VA_EN_HD)
           result = build_metadata_result(tokens)
           result[:hit_before] = hit_status_from_tokens(tokens) if return_hit_status
           result[:last_access] = last_access_from_tokens(tokens) if return_last_access
           result[:ttl_remaining] = ttl_remaining_from_tokens(tokens) if return_ttl_remaining
-          result[:value] = parse_value_from_tokens(tokens, cache_nils)
+          result[:value] = parse_value_from_tokens(tokens, cache_nils, raw)
           result
         end
 
@@ -122,11 +125,11 @@ module Dalli
           }
         end
 
-        def parse_value_from_tokens(tokens, cache_nils)
+        def parse_value_from_tokens(tokens, cache_nils, raw = false) # rubocop:disable Style/OptionalBooleanParameter
           return cache_nils ? ::Dalli::NOT_FOUND : nil if tokens.first == EN
           return unless tokens.first == VA
 
-          @value_marshaller.retrieve(read_data(tokens[1].to_i), bitflags_from_tokens(tokens))
+          retrieve(read_data(tokens[1].to_i), raw ? 0 : bitflags_from_tokens(tokens), raw)
         end
 
         def meta_set_with_cas
@@ -229,13 +232,15 @@ module Dalli
         # The remaining three values in the array are the ResponseHeader,
         # key, and value.
         ##
-        def getk_response_from_buffer(buf, offset = 0)
+        # raw: true returns values as stored, ignoring flags in the replies;
+        # see meta_get_with_value.
+        def getk_response_from_buffer(buf, offset = 0, raw: false)
           # Find the header terminator starting from offset
           term_idx = buf.byteindex(TERMINATOR, offset)
           return [0] unless term_idx
 
           if buf.byteslice(offset, VA_PREFIX.bytesize) == VA_PREFIX
-            response = va_response_from_buffer(buf, offset, term_idx)
+            response = va_response_from_buffer(buf, offset, term_idx, raw)
             return response if response
           end
 
@@ -276,7 +281,7 @@ module Dalli
           # The full response is in our buffer, so parse it and return
           # the values
           body = buf.byteslice(offset + header_len, body_len)
-          value = @value_marshaller.retrieve(body, flag_int(bitflags, 'f'))
+          value = retrieve(body, raw ? 0 : flag_int(bitflags, 'f'), raw)
           key = key ? key.delete_prefix!('k') : 0
           key = KeyRegularizer.decode(key) if base64
           [tokens.first == VA, flag_int(cas, 'c'), key, value, resp_size]
@@ -286,7 +291,7 @@ module Dalli
         # without allocating the header, its tokens or the flag strings.
         # Gives the same result as the token path. Returns nil to fall back to
         # it when the header has no s flag or a zero size.
-        def va_response_from_buffer(buf, offset, term_idx)
+        def va_response_from_buffer(buf, offset, term_idx, raw = false) # rubocop:disable Style/OptionalBooleanParameter
           size = bitflags = cas = key = nil
           base64 = false
           pos = buf.byteindex(' ', offset + VA_PREFIX.bytesize)
@@ -309,13 +314,18 @@ module Dalli
           resp_size = header_len + size + TERMINATOR.length
           return [0] unless buf.bytesize >= offset + resp_size
 
-          value = @value_marshaller.retrieve(buf.byteslice(offset + header_len, size), bitflags || 0)
+          value = retrieve(buf.byteslice(offset + header_len, size), raw ? 0 : bitflags || 0, raw)
           key = KeyRegularizer.decode(key) if base64 && key
           [true, cas || 0, key || 0, value, resp_size]
         end
 
         # Integer value of a flag's token in buf, after its one-byte prefix,
         # as flag_int would read it
+        # Values from a raw request are returned as stored
+        def retrieve(value, bitflags, raw)
+          raw ? value : @value_marshaller.retrieve(value, bitflags)
+        end
+
         def flag_int_at(buf, start, stop)
           buf.byteslice(start + 1, stop - start - 1).to_i
         end
