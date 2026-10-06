@@ -45,6 +45,11 @@ module Dalli
     #                   useful for injecting a FIPS compliant hash object.
     # - :protocol - one of either :binary or :meta, defaulting to :binary.  This sets the protocol that Dalli uses
     #               to communicate with memcached.
+    # - :verify_reply_keys - defaults to false. When true, get_multi only accepts replies for the keys it requested;
+    #                        after a reply naming another key, the rest of that server's replies are treated as misses.
+    #                        With the meta protocol, memcached can name an item by its raw key bytes when the item was
+    #                        created by auto-create from a base64-encoded key, which Dalli no longer does. Costs a
+    #                        multi-get about 15%.
     #
     def initialize(servers = nil, options = {})
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
