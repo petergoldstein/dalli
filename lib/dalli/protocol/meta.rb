@@ -193,10 +193,42 @@ module Dalli
 
       def decr_incr(incr, key, delta, ttl, initial)
         ttl = initial ? TtlSanitizer.sanitize(ttl) : nil # Only set a TTL if we want to set a value on miss
+        # memcached stores an item created by ma's auto-create (N/J) for a
+        # base64-encoded key without its binary-key flag, and later replies
+        # name it with the raw key bytes. Create such counters with an add.
+        return decr_incr_with_add(incr, key, delta, ttl, initial) if initial && KeyRegularizer.required?(key)
+
         write(RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial, incr: incr, ttl: ttl,
                                                quiet: quiet?))
         @connection_manager.flush unless quiet?
         response_processor.decr_incr unless quiet?
+      end
+
+      # Like decr_incr with an initial value, without memcached's auto-create:
+      # on a miss the counter is added with the initial value (which is
+      # returned, as auto-create would), and the add losing a race to another
+      # client means the counter now exists, so the incr is tried again. In a
+      # quiet block both requests are sent and whichever applies takes effect.
+      def decr_incr_with_add(incr, key, delta, ttl, initial)
+        add_options = { raw: true } # counters are stored raw
+        return quiet_decr_incr_with_add(incr, key, delta, ttl, initial, add_options) if quiet?
+
+        2.times do
+          value = decr_incr(incr, key, delta, nil, nil)
+          return value unless value.nil?
+
+          write_storage_req(:add, key, initial.to_s, ttl, nil, add_options, quiet: false)
+          return initial if response_processor.meta_set_with_cas
+        end
+        decr_incr(incr, key, delta, nil, nil)
+      end
+
+      # rubocop:disable-next Metrics/ParameterLists
+      def quiet_decr_incr_with_add(incr, key, delta, ttl, initial, add_options)
+        write(RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: nil, incr: incr, ttl: nil,
+                                               quiet: true))
+        # Sent with the rest of the quiet block, by its closing noop
+        write_storage_req(:add, key, initial.to_s, ttl, nil, add_options, quiet: true)
       end
 
       # Other Commands
@@ -240,10 +272,11 @@ module Dalli
         buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw)
         flushed_write(buffer)
         buffer.clear
-        read_multi_get_responses(is_raw)
+        read_multi_get_responses(is_raw, keys)
       end
 
-      def read_multi_get_responses(is_raw)
+      def read_multi_get_responses(is_raw, keys)
+        expect_reply_keys(keys)
         hash = {}
         key_index = is_raw ? 2 : 3
         while (line = @connection_manager.read_line)
@@ -251,9 +284,17 @@ module Dalli
           next unless line.start_with?('VA ')
 
           key, value = parse_multi_get_value(line, key_index, is_raw)
+          raise_unexpected_reply_key(key) if unexpected_reply_key?(key)
           hash[key] = value if key
         end
         hash
+      end
+
+      # The replies after a key that wasn't requested can't be trusted (see
+      # Base#expect_reply_keys). Raising ends the request, which closes the
+      # connection; the caller treats this server's keys as missing.
+      def raise_unexpected_reply_key(key)
+        raise Dalli::UnexpectedReplyKeyError, "#{name} replied with a key that wasn't requested: #{key.inspect}"
       end
 
       def parse_multi_get_value(line, key_index, is_raw)

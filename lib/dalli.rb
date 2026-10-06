@@ -31,6 +31,10 @@ module Dalli
   # socket/server communication error that can be retried
   class RetryableNetworkError < NetworkError; end
 
+  # a multi-get reply named a key that wasn't requested, so the rest of that
+  # server's replies can't be trusted
+  class UnexpectedReplyKeyError < DalliError; end
+
   # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.
   class NilObject; end # rubocop:disable Lint/EmptyClass
   NOT_FOUND = NilObject.new
