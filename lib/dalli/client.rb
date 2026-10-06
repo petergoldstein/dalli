@@ -126,12 +126,13 @@ module Dalli
     #   # => { value: "data", cas: 123, hit_before: true, last_access: 42 }
     #
     def get_with_metadata(key, options = {})
-      key = key.to_s
-      key = @key_manager.validate_key(key)
+      # A retry re-runs this method with its original arguments, so `key` must
+      # stay as the caller gave it; reassigning it would add the namespace again.
+      validated_key = @key_manager.validate_key(key.to_s)
 
-      server = ring.server_for_key(key)
-      Instrumentation.trace('get_with_metadata', trace_attrs('get_with_metadata', key, server)) do
-        server.request(:meta_get, key, options)
+      server = ring.server_for_key(validated_key)
+      Instrumentation.trace('get_with_metadata', trace_attrs('get_with_metadata', validated_key, server)) do
+        server.request(:meta_get, validated_key, options)
       end
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }
@@ -225,12 +226,12 @@ module Dalli
 
       validate_integer!(:lock_ttl, lock_ttl)
       validate_integer!(:recache_threshold, recache_threshold)
-      key = key.to_s
-      key = @key_manager.validate_key(key)
+      # Left unchanged for the retry below; see get_with_metadata
+      validated_key = @key_manager.validate_key(key.to_s)
 
-      server = ring.server_for_key(key)
-      Instrumentation.trace('fetch_with_lock', trace_attrs('fetch_with_lock', key, server)) do
-        fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options, &block)
+      server = ring.server_for_key(validated_key)
+      Instrumentation.trace('fetch_with_lock', trace_attrs('fetch_with_lock', validated_key, server)) do
+        fetch_with_lock_request(validated_key, ttl, lock_ttl, recache_threshold, req_options, &block)
       end
     rescue NetworkError => e
       Dalli.logger.debug { e.inspect }
@@ -684,18 +685,20 @@ module Dalli
       # rubocop:enable Naming/MethodParameterName
       return yield if block_given?
 
-      key = key.to_s
-      key = @key_manager.validate_key(key)
+      # `retry` below re-runs this method with its original arguments, so `key`
+      # must stay as the caller gave it: reassigning it would apply the
+      # namespace a second time and send the retry to a different key.
+      validated_key = @key_manager.validate_key(key.to_s)
 
-      server = ring.server_for_key(key)
+      server = ring.server_for_key(validated_key)
 
       if Instrumentation.enabled?
         op_name = op.name
-        Instrumentation.trace(op_name, trace_attrs(op_name, key, server)) do
-          server.request(op, key, ...)
+        Instrumentation.trace(op_name, trace_attrs(op_name, validated_key, server)) do
+          server.request(op, validated_key, ...)
         end
       else
-        server.request(op, key, ...)
+        server.request(op, validated_key, ...)
       end
     rescue RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
