@@ -19,6 +19,17 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
     io_source.expect :read, "#{data}\r\n", [size + 2]
   end
 
+  describe 'negative value sizes' do
+    # -1 and -2 plus the 2-byte terminator would read 1 or 0 bytes
+    it 'rejects them before reading' do
+      [-1, -2].each do |size|
+        io_source.expect :read_line, "VA #{size} f0\r\n"
+
+        assert_raises(Dalli::DalliError) { processor.meta_get_with_value }
+      end
+    end
+  end
+
   describe '#meta_get_with_value' do
     describe 'when key is found (VA response)' do
       it 'returns the unmarshalled value' do
@@ -385,6 +396,26 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
   end
 
   describe '#getk_response_from_buffer' do
+    # Malformed hits (a broken or hostile server or proxy): each must be
+    # skipped or read whole, never yielded under a made-up key, taken for the
+    # end of the pipeline, or allowed to leave bytes on the connection.
+    it 'skips a hit with no key, on both parse paths' do
+      ["VA 1 f0 s1\r\nx\r\n", "VA 1 s1 b\r\nx\r\n", "VA 0 s0 b\r\n\r\n"].each do |reply|
+        assert_equal [false, reply.bytesize], processor.getk_response_from_buffer(reply.b), reply.inspect
+      end
+    end
+
+    it 'reads a hit with no s flag using the size after VA' do
+      reply = "VA 5 f0 kfoo\r\nhello\r\n"
+
+      status, _cas, key, value, size = processor.getk_response_from_buffer("#{reply}MN\r\n".b)
+
+      assert status
+      assert_equal 'foo', key
+      assert_equal 'hello', value
+      assert_equal reply.bytesize, size
+    end
+
     it 'reads flags in any order, a base64 key, and a missing CAS' do
       value = Marshal.dump('hello')
       key = ['key with spaces'].pack('m0')
