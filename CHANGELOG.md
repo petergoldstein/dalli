@@ -4,6 +4,21 @@ Dalli Changelog
 Unreleased
 ==========
 
+3.2.13
+==========
+
+- Complete the fix for per-request `raw: true` on reads (GHSA-wr87-m4jw-29x5)
+  - `cas` and `cas!` accepted `raw: true` but didn't pass it to the read, so the value was still deserialized. They now honor it, in both protocols
+  - Affects 3.2.12 and earlier; fixed in 5.2.2, 5.1.4, 5.0.10, 4.3.7 and 3.2.13
+- Complete the fork-safety fix (GHSA-w39f-xq2m-4g8x)
+  - Fork detection used a pid cache refreshed by a `Process._fork` hook. When another library's fork hook ran first in the child (connection_pool, loaded before Dalli as in Rails, closes its connections there), Dalli didn't know it was in a forked child and ended the parent's TLS session. It now checks `Process.pid`
+  - Fixed in 4.3.7 and 3.2.13
+
+- Fix a regression in 3.2.12: a `get_multi` that didn't finish within `socket_timeout` counted toward `socket_max_failures`, so two slow `get_multi` calls in a row marked a healthy server down. It now just closes the connection
+- Handle malformed pipelined replies from a broken or hostile server or proxy: a hit with no key, or with no `s` flag, could leave the connection out of step or raise an error
+- With `decompressed_max_bytes` in effect, data after the end of a compressed value's stream was returned as part of the value. It's now ignored, as without the limit
+- With a `digest_class` whose digests aren't short hex strings, shortening a long key could loop forever. It now raises `ArgumentError`
+
 - Run the Tests and RuboCop workflows on pushes to `main` and the `*-stable` branches only, so a pull request's branch isn't tested twice (backport of #1198)
 
 3.2.12
