@@ -187,6 +187,10 @@ module Dalli
         end
 
         def full_response_from_buffer(tokens, body, resp_size)
+          # A hit with no key can't be matched to a request: skip it (false
+          # status) rather than yield it, or take it for the end of the pipeline
+          return [false, resp_size] unless tokens.any? { |t| t.start_with?('k') }
+
           value = @value_marshaller.retrieve(body, bitflags_from_tokens(tokens))
           [tokens.first == VA, cas_from_tokens(tokens), key_from_tokens(tokens), value, resp_size]
         end
@@ -210,8 +214,10 @@ module Dalli
           tokens = header.split
           header_len = header.bytesize + TERMINATOR.length
 
-          # The body len is removed from the tokens array
-          body_len = body_len_from_tokens(tokens)
+          # The body len is removed from the tokens array. memcached also gives
+          # the size positionally ("VA <size> ..."); use it when there's no s
+          # flag rather than reading the value as replies.
+          body_len = tokens.any? { |t| t.start_with?('s') } ? body_len_from_tokens(tokens) : positional_size(tokens)
 
           # A complete response with no body. Only the terminating noop's MN
           # ends the pipeline. Any other bodyless reply (CLIENT_ERROR,
@@ -293,6 +299,11 @@ module Dalli
 
         # A pipelined reply claiming an impossible size would otherwise have the
         # buffer wait for (and accumulate) that many bytes
+        # The size given right after "VA", or 0 when it isn't a number
+        def positional_size(tokens)
+          tokens.first == VA && tokens[1]&.match?(/\A\d+\z/) ? tokens[1].to_i : 0
+        end
+
         def check_value_size!(size)
           return if size.between?(0, MAX_VALUE_BYTES)
 
@@ -309,6 +320,9 @@ module Dalli
         end
 
         def read_data(data_size)
+          # Checked before the terminator is added: -1 or -2 would otherwise
+          # read 1 or 0 bytes and leave the connection out of step
+          check_value_size!(data_size)
           @io_source.read(data_size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
         end
       end

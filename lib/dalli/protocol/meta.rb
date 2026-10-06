@@ -258,7 +258,9 @@ module Dalli
 
       def parse_multi_get_value(line, key_index, is_raw)
         tokens = line.chomp!(TERMINATOR).split
-        value = @connection_manager.read(tokens[1].to_i + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+        size = tokens[1].to_i
+        response_processor.check_value_size!(size)
+        value = @connection_manager.read(size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
         raw_key = tokens[key_index]
         return unless raw_key
 
