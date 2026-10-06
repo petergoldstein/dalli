@@ -4,6 +4,28 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.0.10
+==========
+
+Security:
+
+- Keep the caller's key when retrying a request (GHSA-m252-9cgf-vx2w)
+  - With a `namespace`, a request retried after a transient network error (a timeout, or a connection closed by memcached or a proxy) applied the namespace a second time, so a retried read could return a different key's value and a retried write could overwrite a different key
+  - Affects single-key operations since 5.0.3, and `get_with_metadata` and `fetch_with_lock` since 4.1.0; fixed in 5.2.2, 5.1.4, 5.0.10 and 4.3.7. Clients without a namespace aren't affected
+- Complete the fix for per-request `raw: true` on reads (GHSA-wr87-m4jw-29x5)
+  - `cas`, `cas!` and `fetch_with_lock` accepted `raw: true` but didn't pass it to the read, so the value was still deserialized. They now honor it
+  - A read made with `raw: true` doesn't ask for flags, but a reply carrying them anyway (from a proxy or a hostile server) still had its value deserialized. Raw reads now ignore flags in the reply
+  - Affects 5.0.9 and earlier; fixed in 5.2.2, 5.1.4, 5.0.10, 4.3.7 and 3.2.13
+
+Bug fixes:
+
+- `get_with_metadata` and `fetch_with_lock` retried the final error raised when a server is marked down, so with `down_retry_delay: 0` they retried an unresponsive server forever. They now retry only retryable errors, like other operations
+- Fix a regression in 5.0.9: a `get_multi` that didn't finish within `socket_timeout` counted toward `socket_max_failures`, so two slow `get_multi` calls in a row marked a healthy server down. It now just closes the connection
+- Fix a regression in 5.0.9: over TLS, every request buffered in a `quiet` block was sent as its own TLS record and system call (2.5 times slower for a block of 2000 deletes). Each flush is one write again
+- Handle malformed replies from a broken or hostile server or proxy: a negative value size, a hit with no key, or a hit with no `s` flag could leave the connection out of step or raise a non-Dalli error
+- With `decompressed_max_bytes` in effect, data after the end of a compressed value's stream was returned as part of the value. It's now ignored, as without the limit
+- With a `digest_class` whose digests aren't short hex strings, shortening a long key could loop forever. It now raises `ArgumentError`
+
 Development:
 
 - Run the Tests, RuboCop and Profiles workflows on pushes to `main` and the `*-stable` branches only, so a pull request's branch isn't tested twice (backport of #1198)

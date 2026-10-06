@@ -334,11 +334,30 @@ module Dalli
 
       private
 
+      # One write per flush. A TLS socket sends each argument of
+      # write(*parts) as its own record and system call, so the parts are
+      # joined first.
       def flush_write_buffer
         return if @write_buffer.empty?
 
-        @sock.write(*@write_buffer)
+        @sock.write(@write_buffer.size == 1 ? @write_buffer.first : joined_write_buffer)
         discard_write_buffer
+      end
+
+      # Joined as bytes: requests can mix UTF-8 and binary strings, which
+      # String#<< refuses to combine when both hold non-ASCII bytes
+      if String.method_defined?(:append_as_bytes)
+        def joined_write_buffer
+          out = String.new(capacity: @write_buffer_bytes, encoding: Encoding::BINARY)
+          @write_buffer.each { |part| out.append_as_bytes(part) }
+          out
+        end
+      else
+        def joined_write_buffer
+          out = String.new(capacity: @write_buffer_bytes, encoding: Encoding::BINARY)
+          @write_buffer.each { |part| out << part.b }
+          out
+        end
       end
 
       def discard_write_buffer
