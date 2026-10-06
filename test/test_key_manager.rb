@@ -290,6 +290,17 @@ describe 'KeyManager' do
       end
     end
 
+    it 'raises rather than looping or returning an over-long key for a digest that is too long' do
+      wide = Module.new { def self.hexdigest(_) = "\xFF".b * 200 }
+      long = Module.new { def self.hexdigest(_) = 'f' * 300 }
+
+      [wide, long].each do |digest|
+        manager = Dalli::KeyManager.new({ digest_class: digest })
+
+        assert_raises(ArgumentError) { Timeout.timeout(2) { manager.validate_key('a' * 300) } }
+      end
+    end
+
     it 'gives different keys different truncated forms' do
       a = key_manager.validate_key('é' * 200)
       b = key_manager.validate_key("#{'é' * 199}è")
