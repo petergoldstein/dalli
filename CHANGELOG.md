@@ -4,6 +4,17 @@ Dalli Changelog
 Unreleased
 ==========
 
+4.3.8
+==========
+
+Security:
+
+- Don't rely on memcached's auto-create for keys that need base64 encoding (GHSA-r47x-6p6r-mvcp)
+  - memcached stores an item made by auto-create (`ma` with `N`/`J`, or `mg` with `N`) for a base64-encoded key without its binary-key flag, and later replies name the item by its raw key bytes. A key containing spaces or CR/LF could then make a multi-get read the replies after it as different ones
+  - `incr` and `decr` with an initial value now create such counters with an add instead. Return values are unchanged
+  - The new `verify_reply_keys` option makes `get_multi` and `get_multi_cas` ignore replies for keys they didn't request, which guards against items created by older Dalli versions or other clients until memcached is upgraded. It's off by default, since it costs a multi-get about 15%
+  - Affects `protocol: :meta` since 3.2.0; fixed in 5.2.3, 5.1.5, 5.0.11, 4.3.8 and 3.2.14, and in memcached MEMCACHED_FIXED_VERSION
+
 4.3.7
 ==========
 
