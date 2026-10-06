@@ -328,13 +328,13 @@ module Dalli
           [true, cas || 0, key, value, resp_size]
         end
 
-        # Integer value of a flag's token in buf, after its one-byte prefix,
-        # as flag_int would read it
         # Values from a raw request are returned as stored
         def retrieve(value, bitflags, raw)
           raw ? value : @value_marshaller.retrieve(value, bitflags)
         end
 
+        # Integer value of a flag's token in buf, after its one-byte prefix,
+        # as flag_int would read it
         def flag_int_at(buf, start, stop)
           buf.byteslice(start + 1, stop - start - 1).to_i
         end
