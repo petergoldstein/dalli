@@ -108,6 +108,73 @@ describe 'Dalli::Socket::TCP' do
         end
       end
     end
+
+    describe 'connect_timeout' do
+      # Captures the connect timeout passed to the underlying socket constructor
+      def capture_connect_timeout(options)
+        captured = nil
+        Dalli::Socket::TCP.stub(:new, ->(*_args, **kwargs) { captured = kwargs[:connect_timeout] }) do
+          Dalli::Socket::TCP.stub(:supports_connect_timeout?, true) do
+            Dalli::Socket::TCP.create_socket_with_timeout('127.0.0.1', 1, options) { |_| nil }
+          end
+        end
+        captured
+      end
+
+      it 'uses connect_timeout when provided' do
+        assert_in_delta 0.25, capture_connect_timeout(socket_timeout: 5, connect_timeout: 0.25)
+      end
+
+      it 'falls back to socket_timeout when connect_timeout is not set' do
+        assert_in_delta 5, capture_connect_timeout(socket_timeout: 5)
+      end
+
+      it 'uses connect_timeout for the Timeout fallback' do
+        used = nil
+        Dalli::Socket::TCP.stub(:supports_connect_timeout?, false) do
+          Dalli::Socket::TCP.stub(:new, ->(*) { Object.new }) do
+            Timeout.stub(:timeout, lambda { |secs, &blk|
+              used = secs
+              blk.call
+            }) do
+              Dalli::Socket::TCP.create_socket_with_timeout('127.0.0.1', 1, socket_timeout: 5, connect_timeout: 0.5) { |_| nil }
+            end
+          end
+        end
+
+        assert_in_delta 0.5, used
+      end
+    end
+  end
+
+  describe '.connect_timeout_for' do
+    it 'prefers connect_timeout over socket_timeout' do
+      assert_in_delta 0.1, Dalli::Socket.connect_timeout_for(connect_timeout: 0.1, socket_timeout: 2)
+    end
+
+    it 'falls back to socket_timeout' do
+      assert_equal 2, Dalli::Socket.connect_timeout_for(socket_timeout: 2)
+    end
+  end
+
+  describe 'UNIX connect_timeout' do
+    it 'uses connect_timeout rather than socket_timeout for the connect' do
+      skip 'UNIX sockets unsupported on Windows' if RbConfig::CONFIG['host_os'].match?(/mingw|mswin/)
+
+      Dir.mktmpdir do |dir|
+        used = nil
+        path = File.join(dir, 'missing.sock')
+
+        Timeout.stub(:timeout, lambda { |secs, &blk|
+          used = secs
+          blk.call
+        }) do
+          assert_raises(Errno::ENOENT) { Dalli::Socket::UNIX.open(path, socket_timeout: 5, connect_timeout: 0.2) }
+        end
+
+        assert_in_delta 0.2, used
+      end
+    end
   end
 end
 

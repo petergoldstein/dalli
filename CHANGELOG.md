@@ -36,6 +36,10 @@ Bug fixes:
   - Both `set_multi` paths now store every other key, skip the bad one, and then raise. Single-server `set_multi` used to store nothing
   - When single-server `set_multi` failed to marshal a value, the error log included every value in the batch. It now lists only the keys
 
+Improvements:
+
+- Add a `connect_timeout` option to set a separate timeout for establishing connections (including reconnects); it defaults to `socket_timeout`
+
 5.2.2
 ==========
 
