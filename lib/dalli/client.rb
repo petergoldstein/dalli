@@ -41,9 +41,10 @@ module Dalli
     #                 #fetch operations.
     # - :raw        - If set, disables serialization and compression entirely at the client level.
     #                 Only String values are supported. This is useful when the caller handles its own
-    #                 serialization (e.g., Rails' ActiveSupport::Cache). Note: this is different from
-    #                 the per-request :raw option which converts values to strings but still uses the
-    #                 serialization pipeline.
+    #                 serialization (e.g., Rails' ActiveSupport::Cache). The per-request :raw option
+    #                 (e.g. set(key, value, ttl, raw: true)) does the same for a single call: String
+    #                 values are stored as-is, uncompressed, and non-String values raise
+    #                 Dalli::MarshalError.
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method,
     #                   useful for injecting a FIPS compliant hash object.
     # - :otel_db_statement - controls the +db.query.text+ span attribute when OpenTelemetry is loaded.
