@@ -6,32 +6,18 @@
   "customizations": {
     "vscode": {
       "extensions": [
-        "rebornix.ruby",
-        "castwide.solargraph",
-        "kaiwood.endwise",
-        "misogi.ruby-rubocop"
+        "Shopify.ruby-lsp"
       ],
       "settings": {
-        "ruby.useBundler": true,
-        "ruby.format": "rubocop",
-        "editor.formatOnSave": true,
-        "ruby.useLanguageServer": true,
-        "ruby.lint": {
-          "rubocop": {
-            "useBundler": true
-          }
+        "[ruby]": {
+          "editor.defaultFormatter": "Shopify.ruby-lsp",
+          "editor.formatOnSave": true
         },
+        "rubyLsp.formatter": "rubocop",
         "terminal.integrated.defaultProfile.linux": "bash"
       }
     }
   },
-  "forwardPorts": [
-    11211,
-    11212,
-    11213,
-    11214,
-    11215
-  ],
   "postCreateCommand": "chmod +x .devcontainer/setup.sh && .devcontainer/setup.sh",
   "waitFor": "postCreateCommand",
   "remoteUser": "vscode"

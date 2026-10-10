@@ -1,0 +1,68 @@
+name: Devcontainer
+
+# The devcontainer depends on outside things (Debian mirrors, Docker Hub tags,
+# memcached.org) that can break it without any change here, so it also runs
+# monthly rather than only when its own files change.
+on:
+  push:
+    branches: [main, '*-stable']
+    paths:
+      - '.devcontainer/**'
+      - 'scripts/install_memcached.sh'
+      - 'Gemfile'
+      - 'dalli.gemspec'
+      - '.github/workflows/devcontainer.yml'
+      - '.github/workflows/tests.yml'
+  pull_request:
+    paths:
+      - '.devcontainer/**'
+      - 'scripts/install_memcached.sh'
+      - 'Gemfile'
+      - 'dalli.gemspec'
+      - '.github/workflows/devcontainer.yml'
+      - '.github/workflows/tests.yml'
+  schedule:
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+concurrency:
+  group: devcontainer-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  memcached-version:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Check the devcontainer uses the newest memcached tested in CI
+      run: |
+        ruby -ryaml -e '
+          tested = YAML.load_file(".github/workflows/tests.yml")
+                       .dig("jobs", "test", "strategy", "matrix", "memcached-version")
+                       .max_by { |v| Gem::Version.new(v) }
+          devcontainer = File.read(".devcontainer/setup.sh")[/^export MEMCACHED_VERSION=(\S+)$/, 1]
+          abort "Could not find MEMCACHED_VERSION in .devcontainer/setup.sh" unless devcontainer
+          if devcontainer != tested
+            abort "::error file=.devcontainer/setup.sh::Devcontainer installs memcached #{devcontainer}, " \
+                  "but the newest version tested in CI is #{tested}. Update MEMCACHED_VERSION " \
+                  "in .devcontainer/setup.sh and the versions in .devcontainer/README.md."
+          end
+          puts "Devcontainer memcached #{devcontainer} matches CI"
+        '
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    # The container user gets the runner's uid so it can write to the mounted checkout
+    - name: Build the devcontainer image
+      run: docker build --build-arg USER_UID="$(id -u)" -t dalli-devcontainer .devcontainer
+    - name: Run setup and tests in the devcontainer
+      run: |
+        docker run --rm -v "$PWD":/workspace -w /workspace dalli-devcontainer \
+          bash -c '.devcontainer/setup.sh && bundle exec rake'
