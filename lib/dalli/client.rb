@@ -986,7 +986,10 @@ module Dalli
       retry
     end
 
-    def normalize_options(opts)
+    # Works on a copy so the caller's hash is neither modified here nor able
+    # to change this client's configuration later.
+    def normalize_options(options)
+      opts = options.dup
       opts[:expires_in] = opts[:expires_in].to_i if opts[:expires_in]
       opts
     rescue NoMethodError
