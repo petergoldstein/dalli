@@ -913,7 +913,7 @@ module Dalli
     def cas_core(key, always_set, ttl = nil, req_options = nil)
       validate_routing_tokens!(req_options)
       (value, cas) = perform(:cas, key, req_options)
-      return if value.nil? && !always_set
+      return if !always_set && cas_miss?(value, cas)
 
       newvalue = yield(value)
       # A CAS of 0 means the key was missing. A set with CAS 0 is unconditional,
@@ -921,6 +921,13 @@ module Dalli
       return perform(:add, key, newvalue, ttl_or_default(ttl), req_options) if cas.zero?
 
       perform(:set, key, newvalue, ttl_or_default(ttl), cas, req_options)
+    end
+
+    # The CAS lookup returns [nil, 0] on a miss rather than NOT_FOUND, and a
+    # stored item always has a non-zero CAS. So under cache_nils a zero CAS
+    # marks the miss, and a stored nil is a hit, as in #not_found?.
+    def cas_miss?(value, cas)
+      cache_nils ? cas.zero? : value.nil?
     end
 
     def fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options)

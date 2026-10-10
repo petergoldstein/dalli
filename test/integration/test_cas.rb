@@ -272,6 +272,47 @@ describe 'CAS behavior' do
             assert_equal mutated, resp
           end
         end
+
+        it 'does not call the block when the key holds a stored nil and cache_nils is false' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.set('cas_key', nil)
+
+            resp = dc.cas('cas_key') { |_value| raise('block should not be called') }
+
+            assert_nil resp
+          end
+        end
+
+        it 'calls the block when the key holds a stored nil and cache_nils is true' do
+          memcached_persistent(p, 21_345, '', { cache_nils: true }) do |dc|
+            dc.flush
+            dc.set('cas_key', nil)
+
+            called = false
+            resp = dc.cas('cas_key') do |value|
+              called = true
+
+              assert_nil value
+              'mutated'
+            end
+
+            assert called
+            assert op_cas_succeeds(resp)
+            assert_equal 'mutated', dc.get('cas_key')
+          end
+        end
+
+        it 'does not call the block on a miss when cache_nils is true' do
+          memcached_persistent(p, 21_345, '', { cache_nils: true }) do |dc|
+            dc.flush
+
+            resp = dc.cas('cas_key') { |_value| raise('block should not be called') }
+
+            assert_nil resp
+            assert_nil dc.get('cas_key')
+          end
+        end
       end
 
       describe 'cas!' do
@@ -348,6 +389,21 @@ describe 'CAS behavior' do
 
             refute resp
             assert_equal 'other writer', dc.get('cas_key')
+          end
+        end
+
+        it 'calls the block with nil when the key holds a stored nil and cache_nils is true' do
+          memcached_persistent(p, 21_345, '', { cache_nils: true }) do |dc|
+            dc.flush
+            dc.set('cas_key', nil)
+
+            resp = dc.cas!('cas_key') do |value|
+              assert_nil value
+              'mutated'
+            end
+
+            assert op_cas_succeeds(resp)
+            assert_equal 'mutated', dc.get('cas_key')
           end
         end
       end
