@@ -434,6 +434,11 @@ module Dalli
     # the defer_drain option, before the next non-quiet request), and
     # Dalli client methods invoked inside the block will not
     # have return values
+    #
+    # The block is quiet only for the thread or fiber that runs it. Another
+    # thread or fiber sharing this client can make requests meanwhile; a
+    # non-quiet one first sends the block's buffered requests and discards
+    # their replies, so it reads only its own.
     def quiet
       old = Thread.current[::Dalli::QUIET]
       Thread.current[::Dalli::QUIET] = true

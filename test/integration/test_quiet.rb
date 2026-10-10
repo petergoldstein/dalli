@@ -365,6 +365,191 @@ describe 'Quiet behavior' do
         end
       end
 
+      # Thread.current[] is fiber-local, so a quiet block covers only the
+      # thread or fiber that opened it. Its replies come back on the
+      # connection that other threads and fibers share.
+      describe 'with a client shared across threads and fibers' do
+        # One server, so every key shares the one connection
+        def with_shared_client(protocol)
+          memcached_persistent(protocol) do |_, port|
+            dc = single_server_client(port, protocol: protocol)
+            dc.flush
+            dc.set('existing', 'old')
+            dc.set('k3', 'value3')
+            yield dc
+          end
+        end
+
+        # Starts a thread that enters a quiet block, makes a failing add
+        # (memcached replies NS even to a quiet add) and any requests in the
+        # block, then waits inside the block until release is pushed.
+        def start_quiet_thread(client, &quiet_requests)
+          entered = Queue.new
+          release = Queue.new
+          thread = Thread.new do
+            client.quiet do
+              client.add('existing', 'new')
+              quiet_requests&.call
+              entered << true
+              release.pop
+            end
+            :finished
+          end
+          entered.pop
+          [thread, release]
+        end
+
+        it 'gives another thread its own replies while a quiet block has replies pending' do
+          with_shared_client(p) do |dc|
+            thread, release = start_quiet_thread(dc)
+
+            assert op_addset_succeeds(dc.set('k2', 'v2'))
+            assert_equal 'value3', dc.get('k3')
+            assert_equal 'v2', dc.get('k2')
+            assert_nil dc.get('missing')
+
+            release << true
+
+            assert_equal :finished, thread.value
+            assert_equal 'old', dc.get('existing')
+            assert_equal 'value3', dc.get('k3')
+            assert_equal 'v2', dc.get('k2')
+          end
+        end
+
+        it 'sends no noop at the end of the block when another thread already read its replies' do
+          with_shared_client(p) do |dc|
+            server = dc.send(:ring).servers.first
+            thread, release = start_quiet_thread(dc)
+
+            assert_equal 'value3', dc.get('k3')
+            refute_predicate server, :quiet_responses_pending?
+
+            noops = 0
+            server.define_singleton_method(:write_noop) do
+              noops += 1
+              super()
+            end
+            release << true
+
+            assert_equal :finished, thread.value
+            assert_equal 0, noops
+            assert_equal 'value3', dc.get('k3')
+          end
+        end
+
+        it 'reads the replies of quiet requests made after another thread read the earlier ones' do
+          with_shared_client(p) do |dc|
+            paused = Queue.new
+            resume = Queue.new
+            thread = Thread.new do
+              dc.quiet do
+                dc.add('existing', 'new')
+                paused << true
+                resume.pop
+                dc.add('existing', 'newer')
+                dc.set('later', 'later-value')
+                paused << true
+                resume.pop
+              end
+            end
+
+            paused.pop
+
+            assert_equal 'value3', dc.get('k3')
+            resume << true
+            paused.pop
+
+            assert_equal 'old', dc.get('existing')
+            assert_equal 'later-value', dc.get('later')
+            resume << true
+            thread.join
+
+            assert_equal 'value3', dc.get('k3')
+          end
+        end
+
+        it 'returns exactly the requested keys from a get_multi in another thread' do
+          with_shared_client(p) do |dc|
+            keys = Array.new(20) { |i| "multi#{i}" }
+            keys.each { |k| dc.set(k, "v-#{k}") }
+            expected = keys.to_h { |k| [k, "v-#{k}"] }
+            thread, release = start_quiet_thread(dc)
+
+            # The block form is the pipelined get
+            yielded = {}
+            dc.get_multi(keys + ['missing']) { |k, v| yielded[k] = v }
+
+            assert_equal expected, yielded
+            assert_equal 'value3', dc.get('k3')
+
+            release << true
+            thread.join
+
+            assert_equal expected, dc.get_multi(keys + ['missing'])
+          end
+        end
+
+        it 'returns exactly the requested keys from a single-server get_multi in another thread' do
+          with_shared_client(p) do |dc|
+            keys = Array.new(20) { |i| "multi#{i}" }
+            keys.each { |k| dc.set(k, "v-#{k}") }
+            expected = keys.to_h { |k| [k, "v-#{k}"] }
+            thread, release = start_quiet_thread(dc)
+
+            assert_equal expected, dc.get_multi(keys + ['missing'])
+            assert_equal 'value3', dc.get('k3')
+
+            release << true
+            thread.join
+
+            assert_equal 'value3', dc.get('k3')
+          end
+        end
+
+        it 'gives another thread its own replies while a quiet incr of a base64 key is pending' do
+          with_shared_client(p) do |dc|
+            counter = 'counter with space'
+            dc.incr(counter, 1, nil, 5)
+            # The counter exists, so the quiet incr applies and its add fails with NS
+            thread, release = start_quiet_thread(dc) { dc.incr(counter, 1, nil, 5) }
+
+            assert_equal 'value3', dc.get('k3')
+            assert op_addset_succeeds(dc.set('k2', 'v2'))
+            assert_equal 'v2', dc.get('k2')
+
+            release << true
+            thread.join
+
+            assert_equal 7, dc.incr(counter, 1)
+            assert_equal 'value3', dc.get('k3')
+          end
+        end
+
+        it 'gives another fiber its own replies while a quiet block has replies pending' do
+          with_shared_client(p) do |dc|
+            fiber = Fiber.new do
+              dc.quiet do
+                dc.add('existing', 'new')
+                Fiber.yield :in_quiet_block
+              end
+              :finished
+            end
+
+            assert_equal :in_quiet_block, fiber.resume
+            refute_operator Thread.current, :[], Dalli::QUIET
+
+            assert op_addset_succeeds(dc.set('k2', 'v2'))
+            assert_equal 'value3', dc.get('k3')
+            assert_equal 'v2', dc.get('k2')
+
+            assert_equal :finished, fiber.resume
+            assert_equal 'old', dc.get('existing')
+            assert_equal 'value3', dc.get('k3')
+          end
+        end
+      end
+
       describe 'quiet? method' do
         it 'has protocol instances that respond to quiet?' do
           memcached_persistent(p) do |dc|

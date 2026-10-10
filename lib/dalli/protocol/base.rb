@@ -69,7 +69,7 @@ module Dalli
         begin
           request_completed = false
           @connection_manager.start_request!
-          drain_deferred_quiet_responses(opkey)
+          drain_pending_quiet_responses(opkey)
           response = send(opkey, *args)
           # Quiet requests can leave replies on the socket; remember that so the
           # end of the quiet block knows this server needs draining
@@ -256,10 +256,15 @@ module Dalli
       ALLOWED_QUIET_OPS = %i[add replace set delete incr decr append prepend flush noop].freeze
       private_constant :ALLOWED_QUIET_OPS
 
-      # With defer_drain, quiet blocks leave their replies unread. Read them
-      # before any non-quiet request, which reads a reply of its own.
-      def drain_deferred_quiet_responses(opkey)
-        return unless @defer_drain && !quiet? && opkey != :noop && @connection_manager.quiet_responses_pending?
+      # Reads the replies still pending from quiet requests before any
+      # non-quiet request, which reads a reply of its own. With defer_drain,
+      # quiet blocks leave their replies unread. Without it, a quiet block
+      # reads them at its end, but the connection is shared: another thread or
+      # fiber (quiet? is fiber-local) can make a request while the block is
+      # still open, and would otherwise read the block's replies as its own.
+      # The noop also sends any quiet requests still buffered.
+      def drain_pending_quiet_responses(opkey)
+        return unless @connection_manager.quiet_responses_pending? && opkey != :noop && !quiet?
 
         noop
       end
