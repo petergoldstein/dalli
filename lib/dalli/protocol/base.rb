@@ -67,7 +67,11 @@ module Dalli
         begin
           request_completed = false
           @connection_manager.start_request!
+          drain_pending_quiet_responses(opkey)
           response = send(opkey, *args)
+          # Quiet requests can leave replies on the socket; remember that so a
+          # later non-quiet request knows to read them first
+          @connection_manager.mark_quiet_responses_pending! if quiet? && opkey != :noop
 
           # pipelined_get/pipelined_get_interleaved emit query but don't read the response(s)
           @connection_manager.finish_request! unless %i[pipelined_get pipelined_get_interleaved].include?(opkey)
@@ -249,6 +253,18 @@ module Dalli
 
       ALLOWED_QUIET_OPS = %i[add replace set delete incr decr append prepend flush noop].freeze
       private_constant :ALLOWED_QUIET_OPS
+
+      # Reads the replies still pending from quiet requests before any
+      # non-quiet request, which reads a reply of its own. A quiet block reads
+      # them at its end, but the connection is shared: another thread or fiber
+      # (quiet? is fiber-local) can make a request while the block is still
+      # open, and would otherwise read the block's replies as its own. The
+      # noop also sends any quiet requests still buffered.
+      def drain_pending_quiet_responses(opkey)
+        return unless @connection_manager.quiet_responses_pending? && opkey != :noop && !quiet?
+
+        noop
+      end
 
       def verify_allowed_quiet!(opkey)
         return if ALLOWED_QUIET_OPS.include?(opkey)
