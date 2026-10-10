@@ -78,10 +78,10 @@ advisories. Five were fixed together in 5.2.1, 5.1.3, 5.0.9, 4.3.6 and 3.2.12:
 
 Lower-risk improvements the audit turned up, to be done in the open:
 
-- [ ] **TLS verification:** document that certificate and hostname checks come
+- [x] **TLS verification:** document that certificate and hostname checks come
       entirely from the caller's `ssl_context` (a bare `OpenSSL::SSL::SSLContext`
       verifies neither), and warn when verification is off.
-- [ ] **TLS handshake failure:** close the TCP socket, and raise a Dalli
+- [x] **TLS handshake failure:** close the TCP socket, and raise a Dalli
       error rather than `OpenSSL::SSL::SSLError`.
 - [ ] **Credentials:** stop keeping usernames and passwords from server URIs
       and options (Dalli 5 doesn't use them), so `#inspect` and error messages

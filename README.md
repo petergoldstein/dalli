@@ -112,6 +112,25 @@ The digest is MD5 by default. `digest_class:` takes any object that responds to 
 
 See the [5.0-Upgrade.md](5.0-Upgrade.md) guide for upgrade information.
 
+## TLS
+
+Pass an `OpenSSL::SSL::SSLContext` as `ssl_context:` to connect over TLS. Certificate and hostname verification come only from that context: Dalli adds no checks of its own. A bare `OpenSSL::SSL::SSLContext.new` verifies nothing, so it accepts any certificate from any server. Configure the context to verify both:
+
+```ruby
+ssl_context = OpenSSL::SSL::SSLContext.new
+ssl_context.set_params(
+  verify_mode: OpenSSL::SSL::VERIFY_PEER,
+  verify_hostname: true,
+  ca_file: '/path/to/ca.crt' # omit to use the system's trusted certificates
+)
+
+Dalli::Client.new('memcached.example.com:11211', ssl_context: ssl_context)
+```
+
+Dalli logs a warning once per process when the context's `verify_mode` is `VERIFY_NONE`, or when it is `VERIFY_PEER` but `verify_hostname` is false.
+
+A failed TLS handshake counts as a failed connection attempt, like a refused connection: once `socket_max_failures` attempts have failed, the server is marked down and requests fail over to the other servers.
+
 ## OpenTelemetry Tracing
 
 Dalli automatically instruments operations with [OpenTelemetry](https://opentelemetry.io/) when the SDK is present. No configuration is required - just add the OpenTelemetry gems to your application:

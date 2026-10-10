@@ -228,12 +228,41 @@ module Dalli
         [seconds, microseconds].pack(timeval_pack_format(sock))
       end
 
+      # Closes the TCP socket if the handshake fails or times out, so a failed
+      # attempt doesn't hold a file descriptor until GC.
       def self.wrapping_ssl_socket(tcp_socket, host, ssl_context)
+        warn_if_unverified(ssl_context)
+        connected = false
         ssl_socket = Dalli::Socket::SSLSocket.new(tcp_socket, ssl_context)
         ssl_socket.hostname = host
         ssl_socket.sync_close = true
         ssl_socket.connect
+        connected = true
         ssl_socket
+      ensure
+        tcp_socket.close unless connected
+      end
+
+      # Class variable to track whether the TLS verification warning has been logged
+      @@ssl_verification_warning_logged = false # rubocop:disable Style/ClassVars
+
+      # Verification comes entirely from the caller's ssl_context, and a bare
+      # SSLContext.new verifies nothing, so warn (once per process) when the
+      # certificate or the hostname won't be checked.
+      def self.warn_if_unverified(ssl_context)
+        return if @@ssl_verification_warning_logged
+
+        problem = if !ssl_context.verify_mode.to_i.anybits?(::OpenSSL::SSL::VERIFY_PEER)
+                    'verify_mode is VERIFY_NONE, so the server certificate is not checked'
+                  elsif !ssl_context.verify_hostname
+                    'verify_hostname is false, so the certificate is not checked against the hostname'
+                  end
+        return unless problem
+
+        Dalli.logger.warn "SECURITY WARNING: Dalli's ssl_context #{problem}. " \
+                          'Use ssl_context.set_params(verify_mode: OpenSSL::SSL::VERIFY_PEER, ' \
+                          'verify_hostname: true) to verify the server.'
+        @@ssl_verification_warning_logged = true # rubocop:disable Style/ClassVars
       end
     end
 
