@@ -1,4 +1,4 @@
-FROM ruby:3.4-bookworm
+FROM ruby:4.0-trixie
 
 # Install dependencies
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \

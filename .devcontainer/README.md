@@ -4,9 +4,9 @@ This directory contains configuration for a development container that provides 
 
 ## Features
 
-- Ruby 3.3+ environment with all necessary dependencies
-- Memcached 1.6.34 installed with TLS support, matching the GitHub Actions CI environment
-- VS Code extensions for Ruby development
+- Ruby 4.0 on Debian 13 (trixie)
+- Memcached 1.6.45 built with TLS support, matching the latest version tested in GitHub Actions CI
+- The Ruby LSP VS Code extension, with RuboCop formatting
 
 ## Setup Process
 
@@ -14,8 +14,7 @@ When the container is built and started, the following setup occurs:
 
 1. The container is built with necessary dependencies but without memcached
 2. The `setup.sh` script runs after the container is created which:
-   - Installs memcached 1.6.34 using the same script used in GitHub Actions
-   - Sets up environment variables needed for tests
+   - Builds memcached 1.6.45 using the same script used in GitHub Actions
    - Installs gem dependencies
 
 ## Running Tests
@@ -29,21 +28,16 @@ bundle exec rake test
 To run specific test files:
 
 ```bash
-bundle exec ruby -Ilib:test test/path/to/test_file.rb
+bundle exec ruby -Itest test/path/to/test_file.rb
 ```
+
+The tests start their own memcached instances on random ports, so there is no
+memcached service to start or forward.
 
 ## Troubleshooting
 
 If you encounter issues with tests:
 
-1. Verify memcached is running: `ps aux | grep memcached`
-2. Check memcached version: `memcached -h | head -1`
-3. Try restarting memcached: `sudo service memcached restart`
-4. Check logs for any errors: `sudo journalctl -u memcached`
-
-## Port Forwarding
-
-The following memcached ports are forwarded for testing:
-- 11211 - Default memcached port
-- 11212-11215 - Additional ports used by tests
-
+1. Check that memcached is on the path and the expected version: `memcached --version`
+2. Check that it was built with TLS support: `memcached -h | grep -i tls`
+3. Look for stray memcached processes left over from an interrupted run: `ps aux | grep memcached`
