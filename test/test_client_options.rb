@@ -9,6 +9,32 @@ describe 'Dalli client options' do
     assert_operator dc.instance_variable_get(:@options), :[], :compress
   end
 
+  describe 'caller options hash' do
+    it 'does not mutate the hash passed in' do
+      opts = { expires_in: '5', namespace: 'ns' }
+      dc = Dalli::Client.new('foo', opts)
+
+      assert_equal({ expires_in: '5', namespace: 'ns' }, opts)
+      assert_equal 5, dc.instance_variable_get(:@options)[:expires_in]
+    end
+
+    it 'accepts a frozen options hash' do
+      dc = Dalli::Client.new('foo', { expires_in: '5' }.freeze)
+
+      assert_equal 5, dc.instance_variable_get(:@options)[:expires_in]
+    end
+
+    it 'is not affected by later changes to the hash passed in' do
+      opts = { expires_in: 5, compress: false }
+      dc = Dalli::Client.new('foo', opts)
+      opts[:expires_in] = 10
+      opts[:compress] = true
+
+      assert_equal 5, dc.instance_variable_get(:@options)[:expires_in]
+      refute dc.instance_variable_get(:@options)[:compress]
+    end
+  end
+
   describe 'servers configuration' do
     it 'default to localhost:11211' do
       dc = Dalli::Client.new

@@ -10,7 +10,8 @@ module Dalli
     ##
     class StringMarshaller
       DEFAULTS = {
-        # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
+        # max memcached item size in bytes: value + key + ITEM_OVERHEAD_BYTES. Set it to
+        # memcached's -I value (default 1 MB).
         value_max_bytes: 1024 * 1024
       }.freeze
 
@@ -55,10 +56,7 @@ module Dalli
       private
 
       def error_if_over_max_value_bytes(key, value)
-        return if value.bytesize <= value_max_bytes
-
-        message = "Value for #{key} over max size: #{value_max_bytes} <= #{value.bytesize}"
-        raise Dalli::ValueOverMaxSize, message
+        ValueMarshaller.error_if_over_max_value_bytes(key, value, value_max_bytes)
       end
     end
   end

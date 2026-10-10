@@ -3,6 +3,9 @@
 require_relative 'helper'
 
 require 'json'
+require 'open3'
+require 'rbconfig'
+require 'stringio'
 require 'rack/session/dalli'
 require 'rack/lint'
 require 'rack/mock'
@@ -126,6 +129,90 @@ describe Rack::Session::Dalli do
         assert_equal(opts[:namespace], mc.instance_eval { @options[:namespace] })
       end
     end
+  end
+
+  it 'loads and works without the connection_pool gem when pooling is not used' do
+    # Run in a separate process with `require 'connection_pool'` failing, since
+    # this process (and Bundler) already has the gem available.
+    script = <<~RUBY
+      module Kernel
+        alias_method :__require_without_connection_pool_stub, :require
+
+        def require(path)
+          raise LoadError, "cannot load such file -- \#{path}" if path == 'connection_pool'
+
+          __require_without_connection_pool_stub(path)
+        end
+        private :require
+      end
+
+      require 'rack/session/dalli'
+      abort 'ConnectionPool was loaded' if defined?(ConnectionPool)
+      Dalli.logger = Logger.new(nil)
+
+      app = ->(_env) { [200, {}, []] }
+      rsd = Rack::Session::Dalli.new(app, memcache_server: ARGV[0], namespace: 'test:no_pool')
+      abort "expected a Dalli::Client, got \#{rsd.data.class}" unless rsd.data.is_a?(Dalli::Client)
+      rsd.data.set('ping', 'pong')
+      abort 'round trip failed' unless rsd.data.get('ping') == 'pong'
+
+      begin
+        $stderr = StringIO.new
+        Rack::Session::Dalli.new(app, memcache_server: ARGV[0], pool_size: 2)
+        abort 'expected LoadError when pooling without connection_pool'
+      rescue LoadError
+        $stderr = STDERR
+      end
+
+      puts 'ok'
+    RUBY
+    lib = File.expand_path('../lib', __dir__)
+    server = Rack::Session::Dalli::DEFAULT_DALLI_OPTIONS[:memcache_server]
+    out, err, status = Open3.capture3(RbConfig.ruby, '-I', lib, '-rbundler/setup', '-rlogger', '-rstringio',
+                                      '-e', script, server)
+
+    assert_predicate status, :success?, "subprocess failed: #{err}"
+    assert_equal "ok\n", out
+  end
+
+  it 'does not pass pool options to Dalli::Client or modify the options hash' do
+    opts = { namespace: 'test:rack:session', pool_size: 2, pool_timeout: 3 }.freeze
+
+    with_connectionpool do
+      rsd = Rack::Session::Dalli.new(incrementor, opts)
+
+      assert_equal 2, rsd.data.available
+      rsd.data.with do |mc|
+        client_options = mc.instance_variable_get(:@options)
+
+        refute client_options.key?(:pool_size)
+        refute client_options.key?(:pool_timeout)
+        assert_equal 'test:rack:session', client_options[:namespace]
+      end
+    end
+
+    assert_equal({ namespace: 'test:rack:session', pool_size: 2, pool_timeout: 3 }, opts)
+  end
+
+  it 'logs a warning when deleting a session fails, without raising' do
+    rsd = Rack::Session::Dalli.new(incrementor)
+    sid = Rack::Session::SessionId.new('abc123')
+    log = StringIO.new
+    old_logger = Dalli.logger
+    old_verbose = $VERBOSE
+    Dalli.logger = Logger.new(log)
+    $VERBOSE = false
+
+    result = rsd.data.stub(:delete, ->(*) { raise Dalli::NetworkError, 'boom' }) do
+      rsd.delete_session(nil, sid, drop: true)
+    end
+
+    assert_nil result
+    assert_match(/WARN.*Rack::Session::Dalli failed to delete a session.*Dalli::NetworkError: boom/, log.string)
+    refute_includes log.string, sid.private_id
+  ensure
+    Dalli.logger = old_logger
+    $VERBOSE = old_verbose
   end
 
   it 'creates a new cookie' do

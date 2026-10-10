@@ -23,6 +23,19 @@ describe Dalli::Protocol::ValueMarshaller do
           assert_equal subject.value_max_bytes, value_max_bytes
         end
       end
+
+      describe 'with a String value' do
+        let(:options) { { value_max_bytes: '2048' } }
+
+        it 'converts it to an Integer' do
+          assert_equal 2048, subject.value_max_bytes
+        end
+
+        it 'enforces the limit when storing' do
+          assert_equal ['abc', 0x0], subject.store('key', 'abc', raw: true)
+          assert_raises(Dalli::ValueOverMaxSize) { subject.store('key', 'a' * 2048, raw: true, compress: false) }
+        end
+      end
     end
   end
 
@@ -33,6 +46,13 @@ describe Dalli::Protocol::ValueMarshaller do
     let(:serialized_value) { Marshal.dump(val) }
     let(:compressed_serialized_value) { Dalli::Compressor.compress(serialized_value) }
     let(:key) { SecureRandom.hex(5) }
+    let(:over_max_message) do
+      lambda do |max, value|
+        overhead = Dalli::Protocol::ValueMarshaller::ITEM_OVERHEAD_BYTES
+        "Value for #{key} over max size: #{max} <= #{value.bytesize + key.bytesize + overhead} " \
+          "(#{value.bytesize} value bytes + #{key.bytesize} key bytes + #{overhead} item overhead)"
+      end
+    end
 
     describe 'when the bytesize is under value_max_bytes' do
       describe 'when the raw option is not specified' do
@@ -90,7 +110,7 @@ describe Dalli::Protocol::ValueMarshaller do
               marshaller.store(key, val, req_options)
             end
 
-            assert_equal "Value for #{key} over max size: #{1024 * 1024} <= #{compressed_serialized_value.size}",
+            assert_equal over_max_message.call(1024 * 1024, compressed_serialized_value),
                          exception.message
           end
         end
@@ -123,7 +143,7 @@ describe Dalli::Protocol::ValueMarshaller do
               marshaller.store(key, val, req_options)
             end
 
-            assert_equal "Value for #{key} over max size: #{1024 * 1024} <= #{val.bytesize}",
+            assert_equal over_max_message.call(1024 * 1024, val),
                          exception.message
           end
         end
@@ -161,7 +181,7 @@ describe Dalli::Protocol::ValueMarshaller do
               marshaller.store(key, val, req_options)
             end
 
-            assert_equal "Value for #{key} over max size: #{value_max_bytes} <= #{compressed_serialized_value.size}",
+            assert_equal over_max_message.call(value_max_bytes, compressed_serialized_value),
                          exception.message
           end
         end
@@ -186,7 +206,7 @@ describe Dalli::Protocol::ValueMarshaller do
               marshaller.store(key, val, req_options)
             end
 
-            assert_equal "Value for #{key} over max size: #{value_max_bytes} <= #{val.bytesize}",
+            assert_equal over_max_message.call(value_max_bytes, val),
                          exception.message
           end
         end
@@ -199,6 +219,55 @@ describe Dalli::Protocol::ValueMarshaller do
           end
         end
       end
+    end
+  end
+
+  describe 'item size limit' do
+    # memcached rejects an item whose value, key and per-item header together
+    # exceed its -I limit, so value_max_bytes is checked against all three.
+    let(:value_max_bytes) { 1024 }
+    let(:overhead) { Dalli::Protocol::ValueMarshaller::ITEM_OVERHEAD_BYTES }
+    let(:key) { 'k' * 10 }
+    let(:largest_value_size) { value_max_bytes - key.bytesize - overhead }
+    let(:req_options) { { raw: true, compress: false } }
+
+    it 'uses the measured worst-case memcached item overhead' do
+      assert_equal 63, overhead
+    end
+
+    [Dalli::Protocol::ValueMarshaller, Dalli::Protocol::StringMarshaller].each do |klass|
+      describe klass.name do
+        let(:marshaller) { klass.new(value_max_bytes: value_max_bytes) }
+
+        it 'accepts the largest value whose item fits' do
+          value = 'a' * largest_value_size
+
+          assert_equal [value, 0x0], marshaller.store(key, value, req_options)
+        end
+
+        it 'rejects a value one byte larger' do
+          value = 'a' * (largest_value_size + 1)
+          exception = assert_raises Dalli::ValueOverMaxSize do
+            marshaller.store(key, value, req_options)
+          end
+
+          assert_equal "Value for #{key} over max size: #{value_max_bytes} <= #{value_max_bytes + 1} " \
+                       "(#{value.bytesize} value bytes + #{key.bytesize} key bytes + #{overhead} item overhead)",
+                       exception.message
+        end
+
+        it 'counts a longer key against the limit' do
+          value = 'a' * largest_value_size
+
+          assert_raises(Dalli::ValueOverMaxSize) { marshaller.store("#{key}k", value, req_options) }
+        end
+      end
+    end
+
+    it 'converts a String value_max_bytes in StringMarshaller' do
+      marshaller = Dalli::Protocol::StringMarshaller.new(value_max_bytes: '2048')
+
+      assert_equal 2048, marshaller.value_max_bytes
     end
   end
 

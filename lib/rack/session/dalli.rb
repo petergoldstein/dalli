@@ -2,7 +2,6 @@
 
 require 'rack/session/abstract/id'
 require 'dalli'
-require 'connection_pool'
 require 'English'
 
 module Rack
@@ -20,6 +19,11 @@ module Rack
       DEFAULT_DALLI_OPTIONS = {
         namespace: 'rack:session'
       }
+
+      # Our pool options and the ConnectionPool options they set. These are
+      # not passed on to Dalli::Client.
+      POOL_OPTIONS = { pool_size: :size, pool_timeout: :timeout }.freeze
+      private_constant :POOL_OPTIONS
 
       # Brings in a new Rack::Session::Dalli middleware with the given
       # `:memcache_server`. The server is either a hostname, or a
@@ -111,12 +115,22 @@ module Rack
       def delete_session(_req, sid, options)
         with_dalli_client do |dc|
           key = memcached_key_from_sid(sid)
-          dc.delete(key) if key
+          delete_session_key(dc, key) if key
           generate_sid_with(dc) unless options[:drop]
         end
       end
 
       private
+
+      # A failed delete leaves the old session readable in memcached (e.g.
+      # after logout), so always log it, even though with_dalli_client then
+      # handles the error as before.
+      def delete_session_key(client, key)
+        client.delete(key)
+      rescue ::Dalli::DalliError, Errno::ECONNREFUSED => e
+        ::Dalli.logger.warn("#{self.class} failed to delete a session from memcached: #{e.class}: #{e.message}")
+        raise
+      end
 
       def memcached_key_from_sid(sid)
         sid.private_id if sid.respond_to?(:private_id)
@@ -181,15 +195,14 @@ module Rack
       end
 
       def retrieve_client_options(options)
-        # Filter out Rack::Session-specific options and apply our defaults
-        filtered_opts = options.reject { |k, _| DEFAULT_OPTIONS.key? k }
+        # Filter out Rack::Session-specific and pool options and apply our defaults
+        filtered_opts = options.reject { |k, _| DEFAULT_OPTIONS.key?(k) || POOL_OPTIONS.key?(k) }
         DEFAULT_DALLI_OPTIONS.merge(filtered_opts)
       end
 
       def retrieve_pool_options(options)
-        {}.tap do |pool_options|
-          pool_options[:size] = options.delete(:pool_size) if options[:pool_size]
-          pool_options[:timeout] = options.delete(:pool_timeout) if options[:pool_timeout]
+        POOL_OPTIONS.each_with_object({}) do |(option, pool_option), pool_options|
+          pool_options[pool_option] = options[option] if options[option]
         end
       end
 

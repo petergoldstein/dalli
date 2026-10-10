@@ -59,6 +59,17 @@ Dalli::Client.new('localhost:11211', namespace: 'myapp', namespace_separator: '/
 
 The separator must be a single non-alphanumeric character. Valid examples: `:`, `/`, `|`, `.`, `-`, `_`, `#`
 
+### Maximum Item Size
+
+memcached rejects items larger than its `-I` setting (1MB by default). Set `value_max_bytes` to the same value if you change it:
+
+```ruby
+# memcached started with -I 2m
+Dalli::Client.new('localhost:11211', value_max_bytes: 2 * 1024 * 1024)
+```
+
+memcached's limit covers the whole item, so Dalli checks the stored (serialized and compressed) value plus the key plus 63 bytes of per-item overhead against `value_max_bytes`, and raises `Dalli::ValueOverMaxSize` before sending anything larger. With the defaults, the largest value you can store under a 10-byte key is 1,048,576 - 10 - 63 = 1,048,503 bytes.
+
 ### Deferred Draining
 
 By default, a `quiet` (or `multi`) block ends by waiting for the replies memcached still sends for its quiet requests, one round trip for each server the block wrote to. With `defer_drain: true`, the block returns without waiting:
