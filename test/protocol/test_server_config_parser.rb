@@ -125,6 +125,24 @@ describe Dalli::Protocol::ServerConfigParser do
     end
 
     describe 'errors' do
+      describe 'when the weight is less than 1' do
+        it 'rejects a zero weight for a TCP server' do
+          err = assert_raises ArgumentError do
+            Dalli::Protocol::ServerConfigParser.parse('abc.com:11211:0')
+          end
+
+          assert_equal 'Server weight must be at least 1, got 0 in abc.com:11211:0', err.message
+        end
+
+        it 'rejects a zero weight for a UNIX socket' do
+          err = assert_raises ArgumentError do
+            Dalli::Protocol::ServerConfigParser.parse('/tmp/dalli.sock:0')
+          end
+
+          assert_equal 'Server weight must be at least 1, got 0 in /tmp/dalli.sock:0', err.message
+        end
+      end
+
       describe 'when the string is empty' do
         it 'produces an error' do
           err = assert_raises Dalli::DalliError do

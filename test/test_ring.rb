@@ -54,6 +54,14 @@ describe 'Ring' do
       end
     end
 
+    it 'rejects servers whose weights are all zero instead of building a NaN continuum' do
+      err = assert_raises ArgumentError do
+        Dalli::Ring.new(['localhost:11211:0', 'localhost:9500:0'], {})
+      end
+
+      assert_match(/Server weight must be at least 1/, err.message)
+    end
+
     it 'raise when no servers are available/defined' do
       ring = Dalli::Ring.new([], {})
       assert_error Dalli::RingError, /No server available/ do
