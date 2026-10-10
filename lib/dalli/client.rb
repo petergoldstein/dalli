@@ -372,24 +372,26 @@ module Dalli
     # compare and swap values using optimistic locking.
     # Fetch the existing value for key.
     # If it exists, yield the value to the block.
-    # Add the block's return value as the new value for the key.
-    # Add will fail if someone else changed the value.
+    # Store the block's return value as the new value for the key.
+    # The store will fail if someone else changed the value.
     #
     # Returns:
-    # - nil if the key did not exist.
+    # - nil if the key did not exist (or held nil and :cache_nils is false);
+    #   the block is not called.
     # - false if the value was changed by someone else.
-    # - true if the value was successfully updated.
+    # - the new CAS value (a positive Integer) if the value was successfully updated.
     def cas(key, ttl = nil, req_options = nil, &)
       cas_core(key, false, ttl, req_options, &)
     end
 
     ##
     # like #cas, but will yield to the block whether or not the value
-    # already exists.
+    # already exists. If the key did not exist, the block receives nil.
     #
     # Returns:
-    # - false if the value was changed by someone else.
-    # - true if the value was successfully updated.
+    # - false if the value was changed by someone else, including another
+    #   client creating a missing key while the block ran.
+    # - the new CAS value (a positive Integer) if the value was successfully updated.
     def cas!(key, ttl = nil, req_options = nil, &)
       cas_core(key, true, ttl, req_options, &)
     end
@@ -651,9 +653,20 @@ module Dalli
     ##
     # Flush the memcached server, at 'delay' seconds in the future.
     # Delay defaults to zero seconds, which means an immediate flush.
+    # Every server is attempted. If any of them fails, the first error is
+    # raised once all the others have been flushed.
     ##
     def flush(delay = 0)
-      ring.servers.map { |s| s.request(:flush, delay) }
+      first_error = nil
+      results = ring.servers.map do |s|
+        s.request(:flush, delay)
+      rescue StandardError => e
+        first_error ||= e
+        nil
+      end
+      raise first_error if first_error
+
+      results
     end
     alias flush_all flush
 
@@ -914,10 +927,21 @@ module Dalli
     def cas_core(key, always_set, ttl = nil, req_options = nil)
       validate_routing_tokens!(req_options)
       (value, cas) = perform(:cas, key, req_options)
-      return if value.nil? && !always_set
+      return if !always_set && cas_miss?(value, cas)
 
       newvalue = yield(value)
+      # A CAS of 0 means the key was missing. A set with CAS 0 is unconditional,
+      # so add instead: it fails if another client created the key meanwhile.
+      return perform(:add, key, newvalue, ttl_or_default(ttl), req_options) if cas.zero?
+
       perform(:set, key, newvalue, ttl_or_default(ttl), cas, req_options)
+    end
+
+    # The CAS lookup returns [nil, 0] on a miss rather than NOT_FOUND, and a
+    # stored item always has a non-zero CAS. So under cache_nils a zero CAS
+    # marks the miss, and a stored nil is a hit, as in #not_found?.
+    def cas_miss?(value, cas)
+      cache_nils ? cas.zero? : value.nil?
     end
 
     def fetch_with_lock_request(key, ttl, lock_ttl, recache_threshold, req_options)
