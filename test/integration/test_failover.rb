@@ -174,6 +174,35 @@ describe 'failover' do
             end
           end
         end
+
+        describe 'flush' do
+          # Nothing listens on this port, so the server is unreachable
+          dead_port = 26_993
+          server_orders = [%i[dead live], %i[live dead]]
+
+          it 'returns one result per server when all are alive' do
+            memcached_persistent(p, 26_994) do |_first_dc, first_port|
+              memcached_persistent(p, 26_995) do |_second_dc, second_port|
+                dc = Dalli::Client.new ["localhost:#{first_port}", "localhost:#{second_port}"]
+
+                assert_equal [true, true], dc.flush
+              end
+            end
+          end
+
+          server_orders.each do |order|
+            it "flushes the live server and raises when the servers are #{order.join(', ')}" do
+              memcached_persistent(p, 26_996) do |live_dc, live_port|
+                live_dc.set('flush_key', 'value')
+                ports = { dead: dead_port, live: live_port }
+                dc = Dalli::Client.new(order.map { |s| "localhost:#{ports[s]}" }, socket_timeout: 0.5)
+
+                assert_raises(Dalli::DalliError) { dc.flush }
+                assert_nil live_dc.get('flush_key')
+              end
+            end
+          end
+        end
       end
     end
   end

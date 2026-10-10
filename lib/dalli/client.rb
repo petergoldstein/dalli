@@ -652,9 +652,20 @@ module Dalli
     ##
     # Flush the memcached server, at 'delay' seconds in the future.
     # Delay defaults to zero seconds, which means an immediate flush.
+    # Every server is attempted. If any of them fails, the first error is
+    # raised once all the others have been flushed.
     ##
     def flush(delay = 0)
-      ring.servers.map { |s| s.request(:flush, delay) }
+      first_error = nil
+      results = ring.servers.map do |s|
+        s.request(:flush, delay)
+      rescue StandardError => e
+        first_error ||= e
+        nil
+      end
+      raise first_error if first_error
+
+      results
     end
     alias flush_all flush
 
