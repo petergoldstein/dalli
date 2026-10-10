@@ -58,8 +58,8 @@ module Dalli
         @sock.sync = true
         @pid = Process.pid
         @request_in_progress = false
-      rescue SystemCallError, *TIMEOUT_ERRORS, EOFError, SocketError => e
-        # SocketError = DNS resolution failure
+      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError, SocketError => e
+        # SocketError = DNS resolution failure; SSL_ERRORS = failed TLS handshake
         error_on_request!(e)
       end
 
