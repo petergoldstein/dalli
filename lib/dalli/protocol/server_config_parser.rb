@@ -33,7 +33,7 @@ module Dalli
           username: uri.user,
           password: uri.password
         }
-        [uri.host, normalize_port(uri.port), :tcp, DEFAULT_WEIGHT, auth_details]
+        [uri.hostname, normalize_port(uri.port), :tcp, DEFAULT_WEIGHT, auth_details]
       end
 
       def self.parse_non_uri(str)
@@ -61,11 +61,11 @@ module Dalli
         # in case of unix socket, allow only setting of weight, not port
         raise Dalli::DalliError, "Could not parse hostname #{res[0]}" if res[4]
 
-        [nil, normalize_weight(res[3])]
+        [nil, normalize_weight(res[3], res[0])]
       end
 
       def self.attributes_for_tcp_socket(res)
-        [normalize_port(res[3]), normalize_weight(res[4])]
+        [normalize_port(res[3]), normalize_weight(res[4], res[0])]
       end
 
       def self.normalize_host_from_match(str, res)
@@ -78,8 +78,13 @@ module Dalli
         Integer(port || DEFAULT_PORT)
       end
 
-      def self.normalize_weight(weight)
-        Integer(weight || DEFAULT_WEIGHT)
+      # A weight below 1 gives the server no points on the ring, and if every
+      # server has one the ring divides by a zero total weight.
+      def self.normalize_weight(weight, str)
+        value = Integer(weight || DEFAULT_WEIGHT)
+        raise ArgumentError, "Server weight must be at least 1, got #{value} in #{str}" if value < 1
+
+        value
       end
     end
   end

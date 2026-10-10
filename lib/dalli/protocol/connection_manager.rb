@@ -60,8 +60,8 @@ module Dalli
         @pid = Process.pid
         @request_in_progress = false
         @quiet_responses_pending = false
-      rescue SystemCallError, *TIMEOUT_ERRORS, EOFError, SocketError => e
-        # SocketError = DNS resolution failure
+      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError, SocketError => e
+        # SocketError = DNS resolution failure; SSL_ERRORS = failed TLS handshake
         error_on_request!(e)
       end
 
@@ -188,10 +188,22 @@ module Dalli
         @request_in_progress = false
       end
 
+      # The longest reply line Dalli reads, in bytes, CRLF included. A meta
+      # reply header is at most about 500 bytes: "VA <size>" plus its flags,
+      # the largest being a 250-byte key base64-encoded to 336 bytes, a
+      # 20-digit CAS, a 32-byte opaque and a few numeric fields. The longest
+      # stats line (stats settings) carries a file path such as ext_path, up
+      # to PATH_MAX (4096). 8 KiB leaves room for both, while a server that
+      # never sends CRLF can't grow the read buffer without bound.
+      MAX_LINE_BYTES = 8 * 1024
+
       def read_line
         flush_write_buffer
-        data = @sock.gets("\r\n")
+        data = @sock.gets("\r\n", MAX_LINE_BYTES)
         error_on_request!('EOF in read_line') if data.nil?
+        # Without its CRLF the line either ran past MAX_LINE_BYTES or was cut
+        # short by EOF; either way the connection is out of step
+        error_on_request!("Reply line without CRLF in the first #{MAX_LINE_BYTES} bytes") unless data.end_with?("\r\n")
         data
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
         error_on_request!(e)
