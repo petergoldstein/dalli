@@ -4,6 +4,38 @@ Dalli Changelog
 Unreleased
 ==========
 
+Bug fixes:
+
+- A per-request `raw: true` write no longer compresses the value (#1213)
+  - Values at or above the compression threshold (4 KB by default) were compressed and flagged even with `raw: true`. Raw reads ignore flags, so reading them back with `raw: true` returned the compressed bytes
+  - Raw values are now stored exactly as given. Callers that pass `raw: true` without `compress: false` store large values uncompressed; Rails' `MemCacheStore` passes `compress: false` and isn't affected
+- Fix `cas` and `cas!` edge cases, and make `flush` attempt every server (#1214)
+  - `cas!` on a missing key used an unconditional set, so a value another client created while the block ran was overwritten. It now adds the key and returns `false` if another client got there first
+  - With `cache_nils: true`, `cas` treated a stored `nil` as a miss and didn't call the block
+  - The docs now say what `cas` and `cas!` return on success: the new CAS value, not `true`. The return values are unchanged
+  - `flush` stopped at the first server that raised, so later servers weren't flushed. It now flushes every server it can reach, then raises the first error
+- Handle failed TLS handshakes like other connection failures, and warn when TLS verification is off (#1215)
+  - A failed or timed-out handshake left the TCP socket open until GC and raised `OpenSSL::SSL::SSLError` directly, so the server was never marked down. The socket is now closed, and the error goes through the usual retry and `socket_max_failures` handling, raising `Dalli::NetworkError` (or `Dalli::RingError` once no server is available)
+  - Certificate and hostname checks come only from the `ssl_context` you pass, and a bare `OpenSSL::SSL::SSLContext.new` checks neither. Dalli now logs a warning once per process when `verify_mode` doesn't include `VERIFY_PEER` or `verify_hostname` is false; see the new TLS section in the README
+- Connection and configuration fixes (#1216)
+  - `memcached://` URIs with a bracketed IPv6 host (`memcached://[::1]:11211`) now connect
+  - A server weight below 1 raises `ArgumentError`. Before, a ring where every weight was 0 raised `FloatDomainError`
+  - A reply line longer than 8 KiB without a CRLF, or one cut short by the connection closing, is now a network error that closes the connection. Before, the line had no length limit
+  - On CRuby, DNS resolution is now limited by `socket_timeout` (`resolv_timeout:`) as well as the connect
+- `Dalli::Client.new` no longer modifies the options hash it's given, and accepts a frozen one (#1217)
+- `value_max_bytes` now counts the key and memcached's per-item overhead (#1217)
+  - memcached's `-I` limit covers the whole item, not only the value. A value of exactly 1 MB passed Dalli's check and then failed in memcached with `Dalli::ServerError`, which `quiet` blocks and `set_multi` silently discarded
+  - Dalli now checks value + key + 63 bytes, the overhead measured on memcached 1.6, and raises `Dalli::ValueOverMaxSize` before sending. A custom `value_max_bytes` is now that much stricter
+  - A String `value_max_bytes` is converted to an Integer instead of raising on every set
+- `Rack::Session::Dalli` fixes (#1217)
+  - It no longer requires the `connection_pool` gem unless `pool_size` or `pool_timeout` is given
+  - `pool_size` and `pool_timeout` are no longer passed to `Dalli::Client`, and the options hash isn't modified
+  - A failed session delete is logged as a warning, not only when `$VERBOSE` is set
+- One value that can't be stored no longer discards other buffered writes (#1218)
+  - A value that raised `Dalli::MarshalError` or `Dalli::ValueOverMaxSize` closed the connection, which dropped writes still buffered from the same `quiet` block or `set_multi`. Multi-server `set_multi` did this without raising
+  - Both `set_multi` paths now store every other key, skip the bad one, and then raise. Single-server `set_multi` used to store nothing
+  - When single-server `set_multi` failed to marshal a value, the error log included every value in the batch. It now lists only the keys
+
 5.2.2
 ==========
 
