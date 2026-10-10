@@ -33,7 +33,7 @@ module Dalli
           username: uri.user,
           password: uri.password
         }
-        [uri.host, normalize_port(uri.port), :tcp, DEFAULT_WEIGHT, auth_details]
+        [uri.hostname, normalize_port(uri.port), :tcp, DEFAULT_WEIGHT, auth_details]
       end
 
       def self.parse_non_uri(str)

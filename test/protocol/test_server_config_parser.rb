@@ -110,6 +110,18 @@ describe Dalli::Protocol::ServerConfigParser do
                        [hostname, 11_211, :tcp, 1, { username: user, password: password }]
         end
       end
+
+      describe 'when the hostname is a bracketed IPv6 address' do
+        it 'strips the brackets from the hostname' do
+          assert_equal ['::1', 11_211, :tcp, 1, { username: nil, password: nil }],
+                       Dalli::Protocol::ServerConfigParser.parse('memcached://[::1]:11211')
+        end
+
+        it 'strips the brackets when the URI includes credentials and no port' do
+          assert_equal ['2001:db8::1', 11_211, :tcp, 1, { username: user, password: password }],
+                       Dalli::Protocol::ServerConfigParser.parse("memcached://#{user}:#{password}@[2001:db8::1]")
+        end
+      end
     end
 
     describe 'errors' do
