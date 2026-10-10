@@ -16,9 +16,9 @@ module Dalli
         [Timeout::Error]
       end
 
-    # SSL errors that occur during read/write operations (not during initial
-    # handshake) should trigger reconnection. These indicate transient network
-    # issues, not configuration problems.
+    # SSL errors during the handshake or during read/write operations count as
+    # a failed request: they trigger reconnection and, after
+    # socket_max_failures, mark the server down.
     SSL_ERRORS =
       if defined?(OpenSSL::SSL::SSLError)
         [OpenSSL::SSL::SSLError]
