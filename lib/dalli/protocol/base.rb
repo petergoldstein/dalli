@@ -55,8 +55,13 @@ module Dalli
           @connection_manager.finish_request! unless %i[pipelined_get pipelined_get_interleaved].include?(opkey)
 
           response
-        rescue Dalli::MarshalError => e
-          log_marshal_err(args.first, e)
+        rescue Dalli::MarshalError, Dalli::ValueOverMaxSize => e
+          log_marshal_err(args.first, e) if e.is_a?(Dalli::MarshalError)
+          # Raised only while the connection is clean: a value is marshalled
+          # before any of its request is written. Leaving the request in
+          # progress would close the connection on the next request, which
+          # discards earlier quiet writes still waiting in the write buffer.
+          @connection_manager.abort_request!
           raise
         rescue Dalli::DalliError
           raise
