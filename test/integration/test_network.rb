@@ -190,6 +190,29 @@ describe 'Network' do
           end
         end
 
+        it 'closes the connection when a reply line has no CRLF within the line limit' do
+          memcached_mock(lambda { |sock|
+            while (line = sock.gets)
+              if line.start_with?('version')
+                sock.write("VERSION 1.6.45\r\n")
+              else
+                sock.write('x' * (64 * 1024)) # never ends the line
+              end
+            end
+          }, :start, [19_141]) do
+            dc = Dalli::Client.new('localhost:19141', socket_timeout: 5, socket_max_failures: 0,
+                                                      socket_failure_delay: 0.0, down_retry_delay: 0.0)
+            started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            assert_raises Dalli::NetworkError do
+              dc.get('abc')
+            end
+
+            # Raised as soon as the limit is hit, not after the socket timeout
+            assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 2
+            refute_predicate dc.send(:ring).servers.first, :connected?
+          end
+        end
+
         it 'handles operation timeouts' do
           memcached_mock(lambda { |sock|
             # handle initial version call
