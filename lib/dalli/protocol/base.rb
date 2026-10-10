@@ -147,7 +147,7 @@ module Dalli
         verify_pipelined_state(:getkq)
         write_noop
         # Use ensure_ready instead of reset to preserve any data already buffered
-        # during interleaved pipelined get draining
+        # while this get_multi's interleaved requests were sent
         response_buffer.ensure_ready
       end
 
@@ -201,6 +201,10 @@ module Dalli
             end
           end
 
+          # A request to this server from inside the block closes the
+          # connection, and with it the rest of this get_multi's replies
+          raise_pipeline_closed unless response_buffer.in_progress?
+
           # Get the next response from the buffer
           status, cas, key, value = response_buffer.process_single_getk_response
         end
@@ -210,21 +214,24 @@ module Dalli
       # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       # Abort current pipelined get. Generally used to signal an external
-      # timeout during pipelined get.  The underlying socket is
+      # timeout during pipelined get, or that the get_multi stopped before
+      # reading all its replies (timed_out: false).  The underlying socket is
       # disconnected, and the exception is swallowed.
       #
       # Returns nothing.
-      def pipeline_abort
+      def pipeline_abort(timed_out: true)
         response_buffer.clear
+        @pipeline_out_of_step = false
+        @expected_reply_keys = nil
         @connection_manager.abort_request!
         return true unless connected?
 
         # Closes the connection, which ensures that our connection is in a
         # clean state for future requests. The get_multi ran out of time
-        # overall rather than hitting a socket error, so it doesn't count
-        # toward socket_max_failures: two slow get_multis in a row would
-        # otherwise mark a healthy server down.
-        Dalli.logger.warn { "#{name} didn't finish a get_multi within socket_timeout; closing the connection" }
+        # overall, or stopped early, rather than hitting a socket error, so it
+        # doesn't count toward socket_max_failures: two slow get_multis in a
+        # row would otherwise mark a healthy server down.
+        log_pipeline_abort(timed_out)
         @connection_manager.close
         true
       end
@@ -377,8 +384,9 @@ module Dalli
       # This prevents socket buffer deadlock when sending many keys.
       # Populates the provided results hash with any responses drained during send.
       def pipelined_get_interleaved(keys, chunk_size, results, options = nil)
-        # Initialize the response buffer for draining during send phase
-        response_buffer.ensure_ready
+        # Start with an empty buffer for draining during the send phase. Bytes
+        # left by an earlier get_multi that stopped early belong to its replies.
+        response_buffer.reset
         response_buffer.raw = raw_request?(options)
         expect_reply_keys(keys)
 
@@ -426,8 +434,12 @@ module Dalli
         nil
       end
 
+      # Registered with the connection manager, which clears it whenever the
+      # connection closes, so a new connection never parses an old one's bytes
       def response_buffer
-        @response_buffer ||= ResponseBuffer.new(@connection_manager, response_processor)
+        @response_buffer ||= ResponseBuffer.new(@connection_manager, response_processor).tap do |buffer|
+          @connection_manager.response_buffer = buffer
+        end
       end
 
       # A multi-get only accepts replies for the keys it asked for. memcached
@@ -477,6 +489,19 @@ module Dalli
 
       def reconnect_on_pipeline_complete!
         @connection_manager.reconnect! 'pipelined get has completed' if pipeline_complete?
+      end
+
+      def raise_pipeline_closed
+        raise Dalli::DalliError, "The connection to #{name} closed while a get_multi was reading its replies " \
+                                 '(a request made from inside the get_multi block?)'
+      end
+
+      def log_pipeline_abort(timed_out)
+        if timed_out
+          Dalli.logger.warn { "#{name} didn't finish a get_multi within socket_timeout; closing the connection" }
+        else
+          Dalli.logger.debug { "#{name} get_multi stopped before reading all replies; closing the connection" }
+        end
       end
 
       # The single-server set_multi path passes its whole pairs hash as the
