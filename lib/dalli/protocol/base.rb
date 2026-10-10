@@ -420,7 +420,10 @@ module Dalli
         @connection_manager.reconnect! 'pipelined get has completed' if pipeline_complete?
       end
 
+      # The single-server set_multi path passes its whole pairs hash as the
+      # first argument; log only its keys, never the values
       def log_marshal_err(key, err)
+        key = key.keys.join("', '") if key.is_a?(Hash)
         Dalli.logger.error "Marshalling error for key '#{key}': #{err.message}"
         Dalli.logger.error 'You are trying to cache a Ruby object which cannot be serialized to memcached.'
       end
