@@ -371,24 +371,26 @@ module Dalli
     # compare and swap values using optimistic locking.
     # Fetch the existing value for key.
     # If it exists, yield the value to the block.
-    # Add the block's return value as the new value for the key.
-    # Add will fail if someone else changed the value.
+    # Store the block's return value as the new value for the key.
+    # The store will fail if someone else changed the value.
     #
     # Returns:
-    # - nil if the key did not exist.
+    # - nil if the key did not exist (or held nil and :cache_nils is false);
+    #   the block is not called.
     # - false if the value was changed by someone else.
-    # - true if the value was successfully updated.
+    # - the new CAS value (a positive Integer) if the value was successfully updated.
     def cas(key, ttl = nil, req_options = nil, &)
       cas_core(key, false, ttl, req_options, &)
     end
 
     ##
     # like #cas, but will yield to the block whether or not the value
-    # already exists.
+    # already exists. If the key did not exist, the block receives nil.
     #
     # Returns:
-    # - false if the value was changed by someone else.
-    # - true if the value was successfully updated.
+    # - false if the value was changed by someone else, including another
+    #   client creating a missing key while the block ran.
+    # - the new CAS value (a positive Integer) if the value was successfully updated.
     def cas!(key, ttl = nil, req_options = nil, &)
       cas_core(key, true, ttl, req_options, &)
     end
