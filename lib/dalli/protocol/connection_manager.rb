@@ -28,6 +28,9 @@ module Dalli
 
       attr_accessor :hostname, :port, :socket_type, :options
       attr_reader :sock
+      # The buffer replies are read into (see Base#response_buffer). It's
+      # cleared with the write buffer whenever the connection closes.
+      attr_writer :response_buffer
 
       def initialize(hostname, port, socket_type, client_options)
         @hostname = hostname
@@ -40,6 +43,7 @@ module Dalli
         @pid = nil
         @write_buffer = []
         @write_buffer_bytes = 0
+        @response_buffer = nil
 
         @fail_count = 0
         reset_down_info
@@ -130,6 +134,7 @@ module Dalli
         @pid = nil
         @quiet_responses_pending = false
         discard_write_buffer
+        @response_buffer&.clear
         abort_request!
       end
 
