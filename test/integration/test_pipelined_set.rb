@@ -149,6 +149,23 @@ describe 'Pipelined Set' do
             end
           end
 
+          it "logs keys but not values for #{label} on a single server" do
+            memcached_persistent(p) do |_, port|
+              dc = single_server_client(port, value_max_bytes: 1024)
+              log = StringIO.new
+              old_logger = Dalli.logger
+              Dalli.logger = Logger.new(log)
+              begin
+                assert_raises(error_class) { dc.set_multi('good_key' => 'secret_value', 'bad' => bad_value) }
+              ensure
+                Dalli.logger = old_logger
+              end
+
+              refute_includes log.string, 'secret_value'
+              assert_includes log.string, 'good_key' if error_class == Dalli::MarshalError
+            end
+          end
+
           it "stores every good key and raises for #{label} across servers" do
             port1 = 27_611
             port2 = 27_612
