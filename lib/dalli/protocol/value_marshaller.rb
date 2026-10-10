@@ -13,11 +13,29 @@ module Dalli
       extend Forwardable
 
       DEFAULTS = {
-        # max size of value in bytes (default is 1 MB, can be overriden with "memcached -I <size>")
+        # max memcached item size in bytes: value + key + ITEM_OVERHEAD_BYTES. Set it to
+        # memcached's -I value (default 1 MB).
         value_max_bytes: 1024 * 1024
       }.freeze
 
       OPTIONS = DEFAULTS.keys.freeze
+
+      # memcached's -I limit applies to the whole item, not just the value. On
+      # 64-bit memcached 1.6 an item takes the value, the key, and 63 bytes of
+      # overhead: a 48-byte header, 8 bytes of CAS, 4 bytes of client flags,
+      # the key's NUL terminator and the value's trailing CRLF. (Measured
+      # against memcached 1.6.45 with -I 512k, 1m, 2m and 5m; an item stored
+      # with zero flags or with CAS disabled needs a few bytes less.)
+      ITEM_OVERHEAD_BYTES = 63
+
+      def self.error_if_over_max_value_bytes(key, value, value_max_bytes)
+        item_bytes = value.bytesize + key.bytesize + ITEM_OVERHEAD_BYTES
+        return if item_bytes <= value_max_bytes
+
+        message = "Value for #{key} over max size: #{value_max_bytes} <= #{item_bytes} " \
+                  "(#{value.bytesize} value bytes + #{key.bytesize} key bytes + #{ITEM_OVERHEAD_BYTES} item overhead)"
+        raise Dalli::ValueOverMaxSize, message
+      end
 
       def_delegators :@value_serializer, :serializer
       def_delegators :@value_compressor, :compressor, :compression_min_size, :compress_by_default?
@@ -28,6 +46,7 @@ module Dalli
 
         @marshal_options =
           DEFAULTS.merge(client_options.slice(*OPTIONS))
+        @marshal_options[:value_max_bytes] = @marshal_options[:value_max_bytes].to_i
       end
 
       def store(key, value, options = nil)
@@ -49,10 +68,7 @@ module Dalli
       end
 
       def error_if_over_max_value_bytes(key, value)
-        return if value.bytesize <= value_max_bytes
-
-        message = "Value for #{key} over max size: #{value_max_bytes} <= #{value.bytesize}"
-        raise Dalli::ValueOverMaxSize, message
+        self.class.error_if_over_max_value_bytes(key, value, value_max_bytes)
       end
     end
   end
