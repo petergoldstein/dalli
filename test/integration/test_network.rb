@@ -204,6 +204,105 @@ describe 'Network' do
             refute_equal(optval[0], 0)
           end
         end
+
+        it 'fails when SSL client connects to non-SSL server' do
+          memcached_persistent(p) do |_, port|
+            ssl_context = OpenSSL::SSL::SSLContext.new
+            ssl_context.verify_mode = OpenSSL::SSL::VERIFY_NONE
+
+            dc = Dalli::Client.new("localhost:#{port}", ssl_context: ssl_context, protocol: p)
+
+            # The SSL handshake fails against a non-SSL server, which marks
+            # the only server down
+            with_nil_logger do
+              assert_error(Dalli::RingError, /No server available/) { dc.get('abc') }
+            end
+          end
+        end
+
+        it 'fails when SSL verification fails due to untrusted certificate' do
+          memcached_ssl_persistent(p) do |_, port|
+            # Create SSL context that does not trust the test CA
+            strict_ssl_context = OpenSSL::SSL::SSLContext.new
+            strict_ssl_context.verify_mode = OpenSSL::SSL::VERIFY_PEER
+            # Don't set ca_file, so the self-signed cert won't be trusted
+
+            dc = Dalli::Client.new("localhost:#{port}", ssl_context: strict_ssl_context, protocol: p)
+
+            # SSL verification fails due to untrusted certificate
+            with_nil_logger do
+              assert_error(Dalli::RingError, /No server available/) { dc.get('abc') }
+            end
+          end
+        end
+
+        describe 'when the TLS handshake fails' do
+          # A plain TCP server that answers with a non-TLS reply and hangs up
+          def with_garbage_server
+            server = TCPServer.new('127.0.0.1', 0)
+            acceptor = Thread.new { serve_garbage(server) }
+            yield server.addr[1]
+          ensure
+            server&.close
+            acceptor&.kill
+            acceptor&.join
+          end
+
+          def serve_garbage(server)
+            loop do
+              sock = server.accept
+              sock.write("ERROR not a TLS server\r\n")
+              sock.close
+            end
+          rescue IOError, SystemCallError
+            nil
+          end
+
+          it 'raises a Dalli::NetworkError rather than an OpenSSL error' do
+            with_garbage_server do |port|
+              manager = Dalli::Protocol::ConnectionManager.new(
+                '127.0.0.1', port, :tcp,
+                ssl_context: CertificateGenerator.ssl_context, socket_failure_delay: nil
+              )
+
+              with_nil_logger do
+                assert_error(Dalli::NetworkError, /retrying/) { manager.establish_connection }
+              end
+            end
+          end
+
+          it 'marks the server down after socket_max_failures' do
+            with_garbage_server do |port|
+              manager = Dalli::Protocol::ConnectionManager.new(
+                '127.0.0.1', port, :tcp,
+                ssl_context: CertificateGenerator.ssl_context, socket_max_failures: 2, socket_failure_delay: nil
+              )
+
+              with_nil_logger do
+                assert_error(Dalli::NetworkError, /retrying/) { manager.establish_connection }
+                assert_error(Dalli::NetworkError, /is down.*OpenSSL::SSL::SSLError/) { manager.establish_connection }
+
+                refute_predicate manager, :reconnect_down_server?
+              end
+            end
+          end
+
+          it 'fails over to another server' do
+            with_garbage_server do |bad_port|
+              memcached_ssl_persistent(p) do |_, good_port|
+                dc = Dalli::Client.new(["127.0.0.1:#{bad_port}", "127.0.0.1:#{good_port}"],
+                                       ssl_context: CertificateGenerator.ssl_context, protocol: p,
+                                       socket_failure_delay: nil)
+
+                with_nil_logger do
+                  20.times { |i| dc.set("failover#{i}", i) }
+
+                  assert_equal(19, dc.get('failover19'))
+                end
+              end
+            end
+          end
+        end
       end
 
       it 'handles timeout error during pipelined get' do
