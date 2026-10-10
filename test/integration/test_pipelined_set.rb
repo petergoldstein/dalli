@@ -122,6 +122,55 @@ describe 'Pipelined Set' do
           end
         end
       end
+
+      # A value that can't be marshalled, or is over value_max_bytes, must not
+      # cost the other keys in the batch: every good key is stored, the bad key
+      # is skipped, and the first such error is raised once the batch is done.
+      # Single- and multi-server set_multi follow the same contract.
+      describe 'with a value that cannot be stored' do
+        {
+          'an unmarshallable value' => [Dalli::MarshalError, proc {}],
+          'a value over value_max_bytes' => [Dalli::ValueOverMaxSize, 'x' * 2048]
+        }.each do |label, (error_class, bad_value)|
+          it "stores every good key and raises for #{label} on a single server" do
+            memcached_persistent(p) do |_, port|
+              dc = single_server_client(port, value_max_bytes: 1024)
+              dc.flush
+
+              good = {}
+              20.times { |i| good["good_#{i}"] = "value_#{i}" }
+
+              with_nil_logger do
+                assert_raises(error_class) { dc.set_multi(good.merge('bad' => bad_value)) }
+              end
+
+              assert_equal good, dc.get_multi(good.keys)
+              assert_nil dc.get('bad')
+            end
+          end
+
+          it "stores every good key and raises for #{label} across servers" do
+            port1 = 27_611
+            port2 = 27_612
+            memcached(p, port1) do
+              memcached(p, port2) do
+                dc = Dalli::Client.new(["127.0.0.1:#{port1}", "127.0.0.1:#{port2}"], value_max_bytes: 1024)
+                dc.flush
+
+                good = {}
+                20.times { |i| good["good_#{i}"] = "value_#{i}" }
+
+                with_nil_logger do
+                  assert_raises(error_class) { dc.set_multi(good.merge('bad' => bad_value)) }
+                end
+
+                assert_equal good, dc.get_multi(good.keys)
+                assert_nil dc.get('bad')
+              end
+            end
+          end
+        end
+      end
     end
   end
 end

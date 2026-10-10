@@ -79,8 +79,14 @@ module Dalli
 
           request_completed = true
           response
-        rescue Dalli::MarshalError => e
-          log_marshal_err(args.first, e)
+        rescue Dalli::MarshalError, Dalli::ValueOverMaxSize => e
+          log_marshal_err(args.first, e) if e.is_a?(Dalli::MarshalError)
+          # Raised only while the connection is clean: a value is marshalled
+          # before any of its request is written, and write_multi_req raises
+          # only after reading every reply. Closing the connection would
+          # discard earlier quiet writes still waiting in the write buffer.
+          @connection_manager.abort_request!
+          request_completed = true
           raise
         rescue Dalli::DalliError
           raise

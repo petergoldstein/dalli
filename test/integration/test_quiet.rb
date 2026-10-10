@@ -26,6 +26,36 @@ describe 'Quiet behavior' do
         end
       end
 
+      # Earlier quiet writes sit in the connection's write buffer until the
+      # block's noop; a value that fails to marshal must not throw them away.
+      {
+        'an unmarshallable value' => [Dalli::MarshalError, proc {}],
+        'a value over value_max_bytes' => [Dalli::ValueOverMaxSize, 'x' * 2048]
+      }.each do |label, (error_class, bad_value)|
+        it "keeps the other quiet writes when a set raises for #{label}" do
+          memcached_persistent(p) do |_, port|
+            dc = single_server_client(port, value_max_bytes: 1024)
+            dc.flush
+
+            with_nil_logger do
+              dc.quiet do
+                dc.set('quiet_a', 1)
+                assert_raises(error_class) { dc.set('quiet_b', bad_value) }
+                dc.set('quiet_c', 3)
+              end
+            end
+
+            assert_equal 1, dc.get('quiet_a')
+            assert_nil dc.get('quiet_b')
+            assert_equal 3, dc.get('quiet_c')
+
+            # The connection is still usable afterwards
+            assert dc.set('quiet_d', 4)
+            assert_equal 4, dc.get('quiet_d')
+          end
+        end
+      end
+
       it 'supports the use of add in a quiet block' do
         memcached_persistent(p) do |dc|
           dc.close
