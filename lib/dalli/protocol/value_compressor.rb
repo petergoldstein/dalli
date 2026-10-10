@@ -84,11 +84,13 @@ module Dalli
       end
 
       # Checks whether we should apply compression when serializing a value
-      # based on the specified options.  Returns false unless the value
-      # is greater than the minimum compression size.  Otherwise returns
-      # based on a method-level option if specified, falling back to the
-      # server default.
+      # based on the specified options.  Returns false for a raw request
+      # (raw reads ignore bitflags, so the value must be stored as given) or
+      # unless the value is greater than the minimum compression size.
+      # Otherwise returns based on a method-level option if specified,
+      # falling back to the server default.
       def compress_value?(value, req_options)
+        return false if req_options&.dig(:raw)
         return false unless value.bytesize >= compression_min_size
         return compress_by_default? unless req_options && !req_options[:compress].nil?
 
