@@ -69,9 +69,11 @@ describe Dalli::PipelinedGetter do
       server
     end
 
-    def run_setup(servers)
+    # Returns the servers setup_requests left in its started list
+    def run_setup(servers, started = [])
       groups = servers.to_h { |s| [s, ["#{s.name}-key"]] }
-      getter.stub(:groups_for_keys, groups) { getter.send(:setup_requests, groups.values.flatten) }
+      getter.stub(:groups_for_keys, groups) { getter.send(:setup_requests, started, groups.values.flatten) }
+      started
     end
 
     it "sends each server's terminating noop before the next server's queries" do
@@ -97,9 +99,13 @@ describe Dalli::PipelinedGetter do
                  recording_server('s2', log, fail_setup_with: Dalli::NetworkError),
                  recording_server('s3', log)]
 
-      assert_raises(Dalli::NetworkError) { run_setup(servers) }
+      started = []
+
+      assert_raises(Dalli::NetworkError) { run_setup(servers, started) }
       assert_equal([%w[s1 abort], %w[s2 abort]], log.select { |_, op| op == :abort }.map { |n, op| [n, op.to_s] })
       refute(log.any? { |n, _| n == 's3' })
+      # Emptied, so #process doesn't abort them a second time
+      assert_empty started
     end
   end
 end
