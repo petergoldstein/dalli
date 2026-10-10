@@ -916,6 +916,10 @@ module Dalli
       return if value.nil? && !always_set
 
       newvalue = yield(value)
+      # A CAS of 0 means the key was missing. A set with CAS 0 is unconditional,
+      # so add instead: it fails if another client created the key meanwhile.
+      return perform(:add, key, newvalue, ttl_or_default(ttl), req_options) if cas.zero?
+
       perform(:set, key, newvalue, ttl_or_default(ttl), cas, req_options)
     end
 

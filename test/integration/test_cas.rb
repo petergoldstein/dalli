@@ -334,6 +334,22 @@ describe 'CAS behavior' do
             assert_equal mutated, resp
           end
         end
+
+        it 'does not overwrite a value created by another writer when the key has no existing value' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            resp = dc.cas!('cas_key') do |value|
+              assert_nil value
+              # Another client creates the key while the block runs
+              dc.set('cas_key', 'other writer')
+              'mine'
+            end
+
+            refute resp
+            assert_equal 'other writer', dc.get('cas_key')
+          end
+        end
       end
     end
   end
