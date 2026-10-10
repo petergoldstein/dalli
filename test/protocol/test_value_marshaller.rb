@@ -32,7 +32,6 @@ describe Dalli::Protocol::ValueMarshaller do
     let(:val) { SecureRandom.hex(4096) }
     let(:serialized_value) { Marshal.dump(val) }
     let(:compressed_serialized_value) { Dalli::Compressor.compress(serialized_value) }
-    let(:compressed_raw_value) { Dalli::Compressor.compress(val) }
     let(:key) { SecureRandom.hex(5) }
 
     describe 'when the bytesize is under value_max_bytes' do
@@ -62,8 +61,8 @@ describe Dalli::Protocol::ValueMarshaller do
         describe 'when the value is above the minimum compression size' do
           let(:val) { SecureRandom.hex(4096) }
 
-          it 'return the expected value and flags' do
-            assert_equal [compressed_raw_value, 0x2], marshaller.store(key, val, req_options)
+          it 'returns the value uncompressed' do
+            assert_equal [val, 0x0], marshaller.store(key, val, req_options)
           end
         end
 
@@ -116,7 +115,7 @@ describe Dalli::Protocol::ValueMarshaller do
       describe 'when the raw option is specified' do
         let(:req_options) { { raw: true } }
 
-        describe 'when the raw compressed value is above the value_max_bytes size' do
+        describe 'when the raw value is above the value_max_bytes size' do
           let(:val) { SecureRandom.hex(4 * 1024 * 1024) }
 
           it 'raises an error with the expected message' do
@@ -124,7 +123,7 @@ describe Dalli::Protocol::ValueMarshaller do
               marshaller.store(key, val, req_options)
             end
 
-            assert_equal "Value for #{key} over max size: #{1024 * 1024} <= #{compressed_raw_value.size}",
+            assert_equal "Value for #{key} over max size: #{1024 * 1024} <= #{val.bytesize}",
                          exception.message
           end
         end
@@ -132,8 +131,8 @@ describe Dalli::Protocol::ValueMarshaller do
         describe 'when the value is below the value_max_bytes size and above the minimum compression size' do
           let(:val) { SecureRandom.hex(4096) }
 
-          it 'return the expected value and flags' do
-            assert_equal [compressed_raw_value, 0x2], marshaller.store(key, val, req_options)
+          it 'returns the value uncompressed' do
+            assert_equal [val, 0x0], marshaller.store(key, val, req_options)
           end
         end
 
@@ -179,7 +178,7 @@ describe Dalli::Protocol::ValueMarshaller do
       describe 'when the raw option is specified' do
         let(:req_options) { { raw: true } }
 
-        describe 'when the raw compressed value is above the value_max_bytes size' do
+        describe 'when the raw value is above the value_max_bytes size' do
           let(:val) { SecureRandom.hex(4096) }
 
           it 'raises an error with the expected message' do
@@ -187,7 +186,7 @@ describe Dalli::Protocol::ValueMarshaller do
               marshaller.store(key, val, req_options)
             end
 
-            assert_equal "Value for #{key} over max size: #{value_max_bytes} <= #{compressed_raw_value.size}",
+            assert_equal "Value for #{key} over max size: #{value_max_bytes} <= #{val.bytesize}",
                          exception.message
           end
         end
