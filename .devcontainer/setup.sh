@@ -7,8 +7,7 @@ echo "Setting up Dalli development environment..."
 echo "Installing memcached..."
 cd /workspace
 export MEMCACHED_VERSION=1.6.45
-chmod +x scripts/install_memcached.sh
-scripts/install_memcached.sh
+bash scripts/install_memcached.sh
 
 # Clean up memcached installation files
 echo "Cleaning up memcached installation files..."
