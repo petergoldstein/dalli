@@ -34,7 +34,7 @@ module Dalli
           return cache_nils ? ::Dalli::NOT_FOUND : nil if tokens.first == EN
           return true unless tokens.first == VA
 
-          value = read_line
+          value = read_data(tokens[1].to_i)
           raw ? value : @value_marshaller.retrieve(value, bitflags_from_tokens(tokens))
         end
 
@@ -46,7 +46,7 @@ module Dalli
           cas = cas_from_tokens(tokens)
           return [nil, cas] unless tokens.first == VA
 
-          value = read_line
+          value = read_data(tokens[1].to_i)
           [raw ? value : @value_marshaller.retrieve(value, bitflags_from_tokens(tokens)), cas]
         end
 
@@ -241,6 +241,15 @@ module Dalli
         def next_line_to_tokens
           line = read_line
           line&.split || []
+        end
+
+        # Values are read by the size in the VA line, not up to the next CRLF:
+        # a value can contain CRLF and can be longer than MAX_LINE_BYTES
+        def read_data(data_size)
+          # Checked before the terminator is added: -1 or -2 would otherwise
+          # read 1 or 0 bytes and leave the connection out of step
+          check_value_size!(data_size)
+          @io_source.read(data_size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
         end
       end
     end

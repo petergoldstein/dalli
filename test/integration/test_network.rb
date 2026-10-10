@@ -160,6 +160,50 @@ describe 'Network' do
           end
         end
 
+        it 'closes the connection when a reply line has no CRLF within the line limit' do
+          next if p == :binary # only the meta protocol reads reply lines
+
+          server = lambda do |sock|
+            while (line = sock.gets)
+              if line.start_with?('version')
+                sock.write("VERSION 1.6.45\r\n")
+              else
+                sock.write('x' * (64 * 1024)) # never ends the line
+              end
+            end
+          rescue SystemCallError
+            nil # the client hung up
+          end
+          memcached_mock(server, :start, [19_141]) do
+            dc = Dalli::Client.new('localhost:19141', protocol: p, socket_timeout: 5, socket_max_failures: 0,
+                                                      socket_failure_delay: 0.0, down_retry_delay: 0.0)
+            started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            # The server is marked down at the first failure, so the retry
+            # finds no server
+            with_nil_logger do
+              assert_error(Dalli::RingError, /No server available/) { dc.get('abc') }
+            end
+
+            # Raised as soon as the limit is hit, not after the socket timeout
+            assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 2
+            refute_predicate dc.send(:ring).servers.first, :connected?
+          end
+        end
+
+        it 'reads values longer than the line limit or containing CRLF' do
+          memcached_persistent(p) do |dc|
+            long = SecureRandom.random_bytes(3 * Dalli::Protocol::ConnectionManager::MAX_LINE_BYTES)
+            with_crlf = "line one\r\nline two\r\n"
+            dc.set('long', long, 0, raw: true)
+            dc.set('crlf', with_crlf, 0, raw: true)
+
+            assert_equal long.b, dc.get('long', raw: true).b
+            assert_equal with_crlf, dc.get('crlf', raw: true)
+            # The connection is still in step afterwards
+            assert_equal 'v', dc.set('after', 'v') && dc.get('after')
+          end
+        end
+
         it 'opens a standard TCP connection when ssl_context is not configured' do
           memcached_persistent(p) do |dc|
             server = dc.send(:ring).servers.first
