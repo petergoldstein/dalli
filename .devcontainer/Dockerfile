@@ -1,4 +1,4 @@
-FROM ruby:3.4-bullseye
+FROM ruby:3.4-bookworm
 
 # Install dependencies
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
