@@ -35,6 +35,10 @@ Bug fixes:
   - A value that raised `Dalli::MarshalError` or `Dalli::ValueOverMaxSize` closed the connection, which dropped writes still buffered from the same `quiet` block or `set_multi`. Multi-server `set_multi` did this without raising
   - Both `set_multi` paths now store every other key, skip the bad one, and then raise. Single-server `set_multi` used to store nothing
   - When single-server `set_multi` failed to marshal a value, the error log included every value in the batch. It now lists only the keys
+- `Rack::Session::Dalli`'s 401 for a session deleted mid-request is now a valid Rack response (#1220)
+  - When a session is deleted while a request is using it (for example, by a logout in another request), the store still returns 401 instead of writing the session back. The 401 now has a `content-type` and expires the session cookie, so the browser stops sending the dead session ID
+  - The app's response body is now closed, as the Rack spec requires. Before, it was dropped without `close`
+  - The app has already run when the 401 is returned, so its side effects have happened. This is documented in the README
 
 5.2.2
 ==========

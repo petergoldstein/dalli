@@ -77,10 +77,18 @@ module Rack
         @data = build_data_source(options)
       end
 
-      def call(*_args)
-        super
+      # If the session is deleted from memcached while a request is running
+      # (for example, by a logout in another request), the session is not
+      # written back, so a logged-out session can't come back. The app's
+      # response is replaced with a 401 that expires the session cookie.
+      # The app has already run by then, so any side effects it had (database
+      # writes, emails, and so on) have happened.
+      def context(env, app = @app)
+        body = nil
+        super(env, ->(app_env) { app.call(app_env).tap { |response| body = response[2] } })
       rescue MissingSessionError
-        [401, {}, ['Wrong session ID']]
+        body.close if body.respond_to?(:close)
+        missing_session_response(env)
       end
 
       def find_session(req, sid)
@@ -174,6 +182,12 @@ module Rack
             ::Dalli::Client.new(server_configurations, client_options.merge(threadsafe: false))
           end
         end
+      end
+
+      def missing_session_response(env)
+        options = env[Rack::RACK_SESSION_OPTIONS] || @default_options
+        cookie = Rack::Utils.delete_set_cookie_header(key, options.slice(:path, :domain))
+        [401, { 'content-type' => 'text/plain', 'set-cookie' => cookie }, ['Wrong session ID']]
       end
 
       def write_session_safely!(dalli_client, sid, persisted_data, write_args:)

@@ -501,10 +501,34 @@ describe Rack::Session::Dalli do
 
     assert_equal 401, slow_response.status
     assert_equal 'Wrong session ID', slow_response.body
+    assert_equal 'text/plain', slow_response['content-type']
+    assert_equal "#{session_key}=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT",
+                 slow_response['set-cookie']
 
     # Check that the cookie can't be reused:
     response = Rack::MockRequest.new(rsd).get('/', 'HTTP_COOKIE' => login_cookie)
 
     assert_equal '{}', response.body
+  end
+
+  it 'returns a valid 401 that expires the cookie on the configured path and domain' do
+    rsd = Rack::Session::Dalli.new(user_id_session, path: '/app', domain: 'example.com')
+    app = Rack::Lint.new(rsd)
+
+    login_cookie = Rack::MockRequest.new(app).get('/login')['Set-Cookie']
+    slow_request = Fiber.new do
+      Rack::MockRequest.new(app).get('/slow', 'HTTP_COOKIE' => login_cookie)
+    end
+    slow_request.resume
+    Rack::MockRequest.new(app).get('/logout', 'HTTP_COOKIE' => login_cookie)
+
+    slow_response = slow_request.resume
+
+    assert_equal 401, slow_response.status
+    cookie = slow_response['set-cookie']
+
+    assert_includes cookie, 'domain=example.com'
+    assert_includes cookie, 'path=/app'
+    assert_includes cookie, 'max-age=0'
   end
 end
