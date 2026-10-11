@@ -142,6 +142,12 @@ Dalli logs a warning once per process when the context's `verify_mode` is `VERIF
 
 A failed TLS handshake counts as a failed connection attempt, like a refused connection: once `socket_max_failures` attempts have failed, the server is marked down and requests fail over to the other servers.
 
+## Rack Sessions
+
+`Rack::Session::Dalli` stores Rack sessions in memcached. If a session is deleted while a request is using it (for example, when the user logs out in another tab during a slow request), the store doesn't write the session back, so a logged-out session can't come back. It replaces the app's response with a `401 Wrong session ID` that expires the session cookie.
+
+The app has already run by then, so whatever it did (database writes, emails, and so on) has happened, and only its response is lost. If a request needs a different outcome, check that the session still exists before making the changes.
+
 ## OpenTelemetry Tracing
 
 Dalli automatically instruments operations with [OpenTelemetry](https://opentelemetry.io/) when the SDK is present. No configuration is required - just add the OpenTelemetry gems to your application:
