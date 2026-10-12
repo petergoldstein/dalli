@@ -100,6 +100,22 @@ describe 'Dalli::Socket::TCP' do
       assert_equal [['cache.example.com', 11_211], { connect_timeout: 0.5, resolv_timeout: 0.5 }], received
     end
 
+    it 'bounds DNS resolution by connect_timeout when provided' do
+      received = nil
+      fake_new = lambda do |*_args, **kwargs|
+        received = kwargs
+        :sock
+      end
+
+      Dalli::Socket::TCP.stub(:supports_connect_timeout?, true) do
+        Dalli::Socket::TCP.stub(:new, fake_new) do
+          Dalli::Socket::TCP.create_socket_with_timeout('h', 1, socket_timeout: 5, connect_timeout: 0.25) { |_| nil }
+        end
+      end
+
+      assert_equal({ connect_timeout: 0.25, resolv_timeout: 0.25 }, received)
+    end
+
     it 'raises on connection timeout to non-existent server' do
       # Use a port that's unlikely to be listening
       assert_raises(Errno::ECONNREFUSED, Timeout::Error) do

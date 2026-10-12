@@ -38,7 +38,7 @@ Bug fixes:
 
 Improvements:
 
-- Add a `connect_timeout` option to set a separate timeout for establishing connections (including reconnects); it defaults to `socket_timeout`
+- Add a `connect_timeout` option to set a separate timeout for establishing connections (including reconnects); it defaults to `socket_timeout`. On CRuby it also bounds DNS resolution (`resolv_timeout:`)
 
 5.2.2
 ==========

@@ -171,7 +171,7 @@ module Dalli
         timeout = Dalli::Socket.connect_timeout_for(options)
         if supports_connect_timeout?
           # resolv_timeout bounds the DNS lookup, which connect_timeout doesn't cover
-          sock = new(host, port, connect_timeout: timeout, resolv_timeout: options[:socket_timeout])
+          sock = new(host, port, connect_timeout: timeout, resolv_timeout: timeout)
           yield(sock)
         else
           Timeout.timeout(timeout) do
