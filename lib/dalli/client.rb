@@ -231,9 +231,14 @@ module Dalli
     #
     # `req_options` accepts :p_token/:l_token, applied to every key in the batch.
     #
+    # A transient network error is retried automatically. If a server remains
+    # unreachable after retrying, raises Dalli::NetworkError rather than
+    # returning its keys as misses or yielding a partial result.
+    #
     # @param keys [Array<String>] the keys to fetch
     # @param req_options [Hash, nil] routing-token options
     # @return [Hash] key => { value:, cas:, stale:, miss: }
+    # @raise [Dalli::NetworkError] if a server is unreachable after retrying
     def get_multi_with_metadata(*keys, req_options: nil, &block)
       keys.flatten!
       keys.compact!
@@ -826,14 +831,16 @@ module Dalli
     end
 
     def single_server_get_multi_with_metadata(keys, req_options = nil)
-      keys.map! { |k| @key_manager.validate_key(k.to_s) }
+      validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
       return {} unless (server = single_server)
 
-      result = server.request(:read_multi_with_metadata_req, keys, req_options)
+      result = server.request(:read_multi_with_metadata_req, validated_keys, req_options)
       result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
       result
-    rescue Dalli::NetworkError
-      {}
+    rescue Dalli::RetryableNetworkError => e
+      Dalli.logger.debug { e.inspect }
+      Dalli.logger.debug { 'retrying single-server get_multi_with_metadata because of network error' }
+      retry
     end
 
     def single_server_set_multi(hash, ttl, req_options)
