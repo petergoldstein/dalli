@@ -60,6 +60,9 @@ module Dalli
     #
     # `req_options` accepts :p_token/:l_token, applied to every key in the batch.
     #
+    # A transient network error is retried automatically. A terminal
+    # Dalli::NetworkError propagates instead of returning partial metadata.
+    #
     def process_with_metadata(keys, req_options = nil)
       return {} if keys.empty?
 
@@ -67,9 +70,9 @@ module Dalli
         results = {}
         groups_for_keys(keys).each do |server, keys_for_server|
           results.merge!(server.request(:read_multi_with_metadata_req, keys_for_server, req_options))
-        rescue Dalli::RetryableNetworkError
+        rescue Dalli::NetworkError
           raise
-        rescue DalliError, NetworkError => e
+        rescue DalliError => e
           Dalli.logger.debug { e.inspect }
           Dalli.logger.debug { "unable to get keys for server #{server.name}" }
         end
