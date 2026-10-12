@@ -41,6 +41,10 @@ Bug fixes:
   - The app's response body is now closed, as the Rack spec requires. Before, it was dropped without `close`
   - The app has already run when the 401 is returned, so its side effects have happened. This is documented in the README
 
+Improvements:
+
+- Add a `connect_timeout` option to set a separate timeout for DNS resolution and TCP/UNIX socket connects (including reconnects); it defaults to `socket_timeout`. On CRuby it also bounds DNS resolution (`resolv_timeout:`). TLS handshakes continue to use `socket_timeout`
+
 5.2.2
 ==========
 

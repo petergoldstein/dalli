@@ -63,6 +63,12 @@ module Dalli
     #                  quiet requests (NF, NS, errors) wait on the connection until then, so a client that only makes
     #                  quiet requests should call #drain_deferred_responses periodically. See "Deferred Draining" in
     #                  the README.
+    # - :socket_timeout - timeout in seconds for reads and writes on a connection, and for the TLS
+    #                     handshake. Also used for connecting unless :connect_timeout is set.
+    #                     Default: 1.
+    # - :connect_timeout - timeout in seconds for DNS resolution and TCP/UNIX socket connects,
+    #                      including reconnects after a failure. Defaults to :socket_timeout.
+    #                      TLS handshakes use :socket_timeout.
     #
     def initialize(servers = nil, options = {})
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)

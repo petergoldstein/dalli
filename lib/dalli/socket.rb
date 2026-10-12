@@ -8,6 +8,12 @@ module Dalli
   # Various socket implementations used by Dalli.
   ##
   module Socket
+    # Timeout for establishing a connection: connect_timeout if set,
+    # otherwise socket_timeout.
+    def self.connect_timeout_for(options)
+      options[:connect_timeout] || options[:socket_timeout]
+    end
+
     ##
     # Common methods for all socket implementations.
     ##
@@ -162,12 +168,13 @@ module Dalli
       end
 
       def self.create_socket_with_timeout(host, port, options)
+        timeout = Dalli::Socket.connect_timeout_for(options)
         if supports_connect_timeout?
           # resolv_timeout bounds the DNS lookup, which connect_timeout doesn't cover
-          sock = new(host, port, connect_timeout: options[:socket_timeout], resolv_timeout: options[:socket_timeout])
+          sock = new(host, port, connect_timeout: timeout, resolv_timeout: timeout)
           yield(sock)
         else
-          Timeout.timeout(options[:socket_timeout]) do
+          Timeout.timeout(timeout) do
             sock = new(host, port)
             yield(sock)
           end
@@ -291,7 +298,7 @@ module Dalli
         attr_accessor :options
 
         def self.open(path, options = {})
-          Timeout.timeout(options[:socket_timeout]) do
+          Timeout.timeout(Dalli::Socket.connect_timeout_for(options)) do
             sock = new(path)
             sock.options = { path: path }.merge(options)
             init_socket_options(sock, options)
