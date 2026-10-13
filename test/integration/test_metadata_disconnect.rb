@@ -70,10 +70,31 @@ describe 'Bulk metadata reads after a real disconnect' do
         assert_raises(Dalli::NetworkError) { client.public_send(operation, keys) }
       end
     end
+
+    it "raises from #{operation} instead of hiding the failed request through default failover" do
+      with_disconnect_servers(2, failover: true) do |client|
+        keys = disconnect_later_group(client)
+
+        assert_raises(Dalli::NetworkError) { client.public_send(operation, keys) }
+      end
+    end
   end
 
   it 'does not yield the surviving server as a successful partial batch' do
     with_disconnect_servers(2) do |client|
+      keys = disconnect_later_group(client)
+      yielded = []
+
+      assert_raises(Dalli::NetworkError) do
+        client.get_multi_with_metadata(keys) { |key, metadata| yielded << [key, metadata] }
+      end
+
+      assert_empty yielded
+    end
+  end
+
+  it 'does not yield fallback misses as success after a request fails with default failover' do
+    with_disconnect_servers(2, failover: true) do |client|
       keys = disconnect_later_group(client)
       yielded = []
 
