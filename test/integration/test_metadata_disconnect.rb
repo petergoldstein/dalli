@@ -6,8 +6,8 @@ describe 'Bulk metadata reads after a real disconnect' do
   def with_disconnect_servers(count, **options)
     ports = [30_933, 30_934].first(count)
     ports.each { |port| MemcachedManager.start(port, '') }
-    client = Dalli::Client.new(ports.map { |port| "localhost:#{port}" },
-                              { failover: false, socket_timeout: 0.2, socket_failure_delay: 0.01 }.merge(options))
+    client_options = { failover: false, socket_timeout: 0.2, socket_failure_delay: 0.01 }.merge(options)
+    client = Dalli::Client.new(ports.map { |port| "localhost:#{port}" }, client_options)
     client.flush
     yield client, ports
   ensure
@@ -111,8 +111,8 @@ describe 'Bulk metadata reads after a real disconnect' do
   it 'keeps failover when a server is unavailable before the batch is routed' do
     with_disconnect_servers(2, failover: true) do |client, ports|
       ring = client.send(:ring)
-      key = (1..).lazy.map { |i| "initial-failover-#{i}" }
-                  .find { |candidate| ring.server_for_key(candidate) == ring.servers.first }
+      candidates = (1..).lazy.map { |i| "initial-failover-#{i}" }
+      key = candidates.find { |candidate| ring.server_for_key(candidate) == ring.servers.first }
       fallback = single_server_client(ports.last)
       begin
         fallback.set(key, 'fallback-value')

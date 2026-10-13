@@ -840,7 +840,8 @@ module Dalli
 
     def single_server_get_multi_with_metadata(keys, req_options = nil)
       validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
-      return {} unless (server ||= single_server)
+      server ||= single_server
+      return {} unless server
 
       result = server.request(:read_multi_with_metadata_req, validated_keys, req_options)
       result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
