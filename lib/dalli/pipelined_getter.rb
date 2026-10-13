@@ -66,23 +66,29 @@ module Dalli
     def process_with_metadata(keys, req_options = nil)
       return {} if keys.empty?
 
-      @ring.lock do
-        results = {}
-        groups_for_keys(keys).each do |server, keys_for_server|
-          results.merge!(server.request(:read_multi_with_metadata_req, keys_for_server, req_options))
-        rescue Dalli::NetworkError
-          raise
-        rescue DalliError => e
-          Dalli.logger.debug { e.inspect }
-          Dalli.logger.debug { "unable to get keys for server #{server.name}" }
+      groups = nil
+      begin
+        @ring.lock do
+          # Fresh routing on retry would swallow a terminal reconnect failure
+          # in alive?, losing that server's keys before request sees the error.
+          groups ||= groups_for_keys(keys)
+          results = {}
+          groups.each do |server, keys_for_server|
+            results.merge!(server.request(:read_multi_with_metadata_req, keys_for_server, req_options))
+          rescue Dalli::NetworkError
+            raise
+          rescue DalliError => e
+            Dalli.logger.debug { e.inspect }
+            Dalli.logger.debug { "unable to get keys for server #{server.name}" }
+          end
+          results.transform_keys! { |key| @key_manager.key_without_namespace(key) }
+          results
         end
-        results.transform_keys! { |key| @key_manager.key_without_namespace(key) }
-        results
+      rescue Dalli::RetryableNetworkError => e
+        Dalli.logger.debug { e.inspect }
+        Dalli.logger.debug { 'retrying pipelined get with metadata because of network error' }
+        retry
       end
-    rescue Dalli::RetryableNetworkError => e
-      Dalli.logger.debug { e.inspect }
-      Dalli.logger.debug { 'retrying pipelined get with metadata because of network error' }
-      retry
     end
 
     private

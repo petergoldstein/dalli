@@ -240,6 +240,8 @@ module Dalli
     # A transient network error is retried automatically. If a server remains
     # unreachable after retrying, raises Dalli::NetworkError rather than
     # returning its keys as misses or yielding a partial result.
+    # Retries use the servers selected for this batch, so a reconnect failure
+    # cannot silently reroute already-requested keys or omit a server's group.
     #
     # @param keys [Array<String>] the keys to fetch
     # @param req_options [Hash, nil] routing-token options
@@ -838,7 +840,7 @@ module Dalli
 
     def single_server_get_multi_with_metadata(keys, req_options = nil)
       validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
-      return {} unless (server = single_server)
+      return {} unless (server ||= single_server)
 
       result = server.request(:read_multi_with_metadata_req, validated_keys, req_options)
       result.transform_keys! { |k| @key_manager.key_without_namespace(k) }

@@ -6,6 +6,7 @@ Unreleased
 
 Bug fixes:
 
+- Bulk metadata reads now propagate a failed reconnect after a real disconnect instead of rerouting or omitting already-requested keys (@jaideeppyne)
 - `get_multi_with_metadata` and its `CacheResult` adapter now retry transient network errors and raise `Dalli::NetworkError` on terminal failures instead of returning misses or partial results (#1222, @jaideeppyne)
 - A per-request `raw: true` write no longer compresses the value (#1213)
   - Values at or above the compression threshold (4 KB by default) were compressed and flagged even with `raw: true`. Raw reads ignore flags, so reading them back with `raw: true` returned the compressed bytes
