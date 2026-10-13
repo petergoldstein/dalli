@@ -107,4 +107,22 @@ describe 'Bulk metadata reads after a real disconnect' do
       assert_equal 'new-value', client.get_multi_with_metadata('present')['present'][:value]
     end
   end
+
+  it 'keeps failover when a server is unavailable before the batch is routed' do
+    with_disconnect_servers(2, failover: true) do |client, ports|
+      ring = client.send(:ring)
+      key = (1..).lazy.map { |i| "initial-failover-#{i}" }
+                  .find { |candidate| ring.server_for_key(candidate) == ring.servers.first }
+      fallback = single_server_client(ports.last)
+      begin
+        fallback.set(key, 'fallback-value')
+        MemcachedManager.stop(ports.first)
+        client.close
+
+        assert_equal 'fallback-value', client.get_multi_with_metadata(key)[key][:value]
+      ensure
+        fallback.close
+      end
+    end
+  end
 end
