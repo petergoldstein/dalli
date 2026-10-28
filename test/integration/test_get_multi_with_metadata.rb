@@ -141,6 +141,61 @@ describe 'get_multi_with_metadata' do
         end
       end
 
+      # Like get, raises Dalli::UnmarshalError for a value that can't be
+      # deserialized, once the rest of the replies are read, so the
+      # connection stays open and in step
+      describe 'when a value cannot be deserialized' do
+        let(:good_keys) { Array.new(20) { |i| "good#{i}" } }
+        let(:expected) { good_keys.to_h { |k| [k, "val-#{k}"] } }
+        let(:keys) { good_keys.dup.insert(7, 'bad') }
+
+        def socks(client)
+          client.send(:ring).servers.map { |s| s.instance_variable_get(:@connection_manager).sock }
+        end
+
+        # The bad value is stored on every server, so it's found whichever
+        # one the key maps to
+        def with_bad_value_client(protocol, server_count)
+          memcached_persistent(protocol, 21_345) do |_, port1|
+            memcached_persistent(protocol, 21_346) do |_, port2|
+              ports = [port1, port2].first(server_count)
+              dc = Dalli::Client.new(ports.map { |port| "localhost:#{port}" })
+              dc.flush
+              good_keys.each { |k| dc.set(k, "val-#{k}") }
+              ports.each { |port| store_undeserializable(port, 'bad') }
+              yield dc
+            end
+          end
+        end
+
+        def assert_in_step(client, socks_before)
+          assert_equal socks_before, socks(client), 'the connections should stay open'
+          assert_equal(expected, client.get_multi_with_metadata(good_keys).transform_values { |meta| meta[:value] })
+          assert_equal expected, client.get_multi(good_keys)
+          assert_equal 'val-good3', client.get('good3')
+        end
+
+        (1..2).each do |server_count|
+          it "raises with #{server_count} server(s)" do
+            with_bad_value_client(p, server_count) do |dc|
+              before = socks(dc)
+
+              assert_raises(Dalli::UnmarshalError) { dc.get_multi_with_metadata(keys) }
+              assert_in_step(dc, before)
+            end
+          end
+
+          it "raises with a block with #{server_count} server(s)" do
+            with_bad_value_client(p, server_count) do |dc|
+              before = socks(dc)
+
+              assert_raises(Dalli::UnmarshalError) { dc.get_multi_with_metadata(keys) { |_k, _meta| nil } }
+              assert_in_step(dc, before)
+            end
+          end
+        end
+      end
+
       it 'round-trips non-string values' do
         memcached_persistent(p) do |dc|
           dc.flush

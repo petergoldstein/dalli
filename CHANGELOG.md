@@ -12,6 +12,9 @@ Bug fixes:
 - A TTL String that isn't a whole number, such as `'abc'`, became 0, which means no expiry. It now raises `ArgumentError`, including for `expires_in` when the client is created
 - A TTL, CAS, `incr`/`decr` amount or initial value outside the range memcached accepts got a `CLIENT_ERROR` reply, which a `quiet` block or `set_multi` discarded, so the write silently did nothing. These now raise `ArgumentError`
 - An invalid `vivify_ttl` raised from deep in the request and closed the connection
+- Multi-gets now raise `Dalli::UnmarshalError` for a value that can't be deserialized, as `get` does, and only after reading the rest of the replies
+  - `get_multi` and `get_multi_cas` raised partway through reading a server's replies, closing the connection, and `get_multi_with_metadata` on more than one server silently dropped every key on that server. A large `get_multi` could also drop that server's keys without raising when it read the bad value while still sending requests (seen mostly on JRuby and TruffleRuby)
+  - In block form the other values are still yielded, and the connections stay open. `get` and the other single-key reads also keep the connection open after this error now
 
 Other changes:
 

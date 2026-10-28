@@ -358,6 +358,7 @@ module Dalli
       def read_multi_metadata_responses(is_raw, keys)
         expect_reply_keys(keys)
         hash = {}
+        unmarshal_error = nil
         while (line = @connection_manager.read_line)
           break if line.start_with?('MN')
           next unless line.start_with?('VA ')
@@ -374,22 +375,39 @@ module Dalli
 
           raise_unexpected_reply_key(key) if unexpected_reply_key?(key)
 
-          hash[key] = { value: @value_marshaller.retrieve(value, bitflags), cas: cas, stale: stale, miss: false }
+          begin
+            hash[key] = { value: @value_marshaller.retrieve(value, bitflags), cas: cas, stale: stale, miss: false }
+          rescue Dalli::UnmarshalError => e
+            # Raised once the rest of the replies are read; see read_multi_get_responses
+            unmarshal_error ||= e
+          end
         end
+        raise unmarshal_error if unmarshal_error
+
         hash
       end
 
+      # A value that can't be deserialized raises Dalli::UnmarshalError, as
+      # get does, but only after the rest of the replies are read, so the
+      # connection is left in step. The first such error is raised.
       def read_multi_get_responses(is_raw, keys)
         expect_reply_keys(keys)
         hash = {}
+        unmarshal_error = nil
         while (line = @connection_manager.read_line)
           break if line.start_with?('MN')
           next unless line.start_with?('VA ')
 
-          key, value = parse_multi_get_value(line, is_raw)
-          raise_unexpected_reply_key(key) if unexpected_reply_key?(key)
+          begin
+            key, value = parse_multi_get_value(line, is_raw)
+          rescue Dalli::UnmarshalError => e
+            unmarshal_error ||= e
+            next
+          end
           hash[key] = value if key
         end
+        raise unmarshal_error if unmarshal_error
+
         hash
       end
 
@@ -410,6 +428,7 @@ module Dalli
         key = processor.key_from_va_line(line)
         return unless key
 
+        raise_unexpected_reply_key(key) if unexpected_reply_key?(key)
         bitflags = is_raw ? 0 : processor.bitflags_from_va_line(line)
         [key, @value_marshaller.retrieve(value, bitflags)]
       end
