@@ -43,6 +43,27 @@ describe 'RequestFormatter properties' do
 
   define_method(:maybe) { |gen| rng.rand < 0.5 ? gen.call : nil }
 
+  # Values at and around the edges of memcached's unsigned 64-bit range
+  define_method(:random_uint64_candidate) do
+    [
+      -> { random_numeric },
+      -> { [-1, 0, 1, (2**64) - 1, 2**64, 2**70].sample(random: rng) },
+      -> { [(2**64) - 1, 2**64].sample(random: rng).to_s },
+      -> { "#{rng.rand(0..100_000)}x" },
+      -> { -rng.rand(1..100_000) }
+    ].sample(random: rng).call
+  end
+
+  # The Integer memcached should receive for a value read as an unsigned 64-bit
+  # integer, or nil when the value isn't one and must be rejected
+  define_method(:expected_uint64) do |value|
+    int = case value
+          when Integer then value
+          when String then Integer(value, 10, exception: false)
+          end
+    int if int&.between?(0, (2**64) - 1)
+  end
+
   define_method(:random_token) do
     [nil, '', random_string(token_chars, 12)].sample(random: rng)
   end
@@ -215,6 +236,42 @@ describe 'RequestFormatter properties' do
       end
     rescue Minitest::Assertion => e
       raise e.class, "#{e.message}\n#{context || "seed=#{seed} iteration=#{i}"}"
+    end
+  end
+
+  # A CAS that couldn't be parsed used to be dropped, which turned a
+  # compare-and-swap into an unconditional write. Every CAS must now either
+  # raise or reach the wire as exactly the value given.
+  it 'never drops a caller-supplied CAS' do
+    iterations.times do |i|
+      key = random_key.delete("\r\n\0 \t\x7F")
+      key = 'k' if key.empty?
+      cas = random_uint64_candidate
+      case_name = available(%i[meta_set meta_delete meta_arithmetic]).sample(random: rng)
+      context = "seed=#{seed} iteration=#{i} #{case_name}(cas: #{cas.inspect})"
+      expected = expected_uint64(cas)
+
+      call = lambda do
+        case case_name
+        when :meta_set then call_formatter(:meta_set, key: key, value: 'v', cas: cas)
+        when :meta_delete then call_formatter(:meta_delete, key: key, cas: cas)
+        when :meta_arithmetic then call_formatter(:meta_arithmetic, key: key, delta: 1, initial: nil, cas: cas)
+        end
+      end
+
+      if expected.nil?
+        assert_raises(ArgumentError, context) { call.call }
+        next
+      end
+
+      # Skip the command and the key, which could itself start with C
+      c_flags = call.call.split.drop(2).grep(/\AC/)
+
+      if expected.zero?
+        assert_empty c_flags, context
+      else
+        assert_equal ["C#{expected}"], c_flags, context
+      end
     end
   end
 end

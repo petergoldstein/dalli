@@ -9,6 +9,10 @@ Bug fixes:
 - A `vivify_ttl` (or `fetch_with_lock`'s `lock_ttl`) over 30 days now protects against a thundering herd
   - memcached reads a TTL over 30 days as a Unix timestamp, so the stub for a miss expired at once and every caller won the recache race. `vivify_ttl` is now sanitized like other TTLs, turning a long interval into a future timestamp
   - `get_with_metadata` raises `ArgumentError` for a `vivify_ttl` that isn't an Integer (or a String of decimal digits), as `fetch_with_lock` already did for `lock_ttl`. Before, the error came from deep in the request and closed the connection
+- A CAS value that isn't an unsigned 64-bit integer now raises `ArgumentError` instead of being ignored
+  - `set_cas`, `replace_cas` and `delete_cas` dropped a CAS that couldn't be parsed, such as `'abc'` or `'123x'`, and sent an unconditional write, so the value was overwritten or deleted whatever its CAS. A negative CAS or one of `2**64` or more was sent and rejected by memcached, which `quiet` blocks silently discarded
+  - The CAS must now be an Integer or a String of decimal digits between 0 and 2**64 - 1 (or nil). It's checked before anything is written, so the connection and any earlier writes in a `quiet` block are unaffected
+- `flush` raises `ArgumentError` for a delay that isn't a non-negative integer. A delay that couldn't be parsed, such as `flush('abc')`, used to flush immediately
 
 5.2.4
 ==========

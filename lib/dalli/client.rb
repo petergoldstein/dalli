@@ -507,7 +507,11 @@ module Dalli
     ##
     # Set the key-value pair, verifying existing CAS.
     # Returns the resulting CAS value if succeeded, and falsy otherwise.
+    # The CAS must be an Integer (or a String of decimal digits) between 0 and
+    # 2**64 - 1, or nil; anything else raises ArgumentError. A CAS of 0 or nil
+    # means an unconditional set.
     def set_cas(key, value, cas, ttl = nil, req_options = nil)
+      validate_uint64!(:cas, cas)
       validate_routing_tokens!(req_options)
       perform(:set, key, value, ttl_or_default(ttl), cas, req_options)
     end
@@ -530,18 +534,22 @@ module Dalli
     ##
     # Conditionally add a key/value pair, verifying existing CAS, only if the
     # key already exists on the server.  Returns the new CAS value if the
-    # operation succeeded, or falsy otherwise.
+    # operation succeeded, or falsy otherwise.  The CAS is validated as in
+    # #set_cas.
     def replace_cas(key, value, cas, ttl = nil, req_options = nil)
+      validate_uint64!(:cas, cas)
       validate_routing_tokens!(req_options)
       perform(:replace, key, value, ttl_or_default(ttl), cas, req_options)
     end
 
     # Delete a key/value pair, verifying existing CAS.
     # Returns true if succeeded, and falsy otherwise.
-    # Delete a key, optionally with a CAS check.
+    # Delete a key, optionally with a CAS check.  The CAS is validated as in
+    # #set_cas.
     #
     # `req_options` accepts the same meta-delete options as #delete.
     def delete_cas(key, cas = 0, req_options = nil)
+      validate_uint64!(:cas, cas)
       validate_delete_options!(req_options)
       validate_routing_tokens!(req_options)
       perform(:delete, key, cas, req_options)
@@ -683,10 +691,13 @@ module Dalli
     ##
     # Flush the memcached server, at 'delay' seconds in the future.
     # Delay defaults to zero seconds, which means an immediate flush.
+    # Delay must be a non-negative Integer (or a String of decimal digits);
+    # anything else raises ArgumentError.
     # Every server is attempted. If any of them fails, the first error is
     # raised once all the others have been flushed.
     ##
     def flush(delay = 0)
+      validate_uint64!(:delay, delay)
       first_error = nil
       results = ring.servers.map do |s|
         s.request(:flush, delay)
@@ -936,6 +947,26 @@ module Dalli
       value.is_a?(String) ? Integer(value, 10) : Integer(value)
     rescue ArgumentError, TypeError, FloatDomainError
       raise ArgumentError, "#{name} must be an Integer, got #{value.inspect}"
+    end
+
+    MAX_UINT64 = (2**64) - 1
+    private_constant :MAX_UINT64
+
+    # CAS values (and the flush delay) are read by memcached as unsigned
+    # 64-bit integers. RequestFormatter raises on anything else as the
+    # wire-level backstop; checking here first keeps the connection open, for
+    # the reason given for routing tokens below. Accepts an Integer or a
+    # String of decimal digits, and returns it as an Integer.
+    def validate_uint64!(name, value)
+      return if value.nil?
+
+      int = case value
+            when Integer then value
+            when String then Integer(value, 10, exception: false)
+            end
+      return int if int&.between?(0, MAX_UINT64)
+
+      raise ArgumentError, "#{name} must be an Integer between 0 and #{MAX_UINT64}, got #{value.inspect}"
     end
 
     # Validated here, before the request reaches Protocol::Base#request, rather

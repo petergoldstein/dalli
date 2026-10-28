@@ -254,7 +254,7 @@ module Dalli
 
         def flush(delay: nil, quiet: false)
           cmd = +'flush_all'
-          cmd << " #{parse_to_64_bit_int(delay, 0)}" if delay
+          cmd << " #{parse_to_64_bit_int(:delay, delay)}" if delay
           cmd << ' noreply' if quiet
           cmd << TERMINATOR
         end
@@ -320,15 +320,27 @@ module Dalli
         end
 
         def cas_string(cas)
-          cas = parse_to_64_bit_int(cas, nil)
+          cas = parse_to_64_bit_int(:cas, cas)
           cas.nil? || cas.zero? ? '' : " C#{cas}"
         end
 
-        def parse_to_64_bit_int(val, default)
-          val.nil? ? nil : Integer(val)
-        rescue ArgumentError
-          # Sanitize to default if it isn't parsable as an integer
-          default
+        MAX_UINT64 = (2**64) - 1
+        private_constant :MAX_UINT64
+
+        # Parses a value memcached reads as an unsigned 64-bit integer: an
+        # Integer, or a String of decimal digits. Anything else raises. It
+        # used to be dropped (or replaced with 0), which turned a CAS write
+        # into an unconditional one and a delayed flush into an immediate one.
+        def parse_to_64_bit_int(name, val)
+          return nil if val.nil?
+
+          int = case val
+                when Integer then val
+                when String then Integer(val, 10, exception: false)
+                end
+          return int if int&.between?(0, MAX_UINT64)
+
+          raise ArgumentError, "#{name} must be an Integer between 0 and #{MAX_UINT64}, got #{val.inspect}"
         end
       end
     end
