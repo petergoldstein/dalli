@@ -4,6 +4,22 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.2.4
+==========
+
+Security:
+
+- Keep a connection shared by several threads or fibers in step during a `quiet` block (GHSA-5xvx-r8rg-5qm2)
+  - A `quiet` (or `multi`) block is quiet only for the thread or fiber that runs it. memcached still replies to a quiet request that fails (for example an `add` of a key that exists), and another thread or fiber using the same client while the block was open read that reply as its own, so its later requests could return another key's value. A non-quiet request now reads any pending quiet replies first
+- Don't let a `get_multi` that stopped early leave replies for a later request (GHSA-5xvx-r8rg-5qm2)
+  - A pipelined `get_multi` stopped by a non-network exception (its block raising or breaking, `Timeout.timeout`, or a value that can't be deserialized) left its unread replies in the response buffer, and a later `get_multi` large enough to use the interleaved path returned them as its own. The buffer is now cleared when a connection closes or a pipelined get starts, and unfinished pipelines are aborted
+  - Affects every supported line (the `get_multi` issue, 4.3 and later); fixed in 5.2.4, 5.1.6, 5.0.12, 4.3.9 and 3.2.15. On 5.2, clients with `defer_drain: true` weren't affected by the `quiet` issue
+
+Bug fixes:
+
+- A failed TLS handshake is now handled as a network error even when openssl wasn't loaded before Dalli
+  - The fix in 5.2.3 (#1215) took effect only when the application had already required openssl: otherwise Dalli's list of TLS errors was empty, so a failed handshake still raised `OpenSSL::SSL::SSLError` and left the socket open
+
 5.2.3
 ==========
 

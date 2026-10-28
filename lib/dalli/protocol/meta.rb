@@ -283,10 +283,12 @@ module Dalli
       # Noop is a keepalive operation but also used to demarcate the end of a set of pipelined commands.
       # We need to read all the responses at once.
       # A write that expects a reply is flushed so the reply can be read. A write
-      # in a quiet block stays buffered until the block's noop, unless
-      # defer_drain is on: then no noop follows at the end of the block, so it is
-      # flushed right away. (pipelined_set passes quiet: true outside a quiet
-      # block; its caller flushes with a terminating noop.)
+      # in a quiet block stays buffered until a noop: the one at the end of the
+      # block, or the one another thread or fiber sends to drain the block's
+      # replies before its own request. With defer_drain no noop follows at the
+      # end of the block, so it is flushed right away. (pipelined_set passes
+      # quiet: true outside a quiet block; its caller flushes with a
+      # terminating noop.)
       def finish_write(quiet)
         @connection_manager.flush if !quiet || (@defer_drain && quiet?)
       end

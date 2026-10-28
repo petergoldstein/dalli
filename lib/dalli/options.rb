@@ -43,7 +43,7 @@ module Dalli
       end
     end
 
-    def pipeline_abort
+    def pipeline_abort(...)
       @lock.synchronize do
         super
       end
