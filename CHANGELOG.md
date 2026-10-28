@@ -7,6 +7,53 @@ Unreleased
 Bug fixes:
 
 - Bulk metadata reads now propagate a failed reconnect after a real disconnect instead of rerouting or omitting already-requested keys (@jaideeppyne)
+- A `vivify_ttl` (or `fetch_with_lock`'s `lock_ttl`) over 30 days now protects against a thundering herd. memcached reads a TTL over 30 days as a Unix timestamp, so the stub for a miss expired at once and every caller won the recache race. `vivify_ttl` is now converted like other TTLs
+- `set_cas`, `replace_cas` and `delete_cas` dropped a CAS that couldn't be parsed, such as `'abc'`, and sent an unconditional write, so the value was overwritten or deleted whatever its CAS. They now raise `ArgumentError`
+- `flush('abc')` flushed immediately. It now raises `ArgumentError`
+- A TTL String that isn't a whole number, such as `'abc'`, became 0, which means no expiry. It now raises `ArgumentError`, including for `expires_in` when the client is created
+- A TTL, CAS, `incr`/`decr` amount or initial value outside the range memcached accepts got a `CLIENT_ERROR` reply, which a `quiet` block or `set_multi` discarded, so the write silently did nothing. These now raise `ArgumentError`
+- An invalid `vivify_ttl` raised from deep in the request and closed the connection
+- Multi-gets now raise `Dalli::UnmarshalError` for a value that can't be deserialized, as `get` does, and only after reading the rest of the replies
+  - `get_multi` and `get_multi_cas` raised partway through reading a server's replies, closing the connection, and `get_multi_with_metadata` on more than one server silently dropped every key on that server. A large `get_multi` could also drop that server's keys without raising when it read the bad value while still sending requests (seen mostly on JRuby and TruffleRuby)
+  - In block form the other values are still yielded, and the connections stay open. `get` and the other single-key reads also keep the connection open after this error now
+
+Other changes:
+
+- Numeric arguments are checked before anything is written, so a bad one raises `ArgumentError` without affecting the connection or earlier writes in a `quiet` block. Integers and Strings of decimal digits (such as `'300'`) are accepted throughout
+  - A TTL (`ttl`, `expires_in`, `vivify_ttl`, `lock_ttl`, `tombstone_ttl`) must fit memcached's signed 32-bit expiration time once a TTL over 30 days is converted to a Unix time. A negative TTL is still accepted and expires the item. A Float or `ActiveSupport::Duration` TTL is still converted with `to_i`
+  - A CAS, an `incr`/`decr` amount or initial value, and a `flush` delay must be from 0 to 2**64 - 1. A Float now raises; `incr(key, 0.9)` used to truncate the amount to 0. A String amount such as `'5'` now works
+  - `fetch_with_lock` checks `ttl` before taking the lock, so a bad one raises before the block runs
+  - `Dalli::Protocol::TtlSanitizer.sanitize` raises `ArgumentError` for a String that isn't a whole number instead of returning 0
+
+5.2.4
+==========
+
+Security:
+
+- Keep a connection shared by several threads or fibers in step during a `quiet` block (GHSA-5xvx-r8rg-5qm2)
+  - A `quiet` (or `multi`) block is quiet only for the thread or fiber that runs it. memcached still replies to a quiet request that fails (for example an `add` of a key that exists), and another thread or fiber using the same client while the block was open read that reply as its own, so its later requests could return another key's value. A non-quiet request now reads any pending quiet replies first
+- Don't let a `get_multi` that stopped early leave replies for a later request (GHSA-5xvx-r8rg-5qm2)
+  - A pipelined `get_multi` stopped by a non-network exception (its block raising or breaking, `Timeout.timeout`, or a value that can't be deserialized) left its unread replies in the response buffer, and a later `get_multi` large enough to use the interleaved path returned them as its own. The buffer is now cleared when a connection closes or a pipelined get starts, and unfinished pipelines are aborted
+  - Affects every supported line (the `get_multi` issue, 4.3 and later); fixed in 5.2.4, 5.1.6, 5.0.12, 4.3.9 and 3.2.15. On 5.2, clients with `defer_drain: true` weren't affected by the `quiet` issue
+
+Bug fixes:
+
+- A failed TLS handshake is now handled as a network error even when openssl wasn't loaded before Dalli
+  - The fix in 5.2.3 (#1215) took effect only when the application had already required openssl: otherwise Dalli's list of TLS errors was empty, so a failed handshake still raised `OpenSSL::SSL::SSLError` and left the socket open
+
+5.2.3
+==========
+
+Security:
+
+- Don't rely on memcached's auto-create for keys that need base64 encoding (GHSA-r47x-6p6r-mvcp)
+  - memcached stores an item made by auto-create (`ma` with `N`/`J`, or `mg` with `N`) for a base64-encoded key without its binary-key flag, and later replies name the item by its raw key bytes. A key containing spaces or CR/LF could then make a multi-get read the replies after it as different ones
+  - `incr` and `decr` with an initial value now create such counters with an add instead. Return values are unchanged
+  - The new `verify_reply_keys` option makes `get_multi`, `get_multi_cas` and `get_multi_with_metadata` ignore replies for keys they didn't request, which guards against items created by older Dalli versions or other clients until memcached is upgraded. It's off by default, since it costs a multi-get about 15%
+  - Affects the meta protocol since 3.2.0; fixed in 5.2.3, 5.1.5, 5.0.11, 4.3.8 and 3.2.14. memcached 1.6.45 and earlier still name these items by their raw key bytes
+
+Bug fixes:
+
 - `get_multi_with_metadata` and its `CacheResult` adapter now retry transient network errors and raise `Dalli::NetworkError` on terminal failures instead of returning misses or partial results (#1222, @jaideeppyne)
 - A per-request `raw: true` write no longer compresses the value (#1213)
   - Values at or above the compression threshold (4 KB by default) were compressed and flagged even with `raw: true`. Raw reads ignore flags, so reading them back with `raw: true` returned the compressed bytes

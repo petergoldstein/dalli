@@ -103,9 +103,14 @@ module Dalli
       #   - :hit_before - true/false if previously accessed (only if return_hit_status: true)
       #   - :last_access - seconds since last access (only if return_last_access: true)
       def meta_get(key, options = {})
+        # vivify_ttl is how long the stub lives, so like any TTL it must be
+        # sanitized: memcached reads a value over 30 days as a Unix timestamp.
+        # recache_ttl is a threshold compared with the remaining TTL, not an
+        # expiry, so it's sent as given.
+        vivify_ttl = options[:vivify_ttl] && TtlSanitizer.sanitize(options[:vivify_ttl])
         req = RequestFormatter.meta_get(
           key: key, value: true, return_cas: true, skip_flags: raw_request?(options),
-          vivify_ttl: options[:vivify_ttl], recache_ttl: options[:recache_ttl],
+          vivify_ttl: vivify_ttl, recache_ttl: options[:recache_ttl],
           return_hit_status: options[:return_hit_status],
           return_last_access: options[:return_last_access],
           return_ttl_remaining: options[:return_ttl_remaining],
@@ -234,10 +239,43 @@ module Dalli
       # rubocop:disable-next Metrics/ParameterLists
       def decr_incr(incr, key, delta, ttl, initial, options = nil)
         ttl = initial ? TtlSanitizer.sanitize(ttl) : nil # Only set a TTL if we want to set a value on miss
+        # memcached stores an item created by ma's auto-create (N/J) for a
+        # base64-encoded key without its binary-key flag, and later replies
+        # name it with the raw key bytes. Create such counters with an add.
+        return decr_incr_with_add(incr, key, delta, ttl, initial, options) if initial && KeyRegularizer.required?(key)
+
         write(RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial, incr: incr, ttl: ttl,
                                                quiet: quiet?, **routing_token_kwargs(options)))
         finish_write(quiet?)
         response_processor.decr_incr unless quiet?
+      end
+
+      # Like decr_incr with an initial value, without memcached's auto-create:
+      # on a miss the counter is added with the initial value (which is
+      # returned, as auto-create would), and the add losing a race to another
+      # client means the counter now exists, so the incr is tried again. In a
+      # quiet block both requests are sent and whichever applies takes effect.
+      # rubocop:disable-next Metrics/ParameterLists
+      def decr_incr_with_add(incr, key, delta, ttl, initial, options)
+        add_options = (options || {}).merge(raw: true) # counters are stored raw
+        return quiet_decr_incr_with_add(incr, key, delta, ttl, initial, add_options) if quiet?
+
+        2.times do
+          value = decr_incr(incr, key, delta, nil, nil, options)
+          return value unless value.nil?
+
+          write_storage_req(:add, key, initial.to_s, ttl, nil, add_options, quiet: false)
+          return initial if response_processor.meta_set_with_cas
+        end
+        decr_incr(incr, key, delta, nil, nil, options)
+      end
+
+      # rubocop:disable-next Metrics/ParameterLists
+      def quiet_decr_incr_with_add(incr, key, delta, ttl, initial, add_options)
+        write(RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: nil, incr: incr, ttl: nil,
+                                               quiet: true, **routing_token_kwargs(add_options)))
+        write_storage_req(:add, key, initial.to_s, ttl, nil, add_options, quiet: true)
+        finish_write(true)
       end
 
       # Other Commands
@@ -250,10 +288,12 @@ module Dalli
       # Noop is a keepalive operation but also used to demarcate the end of a set of pipelined commands.
       # We need to read all the responses at once.
       # A write that expects a reply is flushed so the reply can be read. A write
-      # in a quiet block stays buffered until the block's noop, unless
-      # defer_drain is on: then no noop follows at the end of the block, so it is
-      # flushed right away. (pipelined_set passes quiet: true outside a quiet
-      # block; its caller flushes with a terminating noop.)
+      # in a quiet block stays buffered until a noop: the one at the end of the
+      # block, or the one another thread or fiber sends to drain the block's
+      # replies before its own request. With defer_drain no noop follows at the
+      # end of the block, so it is flushed right away. (pipelined_set passes
+      # quiet: true outside a quiet block; its caller flushes with a
+      # terminating noop.)
       def finish_write(quiet)
         @connection_manager.flush if !quiet || (@defer_drain && quiet?)
       end
@@ -293,7 +333,7 @@ module Dalli
         buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw, **routing_token_kwargs(options))
         flushed_write(buffer)
         buffer.clear
-        read_multi_get_responses(is_raw)
+        read_multi_get_responses(is_raw, keys)
       end
 
       # Stale-aware bulk get.  Returns { key => { value:, cas:, stale:, miss: } }
@@ -310,13 +350,15 @@ module Dalli
                                                        **routing_token_kwargs(options))
         flushed_write(buffer)
         buffer.clear
-        read_multi_metadata_responses(is_raw)
+        read_multi_metadata_responses(is_raw, keys)
       end
 
       # Unlike read_multi_get_responses this locates tokens by flag rather than
       # by position, because the c flag shifts the key's index.
-      def read_multi_metadata_responses(is_raw)
+      def read_multi_metadata_responses(is_raw, keys)
+        expect_reply_keys(keys)
         hash = {}
+        unmarshal_error = nil
         while (line = @connection_manager.read_line)
           break if line.start_with?('MN')
           next unless line.start_with?('VA ')
@@ -331,21 +373,49 @@ module Dalli
           key = response_processor.key_from_tokens(tokens)
           next if key.nil?
 
-          hash[key] = { value: @value_marshaller.retrieve(value, bitflags), cas: cas, stale: stale, miss: false }
+          raise_unexpected_reply_key(key) if unexpected_reply_key?(key)
+
+          begin
+            hash[key] = { value: @value_marshaller.retrieve(value, bitflags), cas: cas, stale: stale, miss: false }
+          rescue Dalli::UnmarshalError => e
+            # Raised once the rest of the replies are read; see read_multi_get_responses
+            unmarshal_error ||= e
+          end
         end
+        raise unmarshal_error if unmarshal_error
+
         hash
       end
 
-      def read_multi_get_responses(is_raw)
+      # A value that can't be deserialized raises Dalli::UnmarshalError, as
+      # get does, but only after the rest of the replies are read, so the
+      # connection is left in step. The first such error is raised.
+      def read_multi_get_responses(is_raw, keys)
+        expect_reply_keys(keys)
         hash = {}
+        unmarshal_error = nil
         while (line = @connection_manager.read_line)
           break if line.start_with?('MN')
           next unless line.start_with?('VA ')
 
-          key, value = parse_multi_get_value(line, is_raw)
+          begin
+            key, value = parse_multi_get_value(line, is_raw)
+          rescue Dalli::UnmarshalError => e
+            unmarshal_error ||= e
+            next
+          end
           hash[key] = value if key
         end
+        raise unmarshal_error if unmarshal_error
+
         hash
+      end
+
+      # The replies after a key that wasn't requested can't be trusted (see
+      # Base#expect_reply_keys). Raising ends the request, which closes the
+      # connection; the caller treats this server's keys as missing.
+      def raise_unexpected_reply_key(key)
+        raise Dalli::UnexpectedReplyKeyError, "#{name} replied with a key that wasn't requested: #{key.inspect}"
       end
 
       # Reads the "VA <size> [f<flags>] k<key> ..." line in place rather than
@@ -358,6 +428,7 @@ module Dalli
         key = processor.key_from_va_line(line)
         return unless key
 
+        raise_unexpected_reply_key(key) if unexpected_reply_key?(key)
         bitflags = is_raw ? 0 : processor.bitflags_from_va_line(line)
         [key, @value_marshaller.retrieve(value, bitflags)]
       end

@@ -28,19 +28,31 @@ module Dalli
     # A transient network error is retried automatically. If a server remains
     # unreachable after retrying, raises Dalli::NetworkError.
     #
+    # A value that can't be deserialized raises Dalli::UnmarshalError, as get
+    # does, once every server's replies are read, so the connections stay in
+    # step. The other values are yielded first.
+    #
     def process(keys, req_options = nil, return_cas: true, &block)
       return {} if keys.empty?
 
       @ring.lock do
-        # Stores partial results collected during interleaved send phase
-        @partial_results = {}
-        servers = setup_requests(keys, req_options, return_cas: return_cas)
-        start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        # The servers with replies still to read, updated in place
+        servers = []
+        begin
+          # Stores partial results collected during interleaved send phase
+          @partial_results = {}
+          @unmarshal_error = nil
+          setup_requests(servers, keys, req_options, return_cas: return_cas)
+          start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-        # First yield any partial results collected during interleaved send
-        yield_partial_results(&block)
+          # First yield any partial results collected during interleaved send
+          yield_partial_results(&block)
 
-        servers = fetch_responses(servers, start_time, @ring.socket_timeout, &block) until servers.empty?
+          fetch_responses(servers, start_time, @ring.socket_timeout, &block) until servers.empty?
+          raise @unmarshal_error if @unmarshal_error
+        ensure
+          abort_unfinished(servers)
+        end
       end
     rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
@@ -57,6 +69,9 @@ module Dalli
     # response before moving on, rather than pipelining across servers: the
     # metadata path has no interleaving support, and the stale-aware callers it
     # serves fetch far smaller batches than get_multi does.
+    #
+    # A value that can't be deserialized raises Dalli::UnmarshalError, once its
+    # server's replies are read. The servers after it aren't asked.
     #
     # `req_options` accepts :p_token/:l_token, applied to every key in the batch.
     #
@@ -75,7 +90,7 @@ module Dalli
           results = {}
           groups.each do |server, keys_for_server|
             results.merge!(server.request(:read_multi_with_metadata_req, keys_for_server, req_options))
-          rescue Dalli::NetworkError
+          rescue Dalli::NetworkError, Dalli::UnmarshalError
             raise
           rescue DalliError => e
             Dalli.logger.debug { e.inspect }
@@ -102,9 +117,9 @@ module Dalli
 
     # Sends each server's queries and its terminating noop before building
     # the next server's, so memcached is already answering the first servers
-    # while the rest are prepared. Returns the servers with a pending response.
-    def setup_requests(keys, req_options = nil, return_cas: true)
-      started = []
+    # while the rest are prepared. Adds the servers with a pending response
+    # to started.
+    def setup_requests(started, keys, req_options = nil, return_cas: true)
       groups_for_keys(keys).each do |server, keys_for_server|
         make_getkq_request(server, keys_for_server, req_options, return_cas: return_cas)
         next unless server.connected?
@@ -117,7 +132,6 @@ module Dalli
       rescue Dalli::DalliError
         started.delete(server)
       end
-      started
     end
 
     ##
@@ -161,29 +175,38 @@ module Dalli
       raise
     end
 
-    # Swallows Dalli::NetworkError
+    # Swallows Dalli::NetworkError. Empties servers, so they aren't aborted
+    # again.
     def abort_without_timeout(servers)
       servers.each(&:pipeline_abort)
+      servers.clear
     end
 
+    # When #process stops before reading every server's replies (the caller's
+    # block raises or breaks, a Timeout.timeout fires), the rest are still on
+    # the socket and some may be in the response buffer. Closing those
+    # connections keeps them from being read as a later request's replies.
+    # Aborts that #process already handled emptied servers.
+    def abort_unfinished(servers)
+      servers.each { |server| server.pipeline_abort(timed_out: false) }
+      servers.clear
+    end
+
+    # Reads the replies available, removing finished servers from servers
     def fetch_responses(servers, start_time, timeout, &block)
       # Remove any servers which are not connected
       servers.select!(&:connected?)
-      return [] if servers.empty?
+      return if servers.empty?
 
       time_left = remaining_time(start_time, timeout)
       readable_servers = servers_with_response(servers, time_left)
-      if readable_servers.empty?
-        abort_with_timeout(servers)
-        return []
-      end
+      return abort_with_timeout(servers) if readable_servers.empty?
 
       # Loop through the servers with responses, and
       # delete any from our list that are finished
       readable_servers.each do |server|
         servers.delete(server) if process_server(server, &block)
       end
-      servers
     rescue NetworkError
       # Abort and raise if we encountered a network error.  This triggers
       # a retry at the top level on RetryableNetworkError.
@@ -200,22 +223,29 @@ module Dalli
 
     # Swallows Dalli::NetworkError
     def abort_with_timeout(servers)
-      abort_without_timeout(servers)
       servers.each do |server|
         Dalli.logger.debug { "memcached at #{server.name} did not response within timeout" }
       end
-
-      true # Required to simplify caller
+      abort_without_timeout(servers)
     end
 
     # Processes responses from a server.  Returns true if there are no
     # additional responses from this server.
+    #
+    # A value that couldn't be deserialized is raised once the server's
+    # replies are all read; it's held until the other servers' are too.
     def process_server(server)
       server.pipeline_next_responses do |key, value, cas|
         yield @key_manager.key_without_namespace(key), [value, cas]
       end
 
       server.pipeline_complete?
+    rescue Dalli::UnmarshalError => e
+      # Raised by the caller's block, with replies still to read
+      raise unless server.pipeline_complete?
+
+      @unmarshal_error ||= e
+      true
     end
 
     def servers_with_response(servers, timeout)

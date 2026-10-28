@@ -14,9 +14,17 @@ module Dalli
       #   treated as a unix timestamp of an exact date.
       MAX_ACCEPTABLE_EXPIRATION_INTERVAL = 30 * 24 * 60 * 60 # 30 days
 
+      # memcached holds an expiration time in a signed 32-bit integer, so a
+      # sanitized TTL outside this range is rejected with CLIENT_ERROR. A
+      # negative TTL is accepted and stores the item as already expired.
+      MIN_EXPIRATION_TIME = -(2**31)
+      MAX_EXPIRATION_TIME = (2**31) - 1
+
       # Ensures the TTL passed to Memcached is a valid TTL in the expected format.
+      # A String must be a whole number in decimal; it used to go through
+      # String#to_i, so 'abc' became 0, which means no expiry.
       def self.sanitize(ttl)
-        ttl_as_i = ttl.to_i
+        ttl_as_i = ttl.is_a?(String) ? Integer(ttl, 10) : ttl.to_i
         return ttl_as_i if less_than_max_expiration_interval?(ttl_as_i)
 
         as_timestamp(ttl_as_i)

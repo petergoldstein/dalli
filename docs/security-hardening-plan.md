@@ -58,6 +58,20 @@ advisories. Five were fixed together in 5.2.1, 5.1.3, 5.0.9, 4.3.6 and 3.2.12:
   a forked child could resend the parent's buffered requests or end its TLS
   session.
 
+Three more were fixed in later coordinated releases:
+
+- [GHSA-m252-9cgf-vx2w](https://github.com/petergoldstein/dalli/security/advisories/GHSA-m252-9cgf-vx2w)
+  (5.2.2, 5.1.4, 5.0.10 and 4.3.7): with a namespace, a retried request read
+  or wrote a different key.
+- [GHSA-r47x-6p6r-mvcp](https://github.com/petergoldstein/dalli/security/advisories/GHSA-r47x-6p6r-mvcp)
+  (5.2.3, 5.1.5, 5.0.11, 4.3.8 and 3.2.14): counters that `incr` or `decr`
+  auto-created for base64-encoded keys could forge `get_multi` replies.
+- [GHSA-5xvx-r8rg-5qm2](https://github.com/petergoldstein/dalli/security/advisories/GHSA-5xvx-r8rg-5qm2)
+  (5.2.4, 5.1.6, 5.0.12, 4.3.9 and 3.2.15): a `quiet` block on a shared
+  client, a `get_multi` that stopped early, or (3.2, meta protocol) a value
+  containing CR/LF could put a connection out of step and return another
+  key's value.
+
 - [x] **Request building:** every value that reaches a command line (keys,
       namespaces including namespace procs, routing tokens, numeric flags,
       options on the bulk and pipelined paths).
