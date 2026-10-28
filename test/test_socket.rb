@@ -155,11 +155,13 @@ describe 'Dalli::Socket::TCP TLS handshake' do
     ssl_socket = Object.new
     ssl_socket.define_singleton_method(:hostname=) { |_| nil }
     ssl_socket.define_singleton_method(:sync_close=) { |_| nil }
-    ssl_socket.define_singleton_method(:connect) { raise IO::TimeoutError, 'timed out' }
+    # IO::TimeoutError where Ruby defines it (3.2+), Timeout::Error before that
+    timeout_error = Dalli::Protocol::TIMEOUT_ERRORS.last
+    ssl_socket.define_singleton_method(:connect) { raise timeout_error, 'timed out' }
 
     with_nil_logger do
       Dalli::Socket::SSLSocket.stub(:new, ssl_socket) do
-        assert_raises(IO::TimeoutError) do
+        assert_raises(timeout_error) do
           Dalli::Socket::TCP.wrapping_ssl_socket(tcp_socket, 'localhost', unverified_context)
         end
       end
