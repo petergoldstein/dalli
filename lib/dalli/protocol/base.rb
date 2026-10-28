@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'forwardable'
+require 'set'
 require 'socket'
 require 'timeout'
 
@@ -24,6 +25,7 @@ module Dalli
         hostname, port, socket_type, @weight, user_creds = ServerConfigParser.parse(attribs)
         @options = client_options.merge(user_creds)
         @raw_mode = client_options[:raw]
+        @verify_reply_keys = client_options[:verify_reply_keys] ? true : false
         @value_marshaller = @raw_mode ? StringMarshaller.new(@options) : ValueMarshaller.new(@options)
         @connection_manager = ConnectionManager.new(hostname, port, socket_type, @options)
       end
@@ -103,6 +105,8 @@ module Dalli
       # Without a block, returns a Hash of { key => [value, cas] }.
       # rubocop:disable-next Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
       def pipeline_next_responses(&block)
+        return abandon_pipeline if @pipeline_out_of_step
+
         reconnect_on_pipeline_complete!
         values = nil
 
@@ -123,6 +127,13 @@ module Dalli
           # If the status is ok and key is nil, then this is the response
           # to the noop at the end of the pipeline
           finish_pipeline && break if status && key.nil?
+
+          # A key that wasn't requested means the replies are out of step
+          # (see expect_reply_keys): keep what was read so far, drop the rest
+          if unexpected_reply_key?(key)
+            abandon_pipeline
+            break
+          end
 
           # If the status is ok and the key is not nil, then this is a
           # getkq response with a value that we want to set in the response hash
@@ -252,6 +263,7 @@ module Dalli
         # Use clear (not reset) to keep pipeline_complete? = true, which is
         # the expected state before pipeline_response_setup is called.
         response_buffer.clear
+        expect_reply_keys(keys)
 
         req = +''
         keys.each do |key|
@@ -267,6 +279,7 @@ module Dalli
       def pipelined_get_interleaved(keys, chunk_size, results)
         # Initialize the response buffer for draining during send phase
         response_buffer.ensure_ready
+        expect_reply_keys(keys)
 
         keys.each_slice(chunk_size) do |chunk|
           # Build and write this chunk of requests
@@ -299,6 +312,12 @@ module Dalli
           status, cas, key, value = response_buffer.process_single_getk_response
           break if status.nil? # No complete response available
 
+          # Handled by the next pipeline_next_responses, once sending is done
+          if unexpected_reply_key?(key)
+            @pipeline_out_of_step = true
+            break
+          end
+
           results[key] = [value, cas] unless key.nil?
         end
       rescue SystemCallError, Dalli::NetworkError
@@ -308,6 +327,42 @@ module Dalli
 
       def response_buffer
         @response_buffer ||= ResponseBuffer.new(@connection_manager, response_processor)
+      end
+
+      # A multi-get only accepts replies for the keys it asked for. memcached
+      # names an item created by auto-create (ma or mg with N) for a
+      # base64-encoded key by its raw bytes, without the b flag; such a key
+      # can contain spaces or CR/LF, which split the reply header and make the
+      # replies after it parse as different ones. A key that wasn't requested
+      # is how that shows up.
+      # Only with the verify_reply_keys option, since building the set costs a
+      # multi-get about 15%. Dalli itself no longer creates such items (see
+      # Meta#decr_incr); the check guards against ones that older versions or
+      # other clients created, on memcached versions with the behavior.
+      def expect_reply_keys(keys)
+        @pipeline_out_of_step = false
+        @expected_reply_keys = (keys.to_set { |k| reply_key_form(k) } if @verify_reply_keys)
+      end
+
+      def unexpected_reply_key?(key)
+        !key.nil? && @expected_reply_keys && !@expected_reply_keys.include?(reply_key_form(key))
+      end
+
+      # Keys compared as bytes; ASCII keys compare equal in any encoding as is
+      def reply_key_form(key)
+        key.ascii_only? ? key : key.b
+      end
+
+      # Keeps what was read, drops the rest of this server's replies, and
+      # closes the connection so nothing unread is left on it. Not a socket
+      # failure, so it doesn't count toward socket_max_failures; the keys not
+      # read are simply missing from the result.
+      def abandon_pipeline
+        Dalli.logger.warn { "#{name} replied to a get_multi with a key that wasn't requested; closing the connection" }
+        @pipeline_out_of_step = false
+        response_buffer.clear
+        @connection_manager.close
+        {}
       end
 
       # Called after the noop response is received at the end of a set

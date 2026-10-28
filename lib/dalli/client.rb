@@ -53,6 +53,11 @@ module Dalli
     #                        +:include+ logs the full operation and key(s), +:obfuscate+ replaces keys with "?",
     #                        +nil+ (default) omits the attribute entirely.
     # - :otel_peer_service - when set, adds a +peer.service+ span attribute with this value for logical service naming.
+    # - :verify_reply_keys - defaults to false. When true, get_multi and get_multi_cas only accept replies for the keys
+    #                        they requested; after a reply naming another key, the rest of that server's replies are
+    #                        treated as misses. With the meta protocol, memcached can name an item by its raw key bytes
+    #                        when the item was created by auto-create from a base64-encoded key, which Dalli no longer
+    #                        does. Costs a multi-get about 15%.
     #
     def initialize(servers = nil, options = {})
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)

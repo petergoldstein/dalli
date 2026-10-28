@@ -82,6 +82,10 @@ Per-request `raw: true` returns the stored bytes without deserializing or decomp
 
 See the [4.0-Upgrade.md](4.0-Upgrade.md) guide for more information.
 
+### Counters and verify_reply_keys
+
+memcached names an item made by auto-create for a base64-encoded key (one with whitespace, control or non-ASCII characters) by its raw key bytes in later replies (with `protocol: :meta`). Since 4.3.8, Dalli creates counters for such keys with an add rather than auto-create. Items created before then, or by other clients, can still be named that way until memcached releases a fix (1.6.45 and earlier behave this way). If keys passed to `incr` or `decr` with an initial value can contain untrusted input, set `verify_reply_keys: true` until then: multi-gets then ignore replies for keys they didn't request, at a cost of about 15% per multi-get.
+
 ## OpenTelemetry Tracing
 
 Dalli automatically instruments operations with [OpenTelemetry](https://opentelemetry.io/) when the SDK is present. No configuration is required - just add the OpenTelemetry gems to your application:
