@@ -242,7 +242,10 @@ module Dalli
       # We need to read all the responses at once.
       def noop
         write_noop
-        response_processor.consume_all_responses_until_mn
+        result = response_processor.consume_all_responses_until_mn
+        # Everything up to and including the MN has been read
+        @connection_manager.clear_quiet_responses_pending!
+        result
       end
 
       def stats(info = nil)
@@ -313,16 +316,27 @@ module Dalli
 
       # Single-server fast path for set_multi. Inlines request formatting to
       # minimize per-key overhead. Avoids PipelinedSetter server grouping.
+      #
+      # A value that can't be marshalled or is over value_max_bytes is skipped;
+      # the other keys are still stored, then the first such error is raised
+      # (as PipelinedSetter does on the multi-server path).
       def write_multi_req(pairs, ttl, req_options)
         ttl = TtlSanitizer.sanitize(ttl) if ttl
-        entries = pairs.map do |key, raw_value|
+        value_error = nil
+        entries = pairs.filter_map do |key, raw_value|
           [key, @value_marshaller.store(key, raw_value, req_options)]
+        rescue Dalli::MarshalError, Dalli::ValueOverMaxSize => e
+          value_error ||= e
+          nil
         end
 
-        buffer = RequestFormatter.multi_meta_set(entries, ttl: ttl)
-        flushed_write(buffer)
-        buffer.clear
-        response_processor.consume_all_responses_until_mn
+        unless entries.empty?
+          buffer = RequestFormatter.multi_meta_set(entries, ttl: ttl)
+          flushed_write(buffer)
+          buffer.clear
+          response_processor.consume_all_responses_until_mn
+        end
+        raise value_error if value_error
       end
 
       # Single-server fast path for delete_multi. Writes all quiet delete requests

@@ -181,7 +181,7 @@ describe 'CAS behavior' do
 
             # It returns falsey and doesn't delete
             # when the CAS is wrong
-            refute dc.delete_cas('some_key', 123)
+            refute dc.delete_cas('some_key', cas + 1)
             assert_equal 'some_value', dc.get('some_key')
 
             dc.delete_cas('some_key', cas)
