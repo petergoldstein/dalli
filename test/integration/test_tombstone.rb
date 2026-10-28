@@ -251,6 +251,21 @@ describe 'tombstone deletes' do
             assert_equal 'value', dc.get('survivor')
           end
         end
+
+        it 'raises ArgumentError for a tombstone_ttl memcached cannot hold without closing the connection' do
+          memcached_persistent(p) do |_dc, port|
+            dc = single_server_client(port)
+            dc.flush
+            dc.set('survivor', 'value')
+            conn_mgr = dc.send(:ring).servers.first.instance_variable_get(:@connection_manager)
+
+            assert_raises(ArgumentError) { dc.delete('survivor', invalidate: true, tombstone_ttl: 2**40) }
+            assert_raises(ArgumentError) { dc.delete_multi(%w[survivor], invalidate: true, tombstone_ttl: 2**31) }
+
+            assert_predicate conn_mgr, :connected?, 'a bad tombstone_ttl must not tear down the connection'
+            assert_equal 'value', dc.get('survivor')
+          end
+        end
       end
     end
   end

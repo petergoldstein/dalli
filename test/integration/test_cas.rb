@@ -217,6 +217,77 @@ describe 'CAS behavior' do
         end
       end
 
+      # A CAS that couldn't be parsed used to be dropped, turning the
+      # compare-and-swap into an unconditional write
+      describe 'with a CAS that is not an unsigned 64-bit integer' do
+        bad_cas_values = ['abc', '123x', -1, 2**64]
+
+        it 'raises from set_cas, replace_cas and delete_cas and leaves the item unchanged' do
+          memcached_persistent(p) do |_dc, port|
+            dc = single_server_client(port)
+            dc.flush
+            dc.set('cas_key', 'original')
+            conn_mgr = dc.send(:ring).servers.first.instance_variable_get(:@connection_manager)
+
+            bad_cas_values.each do |bad|
+              assert_raises(ArgumentError, "set_cas #{bad.inspect}") { dc.set_cas('cas_key', 'changed', bad) }
+              assert_raises(ArgumentError, "replace_cas #{bad.inspect}") { dc.replace_cas('cas_key', 'changed', bad) }
+              assert_raises(ArgumentError, "delete_cas #{bad.inspect}") { dc.delete_cas('cas_key', bad) }
+            end
+
+            assert_predicate conn_mgr, :connected?, 'a bad CAS must not tear down the connection'
+            assert_equal 'original', dc.get('cas_key')
+          end
+        end
+
+        it 'raises inside a quiet block without discarding earlier quiet writes' do
+          memcached_persistent(p) do |_dc, port|
+            dc = single_server_client(port)
+            dc.flush
+            dc.set('cas_key', 'original')
+
+            dc.quiet do
+              dc.set('earlier', 'kept')
+              assert_raises(ArgumentError) { dc.set_cas('cas_key', 'changed', 'abc') }
+            end
+
+            assert_equal 'kept', dc.get('earlier')
+            assert_equal 'original', dc.get('cas_key')
+          end
+        end
+      end
+
+      it 'accepts a CAS given as a String of decimal digits' do
+        memcached_persistent(p) do |dc|
+          dc.flush
+          cas = dc.set('cas_key', 'original')
+
+          refute dc.set_cas('cas_key', 'changed', (cas + 1).to_s)
+          assert op_addset_succeeds(dc.set_cas('cas_key', 'changed', cas.to_s))
+          assert_equal 'changed', dc.get('cas_key')
+        end
+      end
+
+      describe 'flush' do
+        bad_delays = ['abc', '10x', -1, 1.5]
+
+        it 'raises on a delay that is not a non-negative integer and flushes nothing' do
+          memcached_persistent(p) do |_dc, port|
+            dc = single_server_client(port)
+            dc.flush
+            dc.set('survivor', 'value')
+            conn_mgr = dc.send(:ring).servers.first.instance_variable_get(:@connection_manager)
+
+            bad_delays.each do |bad|
+              assert_raises(ArgumentError, "flush #{bad.inspect}") { dc.flush(bad) }
+            end
+
+            assert_predicate conn_mgr, :connected?, 'a bad flush delay must not tear down the connection'
+            assert_equal 'value', dc.get('survivor')
+          end
+        end
+      end
+
       describe 'cas' do
         it 'does not call the block when the key has no existing value' do
           memcached_persistent(p) do |dc|

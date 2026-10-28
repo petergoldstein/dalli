@@ -43,10 +43,10 @@ module Dalli
           # This saves 2 bytes per request and skips parsing on response.
           cmd << (skip_flags ? ' v' : ' v f') if value
           cmd << ' c' if return_cas
-          cmd << " T#{integer_flag(:ttl, ttl)}" if ttl
+          cmd << " T#{ttl_flag(:ttl, ttl)}" if ttl
           cmd << routing_tokens(p_token: p_token, l_token: l_token)
           cmd << ' k q s' if quiet # Return the key in the response if quiet
-          cmd << " N#{integer_flag(:vivify_ttl, vivify_ttl)}" if vivify_ttl # Thundering herd: vivify on miss
+          cmd << " N#{ttl_flag(:vivify_ttl, vivify_ttl)}" if vivify_ttl # Thundering herd: vivify on miss
           # Thundering herd: win recache if TTL below threshold
           cmd << " R#{integer_flag(:recache_ttl, recache_ttl)}" if recache_ttl
           cmd << ' h' if return_hit_status # Return hit status (0 or 1)
@@ -68,7 +68,7 @@ module Dalli
         # without the keyword-argument handling and incremental string building.
         def plain_meta_set(key, value_bytesize, bitflags, ttl)
           flags = bitflags ? " F#{bitflags}" : ''
-          flags += " T#{integer_flag(:ttl, ttl)}" if ttl
+          flags += " T#{ttl_flag(:ttl, ttl)}" if ttl
           if KeyRegularizer.required?(key)
             "ms #{KeyRegularizer.encode(key)} #{value_bytesize} c b#{flags} MS#{TERMINATOR}"
           else
@@ -111,7 +111,7 @@ module Dalli
           cmd << ' b' if base64
           cmd << " F#{bitflags}" if bitflags
           cmd << cas_string(cas)
-          cmd << " T#{integer_flag(:ttl, ttl)}" if ttl
+          cmd << " T#{ttl_flag(:ttl, ttl)}" if ttl
           cmd << " M#{mode_to_token(mode)}"
           cmd << ' q' if quiet
           cmd << routing_tokens(p_token: p_token, l_token: l_token)
@@ -122,7 +122,7 @@ module Dalli
           # Routing tokens apply to every entry in the batch, so the suffix is
           # built once rather than per entry.
           token_suffix = routing_tokens(p_token: p_token, l_token: l_token)
-          ttl = integer_flag(:ttl, ttl) if ttl
+          ttl = ttl_flag(:ttl, ttl) if ttl
 
           buffer = ''.b
           entries.each do |key, pair|
@@ -164,7 +164,7 @@ module Dalli
           cmd = "md #{encoded_key(key)}"
           cmd << cas_string(cas)
           cmd << ' I' if stale # Mark stale instead of deleting
-          cmd << " T#{integer_flag(:ttl, ttl)}" if ttl
+          cmd << " T#{ttl_flag(:ttl, ttl)}" if ttl
           cmd << ' x' if drop_value # Drop the value but keep the item
           cmd << ' q' if quiet
           cmd << routing_tokens(p_token: p_token, l_token: l_token)
@@ -183,7 +183,7 @@ module Dalli
 
           suffix = +''
           suffix << ' I' if stale
-          suffix << " T#{integer_flag(:ttl, ttl)}" if ttl
+          suffix << " T#{ttl_flag(:ttl, ttl)}" if ttl
           suffix << ' x' if drop_value
           suffix << ' q'
           suffix << routing_tokens(p_token: p_token, l_token: l_token)
@@ -199,10 +199,10 @@ module Dalli
         def meta_arithmetic(key:, delta:, initial:, incr: true, cas: nil, ttl: nil, quiet: false,
                             p_token: nil, l_token: nil)
           cmd = "ma #{encoded_key(key)} v"
-          cmd << " D#{integer_flag(:delta, delta)}" if delta
-          cmd << " J#{integer_flag(:initial, initial)}" if initial
+          cmd << " D#{parse_to_64_bit_int(:delta, delta)}" if delta
+          cmd << " J#{parse_to_64_bit_int(:initial, initial)}" if initial
           # Always set a TTL if an initial value is specified
-          cmd << " N#{ttl ? integer_flag(:ttl, ttl) : 0}" if ttl || initial
+          cmd << " N#{ttl ? ttl_flag(:ttl, ttl) : 0}" if ttl || initial
           cmd << cas_string(cas)
           cmd << ' q' if quiet
           cmd << " M#{incr ? 'I' : 'D'}"
@@ -254,7 +254,7 @@ module Dalli
 
         def flush(delay: nil, quiet: false)
           cmd = +'flush_all'
-          cmd << " #{parse_to_64_bit_int(delay, 0)}" if delay
+          cmd << " #{parse_to_64_bit_int(:delay, delay)}" if delay
           cmd << ' noreply' if quiet
           cmd << TERMINATOR
         end
@@ -304,6 +304,18 @@ module Dalli
           raise ArgumentError, "#{name} must be an Integer, got #{value.inspect}"
         end
 
+        # A TTL becomes memcached's expiration time, which must fit in a signed
+        # 32-bit value; anything else gets a CLIENT_ERROR reply, which a quiet
+        # request never reports. Callers pass TTLs through TtlSanitizer first.
+        def ttl_flag(name, value)
+          ttl = integer_flag(name, value)
+          min = TtlSanitizer::MIN_EXPIRATION_TIME
+          max = TtlSanitizer::MAX_EXPIRATION_TIME
+          return ttl if ttl.between?(min, max)
+
+          raise ArgumentError, "#{name} must be between #{min} and #{max}, got #{value.inspect}"
+        end
+
         def mode_to_token(mode)
           case mode
           when :add
@@ -320,15 +332,28 @@ module Dalli
         end
 
         def cas_string(cas)
-          cas = parse_to_64_bit_int(cas, nil)
+          cas = parse_to_64_bit_int(:cas, cas)
           cas.nil? || cas.zero? ? '' : " C#{cas}"
         end
 
-        def parse_to_64_bit_int(val, default)
-          val.nil? ? nil : Integer(val)
-        rescue ArgumentError
-          # Sanitize to default if it isn't parsable as an integer
-          default
+        MAX_UINT64 = (2**64) - 1
+        private_constant :MAX_UINT64
+
+        # Parses a value memcached reads as an unsigned 64-bit integer (a CAS,
+        # an incr/decr delta or initial value, a flush delay): an Integer, or a
+        # String of decimal digits. Anything else raises. A bad CAS used to be
+        # dropped, which turned a CAS write into an unconditional one; a Float
+        # delta was truncated, so incr by 0.9 did nothing.
+        def parse_to_64_bit_int(name, val)
+          return nil if val.nil?
+
+          int = case val
+                when Integer then val
+                when String then Integer(val, 10, exception: false)
+                end
+          return int if int&.between?(0, MAX_UINT64)
+
+          raise ArgumentError, "#{name} must be an Integer between 0 and #{MAX_UINT64}, got #{val.inspect}"
         end
       end
     end

@@ -221,6 +221,37 @@ describe 'thundering herd protection' do
         end
       end
 
+      # memcached reads a TTL over 30 days as an absolute Unix time, so an
+      # unsanitized 31-day vivify_ttl made a stub that expired at once and
+      # every caller won the recache race.
+      it 'keeps the vivify stub alive for a vivify_ttl over 30 days' do
+        memcached_persistent(:meta) do |dc|
+          dc.flush
+
+          first = dc.get_with_metadata('long_vivify_key', vivify_ttl: 31 * 24 * 60 * 60)
+          second = dc.get_with_metadata('long_vivify_key', vivify_ttl: 31 * 24 * 60 * 60)
+
+          assert first[:won_recache], 'First client should win recache'
+          refute second[:won_recache], 'Second client should not win recache'
+          assert second[:lost_recache], 'Second client should lose the recache race'
+        end
+      end
+
+      it 'raises ArgumentError for a non-Integer vivify_ttl without closing the connection' do
+        memcached_persistent(:meta) do |_dc, port|
+          dc = single_server_client(port)
+          dc.flush
+          dc.set('survivor', 'value')
+          conn_mgr = dc.send(:ring).servers.first.instance_variable_get(:@connection_manager)
+
+          error = assert_raises(ArgumentError) { dc.get_with_metadata('vivify_key', vivify_ttl: 'abc') }
+
+          assert_equal 'vivify_ttl must be an Integer, got "abc"', error.message
+          assert_predicate conn_mgr, :connected?, 'a bad vivify_ttl must not tear down the connection'
+          assert_equal 'value', dc.get('survivor')
+        end
+      end
+
       it 'supports recache_ttl option for early recache' do
         memcached_persistent(:meta) do |dc|
           dc.flush

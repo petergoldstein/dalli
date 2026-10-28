@@ -178,6 +178,26 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       assert_raises(ArgumentError) { formatter.meta_set(key: 'k', value: 'v', ttl: '10 x') }
       assert_raises(ArgumentError) { formatter.plain_meta_set('k', 1, 0, '10 x') }
     end
+
+    # memcached replies CLIENT_ERROR to an expiration time outside a signed
+    # 32-bit value, which a quiet request never reports
+    it 'rejects a ttl memcached cannot hold' do
+      [-(2**31) - 1, 2**31, 2**40].each do |bad|
+        assert_raises(ArgumentError, "ttl #{bad}") { formatter.meta_set(key: 'k', value: 'v', ttl: bad) }
+        assert_raises(ArgumentError, "ttl #{bad}") { formatter.plain_meta_set('k', 1, 0, bad) }
+        assert_raises(ArgumentError, "ttl #{bad}") { formatter.multi_meta_set({ 'k' => ['v', 0] }, ttl: bad) }
+        assert_raises(ArgumentError, "ttl #{bad}") { formatter.meta_get(key: 'k', ttl: bad) }
+        assert_raises(ArgumentError, "vivify_ttl #{bad}") { formatter.meta_get(key: 'k', vivify_ttl: bad) }
+        assert_raises(ArgumentError, "ttl #{bad}") { formatter.meta_delete(key: 'k', stale: true, ttl: bad) }
+        assert_raises(ArgumentError, "ttl #{bad}") do
+          formatter.meta_arithmetic(key: 'k', delta: 1, initial: 0, ttl: bad)
+        end
+      end
+    end
+
+    it 'accepts the largest ttl memcached can hold' do
+      assert_equal "ms k 1 c T#{(2**31) - 1} MS\r\n", formatter.plain_meta_set('k', 1, nil, (2**31) - 1)
+    end
   end
 
   describe 'plain_meta_delete' do
@@ -239,10 +259,22 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags, cas: 0)
     end
 
-    it 'excludes non-numeric CAS values' do
-      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} MS\r\n",
+    # A CAS that was silently dropped turned a compare-and-swap into an
+    # unconditional set
+    it 'raises on a CAS that is not an unsigned 64-bit integer' do
+      ["\nset importantkey 1 1000 8\ninjected", 'abc', '123x', '', 1.5, -1, 2**64].each do |bad|
+        assert_raises(ArgumentError, "cas: #{bad.inspect}") do
+          Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags, cas: bad)
+        end
+      end
+    end
+
+    it 'accepts a CAS given as a String of decimal digits or the largest 64-bit value' do
+      assert_equal "ms #{key} #{val.bytesize} c F#{bitflags} C#{cas} MS\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, bitflags: bitflags,
-                                                                    cas: "\nset importantkey 1 1000 8\ninjected")
+                                                                    cas: cas.to_s)
+      assert_equal "ms #{key} #{val.bytesize} c C#{(2**64) - 1} MS\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_set(key: key, value: val, cas: (2**64) - 1)
     end
 
     it 'sets the quiet mode if configured, skipping the cas-return flag' do
@@ -373,10 +405,10 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       end
     end
 
-    it 'excludes non-numeric CAS values' do
-      assert_equal "md #{key}\r\n",
-                   Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key,
-                                                                       cas: "\nset importantkey 1 1000 8\ninjected")
+    it 'raises on a CAS that is not an unsigned 64-bit integer' do
+      ["\nset importantkey 1 1000 8\ninjected", 'abc', '123x', 1.5, -1, 2**64].each do |bad|
+        assert_raises(ArgumentError, "cas: #{bad.inspect}") { Dalli::Protocol::Meta::RequestFormatter.meta_delete(key: key, cas: bad) }
+      end
     end
 
     it 'sets the base64 mode if needed' do
@@ -492,10 +524,36 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                                                                            cas: 0)
     end
 
+    it 'raises on a CAS that is not an unsigned 64-bit integer' do
+      ['abc', '123x', 1.5, -1, 2**64].each do |bad|
+        assert_raises(ArgumentError, "cas: #{bad.inspect}") do
+          Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: initial, cas: bad)
+        end
+      end
+    end
+
     it 'includes the N flag when ttl passed explicitly with a nil initial value' do
       assert_equal "ma #{key} v D#{delta} N#{ttl} MI\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: nil,
                                                                            ttl: ttl)
+    end
+
+    # A Float delta was truncated, so incr by 0.9 sent D0 and did nothing
+    it 'raises on a delta or initial value that is not an unsigned 64-bit integer' do
+      [0.9, 1.5, 'abc', '5x', -1, 2**64].each do |bad|
+        assert_raises(ArgumentError, "delta #{bad.inspect}") do
+          Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: bad, initial: nil)
+        end
+        assert_raises(ArgumentError, "initial #{bad.inspect}") do
+          Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: 1, initial: bad)
+        end
+      end
+    end
+
+    it 'accepts a delta or initial value given as a String of decimal digits, up to 2**64 - 1' do
+      assert_equal "ma #{key} v D5 J#{(2**64) - 1} N0 MI\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: '5',
+                                                                           initial: ((2**64) - 1).to_s)
     end
 
     it 'swaps from MI to MD when the incr value is explicitly false' do
@@ -587,10 +645,15 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       assert_equal "flush_all #{delay}\r\n", Dalli::Protocol::Meta::RequestFormatter.flush(delay: delay)
     end
 
-    it 'santizes the delay argument' do
-      delay = "\nset importantkey 1 1000 8\ninjected"
+    # A delay that was replaced with 0 flushed immediately
+    it 'raises on a delay that is not a non-negative integer' do
+      ["\nset importantkey 1 1000 8\ninjected", 'abc', '10x', 1.5, -1].each do |bad|
+        assert_raises(ArgumentError, "delay: #{bad.inspect}") { Dalli::Protocol::Meta::RequestFormatter.flush(delay: bad) }
+      end
+    end
 
-      assert_equal "flush_all 0\r\n", Dalli::Protocol::Meta::RequestFormatter.flush(delay: delay)
+    it 'accepts a delay given as a String of decimal digits' do
+      assert_equal "flush_all 30\r\n", Dalli::Protocol::Meta::RequestFormatter.flush(delay: '30')
     end
 
     it 'adds noreply with a delay and quiet argument' do

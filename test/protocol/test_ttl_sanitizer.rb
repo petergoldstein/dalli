@@ -73,5 +73,12 @@ describe Dalli::Protocol::TtlSanitizer do
         end
       end
     end
+
+    # String#to_i made 'abc' 0, which memcached reads as no expiry
+    it 'raises on a String that is not a whole number' do
+      ['abc', '10x', '1.5', ''].each do |bad|
+        assert_raises(ArgumentError, bad.inspect) { Dalli::Protocol::TtlSanitizer.sanitize(bad) }
+      end
+    end
   end
 end

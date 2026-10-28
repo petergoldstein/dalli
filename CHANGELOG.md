@@ -4,6 +4,23 @@ Dalli Changelog
 Unreleased
 ==========
 
+Bug fixes:
+
+- A `vivify_ttl` (or `fetch_with_lock`'s `lock_ttl`) over 30 days now protects against a thundering herd. memcached reads a TTL over 30 days as a Unix timestamp, so the stub for a miss expired at once and every caller won the recache race. `vivify_ttl` is now converted like other TTLs
+- `set_cas`, `replace_cas` and `delete_cas` dropped a CAS that couldn't be parsed, such as `'abc'`, and sent an unconditional write, so the value was overwritten or deleted whatever its CAS. They now raise `ArgumentError`
+- `flush('abc')` flushed immediately. It now raises `ArgumentError`
+- A TTL String that isn't a whole number, such as `'abc'`, became 0, which means no expiry. It now raises `ArgumentError`, including for `expires_in` when the client is created
+- A TTL, CAS, `incr`/`decr` amount or initial value outside the range memcached accepts got a `CLIENT_ERROR` reply, which a `quiet` block or `set_multi` discarded, so the write silently did nothing. These now raise `ArgumentError`
+- An invalid `vivify_ttl` raised from deep in the request and closed the connection
+
+Other changes:
+
+- Numeric arguments are checked before anything is written, so a bad one raises `ArgumentError` without affecting the connection or earlier writes in a `quiet` block. Integers and Strings of decimal digits (such as `'300'`) are accepted throughout
+  - A TTL (`ttl`, `expires_in`, `vivify_ttl`, `lock_ttl`, `tombstone_ttl`) must fit memcached's signed 32-bit expiration time once a TTL over 30 days is converted to a Unix time. A negative TTL is still accepted and expires the item. A Float or `ActiveSupport::Duration` TTL is still converted with `to_i`
+  - A CAS, an `incr`/`decr` amount or initial value, and a `flush` delay must be from 0 to 2**64 - 1. A Float now raises; `incr(key, 0.9)` used to truncate the amount to 0. A String amount such as `'5'` now works
+  - `fetch_with_lock` checks `ttl` before taking the lock, so a bad one raises before the block runs
+  - `Dalli::Protocol::TtlSanitizer.sanitize` raises `ArgumentError` for a String that isn't a whole number instead of returning 0
+
 5.2.4
 ==========
 
