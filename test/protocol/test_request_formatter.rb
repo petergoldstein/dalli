@@ -178,6 +178,26 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       assert_raises(ArgumentError) { formatter.meta_set(key: 'k', value: 'v', ttl: '10 x') }
       assert_raises(ArgumentError) { formatter.plain_meta_set('k', 1, 0, '10 x') }
     end
+
+    # memcached replies CLIENT_ERROR to an expiration time outside a signed
+    # 32-bit value, which a quiet request never reports
+    it 'rejects a ttl memcached cannot hold' do
+      [-1, 2**31, 2**40].each do |bad|
+        assert_raises(ArgumentError, "ttl #{bad}") { formatter.meta_set(key: 'k', value: 'v', ttl: bad) }
+        assert_raises(ArgumentError, "ttl #{bad}") { formatter.plain_meta_set('k', 1, 0, bad) }
+        assert_raises(ArgumentError, "ttl #{bad}") { formatter.multi_meta_set({ 'k' => ['v', 0] }, ttl: bad) }
+        assert_raises(ArgumentError, "ttl #{bad}") { formatter.meta_get(key: 'k', ttl: bad) }
+        assert_raises(ArgumentError, "vivify_ttl #{bad}") { formatter.meta_get(key: 'k', vivify_ttl: bad) }
+        assert_raises(ArgumentError, "ttl #{bad}") { formatter.meta_delete(key: 'k', stale: true, ttl: bad) }
+        assert_raises(ArgumentError, "ttl #{bad}") do
+          formatter.meta_arithmetic(key: 'k', delta: 1, initial: 0, ttl: bad)
+        end
+      end
+    end
+
+    it 'accepts the largest ttl memcached can hold' do
+      assert_equal "ms k 1 c T#{(2**31) - 1} MS\r\n", formatter.plain_meta_set('k', 1, nil, (2**31) - 1)
+    end
   end
 
   describe 'plain_meta_delete' do
@@ -516,6 +536,24 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       assert_equal "ma #{key} v D#{delta} N#{ttl} MI\r\n",
                    Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: delta, initial: nil,
                                                                            ttl: ttl)
+    end
+
+    # A Float delta was truncated, so incr by 0.9 sent D0 and did nothing
+    it 'raises on a delta or initial value that is not an unsigned 64-bit integer' do
+      [0.9, 1.5, 'abc', '5x', -1, 2**64].each do |bad|
+        assert_raises(ArgumentError, "delta #{bad.inspect}") do
+          Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: bad, initial: nil)
+        end
+        assert_raises(ArgumentError, "initial #{bad.inspect}") do
+          Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: 1, initial: bad)
+        end
+      end
+    end
+
+    it 'accepts a delta or initial value given as a String of decimal digits, up to 2**64 - 1' do
+      assert_equal "ma #{key} v D5 J#{(2**64) - 1} N0 MI\r\n",
+                   Dalli::Protocol::Meta::RequestFormatter.meta_arithmetic(key: key, delta: '5',
+                                                                           initial: ((2**64) - 1).to_s)
     end
 
     it 'swaps from MI to MD when the incr value is explicitly false' do

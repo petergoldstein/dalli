@@ -415,6 +415,64 @@ describe 'operations' do
             dc.reset
           end
         end
+
+        # A Float amount was truncated (incr by 0.9 did nothing) and a String
+        # one raised NoMethodError
+        it 'raises ArgumentError for an amount that is not an unsigned 64-bit integer' do
+          memcached_persistent(p) do |_dc, port|
+            dc = single_server_client(port)
+            dc.flush
+            dc.set('counter', '10', 0, raw: true)
+            conn_mgr = dc.send(:ring).servers.first.instance_variable_get(:@connection_manager)
+
+            [0.9, 1.5, 'abc', '5x', -1, 2**64].each do |bad|
+              assert_raises(ArgumentError, "incr #{bad.inspect}") { dc.incr('counter', bad) }
+              assert_raises(ArgumentError, "decr #{bad.inspect}") { dc.decr('counter', bad) }
+            end
+
+            assert_predicate conn_mgr, :connected?, 'a bad amount must not tear down the connection'
+            assert_equal '10', dc.get('counter', raw: true)
+          end
+        end
+
+        it 'accepts an amount given as a String of decimal digits' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.set('counter', '10', 0, raw: true)
+
+            assert_equal 15, dc.incr('counter', '5')
+            assert_equal 12, dc.decr('counter', '3')
+          end
+        end
+
+        it 'raises ArgumentError for an initial value that is not an unsigned 64-bit integer' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+
+            [1.5, -1, 2**64].each do |bad|
+              assert_raises(ArgumentError, "incr default #{bad.inspect}") { dc.incr('counter', 1, 0, bad) }
+              assert_raises(ArgumentError, "decr default #{bad.inspect}") { dc.decr('counter', 1, 0, bad) }
+            end
+
+            assert_nil dc.get('counter')
+          end
+        end
+
+        it 'raises for a bad amount inside a quiet block without discarding earlier quiet writes' do
+          memcached_persistent(p) do |_dc, port|
+            dc = single_server_client(port)
+            dc.flush
+            dc.set('counter', '10', 0, raw: true)
+
+            dc.quiet do
+              dc.set('earlier', 'kept')
+              assert_raises(ArgumentError) { dc.incr('counter', 0.9) }
+            end
+
+            assert_equal 'kept', dc.get('earlier')
+            assert_equal '10', dc.get('counter', raw: true)
+          end
+        end
       end
 
       describe 'append/prepend' do

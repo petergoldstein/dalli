@@ -164,7 +164,7 @@ module Dalli
     #
     def get_with_metadata(key, options = {})
       validate_routing_tokens!(options)
-      validate_integer!(:vivify_ttl, options[:vivify_ttl])
+      validate_ttl!(:vivify_ttl, options[:vivify_ttl])
       # A retry re-runs this method with its original arguments, so `key` must
       # stay as the caller gave it; reassigning it would add the namespace again.
       validated_key = @key_manager.validate_key(key.to_s)
@@ -374,7 +374,10 @@ module Dalli
     def fetch_with_lock(key, ttl: nil, lock_ttl: 30, recache_threshold: nil, req_options: nil, &block)
       raise ArgumentError, 'Block is required for fetch_with_lock' unless block_given?
 
-      validate_integer!(:lock_ttl, lock_ttl)
+      # ttl is only used once the block has run; checked now so a bad one
+      # raises before the lock is taken
+      ttl_or_default(ttl)
+      validate_ttl!(:lock_ttl, lock_ttl)
       validate_integer!(:recache_threshold, recache_threshold)
       validate_routing_tokens!(req_options)
       # Left unchanged for the retry below; see get_with_metadata
@@ -641,9 +644,8 @@ module Dalli
 
     ##
     # Incr adds the given amount to the counter on the memcached server.
-    # Amt must be a positive integer value.
-    # Default, if given, must be an Integer (or a String of decimal digits);
-    # anything else raises ArgumentError.
+    # Amt, and default if given, must be Integers (or Strings of decimal
+    # digits) between 0 and 2**64 - 1; anything else raises ArgumentError.
     #
     # If default is nil, the counter must already exist or the operation
     # will fail and will return nil.  Otherwise this method will return
@@ -655,18 +657,17 @@ module Dalli
     #
     # If the value already exists, it must have been set with raw: true
     def incr(key, amt = 1, ttl = nil, default = nil, req_options = nil)
-      check_positive!(amt)
-      validate_integer!(:default, default)
+      amt = validate_uint64!(:amt, amt)
+      default = validate_uint64!(:default, default)
       validate_routing_tokens!(req_options)
 
-      perform(:incr, key, amt.to_i, ttl_or_default(ttl), default, req_options)
+      perform(:incr, key, amt, ttl_or_default(ttl), default, req_options)
     end
 
     ##
     # Decr subtracts the given amount from the counter on the memcached server.
-    # Amt must be a positive integer value.
-    # Default, if given, must be an Integer (or a String of decimal digits);
-    # anything else raises ArgumentError.
+    # Amt, and default if given, must be Integers (or Strings of decimal
+    # digits) between 0 and 2**64 - 1; anything else raises ArgumentError.
     #
     # memcached counters are unsigned and cannot hold negative values.  Calling
     # decr on a counter which is 0 will just return 0.
@@ -681,11 +682,11 @@ module Dalli
     #
     # If the value already exists, it must have been set with raw: true
     def decr(key, amt = 1, ttl = nil, default = nil, req_options = nil)
-      check_positive!(amt)
-      validate_integer!(:default, default)
+      amt = validate_uint64!(:amt, amt)
+      default = validate_uint64!(:default, default)
       validate_routing_tokens!(req_options)
 
-      perform(:decr, key, amt.to_i, ttl_or_default(ttl), default, req_options)
+      perform(:decr, key, amt, ttl_or_default(ttl), default, req_options)
     end
 
     ##
@@ -795,10 +796,11 @@ module Dalli
       # unwinding through Protocol::Base#request, which would close the
       # connection on the ArgumentError Integer() raises.
       begin
-        Integer(tombstone_ttl)
+        tombstone_ttl = Integer(tombstone_ttl)
       rescue ArgumentError, TypeError
         raise ArgumentError, "tombstone_ttl must be an integer, got #{tombstone_ttl.inspect}"
       end
+      validate_ttl!(:tombstone_ttl, tombstone_ttl)
     end
 
     def record_hit_miss_metrics(span, key_count, hit_count)
@@ -933,10 +935,6 @@ module Dalli
       attrs
     end
 
-    def check_positive!(amt)
-      raise ArgumentError, "Positive values only: #{amt}" if amt.negative?
-    end
-
     # Numeric arguments that become meta protocol flags (GHSA-6wmv-xq9m-fmp7).
     # RequestFormatter converts them to Integer as the wire-level backstop;
     # checking here too gives the caller a clean ArgumentError for the same
@@ -952,11 +950,12 @@ module Dalli
     MAX_UINT64 = (2**64) - 1
     private_constant :MAX_UINT64
 
-    # CAS values (and the flush delay) are read by memcached as unsigned
-    # 64-bit integers. RequestFormatter raises on anything else as the
-    # wire-level backstop; checking here first keeps the connection open, for
-    # the reason given for routing tokens below. Accepts an Integer or a
-    # String of decimal digits, and returns it as an Integer.
+    # CAS values, incr/decr amounts and initial values, and the flush delay
+    # are read by memcached as unsigned 64-bit integers. RequestFormatter
+    # raises on anything else as the wire-level backstop; checking here first
+    # keeps the connection open, for the reason given for routing tokens
+    # below. Accepts an Integer or a String of decimal digits, and returns it
+    # as an Integer.
     def validate_uint64!(name, value)
       return if value.nil?
 
@@ -1034,12 +1033,35 @@ module Dalli
 
     ##
     # Uses the argument TTL or the client-wide default.  Ensures
-    # that the value is an integer
+    # that the value is an integer memcached accepts as an expiration
     ##
     def ttl_or_default(ttl)
-      (ttl || @options[:expires_in]).to_i
-    rescue NoMethodError
-      raise ArgumentError, "Cannot convert ttl (#{ttl}) to an integer"
+      validate_ttl!(:ttl, ttl || @options[:expires_in] || 0)
+    end
+
+    # Returns the TTL as an Integer, raising ArgumentError unless memcached
+    # can use it. A String must be a whole number in decimal, as for the other
+    # numeric arguments; anything else is converted with to_i, so a Float or
+    # an ActiveSupport::Duration still works. Once sanitized (see
+    # TtlSanitizer) it must fit memcached's signed 32-bit expiration time.
+    # memcached rejects a TTL outside that with CLIENT_ERROR, which a quiet
+    # block or set_multi silently discards, so it is checked here, before the
+    # request is written.
+    def validate_ttl!(name, value)
+      return if value.nil?
+
+      ttl = ttl_to_i(name, value)
+      max = Protocol::TtlSanitizer::MAX_EXPIRATION_TIME
+      return ttl if Protocol::TtlSanitizer.sanitize(ttl).between?(0, max)
+
+      raise ArgumentError, "#{name} must be a non-negative number of seconds or a Unix time " \
+                           "no later than #{max}, got #{value.inspect}"
+    end
+
+    def ttl_to_i(name, value)
+      value.is_a?(String) ? Integer(value, 10) : value.to_i
+    rescue ArgumentError, NoMethodError, FloatDomainError
+      raise ArgumentError, "#{name} must be an Integer, got #{value.inspect}"
     end
 
     def ring
@@ -1086,10 +1108,8 @@ module Dalli
     # to change this client's configuration later.
     def normalize_options(options)
       opts = options.dup
-      opts[:expires_in] = opts[:expires_in].to_i if opts[:expires_in]
+      opts[:expires_in] = ttl_to_i(:expires_in, opts[:expires_in]) if opts[:expires_in]
       opts
-    rescue NoMethodError
-      raise ArgumentError, "cannot convert :expires_in => #{opts[:expires_in].inspect} to an integer"
     end
 
     REMOVED_OPTIONS = {

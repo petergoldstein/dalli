@@ -274,4 +274,43 @@ describe 'RequestFormatter properties' do
       end
     end
   end
+
+  # memcached replies CLIENT_ERROR to a TTL outside a signed 32-bit value or a
+  # delta or initial value outside an unsigned 64-bit one, and a quiet request
+  # never reports that reply. Each must either raise or reach the wire as
+  # exactly the value given.
+  it 'emits TTLs, deltas and initial values only within the ranges memcached accepts' do
+    max_ttl = Dalli::Protocol::TtlSanitizer::MAX_EXPIRATION_TIME
+    # A TTL, unlike a delta, may be a Float, which is truncated
+    expected_ttl = lambda do |value|
+      int = case value
+            when Integer then value
+            when String then Integer(value, 10, exception: false)
+            when Float then value.to_i
+            end
+      int if int&.between?(0, max_ttl)
+    end
+
+    iterations.times do |i|
+      # meta_arithmetic sends its TTL as the N flag, and only with an initial value
+      field, flag = [%i[ttl N], %i[delta D], %i[initial J]].sample(random: rng)
+      value = if field == :ttl
+                [random_numeric, [-1, 0, max_ttl, max_ttl + 1, 2**40].sample(random: rng)].sample(random: rng)
+              else
+                random_uint64_candidate
+              end
+      args = { key: 'k', delta: 1, initial: 0 }.merge(field => value)
+      context = "seed=#{seed} iteration=#{i} meta_arithmetic(#{field}: #{value.inspect})"
+      expected = field == :ttl ? expected_ttl.call(value) : expected_uint64(value)
+
+      if expected.nil?
+        assert_raises(ArgumentError, context) { call_formatter(:meta_arithmetic, **args) }
+        next
+      end
+
+      flags = call_formatter(:meta_arithmetic, **args).split.drop(2).grep(/\A#{flag}/)
+
+      assert_equal ["#{flag}#{expected}"], flags, context
+    end
+  end
 end
