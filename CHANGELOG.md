@@ -15,6 +15,11 @@ Bug fixes:
 - Multi-gets now raise `Dalli::UnmarshalError` for a value that can't be deserialized, as `get` does, and only after reading the rest of the replies
   - `get_multi` and `get_multi_cas` raised partway through reading a server's replies, closing the connection, and `get_multi_with_metadata` on more than one server silently dropped every key on that server. A large `get_multi` could also drop that server's keys without raising when it read the bad value while still sending requests (seen mostly on JRuby and TruffleRuby)
   - In block form the other values are still yielded, and the connections stay open. `get` and the other single-key reads also keep the connection open after this error now
+- `get_multi`, `get_multi_cas` and `get_multi_with_metadata` now return each value under the key the caller passed. They rebuilt the key from the one memcached returned, so:
+  - With a namespace, a key that isn't valid UTF-8 (such as `"\xff".b`) raised `ArgumentError` for the whole call
+  - A key too long to send as is (over 250 bytes, or once base64-encoded) came back under its digested form
+  - A binary key with non-ASCII bytes came back tagged UTF-8, so `result.key?(key)` was false
+  - A key given more than once is now requested once, and a block is yielded it once
 
 Other changes:
 

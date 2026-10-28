@@ -290,12 +290,48 @@ describe 'Pipelined Get' do
 
             result = dc.get_multi_cas(long_key, *many)
 
-            # A truncated key comes back under its truncated form, as for any
-            # key over the limit, so check the value rather than the key
             assert_equal many.size + 1, result.size
-            assert_includes result.values.map(&:first), 'search-result'
+            assert_equal 'search-result', result[long_key]&.first
             assert_equal 'victim@example.com', dc.get('victim:email')
             assert_equal 'token-for-user:5:token', dc.get('user:5:token')
+          end
+        end
+
+        Minitest::Spec::MULTI_GETS.each do |name, multi_get|
+          it "#{name} returns one entry per key, under the caller's key, for long and repeated keys" do
+            with_two_server_client(p) do |dc|
+              long_key = 'x' * 300
+              expected = keys.to_h { |k| [k, "v-#{k}"] }.merge(long_key => 'long', "\xff".b => 'binary')
+              expected.each { |k, v| dc.set(k, v) }
+
+              assert_caller_keys expected, multi_get.call(dc, [long_key, *expected.keys, "\xff".b])
+            end
+          end
+        end
+
+        def with_pipeline_constant(name, value)
+          original = Dalli::PipelinedGetter.const_get(name)
+          Dalli::PipelinedGetter.send(:remove_const, name)
+          Dalli::PipelinedGetter.const_set(name, value)
+          yield
+        ensure
+          Dalli::PipelinedGetter.send(:remove_const, name)
+          Dalli::PipelinedGetter.const_set(name, original)
+        end
+
+        # Replies read while the requests are still being sent are kept apart
+        # until sending is done; they're returned under the caller's keys too
+        it "returns replies read while sending a large batch under the caller's keys" do
+          with_two_server_client(p, namespace: 'ns') do |dc|
+            expected = keys.to_h { |k| [k, "v-#{k}"] }.merge('x' * 300 => 'long', "caf\xe9".b => 'binary')
+            expected.each { |k, v| dc.set(k, v) }
+
+            with_pipeline_constant(:INTERLEAVE_THRESHOLD, 5) do
+              with_pipeline_constant(:CHUNK_SIZE, 5) do
+                assert_caller_keys expected, dc.get_multi(expected.keys)
+                assert_caller_keys expected, dc.get_multi_cas(expected.keys).transform_values(&:first)
+              end
+            end
           end
         end
 

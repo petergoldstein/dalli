@@ -71,6 +71,31 @@ module Dalli
       "#{evaluate_namespace}#{namespace_separator}#{key}"
     end
 
+    ##
+    # Validates the keys for a multi-get. Returns a Hash from each key as
+    # sent to the caller's key (as a String) it came from, for #caller_key.
+    # A reply names the key as sent: namespaced, digested when too long, and
+    # decoded from base64 as UTF-8 when it was encoded, so it can't be turned
+    # back into the caller's key on its own. Keys are compared as bytes, and
+    # a key given more than once is sent once.
+    ##
+    def caller_keys_by_wire_key(keys)
+      keys.each_with_object({}) do |key, caller_keys|
+        key = key.to_s
+        caller_keys[bytes_form(validate_key(key))] ||= key
+      end
+    end
+
+    ##
+    # The caller's key for a multi-get reply's key, using the Hash from
+    # #caller_keys_by_wire_key. Returns nil for a key that wasn't requested.
+    ##
+    def caller_key(caller_keys, reply_key)
+      # A non-ASCII key in the Hash is binary, and a reply's key decoded from
+      # base64 is UTF-8; ASCII keys, the usual case, are found as is
+      caller_keys[reply_key] || caller_keys[reply_key.b]
+    end
+
     def key_without_namespace(key)
       return key if namespace.nil?
 
@@ -144,6 +169,11 @@ module Dalli
       return key.bytesize unless Dalli::Protocol::Meta::KeyRegularizer.required?(key)
 
       ((key.bytesize + 2) / 3) * 4
+    end
+
+    # ASCII keys compare equal in any encoding as is
+    def bytes_form(key)
+      key.ascii_only? ? key : key.b
     end
 
     def prefix_length(digest)
