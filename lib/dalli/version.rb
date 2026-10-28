@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Dalli
-  VERSION = '4.3.8'
+  VERSION = '4.3.9'
 
   MIN_SUPPORTED_MEMCACHED_VERSION = '1.4'
 end

@@ -42,9 +42,10 @@ module Dalli
     #                 #fetch operations.
     # - :raw        - If set, disables serialization and compression entirely at the client level.
     #                 Only String values are supported. This is useful when the caller handles its own
-    #                 serialization (e.g., Rails' ActiveSupport::Cache). Note: this is different from
-    #                 the per-request :raw option which converts values to strings but still uses the
-    #                 serialization pipeline.
+    #                 serialization (e.g., Rails' ActiveSupport::Cache). The per-request :raw option
+    #                 (e.g. set(key, value, ttl, raw: true)) does the same for a single call: String
+    #                 values are stored as-is, uncompressed, and non-String values raise
+    #                 Dalli::MarshalError.
     # - :digest_class - defaults to Digest::MD5, allows you to pass in an object that responds to the hexdigest method,
     #                   useful for injecting a FIPS compliant hash object.
     # - :protocol - one of either :binary or :meta, defaulting to :binary.  This sets the protocol that Dalli uses
@@ -306,6 +307,11 @@ module Dalli
     # Any error replies will be discarded at the end of the block, and
     # Dalli client methods invoked inside the block will not
     # have return values
+    #
+    # The block is quiet only for the thread or fiber that runs it. Another
+    # thread or fiber sharing this client can make requests meanwhile; a
+    # non-quiet one first sends the block's buffered requests and discards
+    # their replies, so it reads only its own.
     def quiet
       old = Thread.current[::Dalli::QUIET]
       Thread.current[::Dalli::QUIET] = true

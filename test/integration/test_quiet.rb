@@ -26,6 +26,36 @@ describe 'Quiet behavior' do
         end
       end
 
+      # Earlier quiet writes sit in the connection's write buffer until the
+      # block's noop; a value that fails to marshal must not throw them away.
+      {
+        'an unmarshallable value' => [Dalli::MarshalError, proc {}],
+        'a value over value_max_bytes' => [Dalli::ValueOverMaxSize, 'x' * 2048]
+      }.each do |label, (error_class, bad_value)|
+        it "keeps the other quiet writes when a set raises for #{label}" do
+          memcached_persistent(p) do |_, port|
+            dc = Dalli::Client.new("localhost:#{port}", protocol: p, value_max_bytes: 1024)
+            dc.flush
+
+            with_nil_logger do
+              dc.quiet do
+                dc.set('quiet_a', 1)
+                assert_raises(error_class) { dc.set('quiet_b', bad_value) }
+                dc.set('quiet_c', 3)
+              end
+            end
+
+            assert_equal 1, dc.get('quiet_a')
+            assert_nil dc.get('quiet_b')
+            assert_equal 3, dc.get('quiet_c')
+
+            # The connection is still usable afterwards
+            assert dc.set('quiet_d', 4)
+            assert_equal 4, dc.get('quiet_d')
+          end
+        end
+      end
+
       it 'supports the use of add in a quiet block' do
         memcached_persistent(p) do |dc|
           dc.close
@@ -258,6 +288,173 @@ describe 'Quiet behavior' do
           end
 
           refute_operator Thread.current, :[], Dalli::QUIET
+        end
+      end
+
+      # Thread.current[] is fiber-local, so a quiet block covers only the
+      # thread or fiber that opened it. Its replies come back on the
+      # connection that other threads and fibers share.
+      describe 'with a client shared across threads and fibers' do
+        # One server, so every key shares the one connection
+        def with_shared_client(protocol)
+          memcached_persistent(protocol) do |_, port|
+            dc = Dalli::Client.new("localhost:#{port}", protocol: protocol)
+            dc.flush
+            dc.set('existing', 'old')
+            dc.set('k3', 'value3')
+            yield dc
+          end
+        end
+
+        # Starts a thread that enters a quiet block, makes a failing add
+        # (memcached replies NS even to a quiet add) and any requests in the
+        # block, then waits inside the block until release is pushed.
+        def start_quiet_thread(client, &quiet_requests)
+          entered = Queue.new
+          release = Queue.new
+          thread = Thread.new do
+            client.quiet do
+              client.add('existing', 'new')
+              quiet_requests&.call
+              entered << true
+              release.pop
+            end
+            :finished
+          end
+          entered.pop
+          [thread, release]
+        end
+
+        it 'gives another thread its own replies while a quiet block has replies pending' do
+          with_shared_client(p) do |dc|
+            thread, release = start_quiet_thread(dc)
+
+            assert op_addset_succeeds(dc.set('k2', 'v2'))
+            assert_equal 'value3', dc.get('k3')
+            assert_equal 'v2', dc.get('k2')
+            assert_nil dc.get('missing')
+
+            release << true
+
+            assert_equal :finished, thread.value
+            assert_equal 'old', dc.get('existing')
+            assert_equal 'value3', dc.get('k3')
+            assert_equal 'v2', dc.get('k2')
+          end
+        end
+
+        # Without the drain, binary stayed out of step after the block: the
+        # block's closing noop stopped at the other thread's real reply
+        it 'keeps the connection in step after the quiet block ends' do
+          with_shared_client(p) do |dc|
+            thread, release = start_quiet_thread(dc)
+            during = begin
+              dc.get('k3')
+            rescue Dalli::DalliError => e
+              e
+            end
+
+            release << true
+
+            assert_equal :finished, thread.value
+            assert_equal 'old', dc.get('existing')
+            assert_equal 'value3', dc.get('k3')
+            assert_equal 'value3', during
+          end
+        end
+
+        it 'reads the replies of quiet requests made after another thread read the earlier ones' do
+          with_shared_client(p) do |dc|
+            paused = Queue.new
+            resume = Queue.new
+            thread = Thread.new do
+              dc.quiet do
+                dc.add('existing', 'new')
+                paused << true
+                resume.pop
+                dc.add('existing', 'newer')
+                dc.set('later', 'later-value')
+                paused << true
+                resume.pop
+              end
+            end
+
+            paused.pop
+
+            assert_equal 'value3', dc.get('k3')
+            resume << true
+            paused.pop
+
+            assert_equal 'old', dc.get('existing')
+            assert_equal 'later-value', dc.get('later')
+            resume << true
+            thread.join
+
+            assert_equal 'value3', dc.get('k3')
+          end
+        end
+
+        it 'returns exactly the requested keys from a get_multi in another thread' do
+          with_shared_client(p) do |dc|
+            keys = Array.new(20) { |i| "multi#{i}" }
+            keys.each { |k| dc.set(k, "v-#{k}") }
+            expected = keys.to_h { |k| [k, "v-#{k}"] }
+            thread, release = start_quiet_thread(dc)
+
+            # The block form is the pipelined get
+            yielded = {}
+            dc.get_multi(keys + ['missing']) { |k, v| yielded[k] = v }
+
+            assert_equal expected, yielded
+            assert_equal 'value3', dc.get('k3')
+
+            release << true
+            thread.join
+
+            assert_equal expected, dc.get_multi(keys + ['missing'])
+          end
+        end
+
+        it 'gives another thread its own replies while a quiet incr of a base64 key is pending' do
+          with_shared_client(p) do |dc|
+            counter = 'counter with space'
+            dc.incr(counter, 1, nil, 5)
+            # The counter exists, so the quiet incr applies and its add fails with NS
+            thread, release = start_quiet_thread(dc) { dc.incr(counter, 1, nil, 5) }
+
+            assert_equal 'value3', dc.get('k3')
+            assert op_addset_succeeds(dc.set('k2', 'v2'))
+            assert_equal 'v2', dc.get('k2')
+
+            release << true
+            thread.join
+
+            assert_equal 7, dc.incr(counter, 1)
+            assert_equal 'value3', dc.get('k3')
+          end
+        end
+
+        it 'gives another fiber its own replies while a quiet block has replies pending' do
+          with_shared_client(p) do |dc|
+            fiber = Fiber.new do
+              dc.quiet do
+                dc.add('existing', 'new')
+                Fiber.yield :in_quiet_block
+              end
+              :finished
+            end
+
+            assert_equal :in_quiet_block, fiber.resume
+            refute_operator Thread.current, :[], Dalli::QUIET
+
+            assert op_addset_succeeds(dc.set('k2', 'v2'))
+            assert_equal 'value3', dc.get('k3')
+            assert_equal 'v2', dc.get('k2')
+
+            assert_equal :finished, fiber.resume
+            assert_equal 'old', dc.get('existing')
+            assert_equal 'value3', dc.get('k3')
+          end
         end
       end
 

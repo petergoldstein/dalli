@@ -161,7 +161,10 @@ module Dalli
       # We need to read all the responses at once.
       def noop
         write_noop
-        response_processor.consume_all_responses_until_noop
+        result = response_processor.consume_all_responses_until_noop
+        # Everything up to and including the noop reply has been read
+        @connection_manager.clear_quiet_responses_pending!
+        result
       end
 
       def stats(info = '')
