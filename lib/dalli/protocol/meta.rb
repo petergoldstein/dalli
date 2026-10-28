@@ -103,9 +103,14 @@ module Dalli
       #   - :hit_before - true/false if previously accessed (only if return_hit_status: true)
       #   - :last_access - seconds since last access (only if return_last_access: true)
       def meta_get(key, options = {})
+        # vivify_ttl is how long the stub lives, so like any TTL it must be
+        # sanitized: memcached reads a value over 30 days as a Unix timestamp.
+        # recache_ttl is a threshold compared with the remaining TTL, not an
+        # expiry, so it's sent as given.
+        vivify_ttl = options[:vivify_ttl] && TtlSanitizer.sanitize(options[:vivify_ttl])
         req = RequestFormatter.meta_get(
           key: key, value: true, return_cas: true, skip_flags: raw_request?(options),
-          vivify_ttl: options[:vivify_ttl], recache_ttl: options[:recache_ttl],
+          vivify_ttl: vivify_ttl, recache_ttl: options[:recache_ttl],
           return_hit_status: options[:return_hit_status],
           return_last_access: options[:return_last_access],
           return_ttl_remaining: options[:return_ttl_remaining],

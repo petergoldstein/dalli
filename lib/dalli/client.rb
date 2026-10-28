@@ -134,6 +134,10 @@ module Dalli
     #   - :return_last_access [Boolean] return seconds since last access
     #   - :return_ttl_remaining [Boolean] return seconds of TTL remaining (-1 if no TTL)
     #   - :skip_lru_bump [Boolean] don't bump LRU or update access stats
+    #   - :vivify_ttl [Integer] on a miss, create a stub that lives this long
+    #     (sanitized like any other TTL) and report won_recache
+    #   - :recache_ttl [Integer] report won_recache when the item's remaining
+    #     TTL is below this
     #
     # @return [Hash] containing:
     #   - :value - the cached value (or nil on miss)
@@ -160,6 +164,7 @@ module Dalli
     #
     def get_with_metadata(key, options = {})
       validate_routing_tokens!(options)
+      validate_integer!(:vivify_ttl, options[:vivify_ttl])
       # A retry re-runs this method with its original arguments, so `key` must
       # stay as the caller gave it; reassigning it would add the namespace again.
       validated_key = @key_manager.validate_key(key.to_s)

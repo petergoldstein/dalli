@@ -4,6 +4,12 @@ Dalli Changelog
 Unreleased
 ==========
 
+Bug fixes:
+
+- A `vivify_ttl` (or `fetch_with_lock`'s `lock_ttl`) over 30 days now protects against a thundering herd
+  - memcached reads a TTL over 30 days as a Unix timestamp, so the stub for a miss expired at once and every caller won the recache race. `vivify_ttl` is now sanitized like other TTLs, turning a long interval into a future timestamp
+  - `get_with_metadata` raises `ArgumentError` for a `vivify_ttl` that isn't an Integer (or a String of decimal digits), as `fetch_with_lock` already did for `lock_ttl`. Before, the error came from deep in the request and closed the connection
+
 5.2.4
 ==========
 
