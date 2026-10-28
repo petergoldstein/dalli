@@ -280,6 +280,7 @@ describe 'RequestFormatter properties' do
   # never reports that reply. Each must either raise or reach the wire as
   # exactly the value given.
   it 'emits TTLs, deltas and initial values only within the ranges memcached accepts' do
+    min_ttl = Dalli::Protocol::TtlSanitizer::MIN_EXPIRATION_TIME
     max_ttl = Dalli::Protocol::TtlSanitizer::MAX_EXPIRATION_TIME
     # A TTL, unlike a delta, may be a Float, which is truncated
     expected_ttl = lambda do |value|
@@ -288,14 +289,15 @@ describe 'RequestFormatter properties' do
             when String then Integer(value, 10, exception: false)
             when Float then value.to_i
             end
-      int if int&.between?(0, max_ttl)
+      int if int&.between?(min_ttl, max_ttl)
     end
 
     iterations.times do |i|
       # meta_arithmetic sends its TTL as the N flag, and only with an initial value
       field, flag = [%i[ttl N], %i[delta D], %i[initial J]].sample(random: rng)
       value = if field == :ttl
-                [random_numeric, [-1, 0, max_ttl, max_ttl + 1, 2**40].sample(random: rng)].sample(random: rng)
+                [random_numeric, [min_ttl - 1, min_ttl, -1, 0, max_ttl, max_ttl + 1, 2**40].sample(random: rng)]
+                  .sample(random: rng)
               else
                 random_uint64_candidate
               end

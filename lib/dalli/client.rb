@@ -1043,7 +1043,8 @@ module Dalli
     # can use it. A String must be a whole number in decimal, as for the other
     # numeric arguments; anything else is converted with to_i, so a Float or
     # an ActiveSupport::Duration still works. Once sanitized (see
-    # TtlSanitizer) it must fit memcached's signed 32-bit expiration time.
+    # TtlSanitizer) it must fit memcached's signed 32-bit expiration time. A
+    # negative TTL is allowed: memcached stores the item as already expired.
     # memcached rejects a TTL outside that with CLIENT_ERROR, which a quiet
     # block or set_multi silently discards, so it is checked here, before the
     # request is written.
@@ -1051,10 +1052,11 @@ module Dalli
       return if value.nil?
 
       ttl = ttl_to_i(name, value)
+      min = Protocol::TtlSanitizer::MIN_EXPIRATION_TIME
       max = Protocol::TtlSanitizer::MAX_EXPIRATION_TIME
-      return ttl if Protocol::TtlSanitizer.sanitize(ttl).between?(0, max)
+      return ttl if Protocol::TtlSanitizer.sanitize(ttl).between?(min, max)
 
-      raise ArgumentError, "#{name} must be a non-negative number of seconds or a Unix time " \
+      raise ArgumentError, "#{name} must be a number of seconds no smaller than #{min} or a Unix time " \
                            "no later than #{max}, got #{value.inspect}"
     end
 

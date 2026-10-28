@@ -15,7 +15,9 @@ module Dalli
       MAX_ACCEPTABLE_EXPIRATION_INTERVAL = 30 * 24 * 60 * 60 # 30 days
 
       # memcached holds an expiration time in a signed 32-bit integer, so a
-      # sanitized TTL above this is rejected with CLIENT_ERROR.
+      # sanitized TTL outside this range is rejected with CLIENT_ERROR. A
+      # negative TTL is accepted and stores the item as already expired.
+      MIN_EXPIRATION_TIME = -(2**31)
       MAX_EXPIRATION_TIME = (2**31) - 1
 
       # Ensures the TTL passed to Memcached is a valid TTL in the expected format.

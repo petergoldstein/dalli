@@ -309,10 +309,11 @@ module Dalli
         # request never reports. Callers pass TTLs through TtlSanitizer first.
         def ttl_flag(name, value)
           ttl = integer_flag(name, value)
+          min = TtlSanitizer::MIN_EXPIRATION_TIME
           max = TtlSanitizer::MAX_EXPIRATION_TIME
-          return ttl if ttl.between?(0, max)
+          return ttl if ttl.between?(min, max)
 
-          raise ArgumentError, "#{name} must be between 0 and #{max}, got #{value.inspect}"
+          raise ArgumentError, "#{name} must be between #{min} and #{max}, got #{value.inspect}"
         end
 
         def mode_to_token(mode)

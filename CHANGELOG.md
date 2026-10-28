@@ -6,25 +6,19 @@ Unreleased
 
 Bug fixes:
 
-- A `vivify_ttl` (or `fetch_with_lock`'s `lock_ttl`) over 30 days now protects against a thundering herd
-  - memcached reads a TTL over 30 days as a Unix timestamp, so the stub for a miss expired at once and every caller won the recache race. `vivify_ttl` is now sanitized like other TTLs, turning a long interval into a future timestamp
-  - `get_with_metadata` raises `ArgumentError` for a `vivify_ttl` that isn't an Integer (or a String of decimal digits), as `fetch_with_lock` already did for `lock_ttl`. Before, the error came from deep in the request and closed the connection
-- A CAS value that isn't an unsigned 64-bit integer now raises `ArgumentError` instead of being ignored
-  - `set_cas`, `replace_cas` and `delete_cas` dropped a CAS that couldn't be parsed, such as `'abc'` or `'123x'`, and sent an unconditional write, so the value was overwritten or deleted whatever its CAS. A negative CAS or one of `2**64` or more was sent and rejected by memcached, which `quiet` blocks silently discarded
-  - The CAS must now be an Integer or a String of decimal digits between 0 and 2**64 - 1 (or nil). It's checked before anything is written, so the connection and any earlier writes in a `quiet` block are unaffected
-- `flush` raises `ArgumentError` for a delay that isn't a non-negative integer. A delay that couldn't be parsed, such as `flush('abc')`, used to flush immediately
-- TTLs, and `incr`/`decr` amounts and initial values, outside the ranges memcached accepts now raise `ArgumentError`
-  - memcached rejects these with `CLIENT_ERROR`. A single request raised `Dalli::DalliError`, but inside a `quiet` block or `set_multi` the reply was discarded and the write silently did nothing
-  - A TTL String that isn't a whole number, such as `'abc'`, went through `String#to_i` and became 0, which means no expiry
-  - `incr(key, 0.9)` truncated the amount to 0 and did nothing; `incr(key, '5')` raised `NoMethodError`
-  - These are checked before anything is written, so the connection and any earlier writes in a `quiet` block are unaffected
+- A `vivify_ttl` (or `fetch_with_lock`'s `lock_ttl`) over 30 days now protects against a thundering herd. memcached reads a TTL over 30 days as a Unix timestamp, so the stub for a miss expired at once and every caller won the recache race. `vivify_ttl` is now converted like other TTLs
+- `set_cas`, `replace_cas` and `delete_cas` dropped a CAS that couldn't be parsed, such as `'abc'`, and sent an unconditional write, so the value was overwritten or deleted whatever its CAS. They now raise `ArgumentError`
+- `flush('abc')` flushed immediately. It now raises `ArgumentError`
+- A TTL String that isn't a whole number, such as `'abc'`, became 0, which means no expiry. It now raises `ArgumentError`, including for `expires_in` when the client is created
+- A TTL, CAS, `incr`/`decr` amount or initial value outside the range memcached accepts got a `CLIENT_ERROR` reply, which a `quiet` block or `set_multi` discarded, so the write silently did nothing. These now raise `ArgumentError`
+- An invalid `vivify_ttl` raised from deep in the request and closed the connection
 
-Changes:
+Other changes:
 
-- Numeric arguments are validated before a request is sent, and some values that were accepted now raise `ArgumentError`. Integers and Strings of decimal digits (such as `'300'`) are accepted throughout, as TTL Strings already were
-  - A TTL must be from 0 up to a Unix time of 2**31 - 1 once a TTL over 30 days is converted to a timestamp. This applies to `ttl`, `expires_in`, `vivify_ttl`, `lock_ttl` and `tombstone_ttl`. A negative TTL, which memcached treated as already expired, now raises. A Float or `ActiveSupport::Duration` TTL is still converted with `to_i`; a String that isn't a whole number now raises, including for `expires_in` when the client is created
-  - A CAS, an `incr`/`decr` amount or initial value, and a `flush` delay must be an Integer (or a String of decimal digits) from 0 to 2**64 - 1. A Float now raises; an amount or initial value such as `1.5` used to be truncated. A String amount such as `'5'` now works
-  - `fetch_with_lock` checks `ttl` before taking the lock, so a bad one raises before the block runs rather than after
+- Numeric arguments are checked before anything is written, so a bad one raises `ArgumentError` without affecting the connection or earlier writes in a `quiet` block. Integers and Strings of decimal digits (such as `'300'`) are accepted throughout
+  - A TTL (`ttl`, `expires_in`, `vivify_ttl`, `lock_ttl`, `tombstone_ttl`) must fit memcached's signed 32-bit expiration time once a TTL over 30 days is converted to a Unix time. A negative TTL is still accepted and expires the item. A Float or `ActiveSupport::Duration` TTL is still converted with `to_i`
+  - A CAS, an `incr`/`decr` amount or initial value, and a `flush` delay must be from 0 to 2**64 - 1. A Float now raises; `incr(key, 0.9)` used to truncate the amount to 0. A String amount such as `'5'` now works
+  - `fetch_with_lock` checks `ttl` before taking the lock, so a bad one raises before the block runs
   - `Dalli::Protocol::TtlSanitizer.sanitize` raises `ArgumentError` for a String that isn't a whole number instead of returning 0
 
 5.2.4

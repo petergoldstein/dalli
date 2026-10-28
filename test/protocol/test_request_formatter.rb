@@ -182,7 +182,7 @@ describe Dalli::Protocol::Meta::RequestFormatter do
     # memcached replies CLIENT_ERROR to an expiration time outside a signed
     # 32-bit value, which a quiet request never reports
     it 'rejects a ttl memcached cannot hold' do
-      [-1, 2**31, 2**40].each do |bad|
+      [-(2**31) - 1, 2**31, 2**40].each do |bad|
         assert_raises(ArgumentError, "ttl #{bad}") { formatter.meta_set(key: 'k', value: 'v', ttl: bad) }
         assert_raises(ArgumentError, "ttl #{bad}") { formatter.plain_meta_set('k', 1, 0, bad) }
         assert_raises(ArgumentError, "ttl #{bad}") { formatter.multi_meta_set({ 'k' => ['v', 0] }, ttl: bad) }

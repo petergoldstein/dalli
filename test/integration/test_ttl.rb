@@ -44,7 +44,7 @@ describe 'TTL behavior' do
       # quiet block or set_multi silently discarded. A String that isn't a
       # whole number became 0, which means no expiry at all.
       describe 'with a TTL memcached cannot use' do
-        bad_ttls = [2**40, 2**31, -1, 'abc', '10x', Float::INFINITY]
+        bad_ttls = [2**40, 2**31, -(2**31) - 1, 'abc', '10x', Float::INFINITY]
 
         it 'raises ArgumentError from every operation that takes a TTL and stores nothing' do
           memcached_persistent(p) do |_dc, port|
@@ -105,6 +105,21 @@ describe 'TTL behavior' do
           assert dc.set('string', 'value', '300')
           assert_equal %w[value value value], [dc.get('relative'), dc.get('absolute'), dc.get('string')]
           assert_operator dc.get_with_metadata('string', return_ttl_remaining: true)[:ttl_remaining], :>, 0
+        end
+      end
+
+      # memcached accepts a negative TTL and stores the item as already expired
+      it 'accepts a negative TTL, which expires the item' do
+        memcached_persistent(p) do |dc|
+          dc.flush
+          dc.set('existing', 'value')
+
+          assert dc.set('expired', 'value', -1)
+          assert dc.touch('existing', -1)
+          assert dc.set('oldest', 'value', -(2**31))
+          assert_nil dc.get('expired')
+          assert_nil dc.get('existing')
+          assert_nil dc.get('oldest')
         end
       end
     end
