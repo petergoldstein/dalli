@@ -4,6 +4,31 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.0.12
+==========
+
+Security:
+
+- Keep a connection shared by several threads or fibers in step during a `quiet` block (GHSA-5xvx-r8rg-5qm2)
+  - A `quiet` (or `multi`) block is quiet only for the thread or fiber that runs it. memcached still replies to a quiet request that fails (for example an `add` of a key that exists), and another thread or fiber using the same client while the block was open read that reply as its own, so its later requests could return another key's value. A non-quiet request now reads any pending quiet replies first
+- Don't let a `get_multi` that stopped early leave replies for a later request (GHSA-5xvx-r8rg-5qm2)
+  - A pipelined `get_multi` stopped by a non-network exception (its block raising or breaking, `Timeout.timeout`, or a value that can't be deserialized) left its unread replies in the response buffer, and a later `get_multi` large enough to use the interleaved path returned them as its own. The buffer is now cleared when a connection closes or a pipelined get starts, and unfinished pipelines are aborted
+  - Affects every supported line (the `get_multi` issue, 4.3 and later); fixed in 5.2.4, 5.1.6, 5.0.12, 4.3.9 and 3.2.15
+
+Bug fixes:
+
+- A per-request `raw: true` write no longer compresses the value (backport of #1213)
+  - Values at or above the compression threshold (4 KB by default) were compressed and flagged even with `raw: true`. Raw reads ignore flags, so reading them back with `raw: true` returned the compressed bytes
+  - Raw values are now stored exactly as given. Callers that pass `raw: true` without `compress: false` store large values uncompressed; Rails' `MemCacheStore` passes `compress: false` and isn't affected
+- Handle failed TLS handshakes like other connection failures, and warn when TLS verification is off (backport of #1215)
+  - A failed or timed-out handshake left the TCP socket open until GC and raised `OpenSSL::SSL::SSLError` directly, so the server was never marked down. The socket is now closed, and the error goes through the usual retry and `socket_max_failures` handling, raising `Dalli::NetworkError` (or `Dalli::RingError` once no server is available)
+  - Certificate and hostname checks come only from the `ssl_context` you pass, and a bare `OpenSSL::SSL::SSLContext.new` checks neither. Dalli now logs a warning once per process when `verify_mode` doesn't include `VERIFY_PEER` or `verify_hostname` is false; see the new TLS section in the README
+- A reply line longer than 8 KiB without a CRLF, or one cut short by the connection closing, is now a network error that closes the connection. Before, the line had no length limit (backport of #1216)
+- One value that can't be stored no longer discards other buffered writes (backport of #1218)
+  - A value that raised `Dalli::MarshalError` or `Dalli::ValueOverMaxSize` closed the connection, which dropped writes still buffered from the same `quiet` block or `set_multi`. Multi-server `set_multi` did this without raising
+  - Both `set_multi` paths now store every other key, skip the bad one, and then raise. Single-server `set_multi` used to store nothing
+  - When single-server `set_multi` failed to marshal a value, the error log included every value in the batch. It now lists only the keys
+
 5.0.11
 ==========
 
