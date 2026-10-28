@@ -43,6 +43,38 @@ describe 'per-request raw option' do
           assert_equal [payload] * 2, seen
         end
       end
+
+      describe 'with values above the compression threshold' do
+        let(:big) { 'x' * 5000 }
+
+        it 'round-trips through set and get' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.set('rbig', big, 0, raw: true)
+
+            assert_equal big, dc.get('rbig', raw: true)
+          end
+        end
+
+        it 'round-trips through a quiet set and get' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.quiet { dc.set('rbig', big, 0, raw: true) }
+
+            assert_equal big, dc.get('rbig', raw: true)
+          end
+        end
+
+        it 'stores the value uncompressed for get_multi' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.set('rbig1', big, 0, raw: true)
+            dc.set('rbig2', big, 0, raw: true)
+
+            assert_equal({ 'rbig1' => big, 'rbig2' => big }, dc.get_multi('rbig1', 'rbig2'))
+          end
+        end
+      end
     end
   end
 end
