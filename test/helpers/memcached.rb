@@ -69,6 +69,15 @@ module Memcached
       Dalli::Client.new("localhost:#{port}", client_options)
     end
 
+    # Stores a value flagged as serialized (bitflag 1) that isn't a Marshal
+    # dump, so reading it raises Dalli::UnmarshalError
+    def store_undeserializable(port, key)
+      TCPSocket.open('127.0.0.1', port) do |sock|
+        sock.write("set #{key} 1 0 7\r\ngarbage\r\n")
+        raise 'garbage value not stored' unless sock.gets == "STORED\r\n"
+      end
+    end
+
     private
 
     def fork_mock_process(prc, meth, meth_args)

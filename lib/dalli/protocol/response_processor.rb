@@ -280,16 +280,19 @@ module Dalli
           # a complete response, don't advance the buffer
           return [0] unless buf.bytesize >= offset + resp_size
 
-          # The full response is in our buffer, so parse it and return
-          # the values
-          body = buf.byteslice(offset + header_len, body_len)
-          value = retrieve(body, raw ? 0 : flag_int(bitflags, 'f'), raw)
           # A hit with no key can't be matched to a request: skip it (false
           # status) rather than yield it, or take it for the end of the pipeline
           return [false, resp_size] unless key
 
           key = key.delete_prefix!('k')
           key = KeyRegularizer.decode(key) if base64
+          # The full response is in our buffer, so parse it and return
+          # the values
+          begin
+            value = retrieve(buf.byteslice(offset + header_len, body_len), raw ? 0 : flag_int(bitflags, 'f'), raw)
+          rescue Dalli::UnmarshalError => e
+            return unmarshal_failed(e, key, resp_size)
+          end
           [tokens.first == VA, flag_int(cas, 'c'), key, value, resp_size]
         end
 
@@ -320,12 +323,32 @@ module Dalli
           resp_size = header_len + size + TERMINATOR.length
           return [0] unless buf.bytesize >= offset + resp_size
 
-          value = retrieve(buf.byteslice(offset + header_len, size), raw ? 0 : bitflags || 0, raw)
           # Skipped like the token path does; see getk_response_from_buffer
           return [false, resp_size] unless key
 
           key = KeyRegularizer.decode(key) if base64
+          begin
+            value = retrieve(buf.byteslice(offset + header_len, size), raw ? 0 : bitflags || 0, raw)
+          rescue Dalli::UnmarshalError => e
+            return unmarshal_failed(e, key, resp_size)
+          end
           [true, cas || 0, key, value, resp_size]
+        end
+
+        # A pipelined reply whose value can't be deserialized is consumed and
+        # skipped (false status), so the replies after it stay in step. Its
+        # key is still returned for the reply key check. The first such error
+        # is held until the pipeline finishes; see take_unmarshal_error.
+        def unmarshal_failed(error, key, resp_size)
+          @unmarshal_error ||= error
+          [false, 0, key, nil, resp_size]
+        end
+
+        # Returns the error held by unmarshal_failed, if any, and forgets it
+        def take_unmarshal_error
+          error = @unmarshal_error
+          @unmarshal_error = nil
+          error
         end
 
         # Values from a raw request are returned as stored

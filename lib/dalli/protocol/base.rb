@@ -80,12 +80,14 @@ module Dalli
 
           request_completed = true
           response
-        rescue Dalli::MarshalError, Dalli::ValueOverMaxSize => e
+        rescue Dalli::MarshalError, Dalli::UnmarshalError, Dalli::ValueOverMaxSize => e
           log_marshal_err(args.first, e) if e.is_a?(Dalli::MarshalError)
           # Raised only while the connection is clean: a value is marshalled
           # before any of its request is written, and write_multi_req raises
-          # only after reading every reply. Closing the connection would
-          # discard earlier quiet writes still waiting in the write buffer.
+          # only after reading every reply. Likewise a value is unmarshalled
+          # only after its reply is read, and the multi-gets raise only after
+          # reading every reply. Closing the connection would discard earlier
+          # quiet writes still waiting in the write buffer.
           @connection_manager.abort_request!
           request_completed = true
           raise
@@ -191,8 +193,9 @@ module Dalli
           end
 
           # If the status is ok and the key is not nil, then this is a
-          # getkq response with a value that we want to set in the response hash
-          unless key.nil?
+          # getkq response with a value that we want to set in the response hash.
+          # A false status is a reply to skip (see getk_response_from_buffer).
+          if status && key
             if block
               yield key, value, cas
             else
@@ -211,7 +214,6 @@ module Dalli
 
         values || {}
       end
-      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
       # Abort current pipelined get. Generally used to signal an external
       # timeout during pipelined get, or that the get_multi stopped before
@@ -374,6 +376,8 @@ module Dalli
         # the expected state before pipeline_response_setup is called.
         response_buffer.clear
         response_buffer.raw = raw_request?(options)
+        # Drops an error held from a get_multi that stopped early
+        response_processor.take_unmarshal_error
         expect_reply_keys(keys)
 
         # The terminating noop is sent by pipeline_response_setup
@@ -388,6 +392,8 @@ module Dalli
         # left by an earlier get_multi that stopped early belong to its replies.
         response_buffer.reset
         response_buffer.raw = raw_request?(options)
+        # Drops an error held from a get_multi that stopped early
+        response_processor.take_unmarshal_error
         expect_reply_keys(keys)
 
         keys.each_slice(chunk_size) do |chunk|
@@ -427,7 +433,7 @@ module Dalli
             break
           end
 
-          results[key] = [value, cas] unless key.nil?
+          results[key] = [value, cas] if status && key
         end
       rescue SystemCallError, Dalli::NetworkError
         # Ignore errors during drain - they'll be handled in fetch_responses
@@ -479,10 +485,14 @@ module Dalli
       end
 
       # Called after the noop response is received at the end of a set
-      # of pipelined gets
+      # of pipelined gets. A value that couldn't be deserialized is raised
+      # here, once all of this server's replies are read, so the connection
+      # is left in step.
       def finish_pipeline
         response_buffer.clear
         @connection_manager.finish_request!
+        unmarshal_error = response_processor.take_unmarshal_error
+        raise unmarshal_error if unmarshal_error
 
         true # to simplify response
       end
