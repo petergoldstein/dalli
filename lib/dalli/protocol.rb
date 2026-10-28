@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'openssl'
 require 'timeout'
 
 module Dalli
@@ -16,14 +17,11 @@ module Dalli
         [Timeout::Error]
       end
 
-    # SSL errors that occur during read/write operations (not during initial
-    # handshake) should trigger reconnection. These indicate transient network
-    # issues, not configuration problems.
-    SSL_ERRORS =
-      if defined?(OpenSSL::SSL::SSLError)
-        [OpenSSL::SSL::SSLError]
-      else
-        []
-      end
+    # SSL errors during the handshake or during read/write operations count as
+    # a failed request: they trigger reconnection and, after
+    # socket_max_failures, mark the server down.
+    # openssl is required above: this file loads before dalli/socket, so a
+    # defined? check here would find OpenSSL missing and leave this empty.
+    SSL_ERRORS = [OpenSSL::SSL::SSLError].freeze
   end
 end

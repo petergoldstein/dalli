@@ -127,6 +127,52 @@ describe Dalli::Protocol::ConnectionManager do
     end
   end
 
+  describe '#read_line length limit' do
+    # Hands back what IO#gets(sep, limit) would for a stream holding `data`
+    let(:socket) do
+      Class.new do
+        attr_reader :limits
+
+        def initialize(data)
+          @data = data
+          @limits = []
+        end
+
+        def gets(sep, limit)
+          @limits << limit
+          idx = @data.index(sep)
+          take = idx ? [idx + sep.bytesize, limit].min : [@data.bytesize, limit].min
+          take.zero? ? nil : @data.slice!(0, take)
+        end
+
+        def close; end
+      end
+    end
+    let(:client_options) { { socket_max_failures: 1 } }
+
+    it 'passes a byte limit to gets and returns a line that fits' do
+      sock = socket.new(+"HD c123\r\n")
+      connection_manager.instance_variable_set(:@sock, sock)
+
+      assert_equal "HD c123\r\n", connection_manager.read_line
+      assert_equal [Dalli::Protocol::ConnectionManager::MAX_LINE_BYTES], sock.limits
+    end
+
+    it 'closes the connection when a line runs past the limit without a CRLF' do
+      connection_manager.instance_variable_set(:@sock, socket.new('x' * (64 * 1024)))
+
+      assert_raises(Dalli::NetworkError) { connection_manager.read_line }
+      refute_predicate connection_manager, :connected?
+    end
+
+    it 'closes the connection when the stream ends partway through a line' do
+      connection_manager.instance_variable_set(:@sock, socket.new(+'VA 5 f0'))
+
+      assert_raises(Dalli::NetworkError) { connection_manager.read_line }
+      refute_predicate connection_manager, :connected?
+    end
+  end
+
   describe 'failure counting' do
     let(:manager) { Dalli::Protocol::ConnectionManager.new('localhost', 11_211, :tcp, { socket_max_failures: 2 }) }
 
@@ -273,7 +319,7 @@ describe Dalli::Protocol::ConnectionManager do
           parts.sum(&:bytesize)
         end
 
-        def gets(_sep)
+        def gets(_sep, _limit = nil)
           "HD\r\n"
         end
 

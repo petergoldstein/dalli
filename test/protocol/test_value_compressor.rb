@@ -429,6 +429,33 @@ describe Dalli::Protocol::ValueCompressor do
         end
       end
     end
+
+    # Raw reads ignore bitflags, so a raw write must store the bytes as given
+    describe 'when the request options specify raw' do
+      let(:vc) { Dalli::Protocol::ValueCompressor.new(compress: true) }
+      let(:raw_value) { 'a' * 5000 }
+
+      it 'does not compress a value above the compression_min_size' do
+        val, newbitflags = vc.store(raw_value, { raw: true }, bitflags)
+
+        assert_equal raw_value, val
+        assert_equal bitflags, newbitflags
+      end
+
+      it 'does not compress even when compress is explicitly true' do
+        val, newbitflags = vc.store(raw_value, { raw: true, compress: true }, bitflags)
+
+        assert_equal raw_value, val
+        assert_equal bitflags, newbitflags
+      end
+
+      it 'still compresses when raw is false' do
+        val, newbitflags = vc.store(raw_value, { raw: false }, 0)
+
+        assert_equal Dalli::Flags::COMPRESSED, newbitflags
+        assert_equal raw_value, Dalli::Compressor.decompress(val)
+      end
+    end
   end
 
   describe 'decompressed_max_bytes' do

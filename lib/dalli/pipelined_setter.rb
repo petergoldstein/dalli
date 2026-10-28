@@ -18,6 +18,9 @@ module Dalli
     # A transient network error is retried automatically. If a server remains
     # unreachable after retrying, raises Dalli::NetworkError.
     #
+    # A value that can't be marshalled or is over value_max_bytes is skipped;
+    # the other keys are still stored, then the first such error is raised.
+    #
     # @param hash [Hash] key-value pairs to set
     # @param ttl [Integer] time-to-live in seconds
     # @param req_options [Hash] options passed to each set operation
@@ -26,10 +29,12 @@ module Dalli
     def process(hash, ttl, req_options)
       return if hash.empty?
 
+      @value_error = nil
       @ring.lock do
         servers = setup_requests(hash, ttl, req_options)
         finish_requests(servers)
       end
+      raise @value_error if @value_error
     rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying pipelined sets because of network error' }
@@ -62,6 +67,10 @@ module Dalli
           server.request(:pipelined_set, key, value, ttl, req_options)
         rescue Dalli::NetworkError
           raise
+        rescue Dalli::MarshalError, Dalli::ValueOverMaxSize => e
+          # Nothing was written for this key, so the server's other keys are
+          # unaffected; raised by #process once the batch is complete
+          @value_error ||= e
         rescue DalliError => e
           Dalli.logger.debug { e.inspect }
           Dalli.logger.debug { "unable to set key #{key} for server #{server.name}" }
