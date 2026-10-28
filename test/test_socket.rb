@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'helper'
+require 'open3'
 
 describe 'Dalli::Socket::TCP' do
   describe '.supports_connect_timeout?' do
@@ -92,6 +93,18 @@ describe 'Dalli::Socket::TCP' do
         end
       end
     end
+  end
+end
+
+describe 'Dalli::Protocol::SSL_ERRORS' do
+  # The suite loads openssl before Dalli, so check a process that requires only dalli
+  it 'includes OpenSSL::SSL::SSLError when dalli is required on its own' do
+    lib = File.expand_path('../lib', __dir__)
+    out, status = Open3.capture2(RbConfig.ruby, '-I', lib, '-e',
+                                 'require "dalli"; print Dalli::Protocol::SSL_ERRORS.inspect')
+
+    assert_predicate status, :success?
+    assert_equal '[OpenSSL::SSL::SSLError]', out
   end
 end
 
