@@ -28,6 +28,7 @@ module Dalli
 
       attr_accessor :hostname, :port, :socket_type, :options
       attr_reader :sock
+      attr_writer :quiet_responses_pending
 
       def initialize(hostname, port, socket_type, client_options)
         @hostname = hostname
@@ -35,6 +36,7 @@ module Dalli
         @socket_type = socket_type
         @options = DEFAULTS.merge(client_options)
         @request_in_progress = false
+        @quiet_responses_pending = false
         @sock = nil
         @pid = nil
 
@@ -56,6 +58,7 @@ module Dalli
         @sock = memcached_socket
         @pid = Process.pid
         @request_in_progress = false
+        @quiet_responses_pending = false
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError, SocketError => e
         # SocketError = DNS resolution failure; SSL_ERRORS = failed TLS handshake
         error_on_request!(e)
@@ -122,6 +125,7 @@ module Dalli
         end
         @sock = nil
         @pid = nil
+        @quiet_responses_pending = false
         abort_request!
       end
 
@@ -134,6 +138,13 @@ module Dalli
 
       def connected?
         !@sock.nil?
+      end
+
+      # True when a quiet request was written on this connection and its
+      # replies (memcached only suppresses some of them) haven't been
+      # consumed by a noop yet.
+      def quiet_responses_pending?
+        @quiet_responses_pending
       end
 
       def request_in_progress?
