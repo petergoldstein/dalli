@@ -13,6 +13,7 @@ module Dalli
     ##
     class Meta < Base
       TERMINATOR = "\r\n"
+      COUNTER_ADD_OPTIONS = { raw: true }.freeze # counters are stored raw
 
       def response_processor
         @response_processor ||= ResponseProcessor.new(@connection_manager, @value_marshaller)
@@ -145,26 +146,24 @@ module Dalli
       # client means the counter now exists, so the incr is tried again. In a
       # quiet block both requests are sent and whichever applies takes effect.
       def decr_incr_with_add(incr, key, delta, ttl, initial)
-        add_options = { raw: true } # counters are stored raw
-        return quiet_decr_incr_with_add(incr, key, delta, ttl, initial, add_options) if quiet?
+        return quiet_decr_incr_with_add(incr, key, delta, ttl, initial) if quiet?
 
         2.times do
           value = decr_incr(incr, key, delta, nil, nil)
           return value unless value.nil?
 
-          write_storage_req(:add, key, initial.to_s, ttl, nil, add_options)
+          write_storage_req(:add, key, initial.to_s, ttl, nil, COUNTER_ADD_OPTIONS)
           return initial if response_processor.meta_set_with_cas
         end
         decr_incr(incr, key, delta, nil, nil)
       end
 
-      # rubocop:disable-next Metrics/ParameterLists
-      def quiet_decr_incr_with_add(incr, key, delta, ttl, initial, add_options)
+      def quiet_decr_incr_with_add(incr, key, delta, ttl, initial)
         encoded_key, base64 = KeyRegularizer.encode(key)
         write(RequestFormatter.meta_arithmetic(key: encoded_key, delta: delta, initial: nil, incr: incr, ttl: nil,
                                                quiet: true, base64: base64))
         # Sent with the rest of the quiet block, by its closing noop
-        write_storage_req(:add, key, initial.to_s, ttl, nil, add_options)
+        write_storage_req(:add, key, initial.to_s, ttl, nil, COUNTER_ADD_OPTIONS)
       end
 
       # Other Commands
