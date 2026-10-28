@@ -50,6 +50,11 @@ module Dalli
     #                        +:include+ logs the full operation and key(s), +:obfuscate+ replaces keys with "?",
     #                        +nil+ (default) omits the attribute entirely.
     # - :otel_peer_service - when set, adds a +peer.service+ span attribute with this value for logical service naming.
+    # - :verify_reply_keys - defaults to false. When true, get_multi, get_multi_cas and get_multi_with_metadata only
+    #                        accept replies for the keys they requested; after a reply naming another key, the rest of
+    #                        that server's replies are treated as misses. memcached can name an item by its raw key
+    #                        bytes when the item was created by auto-create from a base64-encoded key, which Dalli no
+    #                        longer does. Costs a multi-get about 15%.
     #
     def initialize(servers = nil, options = {})
       @normalized_servers = ::Dalli::ServersArgNormalizer.normalize_servers(servers)
@@ -745,6 +750,11 @@ module Dalli
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying single-server get_multi because of network error' }
       retry
+    rescue Dalli::UnexpectedReplyKeyError => e
+      # The connection is closed and the keys are treated as missing, as the
+      # pipelined get_multi does for a server whose replies are out of step
+      Dalli.logger.warn { e.message }
+      {}
     end
 
     def single_server_get_multi_with_metadata(keys, req_options = nil)
@@ -755,6 +765,9 @@ module Dalli
       result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
       result
     rescue Dalli::NetworkError
+      {}
+    rescue Dalli::UnexpectedReplyKeyError => e
+      Dalli.logger.warn { e.message }
       {}
     end
 
