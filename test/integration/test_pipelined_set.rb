@@ -29,6 +29,26 @@ describe 'set_multi' do
         end
       end
 
+      # Each value was looked up by a key rebuilt from the one sent, which
+      # missed for a Symbol key or a key too long to send as is, so nil was
+      # stored in its place
+      describe 'multi-server set_multi keys' do
+        it 'stores each value under its key' do
+          memcached_persistent(p, 21_345) do |_, port1|
+            memcached_persistent(p, 21_346) do |_, port2|
+              dc = Dalli::Client.new(["localhost:#{port1}", "localhost:#{port2}"], namespace: 'ns')
+              dc.flush
+              pairs = Array.new(20) { |i| [:"sym#{i}", "s#{i}"] }.to_h
+              pairs.merge!('x' * 300 => 'long', 'é' * 130 => 'long utf-8', "caf\xe9".b => 'binary')
+
+              dc.set_multi(pairs, 0)
+
+              pairs.each { |k, v| assert_equal v, dc.get(k), "key #{k.inspect[0, 20]}" }
+            end
+          end
+        end
+      end
+
       # A value that can't be marshalled, or is over value_max_bytes, must not
       # cost the other keys in the batch: every good key is stored, the bad key
       # is skipped, and the first such error is raised once the batch is done.
