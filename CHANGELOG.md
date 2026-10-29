@@ -20,6 +20,7 @@ Bug fixes:
   - A key too long to send as is (over 250 bytes, or once base64-encoded) came back under its digested form
   - A binary key with non-ASCII bytes came back tagged UTF-8, so `result.key?(key)` was false
   - A key given more than once is now requested once, and a block is yielded it once
+- `set_multi` across more than one server stored `nil` for a Symbol key or a key over 250 bytes, in place of the value given
 
 Other changes:
 
