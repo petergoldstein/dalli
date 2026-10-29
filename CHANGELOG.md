@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+Bug fixes:
+
+- `set_multi` across more than one server stored `nil` for a Symbol key or a key over 250 bytes, in place of the value given
+
 5.2.4
 ==========
 
