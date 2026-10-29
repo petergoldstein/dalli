@@ -60,6 +60,19 @@ describe 'Encoding' do
           assert_equal 'plain_value', dc.get(plain_key)
         end
       end
+
+      # A base64-encoded reply key is decoded as UTF-8, so a binary key used
+      # to come back as a UTF-8 String that isn't a key of the result's
+      Minitest::Spec::MULTI_GETS.each do |name, multi_get|
+        it "#{name} returns binary and Unicode keys with the caller's encoding" do
+          with_one_and_two_servers(p) do |dc|
+            expected = { "\xff".b => 1, "caf\xe9".b => 2, 'café' => 3, 'é' * 130 => 4, 'ascii'.b => 5 }
+            expected.each { |k, v| dc.set(k, v) }
+
+            assert_caller_keys expected, multi_get.call(dc, expected.keys)
+          end
+        end
+      end
     end
   end
 end

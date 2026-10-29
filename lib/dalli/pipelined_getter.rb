@@ -42,7 +42,8 @@ module Dalli
           # Stores partial results collected during interleaved send phase
           @partial_results = {}
           @unmarshal_error = nil
-          setup_requests(servers, keys, req_options, return_cas: return_cas)
+          @caller_keys = @key_manager.caller_keys_by_wire_key(keys.flatten)
+          setup_requests(servers, @caller_keys.keys, req_options, return_cas: return_cas)
           start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
           # First yield any partial results collected during interleaved send
@@ -83,15 +84,18 @@ module Dalli
 
       @ring.lock do
         results = {}
-        groups_for_keys(keys).each do |server, keys_for_server|
-          results.merge!(server.request(:read_multi_with_metadata_req, keys_for_server, req_options))
+        caller_keys = @key_manager.caller_keys_by_wire_key(keys)
+        groups_for_keys(caller_keys.keys).each do |server, keys_for_server|
+          server.request(:read_multi_with_metadata_req, keys_for_server, req_options).each_pair do |key, metadata|
+            caller_key = @key_manager.caller_key(caller_keys, key)
+            results[caller_key] = metadata if caller_key
+          end
         rescue Dalli::NetworkError, Dalli::UnmarshalError
           raise
         rescue DalliError => e
           Dalli.logger.debug { e.inspect }
           Dalli.logger.debug { "unable to get keys for server #{server.name}" }
         end
-        results.transform_keys! { |key| @key_manager.key_without_namespace(key) }
         results
       end
     rescue Dalli::RetryableNetworkError => e
@@ -104,7 +108,8 @@ module Dalli
 
     def yield_partial_results
       @partial_results.each_pair do |key, value_list|
-        yield @key_manager.key_without_namespace(key), value_list
+        caller_key = @key_manager.caller_key(@caller_keys, key)
+        yield caller_key, value_list if caller_key
       end
       @partial_results.clear
     end
@@ -113,8 +118,8 @@ module Dalli
     # the next server's, so memcached is already answering the first servers
     # while the rest are prepared. Adds the servers with a pending response
     # to started.
-    def setup_requests(started, keys, req_options = nil, return_cas: true)
-      groups_for_keys(keys).each do |server, keys_for_server|
+    def setup_requests(started, wire_keys, req_options = nil, return_cas: true)
+      groups_for_keys(wire_keys).each do |server, keys_for_server|
         make_getkq_request(server, keys_for_server, req_options, return_cas: return_cas)
         next unless server.connected?
 
@@ -229,8 +234,10 @@ module Dalli
     # A value that couldn't be deserialized is raised once the server's
     # replies are all read; it's held until the other servers' are too.
     def process_server(server)
+      # A reply names the key as sent; it's yielded under the caller's key
       server.pipeline_next_responses do |key, value, cas|
-        yield @key_manager.key_without_namespace(key), [value, cas]
+        caller_key = @key_manager.caller_key(@caller_keys, key)
+        yield caller_key, [value, cas] if caller_key
       end
 
       server.pipeline_complete?
@@ -255,10 +262,9 @@ module Dalli
       readable.filter_map { |sock| (idx = sockets.index(sock)) && servers[idx] }
     end
 
-    def groups_for_keys(*keys)
-      keys.flatten!
-      keys.map! { |a| @key_manager.validate_key(a.to_s) }
-      groups = @ring.keys_grouped_by_server(keys)
+    # wire_keys are validated, from KeyManager#caller_keys_by_wire_key
+    def groups_for_keys(wire_keys)
+      groups = @ring.keys_grouped_by_server(wire_keys)
       if (unfound_keys = groups.delete(nil))
         Dalli.logger.debug do
           "unable to get keys for #{unfound_keys.length} keys " \

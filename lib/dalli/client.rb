@@ -851,13 +851,10 @@ module Dalli
     # to route to at all is still silent, matching Ring#keys_grouped_by_server
     # dropping a key it can't route on both the single- and multi-server paths.
     def single_server_get_multi(keys, req_options = nil)
-      # A new array, so the retry below starts again from the caller's keys
-      validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
+      caller_keys = @key_manager.caller_keys_by_wire_key(keys)
       return {} unless (server = single_server)
 
-      result = server.request(:read_multi_req, validated_keys, req_options)
-      result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
-      result
+      results_for_caller_keys(server.request(:read_multi_req, caller_keys.keys, req_options), caller_keys)
     rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying single-server get_multi because of network error' }
@@ -870,12 +867,11 @@ module Dalli
     end
 
     def single_server_get_multi_with_metadata(keys, req_options = nil)
-      validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
+      caller_keys = @key_manager.caller_keys_by_wire_key(keys)
       return {} unless (server = single_server)
 
-      result = server.request(:read_multi_with_metadata_req, validated_keys, req_options)
-      result.transform_keys! { |k| @key_manager.key_without_namespace(k) }
-      result
+      results_for_caller_keys(server.request(:read_multi_with_metadata_req, caller_keys.keys, req_options),
+                              caller_keys)
     rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying single-server get_multi_with_metadata because of network error' }
@@ -883,6 +879,15 @@ module Dalli
     rescue Dalli::UnexpectedReplyKeyError => e
       Dalli.logger.warn { e.message }
       {}
+    end
+
+    # Replies name the key as sent; returns them under the caller's keys,
+    # skipping any key that wasn't requested
+    def results_for_caller_keys(results, caller_keys)
+      results.each_with_object({}) do |(key, value), hash|
+        caller_key = @key_manager.caller_key(caller_keys, key)
+        hash[caller_key] = value if caller_key
+      end
     end
 
     def single_server_set_multi(hash, ttl, req_options)
