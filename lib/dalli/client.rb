@@ -968,7 +968,7 @@ module Dalli
             when Integer then value
             when String then Integer(value, 10, exception: false)
             end
-      return int if int&.between?(0, MAX_UINT64)
+      return int if int && int >= 0 && int <= MAX_UINT64
 
       raise ArgumentError, "#{name} must be an Integer between 0 and #{MAX_UINT64}, got #{value.inspect}"
     end
@@ -1055,6 +1055,9 @@ module Dalli
     # request is written.
     def validate_ttl!(name, value)
       return if value.nil?
+      # The usual case: an Integer TTL that TtlSanitizer leaves unchanged
+      return value if value.is_a?(Integer) && value >= Protocol::TtlSanitizer::MIN_EXPIRATION_TIME &&
+                      value <= Protocol::TtlSanitizer::MAX_ACCEPTABLE_EXPIRATION_INTERVAL
 
       ttl = ttl_to_i(name, value)
       min = Protocol::TtlSanitizer::MIN_EXPIRATION_TIME
