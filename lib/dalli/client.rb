@@ -836,9 +836,20 @@ module Dalli
       end
     end
 
-    def single_server
+    # retried is true once a request to the server has failed with a
+    # RetryableNetworkError. Without failover, finding the server down then
+    # means that request failed, which raises, rather than the server being
+    # down before the operation began, which returns nil. With failover it
+    # returns nil either way, as the multi-server path leaves keys out when
+    # no server is left.
+    def single_server(retried: false)
       server = ring.servers.first
-      server if server&.alive?
+      return server if server&.alive?
+      if retried && !ring.failover?
+        raise Dalli::NetworkError, "#{server&.name} failed during this request and is still unreachable"
+      end
+
+      nil
     end
 
     # The three single_server_* fast-path methods below share one contract,
@@ -847,17 +858,22 @@ module Dalli
     # socket_max_failures, same as the pipelined path's retry), and a hard
     # NetworkError -- the server genuinely unreachable, not just blipping --
     # propagates to the caller rather than being swallowed into a silently
-    # wrong result. Only server_for_key/single_server finding no live server
-    # to route to at all is still silent, matching Ring#keys_grouped_by_server
-    # dropping a key it can't route on both the single- and multi-server paths.
+    # wrong result, including (without failover) the server going down before
+    # the retry, which single_server raises for. Otherwise finding no live
+    # server is still silent, matching Ring#keys_grouped_by_server dropping a
+    # key it can't route on both the single- and multi-server paths. Each
+    # method sets retried before it retries; a local keeps its value across
+    # a retry.
     def single_server_get_multi(keys, req_options = nil)
+      retried ||= false
       caller_keys = @key_manager.caller_keys_by_wire_key(keys)
-      return {} unless (server = single_server)
+      return {} unless (server = single_server(retried: retried))
 
       results_for_caller_keys(server.request(:read_multi_req, caller_keys.keys, req_options), caller_keys)
     rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying single-server get_multi because of network error' }
+      retried = true
       retry
     rescue Dalli::UnexpectedReplyKeyError => e
       # The connection is closed and the keys are treated as missing, as the
@@ -867,14 +883,16 @@ module Dalli
     end
 
     def single_server_get_multi_with_metadata(keys, req_options = nil)
+      retried ||= false
       caller_keys = @key_manager.caller_keys_by_wire_key(keys)
-      return {} unless (server = single_server)
+      return {} unless (server = single_server(retried: retried))
 
       results_for_caller_keys(server.request(:read_multi_with_metadata_req, caller_keys.keys, req_options),
                               caller_keys)
     rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying single-server get_multi_with_metadata because of network error' }
+      retried = true
       retry
     rescue Dalli::UnexpectedReplyKeyError => e
       Dalli.logger.warn { e.message }
@@ -891,24 +909,28 @@ module Dalli
     end
 
     def single_server_set_multi(hash, ttl, req_options)
+      retried ||= false
       pairs = hash.transform_keys { |k| @key_manager.validate_key(k.to_s) }
-      return unless (server = single_server)
+      return unless (server = single_server(retried: retried))
 
       server.request(:write_multi_req, pairs, ttl, req_options)
     rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying single-server set_multi because of network error' }
+      retried = true
       retry
     end
 
     def single_server_delete_multi(keys, req_options = nil)
+      retried ||= false
       validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
-      return 0 unless (server = single_server)
+      return 0 unless (server = single_server(retried: retried))
 
       server.request(:delete_multi_req, validated_keys, req_options)
     rescue Dalli::RetryableNetworkError => e
       Dalli.logger.debug { e.inspect }
       Dalli.logger.debug { 'retrying single-server delete_multi because of network error' }
+      retried = true
       retry
     end
 

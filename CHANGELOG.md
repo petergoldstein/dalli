@@ -23,6 +23,7 @@ Bug fixes:
 - `set_multi` across more than one server stored `nil` for a Symbol key or a key over 250 bytes, in place of the value given
 - On TruffleRuby, a process spawned while Dalli had a connection open (with `system`, `spawn` or backticks) inherited the socket and kept the connection open on memcached's side until it exited. Dalli's sockets are now close-on-exec, as CRuby makes them by default
 - A request that failed after it was sent, such as one whose reply timed out, was sent again even though memcached may have applied it. `incr`, `decr`, `append` and `prepend` could be applied twice, and `add` and writes with a CAS could report failure for a write that had succeeded. Once some of a request has been sent, Dalli now retries only requests that are safe to apply twice (see Other changes)
+- When a server stopped while connected, the multi-key operations (`get_multi`, `get_multi_cas`, `get_multi_with_metadata`, `set_multi` and `delete_multi`) returned its keys as misses, or left them unwritten, instead of raising `Dalli::NetworkError` as documented. The retry found the server down and skipped it as if it had been down from the start. Without `failover` they now raise. With `failover` the keys still go to another server, as they do for `get` and `set` (#1263, @jaideeppyne)
 
 Other changes:
 

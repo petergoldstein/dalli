@@ -7,6 +7,8 @@ module Dalli
   # and using quiet mode to minimize round trips.
   ##
   class PipelinedSetter
+    include KeyGrouping
+
     def initialize(ring, key_manager)
       @ring = ring
       @key_manager = key_manager
@@ -47,7 +49,7 @@ module Dalli
     # rebuilt from it: a long key is digested, and a Symbol becomes a String.
     def setup_requests(hash, ttl, req_options)
       pairs = hash.transform_keys { |k| @key_manager.validate_key(k.to_s) }
-      groups = groups_for_keys(pairs.keys)
+      groups = groups_for_keys(pairs.keys, 'set')
       make_set_requests(groups, pairs, ttl, req_options)
       groups.keys
     end
@@ -91,18 +93,6 @@ module Dalli
         Dalli.logger.debug { e.inspect }
         Dalli.logger.debug { "unable to complete pipelined set on server #{server.name}" }
       end
-    end
-
-    def groups_for_keys(keys)
-      groups = @ring.keys_grouped_by_server(keys)
-
-      if (unfound_keys = groups.delete(nil))
-        Dalli.logger.debug do
-          "unable to set #{unfound_keys.length} keys because no matching server was found"
-        end
-      end
-
-      groups
     end
   end
 end
