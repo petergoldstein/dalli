@@ -2,6 +2,117 @@
 
 require_relative '../helper'
 
+# Forwards connections to a real memcached, except that the reply to the
+# first request matching `lose` never arrives: the proxy forwards the request,
+# waits for memcached's reply (so the request has been applied), discards it,
+# holds the connection open for `delay` seconds and then closes it. Requests
+# on later connections are forwarded as is. With drop_first_connection, the
+# first connection is closed as soon as it is accepted, before Dalli has
+# written anything to it.
+class ReplyLosingProxy
+  attr_reader :port
+
+  def initialize(upstream_port, lose: ->(_line) { false }, delay: 0, drop_first_connection: false)
+    @upstream_port = upstream_port
+    @lose = lose
+    @delay = delay
+    @drop_first_connection = drop_first_connection
+    @mutex = Mutex.new
+    @commands = []
+    @lost = false
+    @sockets = []
+    @threads = []
+    @server = TCPServer.new('127.0.0.1', 0)
+    @port = @server.addr[1]
+    @acceptor = Thread.new { accept_connections }
+  end
+
+  # How many requests with this command (such as 'ma') the proxy forwarded
+  def count(command)
+    @mutex.synchronize { @commands.count(command) }
+  end
+
+  def close
+    @server.close
+    @acceptor.kill
+    @mutex.synchronize do
+      @threads.each(&:kill)
+      @sockets.each(&:close)
+    end
+  end
+
+  private
+
+  def accept_connections
+    drop = @drop_first_connection
+    loop do
+      client = @server.accept
+      if drop
+        drop = false
+        client.close
+        next
+      end
+      @mutex.synchronize { @threads << Thread.new { forward(client) } }
+    end
+  rescue IOError, SystemCallError
+    nil
+  end
+
+  def forward(client)
+    upstream = TCPSocket.new('127.0.0.1', @upstream_port)
+    @mutex.synchronize { @sockets.push(client, upstream) }
+    muted = Queue.new
+    replied = Queue.new
+    pump = Thread.new { pump_replies(upstream, client, muted, replied) }
+    forward_requests(client, upstream, muted, replied)
+  rescue IOError, SystemCallError
+    nil
+  ensure
+    pump&.kill
+    client.close
+    upstream&.close
+  end
+
+  def forward_requests(client, upstream, muted, replied)
+    while (line = client.gets("\r\n"))
+      command, _key, size = line.split
+      data = client.read(size.to_i + 2) if command == 'ms'
+      lose = record(command, line)
+      muted << true if lose
+      upstream.write(line)
+      upstream.write(data) if data
+      next unless lose
+
+      replied.pop(timeout: 5)
+      sleep @delay
+      return
+    end
+  end
+
+  def pump_replies(upstream, client, muted, replied)
+    loop do
+      data = upstream.readpartial(65_536)
+      if muted.empty?
+        client.write(data)
+      else
+        replied << true
+      end
+    end
+  rescue IOError, SystemCallError
+    nil
+  end
+
+  # Returns true for the request whose reply is to be lost
+  def record(command, line)
+    @mutex.synchronize do
+      @commands << command
+      next false if @lost || !@lose.call(line)
+
+      @lost = true
+    end
+  end
+end
+
 describe 'Network' do
   MemcachedManager.supported_protocols.each do |p|
     describe "using the #{p} protocol" do
@@ -796,6 +907,233 @@ describe 'Network' do
       ensure
         tcp_server.close
         server_thread.kill
+      end
+    end
+  end
+
+  # A request whose reply is lost may still have been applied, so only a
+  # request that is safe to apply twice is sent again. Each case runs with the
+  # reply delayed past socket_timeout and with the connection closed instead.
+  # Where reads don't time out (JRuby, TruffleRuby, Ruby 3.1), the delayed
+  # reply shows up as the connection closing once the delay is over, which
+  # is still a failure after the request was sent.
+  describe 'when a reply is lost after the request was sent' do
+    lost_reply_modes = { 'delayed past socket_timeout' => 0.6, 'cut off by a closed connection' => 0 }
+
+    def with_lost_reply(upstream_port, lose:, delay:, client_options: {}, **proxy_options)
+      proxy = ReplyLosingProxy.new(upstream_port, lose: lose, delay: delay, **proxy_options)
+      dc = Dalli::Client.new("127.0.0.1:#{proxy.port}",
+                             { socket_timeout: 0.2, socket_failure_delay: 0 }.merge(client_options))
+      with_nil_logger { yield dc, proxy }
+    ensure
+      dc&.close
+      proxy&.close
+    end
+
+    def command_named(command)
+      ->(line) { line.split.first == command }
+    end
+
+    def assert_not_retried(&)
+      err = assert_raises(Dalli::NetworkError, &)
+
+      refute_kind_of Dalli::RetryableNetworkError, err
+      assert_match(/may have been applied/, err.message)
+    end
+
+    lost_reply_modes.each do |mode, delay|
+      describe mode do
+        it 'raises from incr instead of applying it twice' do
+          memcached_persistent do |direct, port|
+            key = "incr-#{SecureRandom.hex(4)}"
+            direct.set(key, '10', 0, raw: true)
+
+            with_lost_reply(port, lose: command_named('ma'), delay: delay) do |dc, proxy|
+              assert_not_retried { dc.incr(key, 1) }
+              assert_equal 1, proxy.count('ma')
+            end
+
+            assert_equal '11', direct.get(key, raw: true)
+          end
+        end
+
+        it 'retries get and returns the value' do
+          memcached_persistent do |direct, port|
+            key = "get-#{SecureRandom.hex(4)}"
+            direct.set(key, 'value')
+
+            with_lost_reply(port, lose: command_named('mg'), delay: delay) do |dc, proxy|
+              assert_equal 'value', dc.get(key)
+              assert_equal 2, proxy.count('mg')
+            end
+          end
+        end
+
+        it 'retries a set without a CAS' do
+          memcached_persistent do |direct, port|
+            key = "set-#{SecureRandom.hex(4)}"
+
+            with_lost_reply(port, lose: command_named('ms'), delay: delay) do |dc, proxy|
+              assert op_addset_succeeds(dc.set(key, 'value'))
+              assert_equal 2, proxy.count('ms')
+            end
+
+            assert_equal 'value', direct.get(key)
+          end
+        end
+
+        it 'retries a replace without a CAS' do
+          memcached_persistent do |direct, port|
+            key = "replace-#{SecureRandom.hex(4)}"
+            direct.set(key, 'old')
+
+            with_lost_reply(port, lose: command_named('ms'), delay: delay) do |dc, proxy|
+              assert op_replace_succeeds(dc.replace(key, 'new'))
+              assert_equal 2, proxy.count('ms')
+            end
+
+            assert_equal 'new', direct.get(key)
+          end
+        end
+
+        it 'raises from add instead of returning false for an add that succeeded' do
+          memcached_persistent do |direct, port|
+            key = "add-#{SecureRandom.hex(4)}"
+
+            with_lost_reply(port, lose: command_named('ms'), delay: delay) do |dc, proxy|
+              assert_not_retried { dc.add(key, 'value') }
+              assert_equal 1, proxy.count('ms')
+            end
+
+            assert_equal 'value', direct.get(key)
+          end
+        end
+
+        # Each sends a single request whose reply is lost
+        {
+          'decr' => ['ma', ->(direct, key) { direct.set(key, '19', 0, raw: true) },
+                     ->(dc, key) { dc.decr(key, 1) }, '18'],
+          'append' => ['ms', ->(direct, key) { direct.set(key, 'a', 0, raw: true) },
+                       ->(dc, key) { dc.append(key, 'b') }, 'ab'],
+          'prepend' => ['ms', ->(direct, key) { direct.set(key, 'a', 0, raw: true) },
+                        ->(dc, key) { dc.prepend(key, 'b') }, 'ba'],
+          'set_cas' => ['ms', ->(direct, key) { direct.set(key, 'old', 0, raw: true) },
+                        ->(dc, key) { dc.set_cas(key, 'new', dc.get_cas(key, raw: true).last, 0, raw: true) }, 'new'],
+          'replace_cas' => ['ms', ->(direct, key) { direct.set(key, 'old', 0, raw: true) },
+                            lambda { |dc, key|
+                              dc.replace_cas(key, 'new', dc.get_cas(key, raw: true).last, 0, raw: true)
+                            }, 'new'],
+          'delete_cas' => ['md', ->(direct, key) { direct.set(key, 'old', 0, raw: true) },
+                           ->(dc, key) { dc.delete_cas(key, dc.get_cas(key, raw: true).last) }, nil],
+          'cas' => ['ms', ->(direct, key) { direct.set(key, 'old', 0, raw: true) },
+                    ->(dc, key) { dc.cas(key, 0, raw: true) { 'new' } }, 'new']
+        }.each do |name, (command, setup, call, expected)|
+          it "raises from #{name} instead of retrying it" do
+            memcached_persistent do |direct, port|
+              key = "#{name}-#{SecureRandom.hex(4)}"
+              setup.call(direct, key)
+
+              with_lost_reply(port, lose: command_named(command), delay: delay) do |dc, proxy|
+                assert_not_retried { call.call(dc, key) }
+                assert_equal 1, proxy.count(command)
+              end
+
+              value = direct.get(key, raw: true)
+              expected ? assert_equal(expected, value) : assert_nil(value)
+            end
+          end
+        end
+
+        # A key that needs base64 encoding with an initial value is an incr
+        # that misses, then an add. The add's reply is lost here; sending the
+        # incr again would find the counter and add the amount to it.
+        it 'does not replay an incr with an initial value for a base64-encoded key' do
+          memcached_persistent do |direct, port|
+            key = "counter #{SecureRandom.hex(4)}"
+
+            with_lost_reply(port, lose: command_named('ms'), delay: delay) do |dc, proxy|
+              assert_not_retried { dc.incr(key, 1, 0, 5) }
+              assert_equal 1, proxy.count('ma')
+              assert_equal 1, proxy.count('ms')
+            end
+
+            assert_equal '5', direct.get(key, raw: true)
+          end
+        end
+
+        it 'raises from fetch_with_lock instead of losing the recache race it won' do
+          memcached_persistent do |_direct, port|
+            key = "lock-#{SecureRandom.hex(4)}"
+
+            with_lost_reply(port, lose: command_named('mg'), delay: delay) do |dc, proxy|
+              assert_not_retried { dc.fetch_with_lock(key) { flunk 'the block ran' } }
+              assert_equal 1, proxy.count('mg')
+            end
+          end
+        end
+      end
+    end
+
+    # Connecting happens in Server#alive?, which retries a failed attempt
+    # itself, so these two failures never reach the request
+    it 'retries an incr when the connection closes while connecting' do
+      memcached_persistent do |direct, port|
+        key = "incr-#{SecureRandom.hex(4)}"
+        direct.set(key, '10', 0, raw: true)
+
+        with_lost_reply(port, lose: ->(_line) { false }, delay: 0, drop_first_connection: true) do |dc, proxy|
+          assert_equal 11, dc.incr(key, 1)
+          assert_equal 1, proxy.count('ma')
+        end
+
+        assert_equal '11', direct.get(key, raw: true)
+      end
+    end
+
+    it 'retries an incr when connecting is refused once' do
+      memcached_persistent do |direct, port|
+        key = "incr-#{SecureRandom.hex(4)}"
+        direct.set(key, '10', 0, raw: true)
+        dc = Dalli::Client.new("127.0.0.1:#{port}", socket_failure_delay: 0)
+        attempts = 0
+        open = Dalli::Socket::TCP.method(:open)
+        refuse_once = lambda do |*args|
+          attempts += 1
+          raise Errno::ECONNREFUSED if attempts == 1
+
+          open.call(*args)
+        end
+
+        with_nil_logger do
+          Dalli::Socket::TCP.stub(:open, refuse_once) { assert_equal 11, dc.incr(key, 1) }
+        end
+
+        assert_equal 2, attempts
+        assert_equal '11', direct.get(key, raw: true)
+      ensure
+        dc&.close
+      end
+    end
+
+    # With defer_drain, an earlier quiet block's replies are read with a noop
+    # before the incr is written, so a failure there comes before the incr
+    # was sent
+    it 'retries an incr when draining an earlier quiet block fails' do
+      memcached_persistent do |direct, port|
+        key = "incr-#{SecureRandom.hex(4)}"
+        quiet_key = "quiet-#{SecureRandom.hex(4)}"
+        direct.set(key, '10', 0, raw: true)
+
+        with_lost_reply(port, lose: command_named('mn'), delay: 0, client_options: { defer_drain: true }) do |dc, proxy|
+          dc.quiet { dc.set(quiet_key, 'value') }
+
+          assert_equal 11, dc.incr(key, 1)
+          assert_equal 1, proxy.count('ma')
+          assert_equal 1, proxy.count('ms')
+        end
+
+        assert_equal '11', direct.get(key, raw: true)
+        assert_equal 'value', direct.get(quiet_key)
       end
     end
   end

@@ -1083,7 +1083,10 @@ module Dalli
     #
     # This method also forces retries on network errors - when
     # a particular memcached instance becomes unreachable, or the
-    # operation times out.
+    # operation times out. Once some of the request has been sent, only
+    # one that is safe to apply twice is retried; for the others
+    # (incr, decr, append, prepend, add, replace and CAS writes)
+    # Protocol::Base#request raises a NetworkError, which isn't retried.
     ##
     # rubocop:disable Naming/MethodParameterName
     def perform(op, key, ...)

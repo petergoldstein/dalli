@@ -96,6 +96,12 @@ end
 
 `drain_deferred_responses` only sends a `noop` to servers that were sent quiet requests since they were last drained, so calling it when nothing is pending costs nothing.
 
+## Network Errors and Retries
+
+When a request fails with a network error (a refused connection, a reset, or a read that times out), Dalli reconnects and retries it. A server that fails `socket_max_failures` times in a row is marked down, and requests to it raise `Dalli::NetworkError` (or, with `failover`, go to another server).
+
+A request that failed after some of it was sent may have been applied by memcached even though its reply never arrived. Dalli only sends such a request again when applying it twice is harmless: reads, `touch`, `set`, `replace` and `delete` without a CAS, and the multi-key operations. For `incr`, `decr`, `append`, `prepend`, `add`, writes with a CAS (`set_cas`, `replace_cas`, `delete_cas`, `cas`, `cas!`), and `get_with_metadata` with `vivify_ttl` or `recache_ttl` (which `fetch_with_lock` uses), it raises `Dalli::NetworkError` instead, since the write may or may not have happened. A retried `delete` can return false if the first attempt deleted the key.
+
 ## Security Note
 
 By default, Dalli uses Ruby's Marshal for serialization. Deserializing untrusted data with Marshal can lead to remote code execution. If you cache user-controlled data, consider using a safer serializer:

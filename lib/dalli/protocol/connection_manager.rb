@@ -36,6 +36,7 @@ module Dalli
         @socket_type = socket_type
         @options = DEFAULTS.merge(client_options)
         @request_in_progress = false
+        @request_sent = false
         @quiet_responses_pending = false
         @sock = nil
         @pid = nil
@@ -176,12 +177,14 @@ module Dalli
         raise '[Dalli] Request already in progress. This may be a bug in Dalli.' if @request_in_progress
 
         @request_in_progress = true
+        @request_sent = false
       end
 
       def finish_request!
         raise '[Dalli] No request in progress. This may be a bug in Dalli.' unless @request_in_progress
 
         @request_in_progress = false
+        @request_sent = false
         # A completed request is what proves the server healthy again, so the
         # failure count resets here rather than on reconnect: a server that
         # accepts connections but never answers would otherwise reset it on
@@ -191,6 +194,14 @@ module Dalli
 
       def abort_request!
         @request_in_progress = false
+        @request_sent = false
+      end
+
+      # True once any of the request in progress has been handed to the
+      # socket. Writes made outside a request (the version check on connect,
+      # draining an earlier quiet block's replies) don't count.
+      def request_sent?
+        @request_sent
       end
 
       # The longest reply line Dalli reads, in bytes, CRLF included. A meta
@@ -306,9 +317,11 @@ module Dalli
       end
 
       def reconnect!(message)
+        # Read before close, which ends the request
+        request_sent = @request_sent
         close
         sleep(options[:socket_failure_delay]) if options[:socket_failure_delay]
-        raise Dalli::RetryableNetworkError, message
+        raise Dalli::RetryableNetworkError.new(message, request_sent: request_sent)
       end
 
       # Called on connect. Deliberately leaves @fail_count alone; see
@@ -375,6 +388,8 @@ module Dalli
       def flush_write_buffer
         return if @write_buffer.empty?
 
+        # Set before writing: a write that fails may still have sent some bytes
+        @request_sent = true if @request_in_progress
         @sock.write(@write_buffer.size == 1 ? @write_buffer.first : joined_write_buffer)
         discard_write_buffer
       end
