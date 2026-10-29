@@ -22,7 +22,7 @@ Bug fixes:
   - A key given more than once is now requested once, and a block is yielded it once
 - `set_multi` across more than one server stored `nil` for a Symbol key or a key over 250 bytes, in place of the value given
 - On TruffleRuby, a process spawned while Dalli had a connection open (with `system`, `spawn` or backticks) inherited the socket and kept the connection open on memcached's side until it exited. Dalli's sockets are now close-on-exec, as CRuby makes them by default
-- A request that failed after it was sent, such as one whose reply timed out, was sent again even though memcached may have applied it. `incr`, `decr`, `append` and `prepend` could be applied twice, and `add`, `replace` and writes with a CAS could report failure for a write that had succeeded. Once some of a request has been sent, Dalli now retries only requests that are safe to apply twice (see Other changes)
+- A request that failed after it was sent, such as one whose reply timed out, was sent again even though memcached may have applied it. `incr`, `decr`, `append` and `prepend` could be applied twice, and `add` and writes with a CAS could report failure for a write that had succeeded. Once some of a request has been sent, Dalli now retries only requests that are safe to apply twice (see Other changes)
 
 Other changes:
 
@@ -31,8 +31,8 @@ Other changes:
   - A CAS, an `incr`/`decr` amount or initial value, and a `flush` delay must be from 0 to 2**64 - 1. A Float now raises; `incr(key, 0.9)` used to truncate the amount to 0. A String amount such as `'5'` now works
   - `fetch_with_lock` checks `ttl` before taking the lock, so a bad one raises before the block runs
   - `Dalli::Protocol::TtlSanitizer.sanitize` raises `ArgumentError` for a String that isn't a whole number instead of returning 0
-- `incr`, `decr`, `append`, `prepend`, `add`, `replace`, `set_cas`, `replace_cas`, `delete_cas`, `cas`, `cas!`, `fetch_with_lock`, and `get_with_metadata` with `vivify_ttl` or `recache_ttl` now raise `Dalli::NetworkError` when the connection fails after the request was sent, where they used to retry it. Reads, `touch`, `set` and `delete` without a CAS, and the multi-key operations are still retried, as is any request that failed before it was sent
-  - `fetch` (which stores a missing value with `add`) and `Rack::Session::Dalli` (which creates sessions with `add` and updates them with `replace`) can see this error too. `Rack::Session::Dalli` handles it like any other memcached error
+- `incr`, `decr`, `append`, `prepend`, `add`, `set_cas`, `replace_cas`, `delete_cas`, `cas`, `cas!`, `fetch_with_lock`, and `get_with_metadata` with `vivify_ttl` or `recache_ttl` now raise `Dalli::NetworkError` when the connection fails after the request was sent, where they used to retry it. Reads, `touch`, `set`, `replace` and `delete` without a CAS, and the multi-key operations are still retried, as is any request that failed before it was sent
+  - `fetch` (which stores a missing value with `add`) and `Rack::Session::Dalli` (which creates sessions with `add`) can see this error too. `Rack::Session::Dalli` handles it like any other memcached error
 
 5.2.4
 ==========

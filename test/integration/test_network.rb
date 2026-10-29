@@ -982,6 +982,20 @@ describe 'Network' do
           end
         end
 
+        it 'retries a replace without a CAS' do
+          memcached_persistent do |direct, port|
+            key = "replace-#{SecureRandom.hex(4)}"
+            direct.set(key, 'old')
+
+            with_lost_reply(port, lose: command_named('ms'), delay: delay) do |dc, proxy|
+              assert op_replace_succeeds(dc.replace(key, 'new'))
+              assert_equal 2, proxy.count('ms')
+            end
+
+            assert_equal 'new', direct.get(key)
+          end
+        end
+
         it 'raises from add instead of returning false for an add that succeeded' do
           memcached_persistent do |direct, port|
             key = "add-#{SecureRandom.hex(4)}"
@@ -1003,8 +1017,6 @@ describe 'Network' do
                        ->(dc, key) { dc.append(key, 'b') }, 'ab'],
           'prepend' => ['ms', ->(direct, key) { direct.set(key, 'a', 0, raw: true) },
                         ->(dc, key) { dc.prepend(key, 'b') }, 'ba'],
-          'replace' => ['ms', ->(direct, key) { direct.set(key, 'old', 0, raw: true) },
-                        ->(dc, key) { dc.replace(key, 'new', 0, raw: true) }, 'new'],
           'set_cas' => ['ms', ->(direct, key) { direct.set(key, 'old', 0, raw: true) },
                         ->(dc, key) { dc.set_cas(key, 'new', dc.get_cas(key, raw: true).last, 0, raw: true) }, 'new'],
           'replace_cas' => ['ms', ->(direct, key) { direct.set(key, 'old', 0, raw: true) },

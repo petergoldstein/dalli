@@ -270,9 +270,9 @@ module Dalli
       # Requests that leave memcached in the same state, and get the same kind
       # of reply, when it applies them twice. Only these are retried after a
       # failure that came once some of the request was sent, since memcached
-      # may have applied it and only the reply was lost. A set or delete is in
-      # this group only without a CAS (see #resend_safe?). :cas is the read
-      # behind get_cas.
+      # may have applied it and only the reply was lost. A set, replace or
+      # delete is in this group only without a CAS (see #resend_safe?). :cas
+      # is the read behind get_cas.
       RESEND_SAFE_OPS = %i[get gat touch cas version stats reset_stats noop flush
                            read_multi_req read_multi_with_metadata_req pipelined_get pipelined_get_interleaved
                            write_multi_req pipelined_set delete_multi_req pipelined_delete
@@ -281,8 +281,8 @@ module Dalli
 
       # A request that may have been applied, and can't safely be sent again,
       # fails with a NetworkError the callers don't retry. Sending it again
-      # would apply an incr, decr, append or prepend twice, or report an add,
-      # replace or CAS write that succeeded as failed.
+      # would apply an incr, decr, append or prepend twice, or report an add
+      # or CAS write that succeeded as failed.
       def raise_unless_resend_safe!(err, opkey, args)
         return unless err.request_sent?
         return if resend_safe?(opkey, args)
@@ -293,7 +293,8 @@ module Dalli
 
       def resend_safe?(opkey, args)
         case opkey
-        when :set then no_cas?(args[3])
+        # A replace sent again stores the same value, as a set does
+        when :set, :replace then no_cas?(args[3])
         when :delete then no_cas?(args[1])
         # With N or R, only the first request wins the recache race; a resent
         # one would report the race lost to the caller that won it
