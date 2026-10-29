@@ -21,6 +21,7 @@ Bug fixes:
   - A binary key with non-ASCII bytes came back tagged UTF-8, so `result.key?(key)` was false
   - A key given more than once is now requested once, and a block is yielded it once
 - `set_multi` across more than one server stored `nil` for a Symbol key or a key over 250 bytes, in place of the value given
+- On TruffleRuby, a process spawned while Dalli had a connection open (with `system`, `spawn` or backticks) inherited the socket and kept the connection open on memcached's side until it exited. Dalli's sockets are now close-on-exec, as CRuby makes them by default
 
 Other changes:
 

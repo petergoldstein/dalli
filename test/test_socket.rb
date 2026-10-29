@@ -193,6 +193,35 @@ describe 'Dalli::Socket::TCP' do
       end
     end
   end
+
+  # TruffleRuby doesn't set close-on-exec on sockets, so a process spawned
+  # while a connection was open inherited it
+  describe 'close-on-exec' do
+    it 'is set on a TCP socket' do
+      server = TCPServer.new('127.0.0.1', 0)
+      sock = Dalli::Socket::TCP.open('127.0.0.1', server.addr[1], socket_timeout: 1)
+
+      assert_predicate sock, :close_on_exec?
+    ensure
+      sock&.close
+      server&.close
+    end
+
+    it 'is set on a UNIX socket' do
+      skip 'UNIX sockets unsupported on Windows' if RbConfig::CONFIG['host_os'].match?(/mingw|mswin/)
+
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, 'dalli.sock')
+        server = UNIXServer.new(path)
+        sock = Dalli::Socket::UNIX.open(path, socket_timeout: 1)
+
+        assert_predicate sock, :close_on_exec?
+      ensure
+        sock&.close
+        server&.close
+      end
+    end
+  end
 end
 
 describe 'Dalli::Socket::InstanceMethods#read_available' do

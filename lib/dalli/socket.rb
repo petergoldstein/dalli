@@ -182,6 +182,9 @@ module Dalli
       end
 
       def self.init_socket_options(sock, options)
+        # CRuby sets this on every socket; TruffleRuby doesn't, so a process
+        # the app spawns would inherit the connection and hold it open
+        sock.close_on_exec = true
         configure_tcp_options(sock, options)
         configure_socket_buffers(sock, options)
         configure_timeout(sock, options)
@@ -307,6 +310,8 @@ module Dalli
         end
 
         def self.init_socket_options(sock, options)
+          # Not inherited by spawned processes; see TCP.init_socket_options
+          sock.close_on_exec = true
           # https://man7.org/linux/man-pages/man7/unix.7.html
           sock.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_SNDBUF, options[:sndbuf]) if options[:sndbuf]
           sock.timeout = options[:socket_timeout] if options[:socket_timeout] && sock.respond_to?(:timeout=)
