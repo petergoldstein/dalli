@@ -250,8 +250,12 @@ describe 'Pipelined Get' do
           memcached_persistent(protocol, 21_345) do |_, port1|
             memcached_persistent(protocol, 21_346) do |_, port2|
               dc = Dalli::Client.new(["localhost:#{port1}", "localhost:#{port2}"], options)
-              dc.flush
-              yield dc
+              begin
+                dc.flush
+                yield dc
+              ensure
+                dc.close
+              end
             end
           end
         end

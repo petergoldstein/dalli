@@ -93,14 +93,23 @@ module Minitest
       results.to_h
     end
 
-    # Yields a single-server client, then a two-server one, both with options
-    def with_one_and_two_servers(protocol, **options)
+    # Yields a single-server client, then a two-server one, both with options.
+    # Each is closed afterwards, so a Ruby that closes sockets only on GC
+    # doesn't run memcached out of connections.
+    def with_one_and_two_servers(protocol, **options, &)
       memcached_persistent(protocol, 21_345) do |_, port1|
-        yield Dalli::Client.new("localhost:#{port1}", options)
+        with_closed_client("localhost:#{port1}", options, &)
         memcached_persistent(protocol, 21_346) do |_, port2|
-          yield Dalli::Client.new(["localhost:#{port1}", "localhost:#{port2}"], options)
+          with_closed_client(["localhost:#{port1}", "localhost:#{port2}"], options, &)
         end
       end
+    end
+
+    def with_closed_client(servers, options)
+      dc = Dalli::Client.new(servers, options)
+      yield dc
+    ensure
+      dc&.close
     end
 
     # A multi-get's results are returned under the caller's keys: equal, and
