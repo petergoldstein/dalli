@@ -68,8 +68,10 @@ module Dalli
 
         begin
           request_completed = false
-          @connection_manager.start_request!
+          # Drained before the request starts, so a failure while draining
+          # isn't taken for one after this request was sent
           drain_pending_quiet_responses(opkey)
+          @connection_manager.start_request!
           response = send(opkey, *args)
           # Quiet requests can leave replies on the socket; remember that so the
           # end of the quiet block knows this server needs draining
@@ -80,6 +82,9 @@ module Dalli
 
           request_completed = true
           response
+        rescue Dalli::RetryableNetworkError => e
+          raise_unless_resend_safe!(e, opkey, args)
+          raise
         rescue Dalli::MarshalError, Dalli::UnmarshalError, Dalli::ValueOverMaxSize => e
           log_marshal_err(args.first, e) if e.is_a?(Dalli::MarshalError)
           # Raised only while the connection is clean: a value is marshalled
@@ -260,6 +265,46 @@ module Dalli
         return if user_creds[:username].nil? && user_creds[:password].nil?
 
         Dalli.logger.warn(URI_CREDENTIAL_WARNING)
+      end
+
+      # Requests that leave memcached in the same state, and get the same kind
+      # of reply, when it applies them twice. Only these are retried after a
+      # failure that came once some of the request was sent, since memcached
+      # may have applied it and only the reply was lost. A set or delete is in
+      # this group only without a CAS (see #resend_safe?). :cas is the read
+      # behind get_cas.
+      RESEND_SAFE_OPS = %i[get gat touch cas version stats reset_stats noop flush
+                           read_multi_req read_multi_with_metadata_req pipelined_get pipelined_get_interleaved
+                           write_multi_req pipelined_set delete_multi_req pipelined_delete
+                           finish_pipelined_delete].freeze
+      private_constant :RESEND_SAFE_OPS
+
+      # A request that may have been applied, and can't safely be sent again,
+      # fails with a NetworkError the callers don't retry. Sending it again
+      # would apply an incr, decr, append or prepend twice, or report an add,
+      # replace or CAS write that succeeded as failed.
+      def raise_unless_resend_safe!(err, opkey, args)
+        return unless err.request_sent?
+        return if resend_safe?(opkey, args)
+
+        raise Dalli::NetworkError, "#{name}: #{opkey} failed after it was sent, so it may have been applied; " \
+                                   "not retrying it. #{err.message}"
+      end
+
+      def resend_safe?(opkey, args)
+        case opkey
+        when :set then no_cas?(args[3])
+        when :delete then no_cas?(args[1])
+        # With N or R, only the first request wins the recache race; a resent
+        # one would report the race lost to the caller that won it
+        when :meta_get then !(args[1] && (args[1][:vivify_ttl] || args[1][:recache_ttl]))
+        else RESEND_SAFE_OPS.include?(opkey)
+        end
+      end
+
+      # A CAS of 0 or nil means an unconditional write
+      def no_cas?(cas)
+        cas.nil? || cas.to_i.zero?
       end
 
       ALLOWED_QUIET_OPS = %i[add replace set delete incr decr append prepend flush noop].freeze
