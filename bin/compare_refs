@@ -1,0 +1,204 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Compares Dalli's throughput across git refs and the working tree, against
+# one dedicated memcached, to show what a change costs before it ships.
+#
+# Each ref's lib/ is exported to a temporary directory and benchmarked in its
+# own Ruby process. The refs run in alternating rounds, so drift on the
+# machine (thermal throttling, other load) hits every ref alike. Each
+# workload reports the median of its timed runs, and the median of that
+# across rounds is compared to the first ref.
+#
+# Run with plain ruby, not bundle exec: Bundler would put this checkout's
+# lib/ on the load path ahead of the ref being measured. Needs memcached on
+# the PATH; nothing beyond the standard library.
+#
+# Usage:
+#   bin/compare_refs                      # latest release tag, main, working tree
+#   bin/compare_refs v5.2.5 .             # "." is the working tree
+#   ONLY='set,quiet set 100' bin/compare_refs main .
+#
+# Environment variables:
+#   ROUNDS - rounds over all the refs (default: 3)
+#   RUNS   - timed runs per workload in each round (default: 7)
+#   ONLY   - comma-separated workload names to run (default: all)
+#
+# A difference under about 2% is within run-to-run noise on a laptop.
+
+require 'json'
+require 'rbconfig'
+require 'shellwords'
+require 'socket'
+require 'tmpdir'
+
+# rubocop:disable Style/OneClassPerFile
+
+# Runs the workloads with whichever Dalli is first on the load path
+module CompareRefsWorker
+  VALUE = ('x' * 100).freeze
+  KEYS10 = Array.new(10) { |i| "k#{i}" }.freeze
+  KEYS100 = Array.new(100) { |i| "k#{i}" }.freeze
+  PAIRS100 = KEYS100.to_h { |k| [k, VALUE] }.freeze
+
+  # name => [iterations per timed run, method the client must have, operation]
+  def self.workloads(client)
+    {
+      'get' => [20_000, :get, -> { client.get('k1') }],
+      'get miss' => [20_000, :get, -> { client.get('missing') }],
+      'set' => [20_000, :set, -> { client.set('k1', VALUE) }],
+      'set ttl' => [20_000, :set, -> { client.set('k1', VALUE, 300) }],
+      'replace' => [20_000, :replace, -> { client.replace('k1', VALUE) }],
+      'incr' => [20_000, :incr, -> { client.incr('ctr', 1) }],
+      'delete miss' => [20_000, :delete, -> { client.delete('missing') }],
+      'get_multi 10' => [5_000, :get_multi, -> { client.get_multi(KEYS10) }],
+      'get_multi 100' => [1_000, :get_multi, -> { client.get_multi(KEYS100) }],
+      'get_multi_with_metadata 10' => [5_000, :get_multi_with_metadata,
+                                       -> { client.get_multi_with_metadata(KEYS10) }],
+      'set_multi 100' => [1_000, :set_multi, -> { client.set_multi(PAIRS100) }],
+      'quiet set 100' => [1_000, :quiet, -> { client.quiet { KEYS100.each { |k| client.set(k, VALUE) } } }]
+    }
+  end
+
+  def self.run(label, port)
+    require 'logger'
+    require 'dalli'
+    Dalli.logger.level = Logger::ERROR
+
+    client = Dalli::Client.new("127.0.0.1:#{port}", namespace: 'bench')
+    client.flush
+    KEYS100.each { |k| client.set(k, VALUE) }
+    client.set('ctr', '0', 0, raw: true)
+
+    runs = Integer(ENV.fetch('RUNS', '7'))
+    only = ENV['ONLY']&.split(',')&.map(&:strip)
+    results = {}
+    workloads(client).each do |name, (iterations, method, operation)|
+      next if only && !only.include?(name)
+      # Older releases lack some of the methods
+      next unless client.respond_to?(method)
+
+      results[name] = median_rate(iterations, runs, operation)
+    end
+    client.close
+    puts JSON.generate(label => results)
+  end
+
+  def self.median_rate(iterations, runs, operation)
+    (iterations / 10).times { operation.call }
+    rates = Array.new(runs) do
+      start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      iterations.times { operation.call }
+      iterations / (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start)
+    end
+    rates.sort[runs / 2]
+  end
+end
+
+# Exports the refs, starts memcached and runs the workers in rounds
+module CompareRefs
+  WORKING_TREE = '.'
+  ROOT = File.expand_path('..', __dir__)
+  # A worker must load the ref's lib/, not this checkout's or Bundler's
+  WORKER_ENV = { 'RUBYOPT' => nil, 'RUBYLIB' => nil, 'BUNDLE_GEMFILE' => nil, 'BUNDLER_SETUP' => nil }.freeze
+
+  def self.run(refs)
+    refs = default_refs if refs.empty?
+    rounds = Integer(ENV.fetch('ROUNDS', '3'))
+
+    Dir.mktmpdir('dalli-compare') do |tmp|
+      libs = refs.to_h { |ref| [ref, export_lib(ref, tmp)] }
+      results = with_memcached do |port|
+        Array.new(rounds) do |round|
+          warn "round #{round + 1}/#{rounds}"
+          libs.map { |ref, lib| run_worker(ref, lib, port) }.reduce(:merge)
+        end
+      end
+      report(refs, results)
+    end
+  end
+
+  def self.default_refs
+    tags = `git -C #{ROOT.shellescape} tag --list 'v*' --sort=-v:refname`.lines.map(&:strip)
+    tag = tags.find { |t| t.match?(/\Av\d+\.\d+\.\d+\z/) }
+    [tag, 'main', WORKING_TREE].compact
+  end
+
+  def self.export_lib(ref, tmp)
+    return File.join(ROOT, 'lib') if ref == WORKING_TREE
+
+    dir = File.join(tmp, ref.tr('/', '_'))
+    Dir.mkdir(dir)
+    archive = "git -C #{ROOT.shellescape} archive #{ref.shellescape} lib | tar -x -C #{dir.shellescape}"
+    system(archive) || abort("Couldn't export lib/ from #{ref}")
+    File.join(dir, 'lib')
+  end
+
+  def self.with_memcached
+    port = free_port
+    pid = Process.spawn('memcached', '-p', port.to_s, '-U', '0', '-l', '127.0.0.1', '-m', '256',
+                        out: File::NULL, err: File::NULL)
+    wait_for(port)
+    yield port
+  ensure
+    if pid
+      Process.kill(:TERM, pid)
+      Process.wait(pid)
+    end
+  end
+
+  def self.free_port
+    server = TCPServer.new('127.0.0.1', 0)
+    server.addr[1]
+  ensure
+    server&.close
+  end
+
+  def self.wait_for(port)
+    50.times do
+      TCPSocket.new('127.0.0.1', port).close
+      return
+    rescue SystemCallError
+      sleep 0.1
+    end
+    abort "memcached didn't start on port #{port}"
+  end
+
+  def self.run_worker(ref, lib, port)
+    cmd = [WORKER_ENV, RbConfig.ruby, '-W0', '-I', lib, __FILE__, '--worker', ref, port.to_s]
+    output = IO.popen(cmd, &:read)
+    abort "Benchmarking #{ref} failed" unless Process.last_status.success?
+    JSON.parse(output.lines.last)
+  end
+
+  def self.report(refs, results)
+    base, *others = refs
+    medians = refs.to_h { |ref| [ref, median_by_workload(results.map { |round| round[ref] })] }
+    widths = others.map { |ref| [ref.size + 2, 10].max }
+    puts 'workload'.ljust(28) + "#{base} ops/s".rjust(16) + others.zip(widths).map { |ref, w| ref.rjust(w) }.join
+    # A workload missing from an older release shows as n/a
+    medians.values.flat_map(&:keys).uniq.each do |name|
+      base_rate = medians[base][name]
+      changes = others.zip(widths).map do |ref, width|
+        rate = medians[ref][name]
+        (rate && base_rate ? format('%+.1f%%', (rate - base_rate) * 100 / base_rate) : 'n/a').rjust(width)
+      end
+      puts name.ljust(28) + (base_rate ? base_rate.round.to_s : 'n/a').rjust(16) + changes.join
+    end
+  end
+
+  def self.median_by_workload(rounds)
+    rounds.flat_map(&:keys).uniq.to_h do |name|
+      rates = rounds.filter_map { |round| round[name] }.sort
+      [name, rates[rates.size / 2]]
+    end
+  end
+end
+
+# rubocop:enable Style/OneClassPerFile
+
+if ARGV.first == '--worker'
+  CompareRefsWorker.run(ARGV[1], Integer(ARGV[2]))
+else
+  CompareRefs.run(ARGV)
+end

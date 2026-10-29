@@ -24,6 +24,9 @@ bundle exec ruby -Itest test/integration/test_operations.rb -n test_get_set
 # Run benchmarks
 bundle exec rake bench
 
+# Compare throughput: latest release tag, main and the working tree (plain ruby, not bundle exec)
+bin/compare_refs
+
 # Lint code
 bundle exec rubocop
 
@@ -67,4 +70,20 @@ SSL tests use self-signed certificates generated at runtime via `CertificateGene
 1. **Run Rubocop** - `bundle exec rubocop` must pass with no offenses
 2. **Run Tests** - `bundle exec rake` must pass with no failures
 
-Do not consider a change complete until both checks pass. If either fails, fix the issues before finishing.
+3. **Measure performance** - for any change under `lib/`, run `bin/compare_refs` and follow the `performance-check` skill
+
+Do not consider a change complete until all three are done. If a check fails, or a change costs throughput beyond the skill's thresholds, fix it before finishing.
+
+## Performance
+
+Dalli is a high-performance library, and performance is a requirement alongside correctness and security.
+
+- **Measure as you go.** Check the cost of a change while implementing it, not only before release. Every PR that changes `lib/` has a Performance section with the numbers.
+- **Never trade away a security or correctness check for speed.** Make the check cheap instead: a fast path for the common valid input (an Integer TTL, a CAS of 0, a short ASCII key), with the general path for everything else, so accepted inputs and errors don't change.
+- **Watch the hot paths:** `Client` operations, `Protocol::Base#request`, `RequestFormatter`, `ResponseProcessor`, `ConnectionManager`, the value marshalling pipeline, `KeyManager`, `Ring` and the `Pipelined*` classes. Per-call allocations, `Comparable#between?`, `Integer()` with a rescue, and validating the same value twice all show up in `quiet` and multi-key throughput.
+
+## Project skills
+
+- `performance-check` - measuring and fixing the cost of a change
+- `backport` - deciding on and porting fixes to the stable branches
+- `release` - version bump, tag, gem build, checksum verification and GitHub Release
