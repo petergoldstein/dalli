@@ -308,9 +308,11 @@ module Dalli
         # 32-bit value; anything else gets a CLIENT_ERROR reply, which a quiet
         # request never reports. Callers pass TTLs through TtlSanitizer first.
         def ttl_flag(name, value)
-          ttl = integer_flag(name, value)
           min = TtlSanitizer::MIN_EXPIRATION_TIME
           max = TtlSanitizer::MAX_EXPIRATION_TIME
+          return value if value.is_a?(Integer) && value >= min && value <= max
+
+          ttl = integer_flag(name, value)
           return ttl if ttl.between?(min, max)
 
           raise ArgumentError, "#{name} must be between #{min} and #{max}, got #{value.inspect}"
@@ -351,7 +353,7 @@ module Dalli
                 when Integer then val
                 when String then Integer(val, 10, exception: false)
                 end
-          return int if int&.between?(0, MAX_UINT64)
+          return int if int && int >= 0 && int <= MAX_UINT64
 
           raise ArgumentError, "#{name} must be an Integer between 0 and #{MAX_UINT64}, got #{val.inspect}"
         end
