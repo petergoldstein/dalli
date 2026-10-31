@@ -5,6 +5,8 @@ module Dalli
   # Contains logic for the pipelined gets implemented by the client.
   ##
   class PipelinedGetter
+    include KeyGrouping
+
     # For large batches, interleave sends with response draining to prevent
     # socket buffer deadlock. Only kicks in above this threshold.
     INTERLEAVE_THRESHOLD = 10_000
@@ -85,7 +87,7 @@ module Dalli
       @ring.lock do
         results = {}
         caller_keys = @key_manager.caller_keys_by_wire_key(keys)
-        groups_for_keys(caller_keys.keys).each do |server, keys_for_server|
+        groups_for_keys(caller_keys.keys, 'get').each do |server, keys_for_server|
           server.request(:read_multi_with_metadata_req, keys_for_server, req_options).each_pair do |key, metadata|
             caller_key = @key_manager.caller_key(caller_keys, key)
             results[caller_key] = metadata if caller_key
@@ -119,7 +121,7 @@ module Dalli
     # while the rest are prepared. Adds the servers with a pending response
     # to started.
     def setup_requests(started, wire_keys, req_options = nil, return_cas: true)
-      groups_for_keys(wire_keys).each do |server, keys_for_server|
+      groups_for_keys(wire_keys, 'get').each do |server, keys_for_server|
         make_getkq_request(server, keys_for_server, req_options, return_cas: return_cas)
         next unless server.connected?
 
@@ -260,18 +262,6 @@ module Dalli
       # building and looking up a hash map. Array#index scans in C and
       # reuses the sockets already fetched above.
       readable.filter_map { |sock| (idx = sockets.index(sock)) && servers[idx] }
-    end
-
-    # wire_keys are validated, from KeyManager#caller_keys_by_wire_key
-    def groups_for_keys(wire_keys)
-      groups = @ring.keys_grouped_by_server(wire_keys)
-      if (unfound_keys = groups.delete(nil))
-        Dalli.logger.debug do
-          "unable to get keys for #{unfound_keys.length} keys " \
-            'because no matching server was found'
-        end
-      end
-      groups
     end
   end
 end

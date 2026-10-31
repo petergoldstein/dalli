@@ -7,6 +7,8 @@ module Dalli
   # and using quiet mode to minimize round trips.
   ##
   class PipelinedDeleter
+    include KeyGrouping
+
     def initialize(ring, key_manager)
       @ring = ring
       @key_manager = key_manager
@@ -44,7 +46,8 @@ module Dalli
     private
 
     def setup_requests(keys, req_options = nil)
-      groups = groups_for_keys(keys)
+      validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
+      groups = groups_for_keys(validated_keys, 'delete')
       make_delete_requests(groups, req_options)
       groups
     end
@@ -88,19 +91,6 @@ module Dalli
         Dalli.logger.debug { "unable to complete pipelined delete on server #{server.name}" }
         0
       end
-    end
-
-    def groups_for_keys(keys)
-      validated_keys = keys.map { |k| @key_manager.validate_key(k.to_s) }
-      groups = @ring.keys_grouped_by_server(validated_keys)
-
-      if (unfound_keys = groups.delete(nil))
-        Dalli.logger.debug do
-          "unable to delete #{unfound_keys.length} keys because no matching server was found"
-        end
-      end
-
-      groups
     end
   end
 end

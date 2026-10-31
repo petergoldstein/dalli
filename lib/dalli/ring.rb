@@ -34,6 +34,10 @@ module Dalli
       @failover = options[:failover] != false
     end
 
+    def failover?
+      @failover
+    end
+
     def continuum=(entries)
       @continuum = entries
       # Plain integers, so the lookup in server_for_hash_key needn't call
