@@ -13,11 +13,13 @@ describe 'authentication options' do
     begin
       memcached_persistent(:meta, 21_345, '') do |_dc, port|
         # Create client with auth options that should trigger warnings
-        client = Dalli::Client.new("localhost:#{port}", username: 'user', password: 'pass')
+        client = Dalli::Client.new("localhost:#{port}", username: 'user', password: 'hunter2')
         client.flush
         client.set('key1', 'abcd')
 
         assert_equal 'abcd', client.get('key1')
+        # The options are unused, so they aren't kept where #inspect shows them
+        refute_includes client.inspect, 'hunter2'
       end
 
       assert_includes logged_messages, 'Dalli 5.0 removed SASL authentication support. The :username option is ignored.'
@@ -62,11 +64,12 @@ describe 'authentication options' do
     begin
       memcached_persistent(:meta, 21_347, '') do |_dc, port|
         # Create client with credentials in URI that should trigger warning
-        client = Dalli::Client.new("memcached://user:pass@localhost:#{port}")
+        client = Dalli::Client.new("memcached://user:hunter2@localhost:#{port}")
         client.flush
         client.set('key1', 'value')
 
         assert_equal 'value', client.get('key1')
+        refute_includes client.inspect, 'hunter2'
       end
 
       assert_includes logged_messages,

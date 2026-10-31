@@ -104,6 +104,8 @@ A request that failed after some of it was sent may have been applied by memcach
 
 The multi-key operations (`get_multi`, `get_multi_cas`, `get_multi_with_metadata`, `set_multi` and `delete_multi`) skip a server that is already down when they start: its keys are missing from the result, or go to another server with `failover`. A server that fails during the operation and can't be reached on the retry is different. Without `failover` the operation raises `Dalli::NetworkError`, rather than returning that server's keys as misses or leaving them unwritten. With `failover` its keys go to another server, or are left out when no server is left.
 
+A retried `get_multi` or `get_multi_cas` starts the batch again, so a block passed to either can be yielded a key it was already yielded before the error. Make the block safe to call twice for a key, or call the method without a block and use the Hash it returns. `get_multi_with_metadata` yields only after every server has replied, so its block sees each key once.
+
 ## Security Note
 
 By default, Dalli uses Ruby's Marshal for serialization. Deserializing untrusted data with Marshal can lead to remote code execution. If you cache user-controlled data, consider using a safer serializer:

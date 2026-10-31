@@ -252,6 +252,21 @@ describe 'thundering herd protection' do
         end
       end
 
+      it 'raises ArgumentError for a non-Integer recache_ttl without closing the connection' do
+        memcached_persistent(:meta) do |_dc, port|
+          dc = single_server_client(port)
+          dc.flush
+          dc.set('survivor', 'value')
+          conn_mgr = dc.send(:ring).servers.first.instance_variable_get(:@connection_manager)
+
+          error = assert_raises(ArgumentError) { dc.get_with_metadata('survivor', recache_ttl: 'abc') }
+
+          assert_equal 'recache_ttl must be an Integer, got "abc"', error.message
+          assert_predicate conn_mgr, :connected?, 'a bad recache_ttl must not tear down the connection'
+          assert_equal 'value', dc.get('survivor')
+        end
+      end
+
       it 'supports recache_ttl option for early recache' do
         memcached_persistent(:meta) do |dc|
           dc.flush
