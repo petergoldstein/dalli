@@ -102,6 +102,8 @@ When a request fails with a network error (a refused connection, a reset, or a r
 
 A request that failed after some of it was sent may have been applied by memcached even though its reply never arrived. Dalli only sends such a request again when applying it twice is harmless: reads, `touch`, `set`, `replace` and `delete` without a CAS, and the multi-key operations. For `incr`, `decr`, `append`, `prepend`, `add`, writes with a CAS (`set_cas`, `replace_cas`, `delete_cas`, `cas`, `cas!`), and `get_with_metadata` with `vivify_ttl` or `recache_ttl` (which `fetch_with_lock` uses), it raises `Dalli::NetworkError` instead, since the write may or may not have happened. A retried `delete` can return false if the first attempt deleted the key.
 
+A connection that sat unused for over a second is checked before the next request. If memcached (with `idle_timeout`), a load balancer or a firewall closed it meanwhile, Dalli reconnects before sending, so the request isn't lost and doesn't count as a failure. A connection dropped without the other end closing it can't be detected this way, and a request on it fails as above.
+
 The multi-key operations (`get_multi`, `get_multi_cas`, `get_multi_with_metadata`, `set_multi` and `delete_multi`) skip a server that is already down when they start: its keys are missing from the result, or go to another server with `failover`. A server that fails during the operation and can't be reached on the retry is different. Without `failover` the operation raises `Dalli::NetworkError`, rather than returning that server's keys as misses or leaving them unwritten. With `failover` its keys go to another server, or are left out when no server is left.
 
 ## Security Note

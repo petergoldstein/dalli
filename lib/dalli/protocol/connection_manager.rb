@@ -65,6 +65,7 @@ module Dalli
         @pid = Process.pid
         @request_in_progress = false
         @quiet_responses_pending = false
+        @last_used_at = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError, SocketError => e
         # SocketError = DNS resolution failure; SSL_ERRORS = failed TLS handshake
         error_on_request!(e)
@@ -110,9 +111,46 @@ module Dalli
         @socket_timeout ||= @options[:socket_timeout]
       end
 
+      # Before a request: closes a connection left mid-request, reconnects
+      # after a fork, and checks a connection that sat idle (see
+      # #close_if_closed_by_peer!). Idle time runs from the start of the last
+      # request, so the clock is read once per request; after a request that
+      # itself took over a second, the next just makes a check that finds
+      # nothing. Pending quiet replies are readable and expected, so the
+      # check, and the clock read, are skipped while there are any; in a quiet
+      # block that is every write after the first.
       def confirm_ready!
         close if request_in_progress?
         reconnect_on_fork if fork_detected?
+        return if @sock.nil? || @quiet_responses_pending
+
+        now = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
+        idle = now - @last_used_at
+        @last_used_at = now
+        close_if_closed_by_peer! if idle >= IDLE_CHECK_MS
+      end
+
+      # How long, in milliseconds, a connection goes without a request before
+      # the next one first checks that the server hasn't closed it. Integer
+      # milliseconds keep Float arithmetic off the request path.
+      IDLE_CHECK_MS = 1000
+
+      # memcached's idle_timeout, a load balancer or a firewall can close a
+      # connection that sat unused. The next write still succeeds, into the
+      # kernel's buffer, and only the read fails, by which time the request
+      # counts as sent: one that isn't safe to send twice, such as an incr or
+      # an add, then raises instead of being retried. With no replies pending,
+      # an idle connection has nothing to read, so a readable one was closed
+      # by the other end (or holds bytes nothing asked for). Closing it here
+      # lets the request go out on a new connection. A connection dropped
+      # without the other end being told can't be detected this way.
+      def close_if_closed_by_peer!
+        return unless @sock.to_io.wait_readable(0)
+
+        Dalli.logger.debug { "#{name} closed the connection while it was idle; reconnecting" }
+        close
+      rescue IOError, SystemCallError
+        close
       end
 
       def confirm_in_progress!
