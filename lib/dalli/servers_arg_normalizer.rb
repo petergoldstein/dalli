@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'uri'
+
 module Dalli
   ##
   # This module contains methods for validating and normalizing the servers
@@ -26,6 +28,8 @@ module Dalli
   module ServersArgNormalizer
     ENV_VAR_NAME = 'MEMCACHE_SERVERS'
     DEFAULT_SERVERS = ['127.0.0.1:11211'].freeze
+    URI_CREDENTIAL_WARNING = 'Dalli 5.0 removed SASL authentication. ' \
+                             'Credentials in memcached:// URIs are ignored.'
 
     ##
     # Normalizes the argument into an array of servers.
@@ -34,7 +38,21 @@ module Dalli
     def self.normalize_servers(arg)
       arg = apply_defaults(arg)
       validate_type(arg)
-      Array(arg).flat_map { |s| s.split(',') }.reject(&:empty?)
+      Array(arg).flat_map { |s| s.split(',') }.reject(&:empty?).map { |s| without_credentials(s) }
+    end
+
+    # Dalli 5 doesn't use credentials in a memcached:// URI, so they are
+    # dropped here, with a warning, rather than kept in the client's server
+    # list where #inspect would show them.
+    def self.without_credentials(server)
+      return server unless server.start_with?('memcached://') && server.include?('@')
+
+      uri = URI.parse(server)
+      return server unless uri.userinfo
+
+      Dalli.logger.warn(URI_CREDENTIAL_WARNING)
+      uri.user = nil # clears the password too
+      uri.to_s
     end
 
     def self.apply_defaults(arg)

@@ -130,5 +130,13 @@ describe Dalli::ServersArgNormalizer do
                      err.message
       end
     end
+
+    describe 'when a memcached:// URI has credentials' do
+      let(:arg) { 'memcached://user:hunter2@example.com:1234,memcached://[::1]:11211,memcached://other@example.org' }
+
+      it 'drops them, keeping the rest of each URI' do
+        assert_equal %w[memcached://example.com:1234 memcached://[::1]:11211 memcached://example.org], subject
+      end
+    end
   end
 end

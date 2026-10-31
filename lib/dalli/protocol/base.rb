@@ -39,8 +39,9 @@ module Dalli
 
       def initialize(attribs, client_options = {})
         hostname, port, socket_type, @weight, user_creds = ServerConfigParser.parse(attribs)
+        # Credentials are unused since Dalli 5: warned about, and not kept
         warn_uri_credentials(user_creds)
-        @options = client_options.merge(user_creds)
+        @options = client_options
         @raw_mode = client_options[:raw]
         @defer_drain = client_options[:defer_drain] ? true : false
         @verify_reply_keys = client_options[:verify_reply_keys] ? true : false
@@ -257,14 +258,12 @@ module Dalli
 
       private
 
-      URI_CREDENTIAL_WARNING = 'Dalli 5.0 removed SASL authentication. ' \
-                               'Credentials in memcached:// URIs are ignored.'
-      private_constant :URI_CREDENTIAL_WARNING
-
+      # Dalli::Client strips credentials before a server is built, so this is
+      # only for a server built directly from a URI with them
       def warn_uri_credentials(user_creds)
         return if user_creds[:username].nil? && user_creds[:password].nil?
 
-        Dalli.logger.warn(URI_CREDENTIAL_WARNING)
+        Dalli.logger.warn(ServersArgNormalizer::URI_CREDENTIAL_WARNING)
       end
 
       # Requests that leave memcached in the same state, and get the same kind
@@ -402,7 +401,7 @@ module Dalli
 
         kwargs = {}
         kwargs[:stale] = true if opts[:invalidate]
-        kwargs[:ttl] = TtlSanitizer.sanitize(Integer(opts[:tombstone_ttl])) if opts[:tombstone_ttl]
+        kwargs[:ttl] = TtlSanitizer.sanitize(opts[:tombstone_ttl]) if opts[:tombstone_ttl]
         kwargs[:drop_value] = true if opts[:drop_value]
         kwargs
       end

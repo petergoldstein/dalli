@@ -11,7 +11,8 @@ Bug fixes:
 - `flush('abc')` flushed immediately. It now raises `ArgumentError`
 - A TTL String that isn't a whole number, such as `'abc'`, became 0, which means no expiry. It now raises `ArgumentError`, including for `expires_in` when the client is created
 - A TTL, CAS, `incr`/`decr` amount or initial value outside the range memcached accepts got a `CLIENT_ERROR` reply, which a `quiet` block or `set_multi` discarded, so the write silently did nothing. These now raise `ArgumentError`
-- An invalid `vivify_ttl` raised from deep in the request and closed the connection
+- An invalid `vivify_ttl` or `recache_ttl` raised from deep in the request and closed the connection
+- `tombstone_ttl` read a String with a leading zero as octal (`'010'` was 8) and accepted hex such as `'0x10'`. It's now parsed in base 10 like every other TTL, and `Float::NAN` raises `ArgumentError` rather than `FloatDomainError`
 - Multi-gets now raise `Dalli::UnmarshalError` for a value that can't be deserialized, as `get` does, and only after reading the rest of the replies
   - `get_multi` and `get_multi_cas` raised partway through reading a server's replies, closing the connection, and `get_multi_with_metadata` on more than one server silently dropped every key on that server. A large `get_multi` could also drop that server's keys without raising when it read the bad value while still sending requests (seen mostly on JRuby and TruffleRuby)
   - In block form the other values are still yielded, and the connections stay open. `get` and the other single-key reads also keep the connection open after this error now
@@ -20,7 +21,6 @@ Bug fixes:
   - A key too long to send as is (over 250 bytes, or once base64-encoded) came back under its digested form
   - A binary key with non-ASCII bytes came back tagged UTF-8, so `result.key?(key)` was false
   - A key given more than once is now requested once, and a block is yielded it once
-- `set_multi` across more than one server stored `nil` for a Symbol key or a key over 250 bytes, in place of the value given
 - On TruffleRuby, a process spawned while Dalli had a connection open (with `system`, `spawn` or backticks) inherited the socket and kept the connection open on memcached's side until it exited. Dalli's sockets are now close-on-exec, as CRuby makes them by default
 - A request that failed after it was sent, such as one whose reply timed out, was sent again even though memcached may have applied it. `incr`, `decr`, `append` and `prepend` could be applied twice, and `add` and writes with a CAS could report failure for a write that had succeeded. Once some of a request has been sent, Dalli now retries only requests that are safe to apply twice (see Other changes)
 - When a server stopped while connected, the multi-key operations (`get_multi`, `get_multi_cas`, `get_multi_with_metadata`, `set_multi` and `delete_multi`) returned its keys as misses, or left them unwritten, instead of raising `Dalli::NetworkError` as documented. The retry found the server down and skipped it as if it had been down from the start. Without `failover` they now raise. With `failover` the keys still go to another server, as they do for `get` and `set` (#1263, @jaideeppyne)
@@ -30,10 +30,19 @@ Other changes:
 - Numeric arguments are checked before anything is written, so a bad one raises `ArgumentError` without affecting the connection or earlier writes in a `quiet` block. Integers and Strings of decimal digits (such as `'300'`) are accepted throughout
   - A TTL (`ttl`, `expires_in`, `vivify_ttl`, `lock_ttl`, `tombstone_ttl`) must fit memcached's signed 32-bit expiration time once a TTL over 30 days is converted to a Unix time. A negative TTL is still accepted and expires the item. A Float or `ActiveSupport::Duration` TTL is still converted with `to_i`
   - A CAS, an `incr`/`decr` amount or initial value, and a `flush` delay must be from 0 to 2**64 - 1. A Float now raises; `incr(key, 0.9)` used to truncate the amount to 0. A String amount such as `'5'` now works
-  - `fetch_with_lock` checks `ttl` before taking the lock, so a bad one raises before the block runs
+  - `fetch`, `fetch_with_lock`, `cas` and `cas!` check `ttl` before running the block, so a bad one raises before any side effects. `fetch` checks it on a hit too
   - `Dalli::Protocol::TtlSanitizer.sanitize` raises `ArgumentError` for a String that isn't a whole number instead of returning 0
+- Usernames and passwords from `memcached://` URIs and the `:username`/`:password` options are no longer kept in the client's or server's options, so `#inspect` can't show them. Dalli 5 has never used them, and the warning is unchanged
+- A TTL over 30 days is converted to a Unix time once per request, not twice, and the debug message for that conversion is built only when debug logging is on
 - `incr`, `decr`, `append`, `prepend`, `add`, `set_cas`, `replace_cas`, `delete_cas`, `cas`, `cas!`, `fetch_with_lock`, and `get_with_metadata` with `vivify_ttl` or `recache_ttl` now raise `Dalli::NetworkError` when the connection fails after the request was sent, where they used to retry it. Reads, `touch`, `set`, `replace` and `delete` without a CAS, and the multi-key operations are still retried, as is any request that failed before it was sent
   - `fetch` (which stores a missing value with `add`) and `Rack::Session::Dalli` (which creates sessions with `add`) can see this error too. `Rack::Session::Dalli` handles it like any other memcached error
+
+5.2.5
+==========
+
+Bug fixes:
+
+- `set_multi` across more than one server stored `nil` for a Symbol key or a key over 250 bytes, in place of the value given
 
 5.2.4
 ==========
