@@ -27,8 +27,10 @@ module Dalli
     # With return_cas: false the CAS value is not requested, and each yielded
     # CAS is 0.
     #
-    # A transient network error is retried automatically. If a server remains
-    # unreachable after retrying, raises Dalli::NetworkError.
+    # A transient network error is retried automatically, starting the batch
+    # again, so a key can be yielded twice. If a server stops during the call
+    # and is still unreachable after retrying, raises Dalli::NetworkError
+    # without failover (see KeyGrouping).
     #
     # A value that can't be deserialized raises Dalli::UnmarshalError, as get
     # does, once every server's replies are read, so the connections stay in

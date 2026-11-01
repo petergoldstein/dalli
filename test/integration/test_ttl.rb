@@ -94,6 +94,22 @@ describe 'TTL behavior' do
             refute called
           end
         end
+
+        it 'raises from fetch, cas and cas! before calling the block' do
+          memcached_persistent(p) do |dc|
+            dc.flush
+            dc.set('existing', 'value')
+            called = false
+
+            assert_raises(ArgumentError) { dc.fetch('new', 2**40, nil) { called = true } }
+            assert_raises(ArgumentError) { dc.fetch('existing', 'abc', nil) { called = true } }
+            assert_raises(ArgumentError) { dc.cas('existing', 2**40) { called = true } }
+            assert_raises(ArgumentError) { dc.cas!('new', 'abc') { called = true } }
+            refute called
+            assert_nil dc.get('new')
+            assert_equal 'value', dc.get('existing')
+          end
+        end
       end
 
       it 'accepts the largest relative and absolute TTLs, and a TTL given as a String of decimal digits' do
@@ -105,6 +121,20 @@ describe 'TTL behavior' do
           assert dc.set('string', 'value', '300')
           assert_equal %w[value value value], [dc.get('relative'), dc.get('absolute'), dc.get('string')]
           assert_operator dc.get_with_metadata('string', return_ttl_remaining: true)[:ttl_remaining], :>, 0
+        end
+      end
+
+      it 'stores a TTL over 30 days as the Unix time it becomes' do
+        memcached_persistent(p) do |dc|
+          dc.flush
+          year = 365 * 24 * 60 * 60
+
+          assert dc.set('year', 'value', year)
+          ttl = dc.get_with_metadata('year', return_ttl_remaining: true)[:ttl_remaining]
+
+          assert_in_delta year, ttl, 5
+          assert_equal 'value', dc.fetch('fetched', year, nil) { 'value' }
+          assert_in_delta year, dc.get_with_metadata('fetched', return_ttl_remaining: true)[:ttl_remaining], 5
         end
       end
 

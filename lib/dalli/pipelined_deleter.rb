@@ -27,8 +27,9 @@ module Dalli
     #   tombstoned rather than removed. This is best-effort: a transient
     #   network error is retried automatically, and keys handled before the
     #   error are not recounted, so the result may under-report when a retry
-    #   occurs. If a server remains unreachable after retrying, raises
-    #   Dalli::NetworkError.
+    #   occurs. If a server stops during the call and is still unreachable
+    #   after retrying, raises Dalli::NetworkError without failover (see
+    #   KeyGrouping).
     ##
     def process(keys, req_options = nil)
       return 0 if keys.empty?

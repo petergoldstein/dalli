@@ -17,8 +17,9 @@ module Dalli
     ##
     # Writes multiple key-value pairs to memcached.
     #
-    # A transient network error is retried automatically. If a server remains
-    # unreachable after retrying, raises Dalli::NetworkError.
+    # A transient network error is retried automatically. If a server stops
+    # during the call and is still unreachable after retrying, raises
+    # Dalli::NetworkError without failover (see KeyGrouping).
     #
     # A value that can't be marshalled or is over value_max_bytes is skipped;
     # the other keys are still stored, then the first such error is raised.

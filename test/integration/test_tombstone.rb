@@ -246,9 +246,27 @@ describe 'tombstone deletes' do
               dc.delete('survivor', invalidate: true, tombstone_ttl: 'not-a-number')
             end
 
-            assert_equal 'tombstone_ttl must be an integer, got "not-a-number"', error.message
+            assert_equal 'tombstone_ttl must be an Integer, got "not-a-number"', error.message
             assert_predicate conn_mgr, :connected?, 'bad tombstone_ttl type must not tear down the connection'
             assert_equal 'value', dc.get('survivor')
+          end
+        end
+
+        it 'parses a String in base 10, and raises ArgumentError for NaN, like the other TTLs' do
+          memcached_persistent(p) do |_dc, port|
+            dc = single_server_client(port)
+            dc.flush
+            dc.set('octal', 'value')
+            conn_mgr = dc.send(:ring).servers.first.instance_variable_get(:@connection_manager)
+
+            # Integer('010') is 8; the other TTLs read it as 10
+            assert dc.delete('octal', invalidate: true, tombstone_ttl: '010')
+            ttl = dc.get_with_metadata('octal', return_ttl_remaining: true)[:ttl_remaining]
+
+            assert_operator ttl, :>, 8
+            assert_raises(ArgumentError) { dc.delete('octal', invalidate: true, tombstone_ttl: '0x10') }
+            assert_raises(ArgumentError) { dc.delete('octal', invalidate: true, tombstone_ttl: Float::NAN) }
+            assert_predicate conn_mgr, :connected?
           end
         end
 
