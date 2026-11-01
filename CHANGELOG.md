@@ -36,6 +36,7 @@ Other changes:
 - A TTL over 30 days is converted to a Unix time once per request, not twice, and the debug message for that conversion is built only when debug logging is on
 - `incr`, `decr`, `append`, `prepend`, `add`, `set_cas`, `replace_cas`, `delete_cas`, `cas`, `cas!`, `fetch_with_lock`, and `get_with_metadata` with `vivify_ttl` or `recache_ttl` now raise `Dalli::NetworkError` when the connection fails after the request was sent, where they used to retry it. Reads, `touch`, `set`, `replace` and `delete` without a CAS, and the multi-key operations are still retried, as is any request that failed before it was sent
   - `fetch` (which stores a missing value with `add`) and `Rack::Session::Dalli` (which creates sessions with `add`) can see this error too. `Rack::Session::Dalli` handles it like any other memcached error
+  - Before a request on a connection unused for over a second, Dalli checks whether the other end closed it (memcached's `idle_timeout`, a load balancer or a firewall), and if so reconnects before sending. Without this, the first `incr` or `add` after an idle spell raised this error, and any request counted a failure toward `socket_max_failures`
 
 5.2.5
 ==========
