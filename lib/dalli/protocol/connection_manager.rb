@@ -478,8 +478,9 @@ module Dalli
       # enforce_read_timeout, the first read after a request is sent waits for
       # the socket to be readable, up to socket_timeout. It's opt-in because
       # the wait costs about 8% of single-key throughput on TruffleRuby and
-      # 20-29% on JRuby. A server that stops partway through a reply can still
-      # block on TruffleRuby; JRuby reads values without blocking.
+      # 20-29% on JRuby. A server that stops partway through a reply line can
+      # still block. So can one that stops partway through a value on
+      # TruffleRuby; JRuby reads values without blocking.
       #
       # TLS connections are left as they were: OpenSSL buffers decrypted
       # bytes that wait_readable can't see.

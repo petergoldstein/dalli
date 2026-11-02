@@ -6,7 +6,7 @@ Unreleased
 
 New features:
 
-- `enforce_read_timeout: true` makes reads on JRuby and TruffleRuby time out after `socket_timeout`, as they do on CRuby. Without it, a server that accepted a request but never replied blocked the caller indefinitely on those engines. It's off by default because it costs about 8% of single-key throughput on TruffleRuby and 20-29% on JRuby, and it has no effect on CRuby or TLS connections
+- `enforce_read_timeout: true` makes JRuby and TruffleRuby give up waiting for a reply after `socket_timeout`, as CRuby does. Without it, a server that accepted a request but never replied blocked the caller indefinitely on those engines, including in `get` and `get_multi`. A server that stops partway through a reply can still block. It's off by default because it costs about 8% of single-key throughput on TruffleRuby and 20-29% on JRuby, and it has no effect on CRuby or TLS connections
 
 Bug fixes:
 

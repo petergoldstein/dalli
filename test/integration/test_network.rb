@@ -153,6 +153,40 @@ describe 'Network' do
           acceptor&.kill
         end
 
+        # On JRuby and TruffleRuby, these multi-gets hung on a server that
+        # never answers until enforce_read_timeout was added
+        it 'gives up on multi-gets from a server that never answers' do
+          server = TCPServer.new('127.0.0.1', 19_462)
+          acceptor = Thread.new do
+            loop do
+              Thread.new(server.accept) do |sock|
+                while (line = sock.gets)
+                  sock.write("VERSION 1.6.45\r\n") if line.start_with?('version')
+                end
+              rescue IOError, SystemCallError
+                nil
+              end
+            end
+          rescue IOError
+            nil
+          end
+          calls = [->(dc) { dc.get_multi('a', 'b') }]
+          calls << ->(dc) { dc.get_multi_with_metadata(%w[a b]) } if p == :meta
+
+          calls.each do |call|
+            # A new client each time, since the first failure marks the server down
+            dc = Dalli::Client.new('127.0.0.1:19462', socket_timeout: 0.3, enforce_read_timeout: true,
+                                                      protocol: p)
+            started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+            assert_raises(Dalli::NetworkError) { call.call(dc) }
+            assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 5
+          end
+        ensure
+          server&.close
+          acceptor&.kill
+        end
+
         # get_with_metadata requires the meta protocol
         if p == :meta
           # get_with_metadata and fetch_with_lock also retried the final
@@ -192,7 +226,7 @@ describe 'Network' do
           # With enforce_read_timeout, JRuby times out here too, since it reads
           # values without blocking. TruffleRuby's read of the value blocks
           it 'times out on a server that stops partway through a value' do
-            server = TCPServer.new('127.0.0.1', 19_458)
+            server = TCPServer.new('127.0.0.1', 19_461)
             acceptor = Thread.new do
               loop do
                 Thread.new(server.accept) do |sock|
@@ -208,7 +242,7 @@ describe 'Network' do
             rescue IOError
               nil
             end
-            dc = Dalli::Client.new('127.0.0.1:19458', socket_timeout: 0.3, enforce_read_timeout: true,
+            dc = Dalli::Client.new('127.0.0.1:19461', socket_timeout: 0.3, enforce_read_timeout: true,
                                                       protocol: p)
             started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
