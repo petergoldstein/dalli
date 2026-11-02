@@ -24,7 +24,6 @@ Bug fixes:
 - On TruffleRuby, a process spawned while Dalli had a connection open (with `system`, `spawn` or backticks) inherited the socket and kept the connection open on memcached's side until it exited. Dalli's sockets are now close-on-exec, as CRuby makes them by default
 - A request that failed after it was sent, such as one whose reply timed out, was sent again even though memcached may have applied it. `incr`, `decr`, `append` and `prepend` could be applied twice, and `add` and writes with a CAS could report failure for a write that had succeeded. Once some of a request has been sent, Dalli now retries only requests that are safe to apply twice (see Other changes)
 - When a server stopped while connected, the multi-key operations (`get_multi`, `get_multi_cas`, `get_multi_with_metadata`, `set_multi` and `delete_multi`) returned its keys as misses, or left them unwritten, instead of raising `Dalli::NetworkError` as documented. The retry found the server down and skipped it as if it had been down from the start. Without `failover` they now raise. With `failover` the keys still go to another server, as they do for `get` and `set` (#1263, @jaideeppyne)
-- Raw values in an encoding that isn't ASCII-compatible, such as UTF-16, raised `Encoding::CompatibilityError` from `set`, `add`, `replace`, `append`, `prepend` and `set_multi`, as did a single-server `set_multi` mixing non-ASCII UTF-8 values with binary ones (such as raw Strings of both kinds, or with a JSON serializer, a value containing `é` next to a compressed one). A `p_token` or `l_token` with non-ASCII characters, such as `é`, did the same for any binary value, including every Marshal-serialized one. The error also closed the connection, so in a `quiet` block, or within one server's part of a multi-server `set_multi`, writes buffered before it were silently lost. Values are now sent as their bytes, which is what memcached stores
 - `Rack::Session::Dalli`: a stored session that couldn't be decoded (for example after changing the serializer, or removing a class that sessions stored) left the user on a session that was never saved, with no new cookie, so they couldn't log in until the cookie was cleared or the session expired. It's now treated as missing: the request gets a new session and cookie, and a warning is logged
 
 Other changes:
@@ -40,6 +39,13 @@ Other changes:
 - `incr`, `decr`, `append`, `prepend`, `add`, `set_cas`, `replace_cas`, `delete_cas`, `cas`, `cas!`, `fetch_with_lock`, and `get_with_metadata` with `vivify_ttl` or `recache_ttl` now raise `Dalli::NetworkError` when the connection fails after the request was sent, where they used to retry it. Reads, `touch`, `set`, `replace` and `delete` without a CAS, and the multi-key operations are still retried, as is any request that failed before it was sent
   - `fetch` (which stores a missing value with `add`) and `Rack::Session::Dalli` (which creates sessions with `add`) can see this error too. `Rack::Session::Dalli` handles it like any other memcached error
   - Before a request on a connection unused for over a second, Dalli checks whether the other end closed it (memcached's `idle_timeout`, a load balancer or a firewall), and if so reconnects before sending. Without this, the first `incr` or `add` after an idle spell raised this error, and any request counted a failure toward `socket_max_failures`
+
+5.2.6
+==========
+
+Bug fixes:
+
+- Raw values in an encoding that isn't ASCII-compatible, such as UTF-16, raised `Encoding::CompatibilityError` from `set`, `add`, `replace`, `append`, `prepend` and `set_multi`, as did a single-server `set_multi` mixing non-ASCII UTF-8 values with binary ones (such as raw Strings of both kinds, or with a JSON serializer, a value containing `é` next to a compressed one). A `p_token` or `l_token` with non-ASCII characters, such as `é`, did the same for any binary value, including every Marshal-serialized one. The error also closed the connection, so in a `quiet` block, or within one server's part of a multi-server `set_multi`, writes buffered before it were silently lost. Values are now sent as their bytes, which is what memcached stores (#1269)
 
 5.2.5
 ==========
