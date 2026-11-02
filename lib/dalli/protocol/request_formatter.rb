@@ -120,8 +120,9 @@ module Dalli
 
         def multi_meta_set(entries, ttl: nil, p_token: nil, l_token: nil)
           # Routing tokens apply to every entry in the batch, so the suffix is
-          # built once rather than per entry.
-          token_suffix = routing_tokens(p_token: p_token, l_token: l_token)
+          # built once rather than per entry. It's binary, like the buffer, so
+          # a token with non-ASCII characters doesn't turn the buffer UTF-8.
+          token_suffix = routing_tokens(p_token: p_token, l_token: l_token).b
           ttl = ttl_flag(:ttl, ttl) if ttl
 
           buffer = ''.b

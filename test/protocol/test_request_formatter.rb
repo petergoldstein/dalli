@@ -324,6 +324,17 @@ describe Dalli::Protocol::Meta::RequestFormatter do
       assert_equal expected, buffer
     end
 
+    it 'stays binary with a non-ASCII routing token and binary values' do
+      entries = { 'a' => ["\xff".b, 0], 'b' => ['é', 0] }
+      buffer = Dalli::Protocol::Meta::RequestFormatter.multi_meta_set(entries, p_token: 'é')
+
+      assert_equal Encoding::BINARY, buffer.encoding
+      expected = ['ms a 1 c F0 MS q P', 'é', "\r\n", "\xff".b, "\r\nms b 2 c F0 MS q P", 'é', "\r\n", 'é',
+                  "\r\nmn\r\n"].map(&:b).join
+
+      assert_equal expected, buffer
+    end
+
     it 'incorporates TTL when passed' do
       expected = <<~TXT
         ms foo 5 c F2433 T42 MS q\r

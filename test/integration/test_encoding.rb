@@ -100,6 +100,20 @@ describe 'Encoding' do
         end
       end
 
+      it 'writes binary values with a non-ASCII routing token' do
+        with_one_and_two_servers(p) do |dc|
+          assert dc.set('raw', "\xff".b, 0, raw: true, p_token: 'é')
+          assert dc.set('marshal', { a: "\xff".b }, 0, p_token: 'é')
+          assert dc.append('raw', "\xfe".b, p_token: 'é')
+          dc.set_multi({ 'm1' => "\xff".b, 'm2' => 'café' }, 0, raw: true, p_token: 'é')
+
+          assert_equal "\xff\xfe".b, dc.get('raw', raw: true).b
+          assert_equal({ a: "\xff".b }, dc.get('marshal'))
+          assert_equal "\xff".b, dc.get('m1', raw: true).b
+          assert_equal 'café'.b, dc.get('m2', raw: true).b
+        end
+      end
+
       it 'set_multi stores UTF-8, binary and UTF-16 values together' do
         with_one_and_two_servers(p) do |dc|
           values = { 'utf8' => 'café', 'binary' => "\xff\xfe".b, 'utf16' => 'hé'.encode('UTF-16LE') }
