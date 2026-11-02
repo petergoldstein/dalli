@@ -35,6 +35,8 @@ A useful report includes:
 - Fixed versions are released before the advisory is published. A CVE is requested through GitHub when appropriate.
 - Reporters are credited in the advisory and the changelog unless they'd rather not be.
 
+The maintainers' side of this is described in [docs/advisory-process.md](docs/advisory-process.md).
+
 ## Scope
 
 This policy covers the Dalli gem: the memcached client and `Rack::Session::Dalli`. Vulnerabilities in memcached itself should be reported to the [memcached project](https://github.com/memcached/memcached).
