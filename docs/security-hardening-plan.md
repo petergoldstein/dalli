@@ -103,7 +103,7 @@ Lower-risk improvements the audit turned up, to be done in the open:
 - [x] **`Rack::Session::Dalli`:** document that sessions never expire in
       memcached unless `expire_after` is set, and handle a session value that
       can't be decoded without locking the user out.
-- [ ] **Value terminator:** check the `\r\n` after each value instead of
+- [x] **Value terminator:** check the `\r\n` after each value instead of
       trusting the declared size.
 - [x] **Encodings:** raw and `append` values in encodings that aren't ASCII
       compatible raise `Encoding::CompatibilityError`.
