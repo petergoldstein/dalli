@@ -21,7 +21,10 @@ module Dalli
         # amount of time to sleep between retries when a failure occurs
         socket_failure_delay: 0.1,
         # Set keepalive
-        keepalive: true
+        keepalive: true,
+        # On JRuby and TruffleRuby, time out reads after socket_timeout (see
+        # ReadTimeout). CRuby always does.
+        enforce_read_timeout: false
       }.freeze
 
       attr_accessor :hostname, :port, :socket_type, :options
@@ -46,6 +49,7 @@ module Dalli
 
         @fail_count = 0
         reset_down_info
+        extend ReadTimeout if @options[:enforce_read_timeout] && RUBY_ENGINE != 'ruby'
       end
 
       def name
@@ -465,6 +469,42 @@ module Dalli
         return buffer if buffer && buffer.bytesize == count
 
         raise EOFError, "EOF reading #{count} bytes; received #{buffer ? buffer.bytesize : 0}"
+      end
+
+      # CRuby enforces socket_timeout on reads through IO#timeout=. TruffleRuby
+      # has no IO#timeout=, and JRuby (as of 10.1) defines it but doesn't
+      # enforce it; both ignore the SO_RCVTIMEO fallback, so a read from a
+      # server that stopped answering blocks forever. With
+      # enforce_read_timeout, the first read after a request is sent waits for
+      # the socket to be readable, up to socket_timeout. It's opt-in because
+      # the wait costs about 8% of single-key throughput on TruffleRuby and
+      # 20-29% on JRuby. A server that stops partway through a reply can still
+      # block on TruffleRuby; JRuby reads values without blocking.
+      #
+      # TLS connections are left as they were: OpenSSL buffers decrypted
+      # bytes that wait_readable can't see.
+      module ReadTimeout
+        def read_line
+          flush_write_buffer
+          if @awaiting_reply
+            @awaiting_reply = false
+            wait_readable! unless @sock.is_a?(::OpenSSL::SSL::SSLSocket)
+          end
+          super
+        rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
+          error_on_request!(e)
+        end
+
+        private
+
+        def flush_write_buffer
+          @awaiting_reply = true unless @write_buffer.empty?
+          super
+        end
+
+        def wait_readable!
+          @sock.wait_readable(socket_timeout) or raise Timeout::Error, "IO timeout reading from #{name}"
+        end
       end
     end
   end

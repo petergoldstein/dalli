@@ -100,6 +100,14 @@ end
 
 When a request fails with a network error (a refused connection, a reset, or a read that times out), Dalli reconnects and retries it. A server that fails `socket_max_failures` times in a row is marked down, and requests to it raise `Dalli::NetworkError` (or, with `failover`, go to another server).
 
+On CRuby, a read that waits longer than `socket_timeout` fails with a network error. JRuby and TruffleRuby can't time out a blocked socket read, so on those engines a server that accepts a request but never replies blocks the caller indefinitely. Pass `enforce_read_timeout: true` to wait at most `socket_timeout` for each reply there:
+
+```ruby
+Dalli::Client.new('localhost:11211', socket_timeout: 0.5, enforce_read_timeout: true)
+```
+
+It's off by default because the check costs throughput: about 8% for single-key operations on TruffleRuby and 20-29% on JRuby. It has no effect on CRuby, or on TLS connections. On TruffleRuby a server that stops partway through a value can still block the read.
+
 A request that failed after some of it was sent may have been applied by memcached even though its reply never arrived. Dalli only sends such a request again when applying it twice is harmless: reads, `touch`, `set`, `replace` and `delete` without a CAS, and the multi-key operations. For `incr`, `decr`, `append`, `prepend`, `add`, writes with a CAS (`set_cas`, `replace_cas`, `delete_cas`, `cas`, `cas!`), and `get_with_metadata` with `vivify_ttl` or `recache_ttl` (which `fetch_with_lock` uses), it raises `Dalli::NetworkError` instead, since the write may or may not have happened. A retried `delete` can return false if the first attempt deleted the key.
 
 A connection that sat unused for over a second is checked before the next request. If memcached (with `idle_timeout`), a load balancer or a firewall closed it meanwhile, Dalli reconnects before sending, so the request isn't lost and doesn't count as a failure. A connection dropped without the other end closing it can't be detected this way, and a request on it fails as above.
