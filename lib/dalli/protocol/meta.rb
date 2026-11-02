@@ -167,7 +167,7 @@ module Dalli
                                           ttl: ttl, mode: mode, quiet: quiet,
                                           **routing_token_kwargs(options))
               end
-        write("#{req}#{value}#{TERMINATOR}")
+        write(request_with_value(req, value))
         finish_write(quiet)
       end
       # rubocop:enable Metrics/ParameterLists
@@ -188,8 +188,18 @@ module Dalli
         req = RequestFormatter.meta_set(key: key, value: value,
                                         cas: cas, ttl: ttl, mode: mode, quiet: quiet?,
                                         **routing_token_kwargs(options))
-        write("#{req}#{value}#{TERMINATOR}")
+        write(request_with_value(req, value))
         finish_write(quiet?)
+      end
+
+      # Ruby refuses to join Strings whose encodings clash, such as a raw
+      # UTF-16 value, or a routing token with non-ASCII characters next to a
+      # binary value. memcached stores bytes, so join the bytes then.
+      # Joining the Strings first keeps the common case free of extra checks.
+      def request_with_value(req, value)
+        "#{req}#{value}#{TERMINATOR}"
+      rescue Encoding::CompatibilityError
+        "#{req.b}#{value.b}#{TERMINATOR}"
       end
 
       # Delete Commands
