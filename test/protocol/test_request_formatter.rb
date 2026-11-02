@@ -241,6 +241,29 @@ describe Dalli::Protocol::Meta::RequestFormatter do
   end
 
   describe 'multi_meta_set' do
+    it 'writes UTF-8, binary and UTF-16 values as their bytes' do
+      utf16 = 'é'.encode('UTF-16LE')
+      entries = { 'a' => ['é', 0], 'b' => ["\xff".b, 0], 'c' => [utf16, 0] }
+      buffer = Dalli::Protocol::Meta::RequestFormatter.multi_meta_set(entries)
+
+      assert_equal Encoding::BINARY, buffer.encoding
+      expected = ["ms a 2 c F0 MS q\r\n", 'é', "\r\nms b 1 c F0 MS q\r\n", "\xff".b,
+                  "\r\nms c 2 c F0 MS q\r\n", utf16, "\r\nmn\r\n"].map(&:b).join
+
+      assert_equal expected, buffer
+    end
+
+    it 'stays binary with a non-ASCII routing token and binary values' do
+      entries = { 'a' => ["\xff".b, 0], 'b' => ['é', 0] }
+      buffer = Dalli::Protocol::Meta::RequestFormatter.multi_meta_set(entries, p_token: 'é')
+
+      assert_equal Encoding::BINARY, buffer.encoding
+      expected = ['ms a 1 c F0 MS q P', 'é', "\r\n", "\xff".b, "\r\nms b 2 c F0 MS q P", 'é', "\r\n", 'é',
+                  "\r\nmn\r\n"].map(&:b).join
+
+      assert_equal expected, buffer
+    end
+
     it 'returns the default when just passed keys and values' do
       expected = <<~TXT
         ms foo 5 c F2433 MS q\r
