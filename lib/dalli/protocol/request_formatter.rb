@@ -120,8 +120,9 @@ module Dalli
 
         def multi_meta_set(entries, ttl: nil, p_token: nil, l_token: nil)
           # Routing tokens apply to every entry in the batch, so the suffix is
-          # built once rather than per entry.
-          token_suffix = routing_tokens(p_token: p_token, l_token: l_token)
+          # built once rather than per entry. It's binary, like the buffer, so
+          # a token with non-ASCII characters doesn't turn the buffer UTF-8.
+          token_suffix = routing_tokens(p_token: p_token, l_token: l_token).b
           ttl = integer_flag(:ttl, ttl) if ttl
 
           buffer = ''.b
@@ -136,10 +137,25 @@ module Dalli
             buffer << ' b' if base64
             buffer << " F#{bitflags}" if bitflags
             buffer << " T#{ttl}" if ttl
-            buffer << ' MS q' << token_suffix << TERMINATOR << value << TERMINATOR
+            buffer << ' MS q' << token_suffix << TERMINATOR
+            append_bytes(buffer, value) << TERMINATOR
           end
           buffer << META_NOOP
         end
+
+        # Values are appended as bytes. One batch can hold UTF-8 and binary
+        # values, which String#<< refuses to combine, and a raw value can be in
+        # an encoding that isn't ASCII-compatible, such as UTF-16.
+        if String.method_defined?(:append_as_bytes)
+          def append_bytes(buffer, value)
+            buffer.append_as_bytes(value)
+          end
+        else
+          def append_bytes(buffer, value)
+            buffer << (value.encoding == Encoding::BINARY ? value : value.b)
+          end
+        end
+        private :append_bytes
 
         # Thundering herd protection flag:
         # - stale (I flag): Instead of deleting the item, mark it as stale. Other clients

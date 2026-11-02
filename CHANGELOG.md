@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+Bug fixes:
+
+- Raw values in an encoding that isn't ASCII-compatible, such as UTF-16, raised `Encoding::CompatibilityError` from `set`, `add`, `replace`, `append`, `prepend` and `set_multi`, as did a single-server `set_multi` mixing non-ASCII UTF-8 values with binary ones (such as raw Strings of both kinds, or with a JSON serializer, a value containing `é` next to a compressed one). A `p_token` or `l_token` with non-ASCII characters, such as `é`, did the same for any binary value, including every Marshal-serialized one. The error also closed the connection, so in a `quiet` block, or within one server's part of a multi-server `set_multi`, writes buffered before it were silently lost. Values are now sent as their bytes, which is what memcached stores (#1269)
+
 5.2.5
 ==========
 
