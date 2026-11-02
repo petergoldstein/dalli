@@ -100,7 +100,7 @@ Lower-risk improvements the audit turned up, to be done in the open:
 - [ ] **Credentials:** stop keeping usernames and passwords from server URIs
       and options (Dalli 5 doesn't use them), so `#inspect` and error messages
       can't show them.
-- [ ] **`Rack::Session::Dalli`:** document that sessions never expire in
+- [x] **`Rack::Session::Dalli`:** document that sessions never expire in
       memcached unless `expire_after` is set, and handle a session value that
       can't be decoded without locking the user out.
 - [ ] **Value terminator:** check the `\r\n` after each value instead of

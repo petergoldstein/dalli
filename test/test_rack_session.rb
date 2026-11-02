@@ -215,6 +215,36 @@ describe Rack::Session::Dalli do
     $VERBOSE = old_verbose
   end
 
+  # For example after a change of serializer, or a deploy that removed a class
+  # stored in the session
+  it 'starts a new session when the stored one cannot be decoded' do
+    rsd = Rack::Session::Dalli.new(user_id_session)
+    req = Rack::MockRequest.new(rsd)
+    old_cookie = req.get('/login')['Set-Cookie']
+    old_sid = Rack::Session::SessionId.new(old_cookie[session_match, 1])
+    store_undeserializable(@port, "rack:session:#{old_sid.private_id}")
+    log = StringIO.new
+    old_logger = Dalli.logger
+    Dalli.logger = Logger.new(log)
+
+    res = req.get('/', 'HTTP_COOKIE' => old_cookie)
+
+    assert_equal 200, res.status
+    assert_equal '{}', res.body
+    new_cookie = res['Set-Cookie']
+
+    refute_nil new_cookie
+    refute_equal old_sid.public_id, new_cookie[session_match, 1]
+    assert_match(/WARN.*couldn't decode a stored session, so it started a new one/, log.string)
+    refute_includes log.string, old_sid.private_id
+
+    req.get('/login', 'HTTP_COOKIE' => new_cookie)
+
+    assert_includes req.get('/', 'HTTP_COOKIE' => new_cookie).body, 'user_id'
+  ensure
+    Dalli.logger = old_logger
+  end
+
   it 'creates a new cookie' do
     rsd = Rack::Session::Dalli.new(incrementor)
     res = Rack::MockRequest.new(rsd).get('/')
