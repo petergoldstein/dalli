@@ -30,9 +30,11 @@ someone else does, and to harden the project around them.
 - [x] **`SECURITY.md`:** which release lines get security fixes, and how to
       report a vulnerability (GitHub private vulnerability reporting is
       already enabled). (#1190)
-- [ ] **Gem publishing:** consider RubyGems trusted publishing from CI, so
+- [x] **Gem publishing:** considered RubyGems trusted publishing from CI, so
       released gems are built from tagged commits rather than on a local
-      machine. MFA is already required (`rubygems_mfa_required`).
+      machine. Not adopted: gems are pushed by hand, with MFA required
+      (`rubygems_mfa_required`), and each release's published checksum is
+      checked against the gem built from its tag.
 - [ ] **OpenSSF Scorecard** (optional): a workflow that keeps checking the
       items above.
 
@@ -126,8 +128,8 @@ Lower-risk improvements the audit turned up, to be done in the open:
 
 ## 4. Ongoing process
 
-- [ ] Document the advisory process used for GHSA-6wmv-xq9m-fmp7 and the
+- [x] Document the advisory process used for GHSA-6wmv-xq9m-fmp7 and the
       five advisories above: temporary private fork, backports to each
       supported line, release PRs once fixes are ready to ship, releases in
-      sequence, then publication.
+      sequence, then publication. See [advisory-process.md](advisory-process.md).
 - [ ] Repeat the section 2 audit whenever a protocol feature is added.
