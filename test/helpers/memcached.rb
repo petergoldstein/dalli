@@ -39,6 +39,7 @@ module Memcached
     def memcached(protocol, port_or_socket, args = '', client_options = {}, terminate_process: true)
       dc = MemcachedManager.start_and_flush_with_retry(port_or_socket, args, client_options.merge(protocol: protocol))
       yield dc, port_or_socket if block_given?
+      dc.close
       memcached_kill(port_or_socket) if terminate_process
     end
 

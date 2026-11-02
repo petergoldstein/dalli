@@ -164,6 +164,14 @@ A failed TLS handshake counts as a failed connection attempt, like a refused con
 
 The app has already run by then, so whatever it did (database writes, emails, and so on) has happened, and only its response is lost. If a request needs a different outcome, check that the session still exists before making the changes.
 
+Set `expire_after` to give sessions an expiry. It sets both the cookie's expiry and the TTL of the session in memcached. Without it, sessions are stored with no expiry: a session stays in memcached until it's deleted (for example by a logout) or evicted, and a stolen session cookie keeps working until then.
+
+```ruby
+use Rack::Session::Dalli, memcache_server: 'mc.example.com:11211', expire_after: 2 * 60 * 60 # two hours
+```
+
+A stored session that can't be decoded, for example after changing the serializer or removing a class that sessions stored, is treated as missing: the request gets a new, empty session and a new cookie, and Dalli logs a warning.
+
 ## OpenTelemetry Tracing
 
 Dalli automatically instruments operations with [OpenTelemetry](https://opentelemetry.io/) when the SDK is present. No configuration is required - just add the OpenTelemetry gems to your application:
