@@ -95,10 +95,25 @@ module Dalli
             buffer << ' b' if base64
             buffer << " F#{bitflags}" if bitflags
             buffer << " T#{ttl}" if ttl
-            buffer << ' MS q' << TERMINATOR << value << TERMINATOR
+            buffer << ' MS q' << TERMINATOR
+            append_bytes(buffer, value) << TERMINATOR
           end
           buffer << META_NOOP
         end
+
+        # Values are appended as bytes. One batch can hold UTF-8 and binary
+        # values, which String#<< refuses to combine, and a raw value can be in
+        # an encoding that isn't ASCII-compatible, such as UTF-16.
+        if String.method_defined?(:append_as_bytes)
+          def append_bytes(buffer, value)
+            buffer.append_as_bytes(value)
+          end
+        else
+          def append_bytes(buffer, value)
+            buffer << (value.encoding == Encoding::BINARY ? value : value.b)
+          end
+        end
+        private :append_bytes
 
         # Thundering herd protection flag:
         # - stale (I flag): Instead of deleting the item, mark it as stale. Other clients
