@@ -125,7 +125,8 @@ module Dalli
             buffer << " F#{bitflags}" if bitflags
             buffer << " T#{ttl}" if ttl
             buffer << ' MS q' << token_suffix << TERMINATOR
-            append_bytes(buffer, value) << TERMINATOR
+            append_bytes(buffer, value)
+            buffer << TERMINATOR
           end
           buffer << META_NOOP
         end
@@ -133,6 +134,8 @@ module Dalli
         # Values are appended as bytes. One batch can hold UTF-8 and binary
         # values, which String#<< refuses to combine, and a raw value can be in
         # an encoding that isn't ASCII-compatible, such as UTF-16.
+        # Don't chain on the result: TruffleRuby's append_as_bytes returns its
+        # arguments rather than the buffer.
         if String.method_defined?(:append_as_bytes)
           def append_bytes(buffer, value)
             buffer.append_as_bytes(value)
