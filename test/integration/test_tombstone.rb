@@ -57,11 +57,11 @@ describe 'tombstone deletes' do
         memcached_persistent(p) do |dc|
           dc.flush
           dc.set('expiring', 'original')
-          dc.delete('expiring', invalidate: true, tombstone_ttl: 1)
+          dc.delete('expiring', invalidate: true, tombstone_ttl: 3)
 
           assert_equal({ value: 'original', miss: false, stale: true }, metadata(dc, 'expiring'))
 
-          sleep 2
+          wait_until { metadata(dc, 'expiring')[:miss] }
 
           assert_equal({ value: nil, miss: true, stale: false }, metadata(dc, 'expiring'))
         end
