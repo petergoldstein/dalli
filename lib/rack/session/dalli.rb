@@ -46,7 +46,10 @@ module Rack
       #
       # It is not recommended to set `:expires_in`. Instead, use `:expire_after`,
       # which will control both the expiration of the client cookie as well
-      # as the expiration of the corresponding entry in memcached.
+      # as the expiration of the corresponding entry in memcached. Without
+      # `:expire_after`, sessions are stored with no expiry: one stays in
+      # memcached until it's deleted (for example by a logout) or memcached
+      # evicts it, and a stolen session cookie keeps working until then.
       #
       # Rack::Session::Dalli also accepts a host of options that control how
       # the sessions and session cookies are managed, including the
@@ -144,6 +147,11 @@ module Rack
         sid.private_id if sid.respond_to?(:private_id)
       end
 
+      # A session that can't be decoded, for example after a change of
+      # serializer or a deploy that removed a class stored in it, is treated
+      # as missing, so the request gets a new session. Otherwise the session
+      # id couldn't be used or replaced, and the user couldn't log in until
+      # the cookie was cleared.
       def existing_session_for_sid(client, sid)
         return nil unless sid && !sid.empty?
 
@@ -151,6 +159,9 @@ module Rack
         return nil if key.nil?
 
         client.get(key)
+      rescue ::Dalli::UnmarshalError => e
+        ::Dalli.logger.warn("#{self.class} couldn't decode a stored session, so it started a new one: #{e.message}")
+        nil
       end
 
       def create_sid_with_empty_session(client)
@@ -231,8 +242,6 @@ module Rack
       def with_dalli_client(result_on_error = nil, &)
         @data.with(&)
       rescue ::Dalli::DalliError, Errno::ECONNREFUSED
-        raise if $ERROR_INFO.message.include?('undefined class')
-
         if $VERBOSE
           warn "#{self} is unable to find memcached server."
           warn $ERROR_INFO.inspect
