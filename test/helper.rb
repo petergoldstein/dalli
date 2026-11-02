@@ -17,6 +17,30 @@ require 'securerandom'
 Dalli.logger = Logger.new($stdout)
 Dalli.logger.level = Logger::ERROR
 
+# Records every client a test creates, so each one is closed after the test.
+# A client left open keeps its connections until GC, and on TruffleRuby a run
+# used to reach about 900 open connections on one memcached, which could hit
+# memcached's connection limit.
+module TrackedClients
+  @clients = []
+  @lock = Mutex.new
+
+  def self.add(client)
+    @lock.synchronize { @clients << client }
+  end
+
+  def self.close_all
+    clients = @lock.synchronize { @clients.slice!(0..) }
+    clients.each(&:close)
+  end
+
+  def initialize(...)
+    super
+    TrackedClients.add(self)
+  end
+end
+Dalli::Client.prepend(TrackedClients)
+
 # Checks if memcached is installed and loads the version,
 # supported protocols
 raise StandardError, 'No supported version of memcached could be found.' unless MemcachedManager.version
@@ -27,6 +51,12 @@ CertificateGenerator.generate
 module Minitest
   class Spec
     include Memcached::Helper
+
+    def after_teardown
+      super
+    ensure
+      TrackedClients.close_all
+    end
 
     def assert_error(error, regexp = nil, &)
       ex = assert_raises(error, &)
