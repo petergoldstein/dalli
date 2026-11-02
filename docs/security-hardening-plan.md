@@ -105,7 +105,7 @@ Lower-risk improvements the audit turned up, to be done in the open:
       can't be decoded without locking the user out.
 - [ ] **Value terminator:** check the `\r\n` after each value instead of
       trusting the declared size.
-- [ ] **Encodings:** raw and `append` values in encodings that aren't ASCII
+- [x] **Encodings:** raw and `append` values in encodings that aren't ASCII
       compatible raise `Encoding::CompatibilityError`.
 - [ ] **Docs:** a `get_multi` block can see a key twice when a network error
       makes Dalli retry.

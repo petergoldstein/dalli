@@ -312,6 +312,18 @@ describe Dalli::Protocol::Meta::RequestFormatter do
                                                                                     })
     end
 
+    it 'writes UTF-8, binary and UTF-16 values as their bytes' do
+      utf16 = 'é'.encode('UTF-16LE')
+      entries = { 'a' => ['é', 0], 'b' => ["\xff".b, 0], 'c' => [utf16, 0] }
+      buffer = Dalli::Protocol::Meta::RequestFormatter.multi_meta_set(entries)
+
+      assert_equal Encoding::BINARY, buffer.encoding
+      expected = ["ms a 2 c F0 MS q\r\n", 'é', "\r\nms b 1 c F0 MS q\r\n", "\xff".b,
+                  "\r\nms c 2 c F0 MS q\r\n", utf16, "\r\nmn\r\n"].map(&:b).join
+
+      assert_equal expected, buffer
+    end
+
     it 'incorporates TTL when passed' do
       expected = <<~TXT
         ms foo 5 c F2433 T42 MS q\r
