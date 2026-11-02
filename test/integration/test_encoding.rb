@@ -90,6 +90,22 @@ describe 'Encoding' do
         end
       end
 
+      # The encoding error used to close the connection, dropping the quiet
+      # writes buffered before it
+      it 'keeps earlier quiet writes when a later value is UTF-16' do
+        memcached_persistent(p) do |dc|
+          dc.quiet do
+            dc.set('before', '1', 0, raw: true)
+            dc.set('utf16', 'x'.encode('UTF-16LE'), 0, raw: true)
+            dc.set('after', '3', 0, raw: true)
+          end
+
+          assert_equal '1', dc.get('before', raw: true)
+          assert_equal 'x'.encode('UTF-16LE').b, dc.get('utf16', raw: true).b
+          assert_equal '3', dc.get('after', raw: true)
+        end
+      end
+
       it 'appends and prepends UTF-16 values as their bytes' do
         memcached_persistent(p) do |dc|
           dc.set('k', 'x', 0, raw: true)
