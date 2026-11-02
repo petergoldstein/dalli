@@ -81,6 +81,18 @@ module Minitest
       valid_cas?(rsp)
     end
 
+    # memcached's clock ticks once a second, so an item with a TTL of N
+    # seconds expires somewhere between N - 1 and N seconds after it's set.
+    # Tests use a TTL long enough to read the item back first, then wait here
+    # for it to expire rather than sleeping a fixed time.
+    def wait_until(timeout: 10, interval: 0.2)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+      until yield
+        flunk "condition not met within #{timeout}s" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        sleep interval
+      end
+    end
+
     def with_connectionpool
       require 'connection_pool'
       yield

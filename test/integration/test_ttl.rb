@@ -19,11 +19,10 @@ describe 'TTL behavior' do
         memcached_persistent(p) do |dc|
           key = 'foo'
 
-          assert dc.set(key, 'bar', 1)
+          assert dc.set(key, 'bar', 3)
           assert_equal 'bar', dc.get(key)
-          sleep 1.2
 
-          assert_nil dc.get(key)
+          wait_until { dc.get(key).nil? }
         end
       end
 
