@@ -35,8 +35,8 @@ someone else does, and to harden the project around them.
       machine. Not adopted: gems are pushed by hand, with MFA required
       (`rubygems_mfa_required`), and each release's published checksum is
       checked against the gem built from its tag.
-- [ ] **OpenSSF Scorecard** (optional): a workflow that keeps checking the
-      items above.
+- [x] **OpenSSF Scorecard:** a workflow that keeps checking the items above
+      (`.github/workflows/scorecard.yml`, #1283). The first run scored 7.8.
 
 ## 2. Code audit, by attack surface
 
@@ -125,6 +125,11 @@ Lower-risk improvements the audit turned up, to be done in the open:
       parser in random-sized chunks, and each hit is also parsed by the
       single-key parser. Both must return exactly the generated keys and
       values (`test/protocol/test_response_processor_fuzz.rb`).
+- [x] **Coverage-guided fuzzing of the reply parsers:** malformed replies,
+      fed to the single-request and pipelined parsers with Ruzzy and
+      ClusterFuzzLite, must raise nothing but `Dalli::DalliError` (`fuzz/`,
+      `.github/workflows/fuzzing.yml`). Runs on pull requests that change
+      `lib/` and weekly.
 
 ## 4. Ongoing process
 
