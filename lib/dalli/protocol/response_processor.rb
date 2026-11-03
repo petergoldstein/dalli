@@ -35,6 +35,8 @@ module Dalli
         BYTE_F = 'f'.ord
         BYTE_K = 'k'.ord
         BYTE_S = 's'.ord
+        BYTE_CR = "\r".ord
+        BYTE_LF = "\n".ord
 
         T_OK = [OK].freeze
         T_RESET = [RESET].freeze
@@ -280,6 +282,10 @@ module Dalli
           # a complete response, don't advance the buffer
           return [0] unless buf.bytesize >= offset + resp_size
 
+          # The CRLF after the value; see strip_value_terminator!
+          term = offset + header_len + body_len
+          raise_bad_value_terminator unless buf.getbyte(term) == BYTE_CR && buf.getbyte(term + 1) == BYTE_LF
+
           # A hit with no key can't be matched to a request: skip it (false
           # status) rather than yield it, or take it for the end of the pipeline
           return [false, resp_size] unless key
@@ -322,6 +328,9 @@ module Dalli
           header_len = term_idx - offset + TERMINATOR.length
           resp_size = header_len + size + TERMINATOR.length
           return [0] unless buf.bytesize >= offset + resp_size
+
+          term = offset + header_len + size
+          raise_bad_value_terminator unless buf.getbyte(term) == BYTE_CR && buf.getbyte(term + 1) == BYTE_LF
 
           # Skipped like the token path does; see getk_response_from_buffer
           return [false, resp_size] unless key
@@ -484,6 +493,17 @@ module Dalli
           raise Dalli::DalliError, "Reply value size #{size} is out of range"
         end
 
+        # A value is read by its declared size, so check the CRLF that should
+        # follow it. If the size doesn't match the value, the rest of the
+        # reply would otherwise be read as the next one. Returns the value.
+        def strip_value_terminator!(data)
+          data&.chomp!(TERMINATOR) || raise_bad_value_terminator
+        end
+
+        def raise_bad_value_terminator
+          raise Dalli::DalliError, "Reply value isn't followed by CRLF, so its size doesn't match the value"
+        end
+
         def read_line
           @io_source.read_line&.chomp!(TERMINATOR)
         end
@@ -497,7 +517,7 @@ module Dalli
           # Checked before the terminator is added: -1 or -2 would otherwise
           # read 1 or 0 bytes and leave the connection out of step
           check_value_size!(data_size)
-          @io_source.read(data_size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+          strip_value_terminator!(@io_source.read(data_size + TERMINATOR.bytesize))
         end
       end
     end

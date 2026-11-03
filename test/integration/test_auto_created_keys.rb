@@ -50,12 +50,18 @@ describe 'Keys that need base64 encoding' do
       odd = "z s1\r\nVA 6 f0 kvictim s6\r\nFORGED"
       auto_create(port, odd)
 
-      yielded = []
-      dc.get_multi('victim', odd) { |k, v| yielded << [k, v] }
+      # The forged reply either fails the check that each value is followed
+      # by CRLF (raising) or is skipped as a key that wasn't requested
+      values = []
+      [-> { dc.get_multi('victim', odd) { |_, v| values << v } },
+       -> { values.concat(dc.get_multi('victim', odd).values) },
+       -> { values.concat(dc.get_multi_cas('victim', odd).values.map(&:first)) }].each do |call|
+        call.call
+      rescue Dalli::DalliError
+        nil
+      end
 
-      refute_includes yielded.map(&:last), 'FORGED'
-      refute_includes dc.get_multi('victim', odd).values, 'FORGED'
-      refute_includes dc.get_multi_cas('victim', odd).values.map(&:first), 'FORGED'
+      refute_includes values, 'FORGED'
       assert_equal 'secret-value', dc.get('victim')
     end
   end

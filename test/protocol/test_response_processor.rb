@@ -30,6 +30,18 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
     end
   end
 
+  describe 'a value not followed by CRLF' do
+    # A declared size shorter than the value: the read ends inside the value
+    it 'raises rather than returning a nil value' do
+      expect_read_line('VA 2 f0')
+      io_source.expect :read, +'hell', [4]
+
+      err = assert_raises(Dalli::DalliError) { processor.meta_get_with_value }
+
+      assert_match(/isn't followed by CRLF/, err.message)
+    end
+  end
+
   describe '#meta_get_with_value' do
     describe 'when key is found (VA response)' do
       it 'returns the unmarshalled value' do
@@ -540,6 +552,26 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
       assert_equal 'k€y', processor.key_from_va_line("VA 5 f0 k#{b64} b s5\r\n").force_encoding(Encoding::UTF_8)
       assert_equal 'k€y', processor.key_from_va_line("VA 5 f0 k#{b64} s5 b\r\n").force_encoding(Encoding::UTF_8)
       assert_nil processor.key_from_va_line("VA 5 f0 s5\r\n")
+    end
+
+    # The size is short, so the bytes where the CRLF should be are value bytes
+    it 'rejects a pipelined reply whose value is not followed by CRLF' do
+      # The first two take the VA fast path, the last the token path (no s flag)
+      ["VA 2 f0 kfoo s2\r\nhello\r\nMN\r\n", "VA 2 s2 kfoo\r\nhello\r\n",
+       "VA 2 f0 kfoo\r\nhello\r\n"].each do |buf|
+        err = assert_raises(Dalli::DalliError, buf.inspect) { processor.getk_response_from_buffer(buf.b) }
+
+        assert_match(/isn't followed by CRLF/, err.message)
+      end
+    end
+
+    it 'accepts a value that itself ends with CR or LF' do
+      ["x\r", "x\n", "\r\n"].each do |value|
+        buf = "VA #{value.bytesize} f0 kfoo s#{value.bytesize}\r\n#{value}\r\n".b
+        _status, _cas, key, returned, = processor.getk_response_from_buffer(buf)
+
+        assert_equal ['foo', value], [key, returned]
+      end
     end
 
     it 'rejects a pipelined reply that claims an impossible value size' do

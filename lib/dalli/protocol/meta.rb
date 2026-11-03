@@ -376,7 +376,7 @@ module Dalli
           tokens = line.chomp!(TERMINATOR).split
           size = tokens[1].to_i
           response_processor.check_value_size!(size)
-          value = @connection_manager.read(size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+          value = response_processor.strip_value_terminator!(@connection_manager.read(size + TERMINATOR.bytesize))
           stale = response_processor.stale_from_tokens(tokens)
           cas = response_processor.cas_from_tokens(tokens)
           bitflags = is_raw ? 0 : response_processor.bitflags_from_tokens(tokens)
@@ -434,7 +434,7 @@ module Dalli
         processor = response_processor
         size = processor.size_from_va_line(line)
         processor.check_value_size!(size)
-        value = @connection_manager.read(size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+        value = processor.strip_value_terminator!(@connection_manager.read(size + TERMINATOR.bytesize))
         key = processor.key_from_va_line(line)
         return unless key
 
