@@ -44,14 +44,9 @@ module Dalli
           [key].pack('m0')
         end
 
-        # Decodes a key from a reply. One that isn't valid base64 means the
-        # reply is malformed, so it raises Dalli::DalliError like other bad
-        # replies, rather than unpack1's ArgumentError.
         def decode(encoded_key)
           strict_base64_decoded = encoded_key.unpack1('m0')
           strict_base64_decoded.force_encoding(Encoding::UTF_8)
-        rescue ArgumentError
-          raise Dalli::DalliError, "Reply key #{encoded_key.inspect} is marked base64 but isn't valid base64"
         end
       end
     end
