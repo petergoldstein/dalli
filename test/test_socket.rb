@@ -345,6 +345,12 @@ describe 'Dalli::Socket::TCP TLS handshake' do
     ctx
   end
 
+  def attempt_garbage_handshake(port)
+    assert_raises(OpenSSL::SSL::SSLError, Errno::ECONNRESET, EOFError) do
+      Dalli::Socket::TCP.open('127.0.0.1', port, socket_timeout: 1, ssl_context: unverified_context)
+    end
+  end
+
   def open_fds
     Dir.children('/dev/fd').size
   end
@@ -356,12 +362,13 @@ describe 'Dalli::Socket::TCP TLS handshake' do
       with_garbage_server do |port|
         # Without GC, a socket that isn't closed explicitly stays open
         GC.disable
+        # One attempt before counting: JRuby opens its selector's descriptors
+        # on first use, which would otherwise count as three leaked sockets
+        attempt_garbage_handshake(port)
         before = open_fds
 
         20.times do
-          assert_raises(OpenSSL::SSL::SSLError, Errno::ECONNRESET, EOFError) do
-            Dalli::Socket::TCP.open('127.0.0.1', port, socket_timeout: 1, ssl_context: unverified_context)
-          end
+          attempt_garbage_handshake(port)
         end
 
         # Allows for the server's side of the last connection still being open
