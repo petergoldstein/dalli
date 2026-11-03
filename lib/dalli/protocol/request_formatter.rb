@@ -352,6 +352,9 @@ module Dalli
         end
 
         def cas_string(cas)
+          # No CAS, the usual case
+          return '' if cas.nil? || cas.eql?(0)
+
           cas = parse_to_64_bit_int(:cas, cas)
           cas.nil? || cas.zero? ? '' : " C#{cas}"
         end
