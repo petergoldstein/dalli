@@ -23,8 +23,11 @@ this_dir=\$(dirname "\$0")
 export GEM_HOME=\$this_dir/fuzz-gem GEM_PATH=\$this_dir/fuzz-gem
 # Keeps the runner's ASan options, with the ones Ruzzy needs last
 export ASAN_OPTIONS="\${ASAN_OPTIONS:+\$ASAN_OPTIONS:}allocator_may_return_null=1:detect_leaks=0:use_sigaltstack=0"
+# libFuzzer's -timeout works by SIGALRM, which goes unhandled under Ruby and
+# kills the process (trailofbits/ruzzy#22), so it's turned off. Each input is
+# read from a buffer that runs out, so a target can't hang waiting for more.
 LD_PRELOAD=\$(ruby -e 'require "ruzzy"; print Ruzzy::ASAN_PATH') \\
-  ruby "\$this_dir/dalli/fuzz/$target.rb" "\$@"
+  ruby "\$this_dir/dalli/fuzz/$target.rb" "\$@" -timeout=0
 LAUNCHER
   chmod +x "$OUT/$target"
 
