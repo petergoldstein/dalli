@@ -154,37 +154,46 @@ describe 'Network' do
         end
 
         # On JRuby and TruffleRuby, these multi-gets hung on a server that
-        # never answers until enforce_read_timeout was added
+        # never answers until enforce_read_timeout was added. get_multi_cas,
+        # and get_multi on more than one server, returned {} instead of
+        # raising: the pipelined get dropped a server's keys when it ran out
+        # of time, without counting a failure.
         it 'gives up on multi-gets from a server that never answers' do
-          server = TCPServer.new('127.0.0.1', 19_462)
-          acceptor = Thread.new do
-            loop do
-              Thread.new(server.accept) do |sock|
-                while (line = sock.gets)
-                  sock.write("VERSION 1.6.45\r\n") if line.start_with?('version')
+          servers = [TCPServer.new('127.0.0.1', 19_462), TCPServer.new('127.0.0.1', 0)]
+          acceptors = servers.map do |server|
+            Thread.new do
+              loop do
+                Thread.new(server.accept) do |sock|
+                  while (line = sock.gets)
+                    sock.write("VERSION 1.6.45\r\n") if line.start_with?('version')
+                  end
+                rescue IOError, SystemCallError
+                  nil
                 end
-              rescue IOError, SystemCallError
-                nil
               end
+            rescue IOError
+              nil
             end
-          rescue IOError
-            nil
           end
-          calls = [->(dc) { dc.get_multi('a', 'b') }]
-          calls << ->(dc) { dc.get_multi_with_metadata(%w[a b]) } if p == :meta
+          one = ['127.0.0.1:19462']
+          two = servers.map { |server| "127.0.0.1:#{server.addr[1]}" }
+          calls = [[one, ->(dc) { dc.get_multi('a', 'b') }],
+                   [one, ->(dc) { dc.get_multi_cas('a', 'b') }],
+                   [two, ->(dc) { dc.get_multi(*('a'..'j').to_a) }],
+                   [two, ->(dc) { dc.get_multi(*('a'..'j').to_a) { |_k, _v| nil } }]]
+          calls << [one, ->(dc) { dc.get_multi_with_metadata(%w[a b]) }] if p == :meta
 
-          calls.each do |call|
+          calls.each do |addresses, call|
             # A new client each time, since the first failure marks the server down
-            dc = Dalli::Client.new('127.0.0.1:19462', socket_timeout: 0.3, enforce_read_timeout: true,
-                                                      protocol: p)
+            dc = Dalli::Client.new(addresses, socket_timeout: 0.3, enforce_read_timeout: true, protocol: p)
             started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
             assert_raises(Dalli::NetworkError) { call.call(dc) }
             assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 5
           end
         ensure
-          server&.close
-          acceptor&.kill
+          servers&.each(&:close)
+          acceptors&.each(&:kill)
         end
 
         # get_with_metadata requires the meta protocol
@@ -254,8 +263,9 @@ describe 'Network' do
           end
         end
 
-        # A get_multi that runs out of time overall isn't a socket failure, so
-        # slow ones in a row must not mark the server down.
+        # Each reply arrives within socket_timeout of the last, though all of
+        # them take longer. The wait starts again after each read, so every
+        # key is read, and slow get_multis in a row don't mark the server down.
         it 'keeps a server that answers get_multi slowly' do
           server = TCPServer.new('127.0.0.1', 19_459)
           acceptor = Thread.new do
@@ -271,10 +281,10 @@ describe 'Network' do
                     sock.read(words[2].to_i + 2)
                     sock.write("HD\r\n")
                   when 'mn'
-                    first, *rest = pending
-                    sock.write("VA 1 f0 k#{first} s1\r\nv\r\n")
-                    sleep 0.5 # longer than the client's socket_timeout
-                    rest.each { |k| sock.write("VA 1 f0 k#{k} s1\r\nv\r\n") }
+                    pending.each do |k|
+                      sleep 0.15 # half the client's socket_timeout
+                      sock.write("VA 1 f0 k#{k} s1\r\nv\r\n")
+                    end
                     sock.write("MN\r\n")
                     pending.clear
                   end
@@ -291,9 +301,11 @@ describe 'Network' do
           with_nil_logger do
             3.times do
               yielded = []
+              started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
               dc.get_multi('a', 'b', 'c') { |k, _| yielded << k }
 
-              assert_equal ['a'], yielded
+              assert_equal %w[a b c], yielded
+              assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :>, 0.3
             end
           end
 

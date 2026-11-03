@@ -221,27 +221,35 @@ module Dalli
         values || {}
       end
 
-      # Abort current pipelined get. Generally used to signal an external
-      # timeout during pipelined get, or that the get_multi stopped before
-      # reading all its replies (timed_out: false).  The underlying socket is
+      # Abort current pipelined get, when the get_multi stopped before reading
+      # all its replies: the caller's block raised or broke, an external
+      # timeout fired, or another server failed. The underlying socket is
       # disconnected, and the exception is swallowed.
       #
       # Returns nothing.
-      def pipeline_abort(timed_out: true)
-        response_buffer.clear
-        @pipeline_out_of_step = false
-        @expected_reply_keys = nil
+      def pipeline_abort
+        clear_pipeline
         @connection_manager.abort_request!
         return true unless connected?
 
         # Closes the connection, which ensures that our connection is in a
-        # clean state for future requests. The get_multi ran out of time
-        # overall, or stopped early, rather than hitting a socket error, so it
-        # doesn't count toward socket_max_failures: two slow get_multis in a
-        # row would otherwise mark a healthy server down.
-        log_pipeline_abort(timed_out)
+        # clean state for future requests. This server didn't fail, so it
+        # doesn't count toward socket_max_failures.
+        Dalli.logger.debug { "#{name} get_multi stopped before reading all replies; closing the connection" }
         @connection_manager.close
         true
+      end
+
+      # A pipelined get waited socket_timeout for this server to send
+      # anything. Counted as a failed read, like a get's read timeout: raises
+      # Dalli::RetryableNetworkError, or Dalli::NetworkError once the server
+      # reaches socket_max_failures and is marked down.
+      def pipeline_timed_out!
+        clear_pipeline
+        # Raised and rescued so that down! records it as the reason
+        raise IO::TimeoutError, "No reply to get_multi within #{@connection_manager.socket_timeout}s"
+      rescue IO::TimeoutError => e
+        @connection_manager.error_on_request!(e)
       end
 
       # Did the last call to #pipeline_response_setup complete successfully?
@@ -551,12 +559,10 @@ module Dalli
                                  '(a request made from inside the get_multi block?)'
       end
 
-      def log_pipeline_abort(timed_out)
-        if timed_out
-          Dalli.logger.warn { "#{name} didn't finish a get_multi within socket_timeout; closing the connection" }
-        else
-          Dalli.logger.debug { "#{name} get_multi stopped before reading all replies; closing the connection" }
-        end
+      def clear_pipeline
+        response_buffer.clear
+        @pipeline_out_of_step = false
+        @expected_reply_keys = nil
       end
 
       # The single-server set_multi path passes its whole pairs hash as the
