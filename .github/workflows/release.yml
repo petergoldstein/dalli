@@ -9,13 +9,16 @@ on:
       - 'v*'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   github-release:
     runs-on: ubuntu-latest
     # Forks share the tag namespace but not the release; don't have them try.
     if: github.repository == 'petergoldstein/dalli'
+    permissions:
+      # Create the GitHub Release
+      contents: write
 
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

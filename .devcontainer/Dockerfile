@@ -1,4 +1,4 @@
-FROM ruby:4.0-trixie
+FROM ruby:4.0-trixie@sha256:dd87233ce44e8362fed00a1fd590c01e3dd8f8eb0001ea4a2c8a071388e9185b
 
 # Install dependencies
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
