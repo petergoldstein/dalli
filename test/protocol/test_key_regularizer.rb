@@ -129,6 +129,12 @@ describe Dalli::Protocol::Meta::KeyRegularizer do
       assert_equal original_key, result
       assert_equal Encoding::UTF_8, result.encoding
     end
+
+    it 'raises DalliError for a key that is not valid base64' do
+      ['!!!', 'ZW1', 'ZW1 wdHk='].each do |encoded_key|
+        assert_raises(Dalli::DalliError, encoded_key) { Dalli::Protocol::Meta::KeyRegularizer.decode(encoded_key) }
+      end
+    end
   end
 
   describe 'roundtrip' do

@@ -465,6 +465,12 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
       end
     end
 
+    it 'raises DalliError for a base64 key that is not valid base64, on both parse paths' do
+      ["VA 1 s1 k!!! b\r\nx\r\nMN\r\n", "VA 1 k!!! b f0\r\nx\r\nMN\r\n"].each do |reply|
+        assert_raises(Dalli::DalliError, reply.inspect) { processor.getk_response_from_buffer(reply.b) }
+      end
+    end
+
     it 'reads a hit with no s flag using the size after VA' do
       reply = "VA 5 f0 kfoo\r\nhello\r\n"
 
