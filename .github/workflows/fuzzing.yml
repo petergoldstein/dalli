@@ -1,0 +1,39 @@
+name: Fuzzing
+
+# Fuzzes Dalli's reply parsing with ClusterFuzzLite and Ruzzy. The targets
+# and how to run them locally are in fuzz/. Pull requests that touch the
+# code get a short run against the changed code; the weekly run is longer.
+on:
+  pull_request:
+    paths:
+      - 'lib/**'
+      - 'fuzz/**'
+      - '.clusterfuzzlite/**'
+      - '.github/workflows/fuzzing.yml'
+  schedule:
+    - cron: '0 6 * * 2'
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+    - name: Build fuzz targets
+      uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+      with:
+        language: ruby
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        sanitizer: address
+
+    - name: Run fuzz targets
+      uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        sanitizer: address
+        mode: ${{ github.event_name == 'pull_request' && 'code-change' || 'batch' }}
+        fuzz-seconds: ${{ github.event_name == 'pull_request' && 300 || 1800 }}
