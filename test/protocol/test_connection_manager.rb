@@ -54,6 +54,13 @@ describe Dalli::Protocol::ConnectionManager do
       assert_equal 5, cm.options[:socket_timeout]
       assert_equal 2, cm.options[:socket_max_failures] # default preserved
     end
+
+    it 'waits for replies only with enforce_read_timeout, and never on CRuby' do
+      opted_in = Dalli::Protocol::ConnectionManager.new(hostname, port, socket_type, enforce_read_timeout: true)
+
+      refute_kind_of Dalli::Protocol::ConnectionManager::ReadTimeout, connection_manager
+      assert_equal RUBY_ENGINE != 'ruby', opted_in.is_a?(Dalli::Protocol::ConnectionManager::ReadTimeout)
+    end
   end
 
   describe '#name' do

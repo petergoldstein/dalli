@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+New features:
+
+- `enforce_read_timeout: true` makes JRuby and TruffleRuby give up waiting for a reply after `socket_timeout`, as CRuby does. Without it, a server that accepted a request but never replied blocked the caller indefinitely on those engines, including in `get` and `get_multi`. A server that stops partway through a reply can still block. It's off by default because it costs about 8% of single-key throughput on TruffleRuby and 20-29% on JRuby, and it has no effect on CRuby or TLS connections
+
 Bug fixes:
 
 - A `vivify_ttl` (or `fetch_with_lock`'s `lock_ttl`) over 30 days now protects against a thundering herd. memcached reads a TTL over 30 days as a Unix timestamp, so the stub for a miss expired at once and every caller won the recache race. `vivify_ttl` is now converted like other TTLs
