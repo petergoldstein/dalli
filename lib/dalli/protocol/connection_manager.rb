@@ -234,6 +234,16 @@ module Dalli
         @fail_count = 0
       end
 
+      # Ends a request whose reply isn't read with it: a quiet write, or one of
+      # set_multi's or delete_multi's writes. The server hasn't answered, so the
+      # failure count stays; the noop that reads the replies resets it.
+      def finish_unanswered_request!
+        raise '[Dalli] No request in progress. This may be a bug in Dalli.' unless @request_in_progress
+
+        @request_in_progress = false
+        @request_sent = false
+      end
+
       def abort_request!
         @request_in_progress = false
         @request_sent = false
