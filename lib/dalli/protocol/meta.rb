@@ -162,7 +162,11 @@ module Dalli
 
       def write_storage_req(mode, key, raw_value, ttl = nil, cas = nil, options = {}, quiet: quiet?)
         (value, bitflags) = @value_marshaller.store(key, raw_value, options)
-        ttl = TtlSanitizer.sanitize(ttl) if ttl
+        # An Integer TTL of up to 30 days, the usual case, is left as it is by
+        # TtlSanitizer, so the call is skipped
+        ttl = TtlSanitizer.sanitize(ttl) unless ttl.nil? ||
+                                                (ttl.is_a?(Integer) &&
+                                                 ttl <= TtlSanitizer::MAX_ACCEPTABLE_EXPIRATION_INTERVAL)
         # eql?(0): only Integer 0 means "no CAS" here; anything else takes the general path
         req = if mode == :set && !quiet && (cas.nil? || cas.eql?(0)) && !routing_tokens?(options)
                 RequestFormatter.plain_meta_set(key, value.bytesize, bitflags, ttl)

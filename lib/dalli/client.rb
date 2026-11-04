@@ -486,8 +486,10 @@ module Dalli
       nil
     end
 
+    # set_cas without its CAS check: the CAS here is always 0
     def set(key, value, ttl = nil, req_options = nil)
-      set_cas(key, value, 0, ttl, req_options)
+      validate_routing_tokens!(req_options)
+      perform(:set, key, value, ttl_or_default(ttl), 0, req_options)
     end
 
     ##
@@ -1075,7 +1077,12 @@ module Dalli
     # that the value is an integer memcached accepts as an expiration
     ##
     def ttl_or_default(ttl)
-      validate_ttl!(:ttl, ttl || @options[:expires_in] || 0)
+      ttl ||= @options[:expires_in] || 0
+      # validate_ttl!'s fast path, without the call
+      return ttl if ttl.is_a?(Integer) && ttl >= Protocol::TtlSanitizer::MIN_EXPIRATION_TIME &&
+                    ttl <= Protocol::TtlSanitizer::MAX_ACCEPTABLE_EXPIRATION_INTERVAL
+
+      validate_ttl!(:ttl, ttl)
     end
 
     # Returns the TTL as an Integer, sanitized (see TtlSanitizer), raising
