@@ -244,6 +244,33 @@ describe Dalli::Protocol::ConnectionManager do
 
       assert_match(/No request in progress/, error.message)
     end
+
+    it 'resets the failure count' do
+      connection_manager.instance_variable_set(:@fail_count, 1)
+      connection_manager.start_request!
+      connection_manager.finish_request!
+
+      assert_equal 0, connection_manager.instance_variable_get(:@fail_count)
+    end
+  end
+
+  describe '#finish_unanswered_request!' do
+    it 'ends the request and keeps the failure count' do
+      connection_manager.instance_variable_set(:@fail_count, 1)
+      connection_manager.start_request!
+      connection_manager.finish_unanswered_request!
+
+      refute_predicate connection_manager, :request_in_progress?
+      assert_equal 1, connection_manager.instance_variable_get(:@fail_count)
+    end
+
+    it 'raises when no request in progress' do
+      error = assert_raises(RuntimeError) do
+        connection_manager.finish_unanswered_request!
+      end
+
+      assert_match(/No request in progress/, error.message)
+    end
   end
 
   describe '#abort_request!' do

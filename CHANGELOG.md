@@ -1,6 +1,13 @@
 Dalli Changelog
 =====================
 
+Unreleased
+==========
+
+Bug fixes:
+
+- `set_multi` and `delete_multi` on more than one server retried forever, hanging the caller, when a server accepted their writes and then closed the connection before replying. Each quiet write reset the server's failure count, so it never reached `socket_max_failures`. Only a request whose reply is read resets it now, and the server is marked down and `Dalli::NetworkError` raised, as for `get`
+
 5.2.7
 ==========
 
