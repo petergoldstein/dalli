@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+Bug fixes:
+
+- `Rack::Session::Dalli`'s 401 for a session deleted mid-request called `Hash#slice` on the session options. A Rails session store puts an `ActionDispatch::Request::Session::Options` there, so the 401 raised `NoMethodError` instead of expiring the cookie (#1291, @seballot)
+
 5.3.0
 ==========
 
@@ -13,7 +17,6 @@ New features:
 
 Bug fixes:
 
-- `Rack::Session::Dalli`'s 401 for a session deleted mid-request called `Hash#slice` on the session options. Rails stores an `ActionDispatch::Request::Session::Options` there, so the 401 raised `NoMethodError` instead of expiring the cookie
 - A `vivify_ttl` (or `fetch_with_lock`'s `lock_ttl`) over 30 days now protects against a thundering herd. memcached reads a TTL over 30 days as a Unix timestamp, so the stub for a miss expired at once and every caller won the recache race. `vivify_ttl` is now converted like other TTLs
 - `set_cas`, `replace_cas` and `delete_cas` dropped a CAS that couldn't be parsed, such as `'abc'`, and sent an unconditional write, so the value was overwritten or deleted whatever its CAS. They now raise `ArgumentError`
 - `flush('abc')` flushed immediately. It now raises `ArgumentError`
