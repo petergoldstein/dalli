@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+Bug fixes:
+
+- Since 5.2.0, on JRuby with TLS, Dalli could wait `socket_timeout` for part of a reply that had already arrived, because jruby-openssl can hold it where neither `IO.select` nor OpenSSL's `pending` reports it. A `get_multi` could take `socket_timeout` longer than it needed to. Dalli now reads on JRuby until the TLS socket would block (#1293)
+
 5.2.6
 ==========
 
