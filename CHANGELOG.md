@@ -31,6 +31,7 @@ Bug fixes:
 - `Rack::Session::Dalli`: a stored session that couldn't be decoded (for example after changing the serializer, or removing a class that sessions stored) left the user on a session that was never saved, with no new cookie, so they couldn't log in until the cookie was cleared or the session expired. It's now treated as missing: the request gets a new session and cookie, and a warning is logged
 - A reply value is now checked for the CRLF that should follow it. Values were read by their declared size alone, so a size that didn't match the value (a broken proxy, or an injected reply) was returned as a hit with a `nil` value, or the rest of the value was read as the next reply. These now raise `Dalli::DalliError` and close the connection, as a value size out of range does
 - A reply key marked base64 that isn't valid base64 raised `ArgumentError` from `get_multi`, `get_multi_cas` and `get_multi_with_metadata`, which callers rescuing `Dalli::DalliError` didn't catch. It now raises `Dalli::DalliError`. Found by the new fuzz targets
+- `set_multi` and `delete_multi` on more than one server retried forever, hanging the caller, when a server accepted their writes and then closed the connection before replying. Each quiet write reset the server's failure count, so it never reached `socket_max_failures`. Only a request whose reply is read resets it now, and the server is marked down and `Dalli::NetworkError` raised, as for `get`
 
 Other changes:
 
