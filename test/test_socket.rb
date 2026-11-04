@@ -292,6 +292,8 @@ describe 'Dalli::Socket::SSLSocket#read_available' do
   end
 
   it 'keeps reading after a short read while OpenSSL still has data buffered' do
+    skip 'JRuby reads until the socket would block' if RUBY_ENGINE == 'jruby'
+
     sock = scripted_ssl_socket(['part', 'rest', :wait_readable], [5, 0])
 
     assert_equal 'partrest', sock.read_available
@@ -299,10 +301,22 @@ describe 'Dalli::Socket::SSLSocket#read_available' do
   end
 
   it 'stops after a short read once OpenSSL has nothing buffered' do
+    skip 'JRuby reads until the socket would block' if RUBY_ENGINE == 'jruby'
+
     sock = scripted_ssl_socket(['part'], [0])
 
     assert_equal 'part', sock.read_available
     assert_equal 1, sock.read_calls
+  end
+
+  # jruby-openssl can hold the next record where pending doesn't count it
+  it 'keeps reading after a short read on JRuby until the socket would block' do
+    skip 'JRuby only' unless RUBY_ENGINE == 'jruby'
+
+    sock = scripted_ssl_socket(['part', 'rest', :wait_readable], [0, 0])
+
+    assert_equal 'partrest', sock.read_available
+    assert_equal 3, sock.read_calls
   end
 end
 
