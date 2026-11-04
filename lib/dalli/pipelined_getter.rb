@@ -48,12 +48,11 @@ module Dalli
           @unmarshal_error = nil
           @caller_keys = @key_manager.caller_keys_by_wire_key(keys.flatten)
           setup_requests(servers, @caller_keys.keys, req_options, return_cas: return_cas)
-          start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
           # First yield any partial results collected during interleaved send
           yield_partial_results(&block)
 
-          fetch_responses(servers, start_time, @ring.socket_timeout, &block) until servers.empty?
+          fetch_responses(servers, @ring.socket_timeout, &block) until servers.empty?
           raise @unmarshal_error if @unmarshal_error
         ensure
           abort_unfinished(servers)
@@ -130,7 +129,7 @@ module Dalli
         started << server
         finish_query_for_server(server)
       rescue Dalli::NetworkError
-        abort_without_timeout(started)
+        abort_unfinished(started)
         raise
       rescue Dalli::DalliError
         started.delete(server)
@@ -178,32 +177,26 @@ module Dalli
       raise
     end
 
-    # Swallows Dalli::NetworkError. Empties servers, so they aren't aborted
-    # again.
-    def abort_without_timeout(servers)
+    # When #process stops before reading every server's replies (a server
+    # fails, the caller's block raises or breaks, a Timeout.timeout fires),
+    # the rest are still on the socket and some may be in the response buffer.
+    # Closing those connections keeps them from being read as a later
+    # request's replies. Empties servers, so they aren't aborted again.
+    def abort_unfinished(servers)
       servers.each(&:pipeline_abort)
       servers.clear
     end
 
-    # When #process stops before reading every server's replies (the caller's
-    # block raises or breaks, a Timeout.timeout fires), the rest are still on
-    # the socket and some may be in the response buffer. Closing those
-    # connections keeps them from being read as a later request's replies.
-    # Aborts that #process already handled emptied servers.
-    def abort_unfinished(servers)
-      servers.each { |server| server.pipeline_abort(timed_out: false) }
-      servers.clear
-    end
-
-    # Reads the replies available, removing finished servers from servers
-    def fetch_responses(servers, start_time, timeout, &block)
+    # Reads the replies available, removing finished servers from servers.
+    # The wait is for any server to send something, so it starts again after
+    # each read: a large batch that keeps arriving isn't cut off.
+    def fetch_responses(servers, timeout, &block)
       # Remove any servers which are not connected
       servers.select!(&:connected?)
       return if servers.empty?
 
-      time_left = remaining_time(start_time, timeout)
-      readable_servers = servers_with_response(servers, time_left)
-      return abort_with_timeout(servers) if readable_servers.empty?
+      readable_servers = servers_with_response(servers, timeout)
+      time_out(servers) if readable_servers.empty?
 
       # Loop through the servers with responses, and
       # delete any from our list that are finished
@@ -213,23 +206,21 @@ module Dalli
     rescue NetworkError
       # Abort and raise if we encountered a network error.  This triggers
       # a retry at the top level on RetryableNetworkError.
-      abort_without_timeout(servers)
+      abort_unfinished(servers)
       raise
     end
 
-    def remaining_time(start, timeout)
-      elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start
-      return 0 if elapsed > timeout
-
-      timeout - elapsed
-    end
-
-    # Swallows Dalli::NetworkError
-    def abort_with_timeout(servers)
+    # No server sent anything for socket_timeout. Each counts it as a failed
+    # read, as get does, so it's retried and, after socket_max_failures,
+    # marked down. Raises the first server's error.
+    def time_out(servers)
+      error = nil
       servers.each do |server|
-        Dalli.logger.debug { "memcached at #{server.name} did not response within timeout" }
+        server.pipeline_timed_out!
+      rescue Dalli::NetworkError => e
+        error ||= e
       end
-      abort_without_timeout(servers)
+      raise error
     end
 
     # Processes responses from a server.  Returns true if there are no
