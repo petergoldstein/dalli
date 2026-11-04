@@ -37,7 +37,13 @@ class ReplyLosingProxy
     @acceptor.kill
     @mutex.synchronize do
       @threads.each(&:kill)
-      @sockets.each(&:close)
+      # A forwarding thread may already have closed its sockets, and
+      # TruffleRuby, unlike CRuby, raises on closing a closed one
+      @sockets.each do |sock|
+        sock.close
+      rescue IOError
+        nil
+      end
     end
   end
 
@@ -180,9 +186,12 @@ describe 'Network' do
           addresses = servers.map { |s| "127.0.0.1:#{s.addr[1]}" }
           keys = Array.new(10) { |i| "k#{i}" }
 
-          # With and without failover
+          # With and without failover. Each failure is an immediate EOF, so
+          # nothing here waits for socket_timeout; it's long only so that a
+          # slow version reply on a busy CI runner doesn't fail the connect
+          # and leave every server down before a write is made.
           clients = Array.new(2) do |i|
-            Dalli::Client.new(addresses, socket_timeout: 0.3, failover: i.zero?, protocol: p)
+            Dalli::Client.new(addresses, socket_timeout: 2, failover: i.zero?, protocol: p)
           end
           clients.each do |dc|
             [-> { dc.set_multi(keys.to_h { |k| [k, 'v'] }) }, -> { dc.delete_multi(keys) }].each do |call|
