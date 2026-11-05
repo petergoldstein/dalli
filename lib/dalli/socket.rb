@@ -110,8 +110,18 @@ module Dalli
       # OpenSSL can hold decrypted bytes that IO.select won't report as readable.
       # With OpenSSL's default (no read-ahead) a short read has already used up
       # the current record, so this is normally 0; it guards read-ahead setups.
-      def buffered_data?
-        pending.positive?
+      #
+      # jruby-openssl can take the next record off the socket during a short
+      # read and hold it where neither pending nor IO.select sees it, so on
+      # JRuby a read continues until the socket would block.
+      if RUBY_ENGINE == 'jruby'
+        def buffered_data?
+          true
+        end
+      else
+        def buffered_data?
+          pending.positive?
+        end
       end
 
       unless method_defined?(:wait_readable)
