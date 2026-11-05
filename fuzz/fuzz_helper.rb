@@ -7,6 +7,7 @@
 $LOAD_PATH.unshift File.expand_path('../lib', __dir__)
 require 'dalli'
 require 'logger'
+require 'stringio'
 
 # The Marshal warning would print on every run
 Dalli.logger = Logger.new(nil)

@@ -39,9 +39,19 @@ module Dalli
     end
 
     def self.inflate_fully(inflater, data)
-      finish_stream(inflater, inflater.inflate(data))
+      finish_stream(inflater, feed(inflater, data) || String.new(encoding: Encoding::BINARY))
     ensure
       inflater.close
+    end
+
+    # zlib gem 3.2.3 and earlier retry an interrupted inflate even when it has
+    # used up its input, and raise the Z_BUF_ERROR zlib returns for that. The
+    # output so far stays in the stream, and finish raises for input that is
+    # truly truncated.
+    def self.feed(inflater, data, &)
+      inflater.inflate(data, &)
+    rescue Zlib::BufError
+      nil
     end
 
     def self.finish_stream(stream, out)
@@ -80,7 +90,7 @@ module Dalli
 
     # Both yielded and returned output count toward the limit
     def self.inflate_slice(inflater, slice, out, max_bytes)
-      rest = inflater.inflate(slice) { |chunk| append_within_limit(out, chunk, max_bytes) }
+      rest = feed(inflater, slice) { |chunk| append_within_limit(out, chunk, max_bytes) }
       append_within_limit(out, rest, max_bytes)
     end
 
