@@ -184,9 +184,12 @@ module Rack
         end
       end
 
+      # Rails stores an ActionDispatch::Request::Session::Options in the env, not a
+      # Hash. It implements [] (and to_hash) but not Hash#slice, so slicing it
+      # raised NoMethodError instead of returning this 401.
       def missing_session_response(env)
         options = env[Rack::RACK_SESSION_OPTIONS] || @default_options
-        cookie = Rack::Utils.delete_set_cookie_header(key, options.slice(:path, :domain))
+        cookie = Rack::Utils.delete_set_cookie_header(key, { path: options[:path], domain: options[:domain] })
         [401, { 'content-type' => 'text/plain', 'set-cookie' => cookie }, ['Wrong session ID']]
       end
 

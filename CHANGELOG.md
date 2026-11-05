@@ -6,6 +6,7 @@ Unreleased
 
 Bug fixes:
 
+- `Rack::Session::Dalli`'s 401 for a session deleted mid-request called `Hash#slice` on the session options. A Rails session store puts an `ActionDispatch::Request::Session::Options` there, so the 401 raised `NoMethodError` instead of expiring the cookie (#1291, @seballot)
 - Since 5.2.0, on JRuby with TLS, Dalli could wait `socket_timeout` for part of a reply that had already arrived, because jruby-openssl can hold it where neither `IO.select` nor OpenSSL's `pending` reports it. A `get_multi` could take `socket_timeout` longer than it needed to. Dalli now reads on JRuby until the TLS socket would block (#1293)
 
 5.2.6
