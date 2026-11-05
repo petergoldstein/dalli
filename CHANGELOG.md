@@ -1,7 +1,7 @@
 Dalli Changelog
 =====================
 
-Unreleased
+5.2.8
 ==========
 
 Bug fixes:
