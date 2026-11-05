@@ -7,6 +7,7 @@ Unreleased
 Bug fixes:
 
 - `set_multi` and `delete_multi` on more than one server retried forever, hanging the caller, when a server accepted their writes and then closed the connection before replying. Each quiet write reset the server's failure count, so it never reached `socket_max_failures`. Only a request whose reply is read resets it now, and the server is marked down and `Dalli::NetworkError` raised, as for `get`
+- A signal arriving while `Dalli::Compressor` or `Dalli::GzipCompressor` was compressing or decompressing could make Ruby's zlib return before it had finished (ruby/zlib#49). Depending on the Ruby and zlib gem versions, that raised `Zlib::BufError` or `Zlib::DataError`, or stored a truncated value that later failed to decompress. Both compressors now keep finishing the stream until zlib reports its end. `GzipCompressor` no longer goes through `GzipWriter` and `GzipReader`, so it now always returns decompressed values as binary strings, as `Compressor` does (#1299)
 
 5.2.7
 ==========
