@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+Bug fixes:
+
+- A signal arriving while `Dalli::Compressor` or `Dalli::GzipCompressor` was compressing or decompressing could make Ruby's zlib return before it had finished (ruby/zlib#49). Depending on the Ruby and zlib gem versions, that raised `Zlib::BufError` or `Zlib::DataError`, or stored a truncated value that later failed to decompress. Both compressors now keep finishing the stream until zlib reports its end. `GzipCompressor` no longer goes through `GzipWriter` and `GzipReader`, so it now always returns decompressed values as binary strings, as `Compressor` does (#1299)
+
 5.3.1
 ==========
 
