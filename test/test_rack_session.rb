@@ -561,4 +561,64 @@ describe Rack::Session::Dalli do
     assert_includes cookie, 'path=/app'
     assert_includes cookie, 'max-age=0'
   end
+
+  it 'expires the cookie when the session options are not a Hash' do
+    app = proc do |env|
+      session = env['rack.session']
+
+      case env['PATH_INFO']
+      when '/login'
+        session[:user_id] = 1
+      when '/logout'
+        session.options[:renew] = true
+      when '/slow'
+        session[:user_id]
+        env['rack.session.options'] = SessionOptionsWithoutSlice.new(env['rack.session.options'])
+        Fiber.yield
+      end
+
+      Rack::Response.new(session.inspect).to_a
+    end
+    rsd = Rack::Session::Dalli.new(app, path: '/app', domain: 'example.com')
+
+    login_cookie = Rack::MockRequest.new(rsd).get('/login')['Set-Cookie']
+    slow_request = Fiber.new do
+      Rack::MockRequest.new(rsd).get('/slow', 'HTTP_COOKIE' => login_cookie)
+    end
+    slow_request.resume
+    Rack::MockRequest.new(rsd).get('/logout', 'HTTP_COOKIE' => login_cookie)
+
+    slow_response = slow_request.resume
+
+    assert_equal 401, slow_response.status
+    cookie = slow_response['set-cookie']
+
+    assert_includes cookie, 'domain=example.com'
+    assert_includes cookie, 'path=/app'
+    assert_includes cookie, 'max-age=0'
+  end
+end
+
+# Stands in for ActionDispatch::Request::Session::Options. Rails puts that in
+# rack.session.options: it reads and writes like a Hash, and does not implement slice.
+class SessionOptionsWithoutSlice
+  def initialize(options)
+    @options = options
+  end
+
+  def [](key)
+    @options[key]
+  end
+
+  def []=(key, value)
+    @options[key] = value
+  end
+
+  def values_at(*keys)
+    @options.values_at(*keys)
+  end
+
+  def to_hash
+    @options.dup
+  end
 end
