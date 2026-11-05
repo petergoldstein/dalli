@@ -13,6 +13,53 @@ describe 'Network' do
           end
         end
 
+        # The quiet writes completed as requests, which reset the failure
+        # count, so the noop's failure was always the first: set_multi and
+        # delete_multi retried forever and the caller hung. One server takes
+        # a different path, so two are used.
+        it 'gives up on multi-writes to a server that drops the connection before replying' do
+          servers = Array.new(2) { TCPServer.new('127.0.0.1', 0) }
+          acceptors = servers.map do |server|
+            Thread.new do
+              loop do
+                Thread.new(server.accept) do |sock|
+                  while (line = sock.gets)
+                    break unless line.start_with?('version')
+
+                    sock.write("VERSION 1.6.45\r\n")
+                  end
+                  sock.close
+                rescue IOError, SystemCallError
+                  nil
+                end
+              end
+            rescue IOError
+              nil
+            end
+          end
+          addresses = servers.map { |s| "127.0.0.1:#{s.addr[1]}" }
+          keys = Array.new(10) { |i| "k#{i}" }
+
+          # With and without failover. Each failure is an immediate EOF, so
+          # nothing here waits for socket_timeout; it's long only so that a
+          # slow version reply on a busy CI runner doesn't fail the connect
+          # and leave every server down before a write is made.
+          clients = Array.new(2) do |i|
+            Dalli::Client.new(addresses, socket_timeout: 2, failover: i.zero?, protocol: p)
+          end
+          clients.each do |dc|
+            [-> { dc.set_multi(keys.to_h { |k| [k, 'v'] }) }, -> { dc.delete_multi(keys) }].each do |call|
+              started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+              assert_raises(Dalli::NetworkError) { call.call }
+              assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 5
+            end
+          end
+        ensure
+          servers&.each(&:close)
+          acceptors&.each(&:kill)
+        end
+
         # Only where socket reads time out (CRuby with IO#timeout=). On JRuby,
         # TruffleRuby or Ruby 3.1, a silent server blocks the read itself
         # rather than exercising the retries.

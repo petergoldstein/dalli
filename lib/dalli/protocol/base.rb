@@ -71,13 +71,7 @@ module Dalli
           @connection_manager.start_request!
           drain_pending_quiet_responses(opkey)
           response = send(opkey, *args)
-          # Quiet requests can leave replies on the socket; remember that so the
-          # end of the quiet block knows this server needs draining
-          @connection_manager.mark_quiet_responses_pending! if quiet? && opkey != :noop
-
-          # pipelined_get/pipelined_get_interleaved emit query but don't read the response(s)
-          @connection_manager.finish_request! unless %i[pipelined_get pipelined_get_interleaved].include?(opkey)
-
+          finish_request(opkey)
           request_completed = true
           response
         rescue Dalli::MarshalError, Dalli::ValueOverMaxSize => e
@@ -258,6 +252,27 @@ module Dalli
         return if user_creds[:username].nil? && user_creds[:password].nil?
 
         Dalli.logger.warn(URI_CREDENTIAL_WARNING)
+      end
+
+      # Only a request whose reply was read resets the failure count. Otherwise
+      # a server that takes set_multi's writes, then drops the connection before
+      # the noop's reply, would be back at zero on every retry, never reach
+      # socket_max_failures, and be retried forever.
+      def finish_request(opkey)
+        case opkey
+        # Finished by finish_pipeline, once the replies are read
+        when :pipelined_get, :pipelined_get_interleaved then nil
+        when :pipelined_set, :pipelined_delete then @connection_manager.finish_unanswered_request!
+        else
+          if quiet? && opkey != :noop
+            # Its reply is left on the socket; the end of the quiet block, or
+            # the next non-quiet request, reads it
+            @connection_manager.mark_quiet_responses_pending!
+            @connection_manager.finish_unanswered_request!
+          else
+            @connection_manager.finish_request!
+          end
+        end
       end
 
       ALLOWED_QUIET_OPS = %i[add replace set delete incr decr append prepend flush noop].freeze
