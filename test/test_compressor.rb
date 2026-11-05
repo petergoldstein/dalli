@@ -50,6 +50,43 @@ end
       end
     end
 
+    # A signal can make Ruby's zlib return before the stream is done
+    # (ruby/zlib#49). It shows on Linux, where the signal interrupts the
+    # thread that is compressing.
+    it 'round-trips values while signals interrupt zlib' do
+      skip 'needs MRI signal handling' unless RUBY_ENGINE == 'ruby'
+
+      values = [Random.new(1).bytes(1024 * 1024), "\0" * (4 * 1024 * 1024), 'abc' * 100_000]
+      received = while_signaled do
+        10.times do
+          values.each do |value|
+            assert_equal value.b, compressor.decompress(compressor.compress(value), max_bytes: value.bytesize).b
+            assert_equal value.b, compressor.decompress(compressor.compress(value)).b
+          end
+        end
+      end
+
+      assert_operator received, :>, 0
+    end
+
+    # Runs the block while another thread sends this process USR2, and returns
+    # how many signals arrived
+    def while_signaled
+      received = 0
+      previous = Signal.trap('USR2') { received += 1 }
+      signaler = Thread.new do
+        loop do
+          Process.kill('USR2', Process.pid)
+          sleep 0.0002
+        end
+      end
+      yield
+      received
+    ensure
+      signaler&.kill&.join
+      Signal.trap('USR2', previous)
+    end
+
     it 'has no limit without max_bytes' do
       assert_equal data.b, compressor.decompress(compressed).b
     end
