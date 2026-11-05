@@ -4,6 +4,9 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.3.1
+==========
+
 Bug fixes:
 
 - `Rack::Session::Dalli`'s 401 for a session deleted mid-request called `Hash#slice` on the session options. A Rails session store puts an `ActionDispatch::Request::Session::Options` there, so the 401 raised `NoMethodError` instead of expiring the cookie (#1291, @seballot)
