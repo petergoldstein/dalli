@@ -99,7 +99,7 @@ Lower-risk improvements the audit turned up, to be done in the open:
       verifies neither), and warn when verification is off.
 - [x] **TLS handshake failure:** close the TCP socket, and raise a Dalli
       error rather than `OpenSSL::SSL::SSLError`.
-- [ ] **Credentials:** stop keeping usernames and passwords from server URIs
+- [x] **Credentials:** stop keeping usernames and passwords from server URIs
       and options (Dalli 5 doesn't use them), so `#inspect` and error messages
       can't show them.
 - [x] **`Rack::Session::Dalli`:** document that sessions never expire in
@@ -109,7 +109,7 @@ Lower-risk improvements the audit turned up, to be done in the open:
       trusting the declared size.
 - [x] **Encodings:** raw and `append` values in encodings that aren't ASCII
       compatible raise `Encoding::CompatibilityError`.
-- [ ] **Docs:** a `get_multi` block can see a key twice when a network error
+- [x] **Docs:** a `get_multi` block can see a key twice when a network error
       makes Dalli retry.
 
 ## 3. Automated testing for these bug classes
