@@ -14,12 +14,14 @@ module Dalli
         value_max_bytes: 1024 * 1024
       }.freeze
 
-      attr_reader :value_max_bytes
+      attr_reader :value_max_bytes, :max_response_bytes
 
       def initialize(client_options)
         @value_max_bytes = client_options.fetch(:value_max_bytes) do
           DEFAULTS.fetch(:value_max_bytes)
         end.to_i
+        @max_response_bytes = Integer(client_options.fetch(:max_response_bytes, @value_max_bytes))
+        raise ArgumentError, 'max_response_bytes must be positive' unless @max_response_bytes.positive?
       end
 
       def store(key, value, _options = nil)

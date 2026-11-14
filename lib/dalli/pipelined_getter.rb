@@ -225,6 +225,12 @@ module Dalli
     def servers_with_response(servers, timeout)
       return [] if servers.empty?
 
+      # A bounded read can stop while OpenSSL still holds decrypted bytes.
+      # IO.select only sees the underlying socket, so process those bytes
+      # before waiting for another network event.
+      buffered = servers.select { |server| server.sock.buffered_data? }
+      return buffered unless buffered.empty?
+
       sockets = servers.map(&:sock)
       readable, = IO.select(sockets, nil, nil, timeout)
       return [] if readable.nil?

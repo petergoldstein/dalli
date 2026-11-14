@@ -49,6 +49,10 @@ Dalli::Client.new('localhost:11211', namespace: 'myapp', namespace_separator: '/
 
 The separator must be a single non-alphanumeric character. Valid examples: `:`, `/`, `|`, `.`, `-`, `_`, `#`
 
+### Maximum Value Size
+
+`value_max_bytes` limits values written to memcached (1 MiB by default). Values read from a server have the same default limit. If another client writes larger values that this client must read, configure `max_response_bytes` explicitly.
+
 ## Security Note
 
 By default, Dalli uses Ruby's Marshal for serialization. Deserializing untrusted data with Marshal can lead to remote code execution. If you cache user-controlled data, consider using a safer serializer:

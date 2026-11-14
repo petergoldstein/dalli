@@ -12,22 +12,35 @@ module Dalli
     # Common methods for all socket implementations.
     ##
     module InstanceMethods
+      READ_CHUNK_SIZE = 8196
+      # Give the response parser control between bounded socket reads. In
+      # particular, a peer continuously sending a header without CRLF must
+      # not keep this method appending forever.
+      MAX_AVAILABLE_BYTES = READ_CHUNK_SIZE * 8
+
+      # Reads whatever is available without blocking. A read that returns less
+      # than a full chunk means the socket was drained, so we stop there rather
+      # than spend another read_nonblock call just to get :wait_readable back.
+      # Callers keep waiting on IO.select for anything that arrives later.
       def read_available(reusable_buffer = nil)
         if reusable_buffer
-          value = read_nonblock(8196, reusable_buffer, exception: false)
+          value = read_nonblock([READ_CHUNK_SIZE, MAX_AVAILABLE_BYTES].min, reusable_buffer, exception: false)
           case value
           when :wait_writable, :wait_readable
             return reusable_buffer.clear
           when nil
             raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}"
           end
+          return value if drained_after?(value)
+          return value if value.bytesize >= MAX_AVAILABLE_BYTES
         else
           value = ''.b
         end
 
         buffer = ''.b
         loop do
-          result = read_nonblock(8196, buffer, exception: false)
+          result = read_nonblock([READ_CHUNK_SIZE, MAX_AVAILABLE_BYTES - value.bytesize].min,
+                                 buffer, exception: false)
           case result
           when :wait_writable, :wait_readable
             buffer.clear
@@ -36,8 +49,18 @@ module Dalli
             raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}"
           else
             value << result
+            return value if drained_after?(result)
+            return value if value.bytesize >= MAX_AVAILABLE_BYTES
           end
         end
+      end
+
+      def drained_after?(chunk)
+        chunk.bytesize < READ_CHUNK_SIZE && !buffered_data?
+      end
+
+      def buffered_data?
+        false
       end
 
       FILTERED_OUT_OPTIONS = %i[username password].freeze
@@ -83,6 +106,23 @@ module Dalli
         io.options
       end
 
+      # OpenSSL can hold decrypted bytes that IO.select won't report as readable.
+      # With OpenSSL's default (no read-ahead) a short read has already used up
+      # the current record, so this is normally 0; it guards read-ahead setups.
+      #
+      # jruby-openssl can take the next record off the socket during a short
+      # read and hold it where neither pending nor IO.select sees it, so on
+      # JRuby a read continues until the socket would block.
+      if RUBY_ENGINE == 'jruby'
+        def buffered_data?
+          true
+        end
+      else
+        def buffered_data?
+          pending.positive? || (@rbuffer && !@rbuffer.empty?)
+        end
+      end
+
       unless method_defined?(:wait_readable)
         def wait_readable(timeout = nil)
           to_io.wait_readable(timeout)
@@ -116,7 +156,12 @@ module Dalli
           sock.options = { host: host, port: port }.merge(options)
           init_socket_options(sock, options)
 
-          options[:ssl_context] ? wrapping_ssl_socket(sock, host, options[:ssl_context]) : sock
+          if options[:ssl_context]
+            wrapping_ssl_socket(sock, host, options[:ssl_context],
+                                options[:socket_timeout])
+          else
+            sock
+          end
         end
       end
 
@@ -205,13 +250,15 @@ module Dalli
 
       # Closes the TCP socket if the handshake fails or times out, so a failed
       # attempt doesn't hold a file descriptor until GC.
-      def self.wrapping_ssl_socket(tcp_socket, host, ssl_context)
+      def self.wrapping_ssl_socket(tcp_socket, host, ssl_context, timeout = nil)
         warn_if_unverified(ssl_context)
         connected = false
         ssl_socket = Dalli::Socket::SSLSocket.new(tcp_socket, ssl_context)
         ssl_socket.hostname = host
         ssl_socket.sync_close = true
-        ssl_socket.connect
+        # The underlying TCP socket's IO#timeout= does not reliably bound
+        # OpenSSL's blocking handshake on Ruby 3.3.
+        Timeout.timeout(timeout) { ssl_socket.connect }
         connected = true
         ssl_socket
       ensure

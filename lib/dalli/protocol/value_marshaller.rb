@@ -28,6 +28,9 @@ module Dalli
 
         @marshal_options =
           DEFAULTS.merge(client_options.slice(*OPTIONS))
+        @marshal_options[:value_max_bytes] = @marshal_options[:value_max_bytes].to_i
+        @max_response_bytes = Integer(client_options.fetch(:max_response_bytes, value_max_bytes))
+        raise ArgumentError, 'max_response_bytes must be positive' unless @max_response_bytes.positive?
       end
 
       def store(key, value, options = nil)
@@ -47,6 +50,8 @@ module Dalli
       def value_max_bytes
         @marshal_options[:value_max_bytes]
       end
+
+      attr_reader :max_response_bytes
 
       def error_if_over_max_value_bytes(key, value)
         return if value.bytesize <= value_max_bytes
