@@ -9,6 +9,8 @@ module Dalli
       # and parsing into local values.  Handles errors on unexpected values.
       ##
       class ResponseProcessor
+        MAX_STATS_ENTRIES = 10_000
+        MAX_QUIET_RESPONSES = 100_000
         # Response codes taken from:
         # https://github.com/memcached/memcached/wiki/BinaryProtocolRevamped#response-status
         RESPONSE_CODES = {
@@ -42,6 +44,7 @@ module Dalli
 
         def read_response
           resp_header = ResponseHeader.new(read_header)
+          check_body_size!(resp_header)
           body = read(resp_header.body_len) if resp_header.body_len.positive?
           [resp_header, body]
         end
@@ -122,10 +125,14 @@ module Dalli
 
         def stats
           hash = {}
+          replies = 0
           loop do
             resp_header, body = read_response
             # This is the response to the terminating noop / end of stat
             return hash if resp_header.ok? && resp_header.key_len.zero?
+
+            replies += 1
+            raise Dalli::DalliError, 'Too many stats replies' if replies > MAX_STATS_ENTRIES
 
             # Ignore any responses with non-zero status codes,
             # such as errors from set operations.  That allows
@@ -150,11 +157,15 @@ module Dalli
           generic_response
         end
 
-        def consume_all_responses_until_noop
+        def consume_all_responses_until_noop(max_responses = MAX_QUIET_RESPONSES)
+          replies = 0
           loop do
             resp_header, = read_response
             # This is the response to the terminating noop / end of stat
             return true if resp_header.ok? && resp_header.key_len.zero?
+
+            replies += 1
+            raise Dalli::DalliError, 'Too many quiet replies' if replies > max_responses
           end
         end
 
@@ -188,6 +199,7 @@ module Dalli
           resp_header = ResponseHeader.new(buf)
           body_len = resp_header.body_len
           validate_auth_format(resp_header.extra_len, body_len)
+          check_body_size!(resp_header)
           content = read(body_len) if body_len.positive?
           [resp_header.status, content]
         end
@@ -207,8 +219,11 @@ module Dalli
         # buffer wait for (and accumulate) that many bytes.
         MAX_BODY_BYTES = 1024 * 1024 * 1024
 
-        def check_body_size!(size)
-          return if size <= MAX_BODY_BYTES
+        def check_body_size!(header)
+          size = header.body_len
+          value_size = size - header.extra_len - header.key_len
+          limit = [MAX_BODY_BYTES, @value_marshaller.max_response_bytes].min
+          return if size <= MAX_BODY_BYTES && value_size.between?(0, limit)
 
           raise Dalli::DalliError, "Reply body size #{size} is out of range"
         end
@@ -219,14 +234,13 @@ module Dalli
 
           resp_header = ResponseHeader.new(buf.byteslice(offset, ResponseHeader::SIZE))
           body_len = resp_header.body_len
+          check_body_size!(resp_header)
 
           # We have a complete response that has no body.
           # This is either the response to the terminating
           # noop or, if the status is not zero, an intermediate
           # error response that needs to be discarded.
           return [ResponseHeader::SIZE, resp_header.ok?, resp_header.cas, nil, nil] if body_len.zero?
-
-          check_body_size!(body_len)
 
           resp_size = ResponseHeader::SIZE + body_len
           # The header is in the buffer, but the body is not.  As we don't have

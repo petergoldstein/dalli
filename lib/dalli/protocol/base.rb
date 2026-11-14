@@ -137,6 +137,8 @@ module Dalli
           # to the noop at the end of the pipeline
           finish_pipeline && break if status && key.nil?
 
+          check_pipeline_response_count!(false)
+
           # A key that wasn't requested means the replies are out of step
           # (see expect_reply_keys): keep what was read so far, drop the rest
           if unexpected_reply_key?(key)
@@ -327,7 +329,7 @@ module Dalli
       # Non-blocking read and processing of any available pipeline responses.
       # Used during interleaved pipelined gets to prevent buffer deadlock.
       # Populates the provided results hash directly to avoid allocation overhead.
-      def drain_pipeline_responses(results)
+      def drain_pipeline_responses(results) # rubocop:disable Metrics/CyclomaticComplexity
         return unless connected?
 
         # Non-blocking check if socket has data available
@@ -340,6 +342,8 @@ module Dalli
         loop do
           status, cas, key, value = response_buffer.process_single_getk_response
           break if status.nil? # No complete response available
+
+          check_pipeline_response_count!(status && key.nil?)
 
           # Handled by the next pipeline_next_responses, once sending is done
           if unexpected_reply_key?(key)
@@ -374,7 +378,18 @@ module Dalli
       # other clients created, on memcached versions with the behavior.
       def expect_reply_keys(keys)
         @pipeline_out_of_step = false
+        @expected_response_count = keys.size
+        @pipeline_response_count = 0
         @expected_reply_keys = (keys.to_set { |k| reply_key_form(k) } if @verify_reply_keys)
+      end
+
+      def check_pipeline_response_count!(terminating)
+        return if terminating
+
+        @pipeline_response_count += 1
+        return if @pipeline_response_count <= @expected_response_count
+
+        raise Dalli::DalliError, 'Too many get_multi replies'
       end
 
       def unexpected_reply_key?(key)

@@ -195,6 +195,9 @@ module Dalli
     def servers_with_response(servers, timeout)
       return [] if servers.empty?
 
+      buffered = pending_tls_servers(servers)
+      return buffered unless buffered.empty?
+
       sockets = servers.map(&:sock)
       readable, = IO.select(sockets, nil, nil, timeout)
       return [] if readable.nil?
@@ -202,6 +205,10 @@ module Dalli
       # For typical server counts (1-5), linear scan is faster than
       # building and looking up a hash map
       readable.filter_map { |sock| servers.find { |s| s.sock == sock } }
+    end
+
+    def pending_tls_servers(servers)
+      servers.select { |server| server.sock.respond_to?(:pending_data?) && server.sock.pending_data? }
     end
 
     def groups_for_keys(*keys)

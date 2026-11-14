@@ -7,6 +7,28 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
   let(:value_marshaller) { Dalli::Protocol::ValueMarshaller.new({}) }
   let(:processor) { Dalli::Protocol::Meta::ResponseProcessor.new(io_source, value_marshaller) }
 
+  it 'rejects an unterminated pipelined header over 8 KiB' do
+    assert_raises(Dalli::DalliError) { processor.getk_response_from_buffer('X' * 8193) }
+  end
+
+  it 'rejects a claimed value larger than the configured response limit' do
+    assert_raises(Dalli::DalliError) { processor.getk_response_from_buffer("VA 1048577 kfoo\r\n") }
+    expect_read_line('VA 1048577')
+    assert_raises(Dalli::DalliError) { processor.meta_get_with_value }
+  end
+
+  it 'bounds complete stats replies' do
+    processor.stub(:next_line_to_tokens, %w[STAT x y]) do
+      assert_raises(Dalli::DalliError) { processor.stats }
+    end
+  end
+
+  it 'bounds complete quiet replies' do
+    processor.stub(:next_line_to_tokens, ['NF']) do
+      assert_raises(Dalli::DalliError) { processor.consume_all_responses_until_mn(2) }
+    end
+  end
+
   # Helper to simulate reading a line (with CRLF terminator)
   # Uses +'' to ensure the string is not frozen (chomp! needs mutable string)
   def expect_read_line(line)

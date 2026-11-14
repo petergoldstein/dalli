@@ -36,7 +36,7 @@ module Dalli
     def setup_requests(keys)
       groups = groups_for_keys(keys)
       make_delete_requests(groups)
-      groups.keys
+      groups
     end
 
     ##
@@ -58,8 +58,8 @@ module Dalli
     # Sends noop to each server to flush responses and ensure all deletes complete.
     ##
     def finish_requests(servers)
-      servers.each do |server|
-        server.request(:noop)
+      servers.each do |server, keys|
+        server.request(:noop, keys.size)
       rescue DalliError, NetworkError => e
         Dalli.logger.debug { e.inspect }
         Dalli.logger.debug { "unable to complete pipelined delete on server #{server.name}" }
