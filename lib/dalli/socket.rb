@@ -121,13 +121,17 @@ module Dalli
       # jruby-openssl can take the next record off the socket during a short
       # read and hold it where neither pending nor IO.select sees it, so on
       # JRuby a read continues until the socket would block.
+      def pending_data?
+        pending.positive? || (@rbuffer && !@rbuffer.empty?)
+      end
+
       if RUBY_ENGINE == 'jruby'
         def buffered_data?
           true
         end
       else
         def buffered_data?
-          pending.positive? || (@rbuffer && !@rbuffer.empty?)
+          pending_data?
         end
       end
 
