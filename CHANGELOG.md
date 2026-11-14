@@ -1,6 +1,13 @@
 Dalli Changelog
 =====================
 
+4.3.12
+==========
+
+Security:
+
+- Security fixes; details will follow in the advisory.
+
 4.3.11
 ==========
 
