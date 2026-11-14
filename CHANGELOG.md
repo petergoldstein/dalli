@@ -1,6 +1,13 @@
 Dalli Changelog
 =====================
 
+3.2.17
+==========
+
+Security:
+
+- Security fixes; details will follow in the advisory.
+
 3.2.16
 ==========
 
