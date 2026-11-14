@@ -159,9 +159,9 @@ module Dalli
 
       # Noop is a keepalive operation but also used to demarcate the end of a set of pipelined commands.
       # We need to read all the responses at once.
-      def noop
+      def noop(max_responses = ResponseProcessor::MAX_QUIET_RESPONSES)
         write_noop
-        result = response_processor.consume_all_responses_until_noop
+        result = response_processor.consume_all_responses_until_noop(max_responses)
         # Everything up to and including the noop reply has been read
         @connection_manager.clear_quiet_responses_pending!
         result

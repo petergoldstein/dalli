@@ -47,7 +47,7 @@ module Dalli
       pairs = hash.transform_keys { |k| @key_manager.validate_key(k.to_s) }
       groups = groups_for_keys(pairs.keys)
       make_set_requests(groups, pairs, ttl, req_options)
-      groups.keys
+      groups
     end
 
     ##
@@ -73,8 +73,8 @@ module Dalli
     # Sends noop to each server to flush responses and ensure all writes complete.
     ##
     def finish_requests(servers)
-      servers.each do |server|
-        server.request(:noop)
+      servers.each do |server, keys|
+        server.request(:noop, keys.size)
       rescue DalliError, NetworkError => e
         Dalli.logger.debug { e.inspect }
         Dalli.logger.debug { "unable to complete pipelined set on server #{server.name}" }
