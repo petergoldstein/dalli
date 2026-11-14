@@ -200,7 +200,7 @@ module Dalli
 
       def read_line
         flush_write_buffer
-        data = @sock.gets("\r\n", MAX_LINE_BYTES)
+        data = with_tls_timeout { @sock.gets("\r\n", MAX_LINE_BYTES) }
         error_on_request!('EOF in read_line') if data.nil?
         # Without its CRLF the line either ran past MAX_LINE_BYTES or was cut
         # short by EOF; either way the connection is out of step
@@ -224,7 +224,7 @@ module Dalli
       def read(count)
         check_read_size!(count)
         flush_write_buffer
-        @sock.readfull(count)
+        with_tls_timeout { @sock.readfull(count) }
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
         error_on_request!(e)
       end
@@ -354,8 +354,14 @@ module Dalli
       def flush_write_buffer
         return if @write_buffer.empty?
 
-        @sock.write(@write_buffer.size == 1 ? @write_buffer.first : joined_write_buffer)
+        with_tls_timeout { @sock.write(@write_buffer.size == 1 ? @write_buffer.first : joined_write_buffer) }
         discard_write_buffer
+      end
+
+      def with_tls_timeout
+        return yield unless @sock.is_a?(Dalli::Socket::SSLSocket)
+
+        Timeout.timeout(socket_timeout) { yield } # rubocop:disable Style/ExplicitBlockArgument
       end
 
       # Joined as bytes: requests can mix UTF-8 and binary strings, which

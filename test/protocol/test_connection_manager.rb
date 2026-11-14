@@ -3,6 +3,35 @@
 require_relative '../helper'
 
 describe Dalli::Protocol::ConnectionManager do
+  it 'bounds a stalled TLS reply line' do
+    context = OpenSSL::SSL::SSLContext.new
+    context.cert = OpenSSL::X509::Certificate.new(File.read(CertificateGenerator::MEMCACHED_CERT_PATH))
+    context.key = OpenSSL::PKey.read(File.read(CertificateGenerator::MEMCACHED_PK_PATH))
+    client_io, server_io = Socket.pair(:UNIX, :STREAM, 0)
+    server = OpenSSL::SSL::SSLSocket.new(server_io, context)
+    server_thread = Thread.new do
+      server.accept
+      sleep 1
+    end
+    client = Dalli::Socket::SSLSocket.new(client_io, OpenSSL::SSL::SSLContext.new)
+    client.sync_close = true
+    client.connect
+    manager = Dalli::Protocol::ConnectionManager.new('localhost', 0, :tcp,
+                                                     socket_timeout: 0.05, socket_max_failures: 1)
+    manager.instance_variable_set(:@sock, client)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+    assert_raises(Dalli::NetworkError) { manager.read_line }
+    assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.5
+  ensure
+    manager&.close
+    server&.close
+    server_thread&.kill
+    server_thread&.join
+    client_io&.close unless client_io&.closed?
+    server_io&.close unless server_io&.closed?
+  end
+
   let(:hostname) { 'localhost' }
   let(:port) { 11_211 }
   let(:socket_type) { :tcp }

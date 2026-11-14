@@ -45,6 +45,14 @@ Dalli::Client.new('localhost:11211', protocol: :meta)
 
 ## Configuration Options
 
+### Response size limit
+
+Dalli accepts stored values up to `value_max_bytes` (1 MB by default). Incoming values use the same limit. Set `max_response_bytes` to a positive byte count if an existing memcached deployment stores larger values:
+
+```ruby
+Dalli::Client.new('localhost:11211', max_response_bytes: 2 * 1024 * 1024)
+```
+
 ### Namespace
 
 Use namespaces to partition your cache and avoid key collisions between different applications or environments:

@@ -26,6 +26,40 @@ describe Dalli::Protocol::Binary::ResponseProcessor do
   let(:value_marshaller) { Dalli::Protocol::ValueMarshaller.new({}) }
   let(:processor) { Dalli::Protocol::Binary::ResponseProcessor.new(io_source, value_marshaller) }
 
+  it 'rejects a large body before reading it' do
+    io_source.expect :read, create_header(body_len: 1_048_577), [24]
+    assert_raises(Dalli::DalliError) { processor.get }
+    io_source.verify
+  end
+
+  it 'rejects a large pipelined body' do
+    assert_raises(Dalli::DalliError) do
+      processor.getk_response_from_buffer(create_header(body_len: 1_048_577))
+    end
+  end
+
+  it 'rejects a body shorter than its declared key' do
+    assert_raises(Dalli::DalliError) do
+      processor.getk_response_from_buffer(create_header(key_len: 1, body_len: 0))
+    end
+  end
+
+  it 'bounds complete stats replies' do
+    header = Dalli::Protocol::Binary::ResponseHeader.new(create_header(status: 1, key_len: 1, body_len: 1))
+
+    processor.stub(:read_response, [header, 'x']) do
+      assert_raises(Dalli::DalliError) { processor.stats }
+    end
+  end
+
+  it 'bounds complete quiet replies' do
+    header = Dalli::Protocol::Binary::ResponseHeader.new(create_header(status: 1, key_len: 1, body_len: 1))
+
+    processor.stub(:read_response, [header, 'x']) do
+      assert_raises(Dalli::DalliError) { processor.consume_all_responses_until_noop(2) }
+    end
+  end
+
   describe '#get' do
     describe 'when key is found' do
       it 'returns the unmarshalled value' do
