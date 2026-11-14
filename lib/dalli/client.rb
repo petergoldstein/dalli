@@ -39,6 +39,8 @@ module Dalli
     #                     memcached, Dalli counts the key and 63 bytes of item overhead against this limit along
     #                     with the (serialized, compressed) value, so the largest value that can be stored is
     #                     value_max_bytes - key bytesize - 63. Larger values raise Dalli::ValueOverMaxSize.
+    # - :max_response_bytes - largest value accepted from a server. Defaults to :value_max_bytes (1MB by default).
+    #                         Set this explicitly when reading larger items written by another client.
     # - :serializer - defaults to Marshal
     # - :compressor - defaults to Dalli::Compressor, a Zlib-based implementation
     # - :cache_nils - defaults to false, if true Dalli will not treat cached nil values as 'not found' for

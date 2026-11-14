@@ -19,6 +19,10 @@ module Dalli
     ##
     module InstanceMethods
       READ_CHUNK_SIZE = 8196
+      # Give the response parser control between bounded socket reads. In
+      # particular, a peer continuously sending a header without CRLF must
+      # not keep this method appending forever.
+      MAX_AVAILABLE_BYTES = READ_CHUNK_SIZE * 8
 
       # Reads whatever is available without blocking. A read that returns less
       # than a full chunk means the socket was drained, so we stop there rather
@@ -26,7 +30,7 @@ module Dalli
       # Callers keep waiting on IO.select for anything that arrives later.
       def read_available(reusable_buffer = nil)
         if reusable_buffer
-          value = read_nonblock(READ_CHUNK_SIZE, reusable_buffer, exception: false)
+          value = read_nonblock([READ_CHUNK_SIZE, MAX_AVAILABLE_BYTES].min, reusable_buffer, exception: false)
           case value
           when :wait_writable, :wait_readable
             return reusable_buffer.clear
@@ -34,13 +38,15 @@ module Dalli
             raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}"
           end
           return value if drained_after?(value)
+          return value if value.bytesize >= MAX_AVAILABLE_BYTES
         else
           value = ''.b
         end
 
         buffer = ''.b
         loop do
-          result = read_nonblock(READ_CHUNK_SIZE, buffer, exception: false)
+          result = read_nonblock([READ_CHUNK_SIZE, MAX_AVAILABLE_BYTES - value.bytesize].min,
+                                 buffer, exception: false)
           case result
           when :wait_writable, :wait_readable
             buffer.clear
@@ -50,6 +56,7 @@ module Dalli
           else
             value << result
             return value if drained_after?(result)
+            return value if value.bytesize >= MAX_AVAILABLE_BYTES
           end
         end
       end
@@ -120,7 +127,7 @@ module Dalli
         end
       else
         def buffered_data?
-          pending.positive?
+          pending.positive? || (@rbuffer && !@rbuffer.empty?)
         end
       end
 
@@ -157,7 +164,12 @@ module Dalli
           sock.options = { host: host, port: port }.merge(options)
           init_socket_options(sock, options)
 
-          options[:ssl_context] ? wrapping_ssl_socket(sock, host, options[:ssl_context]) : sock
+          if options[:ssl_context]
+            wrapping_ssl_socket(sock, host, options[:ssl_context],
+                                options[:socket_timeout])
+          else
+            sock
+          end
         end
       end
 
@@ -248,13 +260,15 @@ module Dalli
 
       # Closes the TCP socket if the handshake fails or times out, so a failed
       # attempt doesn't hold a file descriptor until GC.
-      def self.wrapping_ssl_socket(tcp_socket, host, ssl_context)
+      def self.wrapping_ssl_socket(tcp_socket, host, ssl_context, timeout = nil)
         warn_if_unverified(ssl_context)
         connected = false
         ssl_socket = Dalli::Socket::SSLSocket.new(tcp_socket, ssl_context)
         ssl_socket.hostname = host
         ssl_socket.sync_close = true
-        ssl_socket.connect
+        # The underlying TCP socket's IO#timeout= does not reliably bound
+        # OpenSSL's blocking handshake on Ruby 3.3.
+        Timeout.timeout(timeout) { ssl_socket.connect }
         connected = true
         ssl_socket
       ensure
