@@ -12,7 +12,7 @@ module Dalli
     # Manages the socket connection to the server, including ensuring liveness
     # and retries.
     ##
-    class ConnectionManager
+    class ConnectionManager # rubocop:disable Metrics/ClassLength
       DEFAULTS = {
         # seconds between trying to contact a remote server
         down_retry_delay: 30,
@@ -182,7 +182,7 @@ module Dalli
       MAX_LINE_BYTES = 8 * 1024
 
       def read_line
-        data = @sock.gets("\r\n", MAX_LINE_BYTES)
+        data = with_tls_timeout { @sock.gets("\r\n", MAX_LINE_BYTES) }
         error_on_request!('EOF in read_line') if data.nil?
         # Without its CRLF the line either ran past MAX_LINE_BYTES or was cut
         # short by EOF; either way the connection is out of step
@@ -205,13 +205,13 @@ module Dalli
 
       def read(count)
         check_read_size!(count)
-        @sock.readfull(count)
+        with_tls_timeout { @sock.readfull(count) }
       rescue SystemCallError, *TIMEOUT_ERRORS, EOFError => e
         error_on_request!(e)
       end
 
       def write(bytes)
-        @sock.write(bytes)
+        with_tls_timeout { @sock.write(bytes) }
       rescue SystemCallError, *TIMEOUT_ERRORS => e
         error_on_request!(e)
       end
@@ -220,6 +220,12 @@ module Dalli
       # of the get_multi operation
       def read_nonblock
         @sock.read_available
+      end
+
+      def with_tls_timeout
+        return yield unless @sock.is_a?(Dalli::Socket::SSLSocket)
+
+        Timeout.timeout(socket_timeout) { yield } # rubocop:disable Style/ExplicitBlockArgument
       end
 
       def max_allowed_failures

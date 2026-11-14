@@ -5,6 +5,26 @@ require_relative '../../helper'
 describe Dalli::Protocol::Meta::ResponseProcessor do
   let(:processor) { Dalli::Protocol::Meta::ResponseProcessor.new(nil, Dalli::Protocol::ValueMarshaller.new({})) }
 
+  it 'rejects an unterminated pipelined header over 8 KiB' do
+    assert_raises(Dalli::DalliError) { processor.getk_response_from_buffer('X' * 8193) }
+  end
+
+  it 'rejects a claimed value larger than the configured response limit' do
+    assert_raises(Dalli::DalliError) { processor.getk_response_from_buffer("VA 1048577 kfoo\r\n") }
+  end
+
+  it 'bounds complete stats replies' do
+    processor.stub(:next_line_to_tokens, %w[STAT x y]) do
+      assert_raises(Dalli::DalliError) { processor.stats }
+    end
+  end
+
+  it 'bounds complete quiet replies' do
+    processor.stub(:next_line_to_tokens, ['NF']) do
+      assert_raises(Dalli::DalliError) { processor.consume_all_responses_until_mn(2) }
+    end
+  end
+
   describe '#getk_response_from_buffer' do
     # Malformed hits (a broken or hostile server or proxy): each must be
     # skipped or read whole, never yielded under a made-up key, taken for the
