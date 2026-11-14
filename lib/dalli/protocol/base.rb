@@ -152,6 +152,8 @@ module Dalli
           # to the noop at the end of the pipeline
           finish_pipeline && break if status && key.nil?
 
+          check_pipeline_response_count!
+
           # A key that wasn't requested means the replies are out of step
           # (see expect_reply_keys): keep what was read so far, drop the rest
           if unexpected_reply_key?(key)
@@ -192,6 +194,8 @@ module Dalli
         response_buffer.clear
         @pipeline_out_of_step = false
         @expected_reply_keys = nil
+        @expected_response_count = nil
+        @pipeline_response_count = nil
         @connection_manager.abort_request!
         return true unless connected?
 
@@ -354,6 +358,8 @@ module Dalli
           status, cas, key, value = response_buffer.process_single_getk_response
           break if status.nil? # No complete response available
 
+          check_pipeline_response_count!
+
           # Handled by the next pipeline_next_responses, once sending is done
           if unexpected_reply_key?(key)
             @pipeline_out_of_step = true
@@ -387,11 +393,20 @@ module Dalli
       # other clients created, on memcached versions with the behavior.
       def expect_reply_keys(keys)
         @pipeline_out_of_step = false
+        @expected_response_count = keys.size
+        @pipeline_response_count = 0
         @expected_reply_keys = (keys.to_set { |k| reply_key_form(k) } if @verify_reply_keys)
       end
 
       def unexpected_reply_key?(key)
         !key.nil? && @expected_reply_keys && !@expected_reply_keys.include?(reply_key_form(key))
+      end
+
+      def check_pipeline_response_count!
+        @pipeline_response_count += 1
+        return if @pipeline_response_count <= @expected_response_count
+
+        raise Dalli::DalliError, 'Too many get_multi replies'
       end
 
       # Keys compared as bytes; ASCII keys compare equal in any encoding as is

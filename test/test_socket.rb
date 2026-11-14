@@ -96,6 +96,20 @@ describe 'Dalli::Socket::TCP' do
   end
 end
 
+describe 'Dalli::Socket::InstanceMethods#read_available' do
+  it 'returns after a bounded number of full chunks' do
+    socket = Object.new.extend(Dalli::Socket::InstanceMethods)
+    reads = 0
+    socket.define_singleton_method(:read_nonblock) do |_size, _buffer = nil, **_kwargs|
+      reads += 1
+      'x' * Dalli::Socket::InstanceMethods::READ_CHUNK_SIZE
+    end
+
+    assert_equal Dalli::Socket::InstanceMethods::MAX_AVAILABLE_BYTES, socket.read_available.bytesize
+    assert_equal 8, reads
+  end
+end
+
 describe 'Dalli::Protocol::SSL_ERRORS' do
   # The suite loads openssl before Dalli, so check a process that requires only dalli
   it 'includes OpenSSL::SSL::SSLError when dalli is required on its own' do
@@ -109,6 +123,22 @@ describe 'Dalli::Protocol::SSL_ERRORS' do
 end
 
 describe 'Dalli::Socket::TCP TLS handshake' do
+  it 'times out a stalled TLS handshake' do
+    client_io, peer_io = Socket.pair(:UNIX, :STREAM, 0)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+    with_nil_logger do
+      assert_raises(Timeout::Error) do
+        Dalli::Socket::TCP.wrapping_ssl_socket(client_io, 'localhost', unverified_context, 0.05)
+      end
+    end
+    assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.5
+    assert_predicate client_io, :closed?
+  ensure
+    client_io&.close unless client_io&.closed?
+    peer_io&.close
+  end
+
   # A plain TCP server that answers every connection with a non-TLS reply and
   # hangs up, so the client's TLS handshake fails
   def with_garbage_server

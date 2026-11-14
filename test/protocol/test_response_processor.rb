@@ -30,6 +30,38 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
     end
   end
 
+  describe 'inbound response limit' do
+    it 'rejects a large declared value before reading its body' do
+      expect_read_line('VA 1048577 f0')
+
+      assert_raises(Dalli::DalliError) { processor.meta_get_with_value }
+      io_source.verify
+    end
+
+    it 'allows an explicitly raised response limit' do
+      marshaller = Dalli::Protocol::ValueMarshaller.new(max_response_bytes: 2 * 1024 * 1024)
+      sized_processor = Dalli::Protocol::Meta::ResponseProcessor.new(io_source, marshaller)
+      expect_read_line('VA 1048577 f0')
+      io_source.expect :read, +"\r\n", [1_048_579]
+
+      assert_equal '', sized_processor.meta_get_with_value(raw: true)
+    end
+  end
+
+  describe 'pipelined header limit' do
+    it 'rejects an unterminated header at the line limit' do
+      assert_raises(Dalli::DalliError) do
+        processor.getk_response_from_buffer('A' * Dalli::Protocol::ConnectionManager::MAX_LINE_BYTES)
+      end
+    end
+
+    it 'rejects a complete header beyond the line limit' do
+      assert_raises(Dalli::DalliError) do
+        processor.getk_response_from_buffer("#{'A' * 8191}\r\n")
+      end
+    end
+  end
+
   describe '#meta_get_with_value' do
     describe 'when key is found (VA response)' do
       it 'returns the unmarshalled value' do
@@ -263,6 +295,19 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
       assert_empty(result)
       io_source.verify
     end
+
+    it 'rejects a stream with more stats entries than the limit' do
+      lines = 0
+      source = Object.new
+      source.define_singleton_method(:read_line) do
+        lines += 1
+        "STAT key#{lines} value\r\n"
+      end
+      streaming_processor = Dalli::Protocol::Meta::ResponseProcessor.new(source, value_marshaller)
+
+      assert_raises(Dalli::DalliError) { streaming_processor.stats }
+      assert_equal Dalli::Protocol::Meta::ResponseProcessor::MAX_STATS_ENTRIES + 1, lines
+    end
   end
 
   describe '#version' do
@@ -308,6 +353,13 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
 
       assert result
       io_source.verify
+    end
+
+    it 'rejects more replies than requests' do
+      expect_read_line('NF')
+      expect_read_line('NF')
+
+      assert_raises(Dalli::DalliError) { processor.consume_all_responses_until_mn(1) }
     end
   end
 
