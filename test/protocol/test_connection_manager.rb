@@ -31,6 +31,64 @@ class ContractReadSocket
 end
 
 describe Dalli::Protocol::ConnectionManager do
+  def with_stalled_tls_connection
+    context = OpenSSL::SSL::SSLContext.new
+    context.cert = OpenSSL::X509::Certificate.new(File.read(CertificateGenerator::MEMCACHED_CERT_PATH))
+    context.key = OpenSSL::PKey.read(File.read(CertificateGenerator::MEMCACHED_PK_PATH))
+    listener = TCPServer.new('127.0.0.1', 0)
+    client_io = TCPSocket.new('127.0.0.1', listener.addr[1])
+    client_io.define_singleton_method(:options) { { socket_timeout: 0.05 } }
+    server_io = listener.accept
+    server = OpenSSL::SSL::SSLSocket.new(server_io, context)
+    server.sync_close = true
+    server_thread = Thread.new do
+      server.accept
+      sleep 1
+    end
+    client = Dalli::Socket::SSLSocket.new(client_io, OpenSSL::SSL::SSLContext.new)
+    client.sync_close = true
+    client.connect
+    manager = Dalli::Protocol::ConnectionManager.new('localhost', 0, :tcp,
+                                                     socket_timeout: 0.05, socket_failure_delay: 0)
+    manager.instance_variable_set(:@sock, client)
+    manager.instance_variable_set(:@pid, Process.pid)
+    yield manager
+  ensure
+    manager&.close
+    begin
+      server&.close
+    rescue StandardError
+      nil
+    end
+    server_thread&.kill
+    server_thread&.join
+    client_io&.close unless client_io&.closed?
+    server_io&.close unless server_io&.closed?
+    listener&.close
+  end
+
+  describe 'TLS timeouts' do
+    it 'bounds a stalled reply line and closes the connection' do
+      with_stalled_tls_connection do |manager|
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+        assert_raises(Dalli::RetryableNetworkError) { manager.read_line }
+        assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.5
+        refute_predicate manager, :connected?
+      end
+    end
+
+    it 'bounds a stalled value body and closes the connection' do
+      with_stalled_tls_connection do |manager|
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+        assert_raises(Dalli::RetryableNetworkError) { manager.read(4) }
+        assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.5
+        refute_predicate manager, :connected?
+      end
+    end
+  end
+
   let(:hostname) { 'localhost' }
   let(:port) { 11_211 }
   let(:socket_type) { :tcp }
