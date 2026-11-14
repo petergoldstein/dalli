@@ -199,6 +199,7 @@ module Dalli
           resp_header = ResponseHeader.new(buf)
           body_len = resp_header.body_len
           validate_auth_format(resp_header.extra_len, body_len)
+          check_body_size!(resp_header)
           content = read(body_len) if body_len.positive?
           [resp_header.status, content]
         end
