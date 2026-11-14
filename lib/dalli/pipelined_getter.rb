@@ -196,8 +196,12 @@ module Dalli
       # A bounded read can stop while OpenSSL still holds decrypted bytes.
       # IO.select only sees the underlying socket, so process those bytes
       # before waiting for another network event.
-      buffered = servers.select { |server| server.sock.respond_to?(:pending_data?) && server.sock.pending_data? }
-      return buffered unless buffered.empty?
+      buffered = nil
+      servers.each do |server|
+        sock = server.sock
+        (buffered ||= []) << server if sock.respond_to?(:pending_data?) && sock.pending_data?
+      end
+      return buffered if buffered
 
       sockets = servers.map(&:sock)
       readable, = IO.select(sockets, nil, nil, timeout)
