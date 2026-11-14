@@ -72,7 +72,7 @@ module Dalli
     class SSLSocket < ::OpenSSL::SSL::SSLSocket
       include Dalli::Socket::InstanceMethods
       def pending_data?
-        pending.positive? || (@rbuffer && !@rbuffer.empty?)
+        pending.to_i.positive? || (@rbuffer && !@rbuffer.empty?)
       end
 
       def buffered_data?

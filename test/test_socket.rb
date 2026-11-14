@@ -2,6 +2,18 @@
 
 require_relative 'helper'
 
+describe 'Dalli::Socket::SSLSocket#pending_data?' do
+  it 'handles JRuby returning nil for pending bytes' do
+    socket = Dalli::Socket::SSLSocket.allocate
+    socket.define_singleton_method(:pending) { nil }
+
+    refute_predicate socket, :pending_data?
+    socket.instance_variable_set(:@rbuffer, 'reply')
+
+    assert_predicate socket, :pending_data?
+  end
+end
+
 describe 'Dalli::Socket::InstanceMethods#read_available' do
   it 'returns after a bounded number of full chunks' do
     socket = Object.new.extend(Dalli::Socket::InstanceMethods)
