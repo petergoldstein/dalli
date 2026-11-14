@@ -238,7 +238,7 @@ module Dalli
 
       def finish_pipelined_delete(sent)
         write_noop
-        sent - response_processor.pipelined_delete_non_deletions
+        sent - response_processor.pipelined_delete_non_deletions(sent)
       end
 
       # Arithmetic Commands
@@ -373,8 +373,13 @@ module Dalli
         expect_reply_keys(keys)
         hash = {}
         unmarshal_error = nil
+        replies = 0
         while (line = @connection_manager.read_line)
           break if line.start_with?('MN')
+
+          replies += 1
+          raise Dalli::DalliError, 'Too many get_multi replies' if replies > keys.size
+
           next unless line.start_with?('VA ')
 
           tokens = line.chomp!(TERMINATOR).split
@@ -408,8 +413,13 @@ module Dalli
         expect_reply_keys(keys)
         hash = {}
         unmarshal_error = nil
+        replies = 0
         while (line = @connection_manager.read_line)
           break if line.start_with?('MN')
+
+          replies += 1
+          raise Dalli::DalliError, 'Too many get_multi replies' if replies > keys.size
+
           next unless line.start_with?('VA ')
 
           begin
@@ -467,7 +477,7 @@ module Dalli
           buffer = RequestFormatter.multi_meta_set(entries, ttl: ttl, **routing_token_kwargs(req_options))
           flushed_write(buffer)
           buffer.clear
-          response_processor.consume_all_responses_until_mn
+          response_processor.consume_all_responses_until_mn(entries.size)
         end
         raise value_error if value_error
       end
@@ -479,7 +489,7 @@ module Dalli
                                                     **routing_token_kwargs(req_options))
         flushed_write(buffer)
         buffer.clear
-        keys.size - response_processor.pipelined_delete_non_deletions
+        keys.size - response_processor.pipelined_delete_non_deletions(keys.size)
       end
 
       require_relative 'key_regularizer'

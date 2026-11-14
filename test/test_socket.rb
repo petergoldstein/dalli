@@ -260,6 +260,15 @@ describe 'Dalli::Socket::InstanceMethods#read_available' do
     assert_equal 2, sock.read_calls
   end
 
+  it 'returns control to the parser after a bounded number of full chunks' do
+    max_bytes = Dalli::Socket::InstanceMethods::MAX_AVAILABLE_BYTES
+    chunk = 'x' * Dalli::Socket::InstanceMethods::READ_CHUNK_SIZE
+    sock = scripted_socket(Array.new((max_bytes / chunk.bytesize) + 2, chunk))
+
+    assert_operator sock.read_available.bytesize, :<=, max_bytes
+    assert_operator sock.read_calls, :<, (max_bytes / chunk.bytesize) + 2
+  end
+
   it 'keeps reading after a short read while data is still buffered in-process' do
     sock = scripted_socket(['part', :wait_readable], buffered: true)
 
@@ -333,6 +342,22 @@ describe 'Dalli::Protocol::SSL_ERRORS' do
 end
 
 describe 'Dalli::Socket::TCP TLS handshake' do
+  it 'times out a stalled TLS handshake even when the TCP socket has no IO timeout' do
+    client_io, peer_io = Socket.pair(:UNIX, :STREAM, 0)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+    with_nil_logger do
+      assert_raises(Timeout::Error) do
+        Dalli::Socket::TCP.wrapping_ssl_socket(client_io, 'localhost', unverified_context, 0.05)
+      end
+    end
+    assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.5
+    assert_predicate client_io, :closed?
+  ensure
+    client_io&.close unless client_io&.closed?
+    peer_io&.close
+  end
+
   # A plain TCP server that answers every connection with a non-TLS reply and
   # hangs up, so the client's TLS handshake fails
   def with_garbage_server
