@@ -193,8 +193,8 @@ module Dalli
         end
 
         def check_value_size!(size)
-          limit = [MAX_VALUE_BYTES, @value_marshaller.max_response_bytes].min
-          return if size.between?(0, limit)
+          limit = @value_marshaller.max_response_bytes
+          return if size >= 0 && size <= MAX_VALUE_BYTES && size <= limit # rubocop:disable Style/ComparableBetween
 
           raise Dalli::DalliError, "Reply value size #{size} is out of range"
         end
