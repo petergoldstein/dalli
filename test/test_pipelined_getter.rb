@@ -33,6 +33,7 @@ describe Dalli::PipelinedGetter do
     socket.define_singleton_method(:buffered_data?) { true }
     socket.define_singleton_method(:pending_data?) { false }
     server = Struct.new(:sock).new(socket)
+
     IO.stub(:select, nil) do
       assert_empty getter.send(:servers_with_response, [server], 0.01)
     end
