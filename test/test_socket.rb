@@ -19,7 +19,9 @@ end
 
 describe 'Dalli::Socket::TCP TLS handshake timeout' do
   it 'bounds a stalled handshake' do
-    client_io, peer_io = Socket.pair(:UNIX, :STREAM, 0)
+    listener = TCPServer.new('127.0.0.1', 0)
+    client_io = TCPSocket.new('127.0.0.1', listener.addr[1])
+    peer_io = listener.accept
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
     with_nil_logger do
@@ -32,6 +34,7 @@ describe 'Dalli::Socket::TCP TLS handshake timeout' do
   ensure
     client_io&.close unless client_io&.closed?
     peer_io&.close
+    listener&.close
   end
 end
 
