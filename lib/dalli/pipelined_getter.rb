@@ -147,6 +147,9 @@ module Dalli
     def servers_with_response(servers, timeout)
       return [] if servers.empty?
 
+      buffered = pending_tls_servers(servers)
+      return buffered unless buffered.empty?
+
       # TODO: - This is a bit challenging.  Essentially the PipelinedGetter
       # is a reactor, but without the benefit of a Fiber or separate thread.
       # My suspicion is that we may want to try and push this down into the
@@ -159,6 +162,10 @@ module Dalli
       return [] if readable.nil?
 
       readable.map { |sock| server_map[sock] }
+    end
+
+    def pending_tls_servers(servers)
+      servers.select { |server| server.sock.respond_to?(:pending_data?) && server.sock.pending_data? }
     end
 
     def groups_for_keys(*keys)

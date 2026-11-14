@@ -2,6 +2,53 @@
 
 require_relative 'helper'
 
+describe 'Dalli::Socket::SSLSocket#pending_data?' do
+  it 'handles JRuby returning nil for pending bytes' do
+    socket = Dalli::Socket::SSLSocket.allocate
+    socket.define_singleton_method(:pending) { nil }
+
+    refute_predicate socket, :pending_data?
+    socket.instance_variable_set(:@rbuffer, 'reply')
+
+    assert_predicate socket, :pending_data?
+  end
+end
+
+describe 'Dalli::Socket::InstanceMethods#read_available' do
+  it 'returns after a bounded number of full chunks' do
+    socket = Object.new.extend(Dalli::Socket::InstanceMethods)
+    reads = 0
+    socket.define_singleton_method(:read_nonblock) do |_size, **_kwargs|
+      reads += 1
+      'x' * 8196
+    end
+
+    assert_equal Dalli::Socket::InstanceMethods::MAX_AVAILABLE_BYTES, socket.read_available.bytesize
+    assert_equal 8, reads
+  end
+end
+
+describe 'Dalli::Socket::TCP TLS handshake timeout' do
+  it 'bounds a stalled handshake' do
+    listener = TCPServer.new('127.0.0.1', 0)
+    client_io = TCPSocket.new('127.0.0.1', listener.addr[1])
+    peer_io = listener.accept
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+    with_nil_logger do
+      assert_raises(Timeout::Error) do
+        Dalli::Socket::TCP.wrapping_ssl_socket(client_io, 'localhost', OpenSSL::SSL::SSLContext.new, 0.05)
+      end
+    end
+    assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.5
+    assert_predicate client_io, :closed?
+  ensure
+    client_io&.close unless client_io&.closed?
+    peer_io&.close
+    listener&.close
+  end
+end
+
 describe 'Dalli::Socket::TCP TLS handshake' do
   # A plain TCP server that answers every connection with a non-TLS reply and
   # hangs up, so the client's TLS handshake fails

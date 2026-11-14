@@ -3,6 +3,41 @@
 require_relative '../helper'
 
 describe Dalli::Protocol::ConnectionManager do
+  it 'bounds a stalled TLS reply line' do
+    context = OpenSSL::SSL::SSLContext.new
+    context.cert = OpenSSL::X509::Certificate.new(File.read(CertificateGenerator::MEMCACHED_CERT_PATH))
+    context.key = OpenSSL::PKey.read(File.read(CertificateGenerator::MEMCACHED_PK_PATH))
+    listener = TCPServer.new('127.0.0.1', 0)
+    client_io = TCPSocket.new('127.0.0.1', listener.addr[1])
+    client_io.define_singleton_method(:options) { { socket_timeout: 0.05 } }
+    server_io = listener.accept
+    server = OpenSSL::SSL::SSLSocket.new(server_io, context)
+    server_thread = Thread.new do
+      server.accept
+      sleep 1
+    rescue OpenSSL::SSL::SSLError, IOError, SystemCallError
+      # The client may close while the server is still completing TLS.
+    end
+    client = Dalli::Socket::SSLSocket.new(client_io, OpenSSL::SSL::SSLContext.new)
+    client.sync_close = true
+    client.connect
+    manager = Dalli::Protocol::ConnectionManager.new('localhost', 0, :tcp,
+                                                     socket_timeout: 0.05, socket_max_failures: 1)
+    manager.instance_variable_set(:@sock, client)
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+    assert_raises(Dalli::NetworkError) { manager.read_line }
+    assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.5
+  ensure
+    manager&.close
+    server&.close
+    server_thread&.kill
+    server_thread&.join
+    client_io&.close unless client_io&.closed?
+    server_io&.close unless server_io&.closed?
+    listener&.close
+  end
+
   describe '#read size check' do
     let(:connection_manager) { Dalli::Protocol::ConnectionManager.new('localhost', 11_211, :tcp, {}) }
 

@@ -27,6 +27,12 @@ The name is a variant of Salvador Dali for his famous painting [The Persistence 
 
 ## Security Note
 
+Incoming values are limited to `value_max_bytes` (1 MB by default). Set `max_response_bytes` to a positive byte count if an existing memcached deployment stores larger values:
+
+```ruby
+Dalli::Client.new('localhost:11211', max_response_bytes: 2 * 1024 * 1024)
+```
+
 By default, Dalli uses Ruby's Marshal for serialization. Deserializing untrusted data with Marshal can lead to remote code execution. If you cache user-controlled data, or your memcached server could be written to by someone else, consider using a safer serializer:
 
 ```ruby

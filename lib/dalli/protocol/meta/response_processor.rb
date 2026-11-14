@@ -9,6 +9,9 @@ module Dalli
       # and parsing into local values.  Handles errors on unexpected values.
       ##
       class ResponseProcessor
+        MAX_HEADER_BYTES = 8 * 1024
+        MAX_STATS_ENTRIES = 10_000
+        MAX_QUIET_RESPONSES = 100_000
         EN = 'EN'
         END_TOKEN = 'END'
         EX = 'EX'
@@ -85,7 +88,11 @@ module Dalli
         def stats
           tokens = error_on_unexpected!([END_TOKEN, STAT])
           values = {}
+          replies = 0
           while tokens.first != END_TOKEN
+            replies += 1
+            raise Dalli::DalliError, 'Too many stats replies' if replies > MAX_STATS_ENTRIES
+
             values[tokens[1]] = tokens[2]
             tokens = next_line_to_tokens
           end
@@ -109,10 +116,16 @@ module Dalli
           tokens.last
         end
 
-        def consume_all_responses_until_mn
+        def consume_all_responses_until_mn(max_responses = MAX_QUIET_RESPONSES)
           tokens = next_line_to_tokens
 
-          tokens = next_line_to_tokens while tokens.first != MN
+          replies = 0
+          while tokens.first != MN
+            replies += 1
+            raise Dalli::DalliError, 'Too many quiet replies' if replies > max_responses
+
+            tokens = next_line_to_tokens
+          end
           true
         end
 
@@ -180,7 +193,8 @@ module Dalli
         end
 
         def check_value_size!(size)
-          return if size.between?(0, MAX_VALUE_BYTES)
+          limit = @value_marshaller.max_response_bytes
+          return if size >= 0 && size <= MAX_VALUE_BYTES && size <= limit
 
           raise Dalli::DalliError, "Reply value size #{size} is out of range"
         end
@@ -191,7 +205,14 @@ module Dalli
         end
 
         def contains_header?(buf)
-          buf.include?(TERMINATOR)
+          return false unless buf
+
+          term_idx = buf.index(TERMINATOR)
+          if (term_idx || buf.bytesize) + TERMINATOR.bytesize > MAX_HEADER_BYTES
+            raise Dalli::DalliError, 'Reply header exceeds 8 KiB'
+          end
+
+          !term_idx.nil?
         end
 
         def header_from_buffer(buf)

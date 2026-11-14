@@ -109,6 +109,8 @@ module Dalli
           # to the noop at the end of the pipeline
           finish_pipeline && break if status && key.nil?
 
+          check_pipeline_response_count!
+
           # If the status is ok and the key is not nil, then this is a
           # getkq response with a value that we want to set in the response hash
           break unless keep_reading?(values, key, value, cas)
@@ -259,7 +261,16 @@ module Dalli
       # requested is how that shows up. Only with the verify_reply_keys option,
       # since building the set costs a multi-get about 15%.
       def expect_reply_keys(keys)
+        @expected_response_count = keys.size
+        @pipeline_response_count = 0
         @expected_reply_keys = (keys.to_set { |k| reply_key_form(k) } if @verify_reply_keys)
+      end
+
+      def check_pipeline_response_count!
+        @pipeline_response_count += 1
+        return if @pipeline_response_count <= @expected_response_count
+
+        raise Dalli::DalliError, 'Too many get_multi replies'
       end
 
       # Stores a getkq reply's value and returns true, unless its key wasn't

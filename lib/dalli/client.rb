@@ -28,6 +28,7 @@ module Dalli
     # the server configuration.
     #
     # Options:
+    # - :max_response_bytes - largest value accepted from a server. Defaults to :value_max_bytes (1 MB by default).
     # - :namespace - prepend each key with this value to provide simple namespacing.
     # - :failover - if a server is down, look for and store values on another server in the ring.  Default: true.
     # - :threadsafe - ensure that only one thread is actively using a socket at a time. Default: true.

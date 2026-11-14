@@ -2,6 +2,7 @@
 
 require 'openssl'
 require 'rbconfig'
+require 'timeout'
 
 module Dalli
   ##
@@ -12,6 +13,8 @@ module Dalli
     # Common methods for all socket implementations.
     ##
     module InstanceMethods
+      MAX_AVAILABLE_BYTES = 8196 * 8
+
       def readfull(count)
         value = String.new(capacity: count + 1)
         loop do
@@ -24,14 +27,19 @@ module Dalli
 
       def read_available
         value = +''
-        loop do
-          result = read_nonblock(8196, exception: false)
+        while value.bytesize < MAX_AVAILABLE_BYTES
+          result = read_nonblock([8196, MAX_AVAILABLE_BYTES - value.bytesize].min, exception: false)
           break if WAIT_RCS.include?(result)
           raise Errno::ECONNRESET, "Connection reset: #{logged_options.inspect}" unless result
 
           value << result
+          break if result.bytesize < 8196 && !buffered_data?
         end
         value
+      end
+
+      def buffered_data?
+        false
       end
 
       WAIT_RCS = %i[wait_writable wait_readable].freeze
@@ -63,6 +71,14 @@ module Dalli
     ##
     class SSLSocket < ::OpenSSL::SSL::SSLSocket
       include Dalli::Socket::InstanceMethods
+      def pending_data?
+        pending.to_i.positive? || (@rbuffer && !@rbuffer.empty?)
+      end
+
+      def buffered_data?
+        RUBY_ENGINE == 'jruby' || pending_data?
+      end
+
       def options
         io.options
       end
@@ -93,7 +109,11 @@ module Dalli
           sock.options = { host: host, port: port }.merge(options)
           init_socket_options(sock, options)
 
-          options[:ssl_context] ? wrapping_ssl_socket(sock, host, options[:ssl_context]) : sock
+          if options[:ssl_context]
+            wrapping_ssl_socket(sock, host, options[:ssl_context], options[:socket_timeout])
+          else
+            sock
+          end
         end
       end
 
@@ -134,13 +154,13 @@ module Dalli
 
       # Closes the TCP socket if the handshake fails or times out, so a failed
       # attempt doesn't hold a file descriptor until GC.
-      def self.wrapping_ssl_socket(tcp_socket, host, ssl_context)
+      def self.wrapping_ssl_socket(tcp_socket, host, ssl_context, socket_timeout = nil)
         warn_if_unverified(ssl_context)
         connected = false
         ssl_socket = Dalli::Socket::SSLSocket.new(tcp_socket, ssl_context)
         ssl_socket.hostname = host
         ssl_socket.sync_close = true
-        ssl_socket.connect
+        Timeout.timeout(socket_timeout) { ssl_socket.connect }
         connected = true
         ssl_socket
       ensure
