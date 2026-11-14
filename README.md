@@ -70,6 +70,8 @@ Dalli::Client.new('localhost:11211', value_max_bytes: 2 * 1024 * 1024)
 
 memcached's limit covers the whole item, so Dalli checks the stored (serialized and compressed) value plus the key plus 63 bytes of per-item overhead against `value_max_bytes`, and raises `Dalli::ValueOverMaxSize` before sending anything larger. With the defaults, the largest value you can store under a 10-byte key is 1,048,576 - 10 - 63 = 1,048,503 bytes.
 
+Dalli also limits the size of values it reads to `value_max_bytes`. If another client writes larger items that this client needs to read, set `max_response_bytes` explicitly. Keep it no higher than the largest item size you intend to accept from the server.
+
 ### Deferred Draining
 
 By default, a `quiet` (or `multi`) block ends by waiting for the replies memcached still sends for its quiet requests, one round trip for each server the block wrote to. With `defer_drain: true`, the block returns without waiting:

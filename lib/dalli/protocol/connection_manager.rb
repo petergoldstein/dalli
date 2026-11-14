@@ -267,7 +267,7 @@ module Dalli
 
       def read_line
         flush_write_buffer
-        data = @sock.gets("\r\n", MAX_LINE_BYTES)
+        data = timed_tls_operation { @sock.gets("\r\n", MAX_LINE_BYTES) }
         error_on_request!('EOF in read_line') if data.nil?
         # Without its CRLF the line either ran past MAX_LINE_BYTES or was cut
         # short by EOF; either way the connection is out of step
@@ -434,6 +434,16 @@ module Dalli
 
       private
 
+      # Ruby 3.3's default OpenSSL can block past IO#timeout= on the TCP
+      # socket. Bound the blocking TLS call itself; error_on_request! closes
+      # the connection after the Timeout::Error, so a partial reply or write
+      # is never reused.
+      def timed_tls_operation(&)
+        return yield unless @sock.is_a?(Dalli::Socket::SSLSocket)
+
+        Timeout.timeout(socket_timeout, &)
+      end
+
       # One write per flush. A TLS socket sends each argument of
       # write(*parts) as its own record and system call, so the parts are
       # joined first.
@@ -442,7 +452,7 @@ module Dalli
 
         # Set before writing: a write that fails may still have sent some bytes
         @request_sent = true if @request_in_progress
-        @sock.write(@write_buffer.size == 1 ? @write_buffer.first : joined_write_buffer)
+        timed_tls_operation { @sock.write(@write_buffer.size == 1 ? @write_buffer.first : joined_write_buffer) }
         discard_write_buffer
       end
 
@@ -475,7 +485,7 @@ module Dalli
       # error_on_request!, which closes the dirty socket for a retry on a fresh
       # connection (and preserves the $ERROR_INFO context down! relies on).
       def read_bytes(count)
-        buffer = @sock.read(count)
+        buffer = timed_tls_operation { @sock.read(count) }
         return buffer if buffer && buffer.bytesize == count
 
         raise EOFError, "EOF reading #{count} bytes; received #{buffer ? buffer.bytesize : 0}"
