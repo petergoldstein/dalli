@@ -28,6 +28,16 @@ describe Dalli::PipelinedGetter do
   let(:key_manager) { Dalli::KeyManager.new({}) }
   let(:getter) { Dalli::PipelinedGetter.new(nil, key_manager) }
 
+  it 'waits when no decrypted TLS bytes are pending' do
+    socket = Object.new
+    socket.define_singleton_method(:buffered_data?) { true }
+    socket.define_singleton_method(:pending_data?) { false }
+    server = Struct.new(:sock).new(socket)
+    IO.stub(:select, nil) do
+      assert_empty getter.send(:servers_with_response, [server], 0.01)
+    end
+  end
+
   describe '#make_getkq_request' do
     it 'propagates a RetryableNetworkError instead of swallowing it' do
       server = FakeGetterServer.new { raise Dalli::RetryableNetworkError, 'transient' }
