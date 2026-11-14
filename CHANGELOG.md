@@ -4,6 +4,13 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.3.3
+==========
+
+Security:
+
+- Bound memcached reply headers, incoming value sizes, and response counts, and enforce TLS timeouts for blocking operations (GHSA-5wpc-45jc-6ccc)
+
 5.3.2
 ==========
 
