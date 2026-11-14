@@ -73,7 +73,7 @@ describe Dalli::Protocol::ResponseBuffer do
 
     it 'compacts the buffer when it has largely been read' do
       long_value = 'A' * 10_000
-      write_pipe.write("VA 2 s#{long_value.bytesize} t-1 c3424234 kfoo\r\n#{long_value}")
+      write_pipe.write("VA 2 s#{long_value.bytesize} t-1 c3424234 kfoo\r\n#{long_value}\r\n")
       write_pipe.write("VA 2 s2 t-1 c2 kfoo\r\nHI\r") # missing one byte
       buffer.read
 
@@ -81,11 +81,11 @@ describe Dalli::Protocol::ResponseBuffer do
       assert_equal [], buffer.process_single_getk_response
       write_pipe.write("\n") # add the missing byte
 
-      assert_equal 10_055, buffer.instance_variable_get(:@buffer).bytesize
+      assert_equal 10_057, buffer.instance_variable_get(:@buffer).bytesize
       buffer.read
 
-      assert_equal 23, buffer.instance_variable_get(:@buffer).bytesize
-      assert_equal [false, 2, 'foo', 'HI'], buffer.process_single_getk_response
+      assert_equal 25, buffer.instance_variable_get(:@buffer).bytesize
+      assert_equal [true, 2, 'foo', 'HI'], buffer.process_single_getk_response
     end
 
     it 'advances the offset' do

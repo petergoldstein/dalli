@@ -62,6 +62,22 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
     end
   end
 
+  describe 'a value with a mismatched terminator' do
+    it 'rejects a single reply before treating the request as complete' do
+      expect_read_line('VA 2 f0')
+      io_source.expect :read, +'hell', [4]
+
+      assert_raises(Dalli::DalliError) { processor.meta_get_with_value }
+    end
+
+    it 'rejects pipelined replies in the fast and token paths' do
+      ["VA 3 s3 kfoo f0\r\nabcXY", "VA 3 kfoo f0\r\nabcXY",
+       "VA 0 s0 kfoo f0\r\nXY"].each do |reply|
+        assert_raises(Dalli::DalliError) { processor.getk_response_from_buffer(reply.b) }
+      end
+    end
+  end
+
   describe '#meta_get_with_value' do
     describe 'when key is found (VA response)' do
       it 'returns the unmarshalled value' do
