@@ -1,6 +1,13 @@
 Dalli Changelog
 =====================
 
+5.1.10
+==========
+
+Security:
+
+- Security fixes; details will follow in the advisory.
+
 5.1.9
 ==========
 

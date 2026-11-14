@@ -19,6 +19,15 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
     io_source.expect :read, "#{data}\r\n", [size + 2]
   end
 
+  it 'rejects a buffered value with an invalid terminator' do
+    ['VA 3 kfoo f0', 'VA 0 kfoo f0'].each do |header|
+      body = header.start_with?('VA 0') ? 'XY' : 'abcXY'
+      assert_raises(Dalli::DalliError) do
+        processor.getk_response_from_buffer("#{header}\r\n#{body}")
+      end
+    end
+  end
+
   describe 'negative value sizes' do
     # -1 and -2 plus the 2-byte terminator would read 1 or 0 bytes
     it 'rejects them before reading' do
