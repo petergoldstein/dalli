@@ -7,7 +7,10 @@ describe Dalli::Protocol::ConnectionManager do
     context = OpenSSL::SSL::SSLContext.new
     context.cert = OpenSSL::X509::Certificate.new(File.read(CertificateGenerator::MEMCACHED_CERT_PATH))
     context.key = OpenSSL::PKey.read(File.read(CertificateGenerator::MEMCACHED_PK_PATH))
-    client_io, server_io = Socket.pair(:UNIX, :STREAM, 0)
+    listener = TCPServer.new('127.0.0.1', 0)
+    client_io = TCPSocket.new('127.0.0.1', listener.addr[1])
+    client_io.define_singleton_method(:options) { { socket_timeout: 0.05 } }
+    server_io = listener.accept
     server = OpenSSL::SSL::SSLSocket.new(server_io, context)
     server_thread = Thread.new do
       server.accept
@@ -30,6 +33,7 @@ describe Dalli::Protocol::ConnectionManager do
     server_thread&.join
     client_io&.close unless client_io&.closed?
     server_io&.close unless server_io&.closed?
+    listener&.close
   end
 
   describe '#read size check' do
