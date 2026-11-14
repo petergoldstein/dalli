@@ -15,6 +15,8 @@ describe Dalli::Protocol::ConnectionManager do
     server_thread = Thread.new do
       server.accept
       sleep 1
+    rescue OpenSSL::SSL::SSLError, IOError, SystemCallError
+      # The client may close while the server is still completing TLS.
     end
     client = Dalli::Socket::SSLSocket.new(client_io, OpenSSL::SSL::SSLContext.new)
     client.sync_close = true
