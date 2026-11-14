@@ -32,6 +32,10 @@ describe Dalli::Protocol::Binary::ResponseProcessor do
     io_source.verify
   end
 
+  it 'rejects a large authentication body before reading it' do
+    assert_raises(Dalli::DalliError) { processor.auth_response(create_header(body_len: 1_048_577)) }
+  end
+
   it 'rejects a large pipelined body' do
     assert_raises(Dalli::DalliError) do
       processor.getk_response_from_buffer(create_header(body_len: 1_048_577))
