@@ -26,6 +26,8 @@ module Dalli
         VA_PREFIX = 'VA '
         # memcached can't store an item larger than 1 GiB (its -I maximum)
         MAX_VALUE_BYTES = 1024 * 1024 * 1024
+        MAX_STATS_ENTRIES = 10_000
+        MAX_QUIET_RESPONSES = 100_000
         FLAGS_TOKEN_PREFIX = ' f'
         BYTE_B = 'b'.ord
         BYTE_C = 'c'.ord
@@ -159,7 +161,11 @@ module Dalli
         def stats
           tokens = error_on_unexpected!(T_END_TOKEN_STAT)
           values = {}
+          replies = 0
           while tokens.first != END_TOKEN
+            replies += 1
+            raise Dalli::DalliError, 'Too many stats replies' if replies > MAX_STATS_ENTRIES
+
             values[tokens[1]] = tokens[2]
             tokens = next_line_to_tokens
           end
@@ -183,10 +189,16 @@ module Dalli
           tokens.last
         end
 
-        def consume_all_responses_until_mn
+        def consume_all_responses_until_mn(max_responses = MAX_QUIET_RESPONSES)
           tokens = next_line_to_tokens
 
-          tokens = next_line_to_tokens while tokens.first != MN
+          replies = 0
+          while tokens.first != MN
+            replies += 1
+            raise Dalli::DalliError, 'Too many quiet replies' if replies > max_responses
+
+            tokens = next_line_to_tokens
+          end
           true
         end
 
@@ -197,11 +209,13 @@ module Dalli
         # was NOT deleted -- a miss (NF) or an error. Returns that count so
         # callers can derive the number of successful deletes as
         # (keys_sent - non_deletions).
-        def pipelined_delete_non_deletions
+        def pipelined_delete_non_deletions(max_responses = MAX_QUIET_RESPONSES)
           non_deletions = 0
           tokens = next_line_to_tokens
           until tokens.first == MN
             non_deletions += 1
+            raise Dalli::DalliError, 'Too many delete replies' if non_deletions > max_responses
+
             tokens = next_line_to_tokens
           end
           non_deletions
@@ -222,6 +236,13 @@ module Dalli
         def getk_response_from_buffer(buf, offset = 0, raw: false)
           # Find the header terminator starting from offset
           term_idx = buf.byteindex(TERMINATOR, offset)
+          max_line_bytes = ConnectionManager::MAX_LINE_BYTES
+          header_too_long = if term_idx
+                              term_idx - offset + TERMINATOR.bytesize > max_line_bytes
+                            else
+                              buf.bytesize - offset >= max_line_bytes
+                            end
+          raise Dalli::DalliError, "Reply line without CRLF in the first #{max_line_bytes} bytes" if header_too_long
           return [0] unless term_idx
 
           header = buf.byteslice(offset, term_idx - offset)
@@ -374,9 +395,11 @@ module Dalli
         end
 
         def check_value_size!(size)
-          return if size.between?(0, MAX_VALUE_BYTES)
+          limit = @value_marshaller.max_response_bytes
+          return if size >= 0 && size <= MAX_VALUE_BYTES && size <= limit # rubocop:disable Style/ComparableBetween
 
-          raise Dalli::DalliError, "Reply value size #{size} is out of range"
+          effective_limit = [MAX_VALUE_BYTES, limit].min
+          raise Dalli::DalliError, "Reply value size #{size} exceeds the #{effective_limit}-byte response limit"
         end
 
         def read_line

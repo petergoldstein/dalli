@@ -35,6 +35,9 @@ module Dalli
     #               to memcached.  Default: true.
     # - :compression_min_size - the minimum size (in bytes) for which Dalli will compress values sent to Memcached.
     #                           Defaults to 4K.
+    # - :value_max_bytes - largest value Dalli will write, 1MB by default.
+    # - :max_response_bytes - largest value accepted from a server. Defaults to :value_max_bytes (1MB by default).
+    #                         Set this explicitly when reading larger items written by another client.
     # - :serializer - defaults to Marshal
     # - :compressor - defaults to Dalli::Compressor, a Zlib-based implementation
     # - :cache_nils - defaults to false, if true Dalli will not treat cached nil values as 'not found' for
