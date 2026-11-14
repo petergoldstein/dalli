@@ -213,6 +213,9 @@ module Dalli
           # a complete response, don't advance the buffer
           return [0, nil, nil, nil, nil] unless buf.bytesize >= offset + resp_size
 
+          term = offset + header_len + body_len
+          raise_bad_value_terminator unless buf.getbyte(term) == 13 && buf.getbyte(term + 1) == 10
+
           # The full response is in our buffer, so parse it and return
           # the values
           body = buf.byteslice(offset + header_len, body_len)
@@ -311,11 +314,19 @@ module Dalli
           line&.split || []
         end
 
+        def strip_value_terminator!(data)
+          data&.chomp!(TERMINATOR) || raise_bad_value_terminator
+        end
+
+        def raise_bad_value_terminator
+          raise Dalli::DalliError, "Reply value isn't followed by CRLF, so its size doesn't match the value"
+        end
+
         def read_data(data_size)
           # Checked before the terminator is added: -1 or -2 would otherwise
           # read 1 or 0 bytes and leave the connection out of step
           check_value_size!(data_size)
-          @io_source.read(data_size + TERMINATOR.bytesize)&.chomp!(TERMINATOR)
+          strip_value_terminator!(@io_source.read(data_size + TERMINATOR.bytesize))
         end
       end
     end

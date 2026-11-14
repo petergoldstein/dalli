@@ -7,6 +7,15 @@ describe Dalli::Protocol::Meta::ResponseProcessor do
   let(:value_marshaller) { Dalli::Protocol::ValueMarshaller.new({}) }
   let(:processor) { Dalli::Protocol::Meta::ResponseProcessor.new(io_source, value_marshaller) }
 
+  it 'rejects a buffered value with an invalid terminator' do
+    ['VA 3 kfoo f0', 'VA 0 kfoo f0'].each do |header|
+      body = header.start_with?('VA 0') ? 'XY' : 'abcXY'
+      assert_raises(Dalli::DalliError) do
+        processor.getk_response_from_buffer("#{header}\r\n#{body}")
+      end
+    end
+  end
+
   it 'rejects an unterminated pipelined header over 8 KiB' do
     assert_raises(Dalli::DalliError) { processor.getk_response_from_buffer('X' * 8193) }
   end

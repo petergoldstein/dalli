@@ -42,7 +42,7 @@ describe 'Keys that need base64 encoding' do
     end
   end
 
-  it 'ignores replies for keys that were not requested, with verify_reply_keys' do
+  it 'rejects malformed replies for keys that were not requested' do
     memcached_persistent(:meta) do |_, port|
       dc = Dalli::Client.new("127.0.0.1:#{port}", protocol: :meta, verify_reply_keys: true)
       dc.flush
@@ -51,11 +51,10 @@ describe 'Keys that need base64 encoding' do
       auto_create(port, odd)
 
       yielded = []
-      dc.get_multi('victim', odd) { |k, v| yielded << [k, v] }
-
+      assert_raises(Dalli::DalliError) { dc.get_multi('victim', odd) { |key, value| yielded << [key, value] } }
       refute_includes yielded.map(&:last), 'FORGED'
-      refute_includes dc.get_multi('victim', odd).values, 'FORGED'
-      refute_includes dc.get_multi_cas('victim', odd).values.map(&:first), 'FORGED'
+      assert_raises(Dalli::DalliError) { dc.get_multi('victim', odd) }
+      assert_raises(Dalli::DalliError) { dc.get_multi_cas('victim', odd) }
       assert_equal 'secret-value', dc.get('victim')
     end
   end
