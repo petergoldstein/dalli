@@ -451,8 +451,8 @@ module Dalli
         response_processor.take_unmarshal_error
         expect_reply_keys(keys)
 
-        # The terminating noop is sent by pipeline_response_setup
-        write(quiet_get_requests(keys, options, return_cas: return_cas))
+        # Sent by pipeline_response_setup, in one write with the terminating noop
+        @connection_manager.write_with_next(quiet_get_requests(keys, options, return_cas: return_cas))
       end
 
       # For large batches, interleave writing requests with draining responses.

@@ -330,6 +330,14 @@ module Dalli
         error_on_request!(e)
       end
 
+      # Buffers a pipelined get's requests whatever their size, so they go out in
+      # one write with the noop that follows. Written on their own, they leave
+      # the noop waiting on a socket the server has stopped reading.
+      def write_with_next(bytes)
+        @write_buffer << bytes
+        @write_buffer_bytes += bytes.bytesize
+      end
+
       def flush
         flush_write_buffer
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, IOError => e
