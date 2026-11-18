@@ -21,12 +21,56 @@ describe 'multi-get requests larger than the socket buffer' do
     skip 'UNIX sockets unsupported on Windows' if RbConfig::CONFIG['host_os'].match?(/mingw|mswin/)
   end
 
+  it 'returns every value from get_multi' do
+    memcached_persistent(:meta, socket_path) do |_, path|
+      dc = unix_client(path)
+      expected = keys_and_values(8_000, 1_000)
+      dc.set_multi(expected)
+
+      assert_equal expected, dc.get_multi(expected.keys)
+      dc.close
+    end
+  end
+
+  it 'returns every value from get_multi_with_metadata' do
+    memcached_persistent(:meta, socket_path) do |_, path|
+      dc = unix_client(path)
+      expected = keys_and_values(8_000, 1_000)
+      dc.set_multi(expected)
+
+      assert_equal(expected, dc.get_multi_with_metadata(expected.keys).transform_values { |meta| meta[:value] })
+      dc.close
+    end
+  end
+
+  it 'returns every value from get_multi_cas' do
+    memcached_persistent(:meta, socket_path) do |_, path|
+      dc = unix_client(path)
+      expected = keys_and_values(8_000, 1_000)
+      dc.set_multi(expected)
+
+      assert_equal expected, dc.get_multi_cas(*expected.keys).transform_values(&:first)
+      dc.close
+    end
+  end
+
   # About 140 KB: fits the send buffer, but more than the quarter of it that
   # must be free before a Unix socket accepts a second write
   it 'returns every value from get_multi_cas when the request fits the send buffer' do
     memcached_persistent(:meta, socket_path) do |_, path|
       dc = unix_client(path)
       expected = keys_and_values(1_500, 1_000)
+      dc.set_multi(expected)
+
+      assert_equal expected, dc.get_multi_cas(*expected.keys).transform_values(&:first)
+      dc.close
+    end
+  end
+
+  it 'returns every value from get_multi_cas when the keys are sent in chunks' do
+    memcached_persistent(:meta, socket_path) do |_, path|
+      dc = unix_client(path)
+      expected = keys_and_values(Dalli::PipelinedGetter::INTERLEAVE_THRESHOLD + 2_000, 200)
       dc.set_multi(expected)
 
       assert_equal expected, dc.get_multi_cas(*expected.keys).transform_values(&:first)

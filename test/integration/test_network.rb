@@ -133,30 +133,32 @@ describe 'Network' do
         # Each retry used to reconnect successfully, which reset the failure
         # count, so a server that accepts connections but never answers was
         # retried forever and the caller hung.
-        it 'gives up on a server that accepts connections but never answers' do
-          server = TCPServer.new('127.0.0.1', 19_456)
-          acceptor = Thread.new do
-            loop do
-              Thread.new(server.accept) do |sock|
-                while (line = sock.gets)
-                  sock.write("VERSION 1.6.45\r\n") if line.start_with?('version')
+        { 'get' => ->(dc) { dc.get('anykey') }, 'get_multi' => ->(dc) { dc.get_multi(%w[a b]) } }.each do |name, op|
+          it "gives up on a server that accepts connections but never answers (#{name})" do
+            server = TCPServer.new('127.0.0.1', 19_456)
+            acceptor = Thread.new do
+              loop do
+                Thread.new(server.accept) do |sock|
+                  while (line = sock.gets)
+                    sock.write("VERSION 1.6.45\r\n") if line.start_with?('version')
+                  end
+                rescue IOError, SystemCallError
+                  nil
                 end
-              rescue IOError, SystemCallError
-                nil
               end
+            rescue IOError
+              nil
             end
-          rescue IOError
-            nil
-          end
-          dc = Dalli::Client.new('127.0.0.1:19456', socket_timeout: 0.3, enforce_read_timeout: true,
-                                                    protocol: p)
-          started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            dc = Dalli::Client.new('127.0.0.1:19456', socket_timeout: 0.3, enforce_read_timeout: true,
+                                                      protocol: p)
+            started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-          assert_raises(Dalli::NetworkError) { dc.get('anykey') }
-          assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 5
-        ensure
-          server&.close
-          acceptor&.kill
+            assert_raises(Dalli::NetworkError) { op.call(dc) }
+            assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 5
+          ensure
+            server&.close
+            acceptor&.kill
+          end
         end
 
         # The quiet writes completed as requests, which reset the failure
@@ -704,9 +706,17 @@ describe 'Network' do
       it 'handles timeout error during pipelined get' do
         with_nil_logger do
           memcached(p, 19_191) do |dc|
-            dc.send(:ring).server_for_key('abc').sock.stub(:write, proc { raise Timeout::Error }) do
+            raised = 0
+            failing_write = proc do
+              raised += 1
+              raise Timeout::Error
+            end
+
+            dc.send(:ring).server_for_key('abc').sock.stub(:write_nonblock, failing_write) do
               assert_empty dc.get_multi(['abc'])
             end
+
+            assert_equal 1, raised
           end
         end
       end
@@ -751,10 +761,17 @@ describe 'Network' do
         with_nil_logger do
           memcached(p, 19_191) do |dc|
             ssl_error = OpenSSL::SSL::SSLError.new('SSL_read: unexpected eof while reading')
+            raised = 0
+            failing_write = proc do
+              raised += 1
+              raise ssl_error
+            end
 
-            dc.send(:ring).server_for_key('abc').sock.stub(:write, proc { raise ssl_error }) do
+            dc.send(:ring).server_for_key('abc').sock.stub(:write_nonblock, failing_write) do
               assert_empty dc.get_multi(['abc'])
             end
+
+            assert_equal 1, raised
           end
         end
       end

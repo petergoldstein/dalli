@@ -7,6 +7,7 @@ Unreleased
 Bug fixes:
 
 - `Client#with`, which lets a bare client stand in for a connection pool, now accepts and ignores the arguments `ConnectionPool#with` takes, such as `timeout:`. Passing any raised `ArgumentError` (#1323, @byroot)
+- A multi-get whose request was larger than the socket's send buffer no longer stalls until `socket_timeout` and marks the server down: replies are now read while the request is still being sent (#1326, @edcarvio)
 
 5.3.3
 ==========

@@ -249,6 +249,49 @@ describe Dalli::Protocol::ConnectionManager do
     end
   end
 
+  describe 'reading replies that arrived while the request was sent' do
+    let(:client_options) { { socket_max_failures: 1 } }
+
+    # A stream whose first `arrived` bytes came in during the send
+    def manager_reading(data, arrived)
+      sock = StringIO.new(data.b)
+      sock.define_singleton_method(:read_nonblock) { |_max, **| read(arrived) }
+      sock.define_singleton_method(:readfull) { |count| read(count) } # JRuby's read
+      manager = Dalli::Protocol::ConnectionManager.new(hostname, port, socket_type, client_options)
+      manager.instance_variable_set(:@sock, sock)
+      manager.prefetch_replies
+      manager
+    end
+
+    it 'reads them first and the rest from the socket, wherever the two meet' do
+      # A bare CR doesn't end a line for gets, so it mustn't for the buffer either
+      lines = ["VA 3 kfoo\r\n", "bar\r\n", "HD a\rb\r\n", "HD \r\r\n", "VA 0 kbaz\r\n", "\r\n", "MN\r\n"]
+      (1..lines.join.bytesize).each do |arrived|
+        manager = manager_reading(lines.join, arrived)
+        got = [manager.buffered_read_line, manager.buffered_read(5), manager.buffered_read_line,
+               manager.buffered_read_line, manager.buffered_read_line, manager.buffered_read(2),
+               manager.buffered_read_line]
+
+        assert_equal lines, got, "#{arrived} bytes arrived during the send"
+        assert_nil manager.finish_buffered_read
+      end
+    end
+
+    it 'applies the line limit of read_line to them' do
+      limit = Dalli::Protocol::ConnectionManager::MAX_LINE_BYTES
+      fits = "EN #{'x' * (limit - 5)}\r\n"
+      data = "#{fits}#{fits.sub('EN', 'ENx')}"
+      # The line past the limit arrived whole, or ends on the socket
+      [data.bytesize, fits.bytesize + 10].each do |arrived|
+        manager = manager_reading(data, arrived)
+
+        assert_equal fits, manager.buffered_read_line
+        assert_raises(Dalli::NetworkError) { manager.buffered_read_line }
+        refute_predicate manager, :connected?
+      end
+    end
+  end
+
   describe 'failure counting' do
     let(:manager) { Dalli::Protocol::ConnectionManager.new('localhost', 11_211, :tcp, { socket_max_failures: 2 }) }
 
