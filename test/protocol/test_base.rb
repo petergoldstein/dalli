@@ -90,7 +90,7 @@ describe Dalli::Protocol::Base do
       drain = ->(_results) { seen = buffer.instance_variable_get(:@buffer).dup }
       conn = server.instance_variable_get(:@connection_manager)
 
-      conn.stub(:interleaved_write, lambda(&:bytesize)) do
+      conn.stub(:interleaved_write, ->(bytes, _max_held) { bytes.bytesize }) do
         server.stub(:drain_pipeline_responses, drain) do
           server.send(:pipelined_get_interleaved, %w[a b], 10, {})
         end

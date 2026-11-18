@@ -473,11 +473,22 @@ module Dalli
           chunk.each do |key|
             req << quiet_get_request(key, options)
           end
-          @connection_manager.interleaved_write(req) { response_buffer.read }
+          @connection_manager.interleaved_write(req, max_reply_bytes(keys.size)) { prefetch_pipeline_replies }
 
           # Drain any available responses directly into results hash
           drain_pipeline_responses(results)
         end
+      end
+
+      # The most reply bytes key_count keys can need: a header line and a value
+      # for each, and the line that ends the replies
+      def max_reply_bytes(key_count)
+        (key_count + 1) * (ConnectionManager::MAX_LINE_BYTES + @value_marshaller.max_response_bytes + 2)
+      end
+
+      def prefetch_pipeline_replies
+        response_buffer.read
+        response_buffer.unparsed_bytesize
       end
 
       # Non-blocking read and processing of any available pipeline responses.

@@ -389,43 +389,48 @@ module Dalli
         @write_buffer_bytes += bytes.bytesize
       end
 
-      # Sends bytes, after anything buffered, without blocking on a server that
-      # stopped reading because its replies are unread: when the socket is full,
-      # waits for it to be writable or readable, and the block takes replies off it.
-      def interleaved_write(bytes)
+      # Sends without blocking on a server that stopped reading while its replies
+      # go unread: the block moves them off the socket and returns the bytes held.
+      # Fails after socket_timeout without sending, or once max_held is passed.
+      def interleaved_write(bytes, max_held)
         write_with_next(bytes)
         @request_sent = true if @request_in_progress
         pending = @write_buffer.size == 1 ? @write_buffer.first : joined_write_buffer
         discard_write_buffer
         sent = 0
         total = pending.bytesize
+        deadline = nil
         while sent < total
           rest = sent.zero? ? pending : pending.byteslice(sent, total - sent)
           case (written = @sock.write_nonblock(rest, exception: false))
           when :wait_writable, :wait_readable
-            readable, = IO.select([@sock], [@sock], nil, socket_timeout)
-            raise Timeout::Error, "IO timeout writing to #{name}" unless readable
+            deadline ||= write_deadline
+            wait = deadline && (deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC))
+            raise Timeout::Error, "IO timeout writing to #{name}" if wait && wait <= 0
 
-            yield unless readable.empty?
+            readable, = IO.select([@sock], [@sock], nil, wait)
+            raise Timeout::Error, "IO timeout writing to #{name}" unless readable
+            next if readable.empty?
+
+            held = yield
+            error_on_request!("#{name} sent over #{max_held} reply bytes while a multi-get was sent") if held > max_held
           else
             sent += written
+            deadline = nil
           end
         end
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, IOError => e
         error_on_request!(e)
       end
 
-      # Moves the replies that have arrived into the read buffer, unparsed
+      # Moves up to one chunk of arrived replies into the read buffer, unparsed,
+      # and returns how many bytes it holds
       def prefetch_replies
-        loop do
-          case (chunk = @sock.read_nonblock(PREFETCH_READ_BYTES, exception: false))
-          when :wait_readable, :wait_writable then return
-          when nil then raise EOFError, 'EOF in a multi-get reply'
-          else
-            @read_buffer << chunk
-            return if chunk.bytesize < PREFETCH_READ_BYTES
-          end
+        case (chunk = @sock.read_nonblock(PREFETCH_READ_BYTES, exception: false))
+        when nil then raise EOFError, 'EOF in a multi-get reply'
+        when String then @read_buffer << chunk
         end
+        @read_buffer.bytesize - @read_offset
       end
 
       def flush
@@ -573,6 +578,10 @@ module Dalli
       def discard_write_buffer
         @write_buffer.clear
         @write_buffer_bytes = 0
+      end
+
+      def write_deadline
+        socket_timeout && (Process.clock_gettime(Process::CLOCK_MONOTONIC) + socket_timeout)
       end
 
       def discard_read_buffer
