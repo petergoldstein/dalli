@@ -75,6 +75,10 @@ module Dalli
       def in_progress?
         !@buffer.nil?
       end
+
+      def unparsed_bytesize
+        @buffer ? @buffer.bytesize - @offset : 0
+      end
     end
   end
 end

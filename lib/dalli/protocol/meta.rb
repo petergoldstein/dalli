@@ -340,7 +340,9 @@ module Dalli
       end
 
       def write_pipeline_noop
-        @connection_manager.interleaved_write(RequestFormatter.meta_noop) { response_buffer.read }
+        @connection_manager.interleaved_write(RequestFormatter.meta_noop, max_reply_bytes(@expected_response_count)) do
+          prefetch_pipeline_replies
+        end
       end
 
       # Single-server fast path for get_multi. Inlines request formatting and
@@ -349,7 +351,9 @@ module Dalli
       def read_multi_req(keys, options = nil)
         is_raw = raw_request?(options)
         buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw, **routing_token_kwargs(options))
-        @connection_manager.interleaved_write(buffer) { @connection_manager.prefetch_replies }
+        @connection_manager.interleaved_write(buffer, max_reply_bytes(keys.size)) do
+          @connection_manager.prefetch_replies
+        end
         buffer.clear
         read_multi_get_responses(is_raw, keys)
       end
@@ -366,7 +370,9 @@ module Dalli
         is_raw = raw_request?(options)
         buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw, return_cas: true,
                                                        **routing_token_kwargs(options))
-        @connection_manager.interleaved_write(buffer) { @connection_manager.prefetch_replies }
+        @connection_manager.interleaved_write(buffer, max_reply_bytes(keys.size)) do
+          @connection_manager.prefetch_replies
+        end
         buffer.clear
         read_multi_metadata_responses(is_raw, keys)
       end
