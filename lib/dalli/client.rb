@@ -489,16 +489,16 @@ module Dalli
     #
     # The deadline applies to the fiber that runs the block, and to fibers
     # and threads started in it. Another thread sharing this client isn't
-    # affected. A nested block can only shorten the deadline. Returns the
-    # block's value.
+    # affected. A nested block can only shorten the deadline. Yields the
+    # client and returns the block's value.
     #
-    #   client.with_deadline(0.5) { client.get('key') }
+    #   client.with_deadline(0.5) { |c| c.get('key') }
     def with_deadline(seconds)
       deadline = Deadline.new(seconds)
       outer = Fiber[@deadline_key]
       Fiber[@deadline_key] = deadline if outer.nil? || deadline.expires_at < outer.expires_at
       begin
-        yield
+        yield self
       ensure
         Fiber[@deadline_key] = outer
       end

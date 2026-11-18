@@ -44,8 +44,11 @@ describe 'Dalli::Client#with_deadline' do
     Fiber[client.instance_variable_get(:@deadline_key)]
   end
 
-  it "returns the block's value and clears the deadline afterwards" do
-    assert_equal :done, client.with_deadline(1) { :done }
+  it "yields the client, returns the block's value and clears the deadline afterwards" do
+    assert_equal :done, client.with_deadline(1) { |c|
+      assert_same client, c
+      :done
+    }
     assert_nil current_deadline(client)
   end
 
