@@ -52,6 +52,21 @@ describe 'Dalli::Client#with_deadline' do
     assert_nil current_deadline(client)
   end
 
+  # ActiveSupport::Deadline#remaining returns infinity when there's no deadline
+  it 'sets no deadline for Float::INFINITY, keeping an outer one' do
+    assert_equal :done, client.with_deadline(Float::INFINITY) { |c|
+      assert_same client, c
+      assert_nil current_deadline(client)
+      :done
+    }
+
+    client.with_deadline(1) do
+      outer = current_deadline(client)
+
+      client.with_deadline(Float::INFINITY) { assert_same outer, current_deadline(client) }
+    end
+  end
+
   it 'clears the deadline when the block raises' do
     assert_raises(RuntimeError) { client.with_deadline(1) { raise 'boom' } }
     assert_nil current_deadline(client)
