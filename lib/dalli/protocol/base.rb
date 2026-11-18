@@ -66,6 +66,7 @@ module Dalli
 
       # Chokepoint method for error handling and ensuring liveness
       def request(opkey, *args)
+        @connection_manager.check_deadline!
         verify_state(opkey)
 
         begin
@@ -440,8 +441,10 @@ module Dalli
       end
 
       def connect
-        @connection_manager.establish_connection
-        @version = version
+        @connection_manager.within_connect_deadline do
+          @connection_manager.establish_connection
+          @version = version
+        end
         up!
       end
 

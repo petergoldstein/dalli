@@ -62,13 +62,14 @@ module Dalli
     # combined `rescue DalliError, NetworkError` would silently swallow
     # RetryableNetworkError too -- since NetworkError < DalliError -- dropping
     # this server's keys on a transient hiccup instead of retrying. Only a
-    # non-network DalliError should be swallowed here.
+    # non-network DalliError should be swallowed here; an exceeded deadline
+    # ends the call.
     def make_delete_requests(groups, req_options = nil)
       groups.each do |server, keys_for_server|
         keys_for_server.select! do |key|
           server.request(:pipelined_delete, key, req_options)
           true
-        rescue Dalli::NetworkError
+        rescue Dalli::NetworkError, Dalli::DeadlineExceededError
           raise
         rescue DalliError => e
           Dalli.logger.debug { e.inspect }
@@ -85,7 +86,7 @@ module Dalli
     def finish_requests(groups)
       groups.sum do |server, keys_for_server|
         server.request(:finish_pipelined_delete, keys_for_server.size)
-      rescue Dalli::NetworkError
+      rescue Dalli::NetworkError, Dalli::DeadlineExceededError
         raise
       rescue DalliError => e
         Dalli.logger.debug { e.inspect }

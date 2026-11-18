@@ -83,6 +83,8 @@ module Dalli
       @options = normalize_options(options)
       @key_manager = ::Dalli::KeyManager.new(@options)
       @ring = nil
+      # Where with_deadline keeps this client's deadline in fiber storage
+      @deadline_key = :"dalli_deadline_#{object_id}"
     end
 
     #
@@ -473,6 +475,34 @@ module Dalli
       Thread.current[::Dalli::QUIET] = old
     end
     alias multi quiet
+
+    ##
+    # Runs the block with a deadline: the calls this client makes in it must
+    # finish within +seconds+, including reconnects, retries and get_multi's
+    # waits. Each wait is cut to the time left, and once it's used up the
+    # call raises Dalli::DeadlineExceededError.
+    #
+    # That error isn't a NetworkError. The call isn't retried or failed over,
+    # and the server isn't counted toward socket_max_failures, since running
+    # out of time says nothing about it. The connection the call was using is
+    # closed, as its reply may be half read.
+    #
+    # The deadline applies to the fiber that runs the block, and to fibers
+    # and threads started in it. Another thread sharing this client isn't
+    # affected. A nested block can only shorten the deadline. Returns the
+    # block's value.
+    #
+    #   client.with_deadline(0.5) { client.get('key') }
+    def with_deadline(seconds)
+      deadline = Deadline.new(seconds)
+      outer = Fiber[@deadline_key]
+      Fiber[@deadline_key] = deadline if outer.nil? || deadline.expires_at < outer.expires_at
+      begin
+        yield
+      ensure
+        Fiber[@deadline_key] = outer
+      end
+    end
 
     ##
     # Reads and discards the replies still pending from quiet requests, on the
@@ -1120,7 +1150,7 @@ module Dalli
     end
 
     def ring
-      @ring ||= Dalli::Ring.new(@normalized_servers, @options)
+      @ring ||= Dalli::Ring.new(@normalized_servers, @options.merge(deadline_key: @deadline_key))
     end
 
     ##
@@ -1187,7 +1217,7 @@ module Dalli
     end
 
     def pipelined_getter
-      PipelinedGetter.new(ring, @key_manager)
+      PipelinedGetter.new(ring, @key_manager, @deadline_key)
     end
 
     def pipelined_setter

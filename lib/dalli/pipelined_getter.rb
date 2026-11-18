@@ -14,9 +14,10 @@ module Dalli
     # Number of keys to send before draining responses during interleaved mode
     CHUNK_SIZE = 10_000
 
-    def initialize(ring, key_manager)
+    def initialize(ring, key_manager, deadline_key = nil)
       @ring = ring
       @key_manager = key_manager
+      @deadline_key = deadline_key
     end
 
     ##
@@ -52,7 +53,9 @@ module Dalli
           # First yield any partial results collected during interleaved send
           yield_partial_results(&block)
 
-          fetch_responses(servers, @ring.socket_timeout, &block) until servers.empty?
+          timeout = @ring.socket_timeout
+          deadline = @deadline_key && Fiber[@deadline_key]
+          fetch_responses(servers, timeout, deadline, &block) until servers.empty?
           raise @unmarshal_error if @unmarshal_error
         ensure
           abort_unfinished(servers)
@@ -93,7 +96,7 @@ module Dalli
             caller_key = @key_manager.caller_key(caller_keys, key)
             results[caller_key] = metadata if caller_key
           end
-        rescue Dalli::NetworkError, Dalli::UnmarshalError
+        rescue Dalli::NetworkError, Dalli::UnmarshalError, Dalli::DeadlineExceededError
           raise
         rescue DalliError => e
           Dalli.logger.debug { e.inspect }
@@ -128,7 +131,7 @@ module Dalli
 
         started << server
         finish_query_for_server(server)
-      rescue Dalli::NetworkError
+      rescue Dalli::NetworkError, Dalli::DeadlineExceededError
         abort_unfinished(started)
         raise
       rescue Dalli::DalliError
@@ -159,8 +162,8 @@ module Dalli
     # too, dropping this server's keys from the result on a transient hiccup
     # instead of retrying, with nothing surfaced above debug-level logging.
     # Only a non-network DalliError (this server genuinely can't serve these
-    # keys) should be swallowed here.
-    rescue Dalli::NetworkError
+    # keys) should be swallowed here. An exceeded deadline ends the call.
+    rescue Dalli::NetworkError, Dalli::DeadlineExceededError
       raise
     rescue DalliError => e
       Dalli.logger.debug { e.inspect }
@@ -190,13 +193,22 @@ module Dalli
     # Reads the replies available, removing finished servers from servers.
     # The wait is for any server to send something, so it starts again after
     # each read: a large batch that keeps arriving isn't cut off.
-    def fetch_responses(servers, timeout, &block)
+    #
+    # With a deadline, each wait is cut to the time left. When a wait cut
+    # short finds nothing, the deadline has passed: the caller's ensure
+    # closes the connections, and no server is counted as failing.
+    def fetch_responses(servers, timeout, deadline, &block)
       # Remove any servers which are not connected
       servers.select!(&:connected?)
       return if servers.empty?
 
-      readable_servers = servers_with_response(servers, timeout)
-      time_out(servers) if readable_servers.empty?
+      wait = deadline ? deadline.clamp(timeout || Float::INFINITY) : timeout
+      readable_servers = servers_with_response(servers, wait)
+      if readable_servers.empty?
+        raise Dalli::DeadlineExceededError, 'Deadline exceeded waiting for get_multi' if deadline && wait != timeout
+
+        time_out(servers)
+      end
 
       # Loop through the servers with responses, and
       # delete any from our list that are finished
