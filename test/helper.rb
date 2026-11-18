@@ -137,12 +137,13 @@ module Minitest
 
     # Yields a single-server client, then a two-server one, both with options.
     # Each is closed afterwards, so a Ruby that closes sockets only on GC
-    # doesn't run memcached out of connections.
-    def with_one_and_two_servers(protocol, **options, &)
+    # doesn't run memcached out of connections. The block is named because
+    # JRuby 10.1.3 rejects an anonymous one forwarded from inside a block.
+    def with_one_and_two_servers(protocol, **options, &block)
       memcached_persistent(protocol, 21_345) do |_, port1|
-        with_closed_client("localhost:#{port1}", options, &)
+        with_closed_client("localhost:#{port1}", options, &block)
         memcached_persistent(protocol, 21_346) do |_, port2|
-          with_closed_client(["localhost:#{port1}", "localhost:#{port2}"], options, &)
+          with_closed_client(["localhost:#{port1}", "localhost:#{port2}"], options, &block)
         end
       end
     end
