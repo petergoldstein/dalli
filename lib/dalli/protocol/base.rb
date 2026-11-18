@@ -147,10 +147,10 @@ module Dalli
       # Returns nothing.
       def pipeline_response_setup
         verify_pipelined_state(:getkq)
-        write_noop
         # Use ensure_ready instead of reset to preserve any data already buffered
         # while this get_multi's interleaved requests were sent
         response_buffer.ensure_ready
+        write_pipeline_noop
       end
 
       # Attempt to receive and parse as many key/value pairs as possible
@@ -473,8 +473,7 @@ module Dalli
           chunk.each do |key|
             req << quiet_get_request(key, options)
           end
-          write(req)
-          @connection_manager.flush
+          @connection_manager.interleaved_write(req) { response_buffer.read }
 
           # Drain any available responses directly into results hash
           drain_pipeline_responses(results)

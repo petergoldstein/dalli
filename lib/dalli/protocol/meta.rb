@@ -339,13 +339,17 @@ module Dalli
         flushed_write(RequestFormatter.meta_noop)
       end
 
+      def write_pipeline_noop
+        @connection_manager.interleaved_write(RequestFormatter.meta_noop) { response_buffer.read }
+      end
+
       # Single-server fast path for get_multi. Inlines request formatting and
       # response parsing to minimize per-key overhead. Avoids the PipelinedGetter
       # machinery (IO.select, response buffering, server grouping).
       def read_multi_req(keys, options = nil)
         is_raw = raw_request?(options)
         buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw, **routing_token_kwargs(options))
-        flushed_write(buffer)
+        @connection_manager.interleaved_write(buffer) { @connection_manager.prefetch_replies }
         buffer.clear
         read_multi_get_responses(is_raw, keys)
       end
@@ -362,7 +366,7 @@ module Dalli
         is_raw = raw_request?(options)
         buffer = RequestFormatter.multi_meta_get(keys, skip_flags: is_raw, return_cas: true,
                                                        **routing_token_kwargs(options))
-        flushed_write(buffer)
+        @connection_manager.interleaved_write(buffer) { @connection_manager.prefetch_replies }
         buffer.clear
         read_multi_metadata_responses(is_raw, keys)
       end
@@ -371,10 +375,12 @@ module Dalli
       # by position, because the c flag shifts the key's index.
       def read_multi_metadata_responses(is_raw, keys)
         expect_reply_keys(keys)
+        cm = @connection_manager
+        prefetched = cm.prefetched?
         hash = {}
         unmarshal_error = nil
         replies = 0
-        while (line = @connection_manager.read_line)
+        while (line = prefetched ? cm.buffered_read_line : cm.read_line)
           break if line.start_with?('MN')
 
           replies += 1
@@ -385,7 +391,8 @@ module Dalli
           tokens = line.chomp!(TERMINATOR).split
           size = tokens[1].to_i
           response_processor.check_value_size!(size)
-          value = response_processor.strip_value_terminator!(@connection_manager.read(size + TERMINATOR.bytesize))
+          count = size + TERMINATOR.bytesize
+          value = response_processor.strip_value_terminator!(prefetched ? cm.buffered_read(count) : cm.read(count))
           stale = response_processor.stale_from_tokens(tokens)
           cas = response_processor.cas_from_tokens(tokens)
           bitflags = is_raw ? 0 : response_processor.bitflags_from_tokens(tokens)
@@ -401,6 +408,7 @@ module Dalli
             unmarshal_error ||= e
           end
         end
+        cm.finish_buffered_read if prefetched
         raise unmarshal_error if unmarshal_error
 
         hash
@@ -411,10 +419,12 @@ module Dalli
       # connection is left in step. The first such error is raised.
       def read_multi_get_responses(is_raw, keys)
         expect_reply_keys(keys)
+        cm = @connection_manager
+        prefetched = cm.prefetched?
         hash = {}
         unmarshal_error = nil
         replies = 0
-        while (line = @connection_manager.read_line)
+        while (line = prefetched ? cm.buffered_read_line : cm.read_line)
           break if line.start_with?('MN')
 
           replies += 1
@@ -423,13 +433,14 @@ module Dalli
           next unless line.start_with?('VA ')
 
           begin
-            key, value = parse_multi_get_value(line, is_raw)
+            key, value = parse_multi_get_value(line, is_raw, prefetched)
           rescue Dalli::UnmarshalError => e
             unmarshal_error ||= e
             next
           end
           hash[key] = value if key
         end
+        cm.finish_buffered_read if prefetched
         raise unmarshal_error if unmarshal_error
 
         hash
@@ -444,11 +455,13 @@ module Dalli
 
       # Reads the "VA <size> [f<flags>] k<key> ..." line in place rather than
       # splitting it into tokens
-      def parse_multi_get_value(line, is_raw)
+      def parse_multi_get_value(line, is_raw, prefetched)
         processor = response_processor
         size = processor.size_from_va_line(line)
         processor.check_value_size!(size)
-        value = processor.strip_value_terminator!(@connection_manager.read(size + TERMINATOR.bytesize))
+        count = size + TERMINATOR.bytesize
+        cm = @connection_manager
+        value = processor.strip_value_terminator!(prefetched ? cm.buffered_read(count) : cm.read(count))
         key = processor.key_from_va_line(line)
         return unless key
 

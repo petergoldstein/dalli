@@ -46,6 +46,8 @@ module Dalli
         @write_buffer = []
         @write_buffer_bytes = 0
         @response_buffer = nil
+        @read_buffer = ''.b
+        @read_offset = 0
 
         @fail_count = 0
         reset_down_info
@@ -180,6 +182,7 @@ module Dalli
           @pid = nil
           @quiet_responses_pending = false
           discard_write_buffer
+          discard_read_buffer
           @response_buffer&.clear
           abort_request!
         end
@@ -308,6 +311,54 @@ module Dalli
         end
       end
 
+      # Replies that arrive while a multi-get's request is still being sent are
+      # read in chunks of this size: one empties a Unix socket's fixed send
+      # buffer (208 KiB on Linux).
+      PREFETCH_READ_BYTES = 256 * 1024
+
+      # Whether replies arrived while the request was being sent. The parsers
+      # then read them with buffered_read_line and buffered_read.
+      def prefetched?
+        @read_offset < @read_buffer.bytesize
+      end
+
+      # Like read_line, but first reads the replies that arrived during the send
+      def buffered_read_line
+        return read_line if @read_offset == @read_buffer.bytesize
+
+        eol = @read_buffer.byteindex("\r\n", @read_offset)
+        length = eol ? eol + 2 - @read_offset : @read_buffer.bytesize - @read_offset
+        line_too_long! if length > MAX_LINE_BYTES
+        return take_bytes(length) if eol
+
+        # The line ends on the socket. A CR that ends the buffer may be the first
+        # half of its CRLF, which gets would find across the two.
+        line = unread_bytes
+        line << read(1) while line.end_with?("\r") && line.bytesize <= MAX_LINE_BYTES
+        line << read_line unless line.end_with?("\r\n")
+        line_too_long! if line.bytesize > MAX_LINE_BYTES
+        line
+      end
+
+      # Like read, but first reads the replies that arrived during the send
+      def buffered_read(count)
+        held = @read_buffer.bytesize - @read_offset
+        return read(count) if held.zero?
+
+        check_read_size!(count)
+        return take_bytes(count) if held >= count
+
+        value = unread_bytes
+        value << read(count - held)
+      end
+
+      # After the reply's last line: anything still buffered was not asked for
+      def finish_buffered_read
+        return if @read_offset == @read_buffer.bytesize
+
+        error_on_request!('Unexpected bytes after the end of a multi-get reply')
+      end
+
       # Alias for callers that want to make the exact-length contract explicit
       # at the call site.
       alias read_exact read
@@ -336,6 +387,45 @@ module Dalli
       def write_with_next(bytes)
         @write_buffer << bytes
         @write_buffer_bytes += bytes.bytesize
+      end
+
+      # Sends bytes, after anything buffered, without blocking on a server that
+      # stopped reading because its replies are unread: when the socket is full,
+      # waits for it to be writable or readable, and the block takes replies off it.
+      def interleaved_write(bytes)
+        write_with_next(bytes)
+        @request_sent = true if @request_in_progress
+        pending = @write_buffer.size == 1 ? @write_buffer.first : joined_write_buffer
+        discard_write_buffer
+        sent = 0
+        total = pending.bytesize
+        while sent < total
+          rest = sent.zero? ? pending : pending.byteslice(sent, total - sent)
+          case (written = @sock.write_nonblock(rest, exception: false))
+          when :wait_writable, :wait_readable
+            readable, = IO.select([@sock], [@sock], nil, socket_timeout)
+            raise Timeout::Error, "IO timeout writing to #{name}" unless readable
+
+            yield unless readable.empty?
+          else
+            sent += written
+          end
+        end
+      rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, IOError => e
+        error_on_request!(e)
+      end
+
+      # Moves the replies that have arrived into the read buffer, unparsed
+      def prefetch_replies
+        loop do
+          case (chunk = @sock.read_nonblock(PREFETCH_READ_BYTES, exception: false))
+          when :wait_readable, :wait_writable then return
+          when nil then raise EOFError, 'EOF in a multi-get reply'
+          else
+            @read_buffer << chunk
+            return if chunk.bytesize < PREFETCH_READ_BYTES
+          end
+        end
       end
 
       def flush
@@ -485,6 +575,35 @@ module Dalli
         @write_buffer_bytes = 0
       end
 
+      def discard_read_buffer
+        @read_buffer.clear
+        @read_offset = 0
+      end
+
+      # The unparsed end of the buffer, which is then empty
+      def unread_bytes
+        take_bytes(@read_buffer.bytesize - @read_offset)
+      end
+
+      # The next count bytes, emptying the buffer once it is all read. Bytes that
+      # reach its end are copied: a byteslice there would share its memory and
+      # keep all of it allocated.
+      def take_bytes(count)
+        if @read_offset + count < @read_buffer.bytesize
+          part = @read_buffer.byteslice(@read_offset, count)
+          @read_offset += count
+        else
+          part = String.new(capacity: count)
+          part.bytesplice(0, 0, @read_buffer, @read_offset, count)
+          discard_read_buffer
+        end
+        part
+      end
+
+      def line_too_long!
+        error_on_request!("Reply line without CRLF in the first #{MAX_LINE_BYTES} bytes")
+      end
+
       # Reads exactly `count` bytes. IO#read(count) on a blocking socket blocks
       # until it has `count` bytes, accumulating across TCP chunks internally,
       # and only hands back a shorter (or nil) buffer when the stream hits EOF.
@@ -522,6 +641,12 @@ module Dalli
           super
         rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
           error_on_request!(e)
+        end
+
+        # Its request doesn't pass through flush_write_buffer
+        def interleaved_write(...)
+          @awaiting_reply = true
+          super
         end
 
         private
