@@ -42,7 +42,14 @@ describe Dalli::Protocol::ConnectionManager do
     server = OpenSSL::SSL::SSLSocket.new(server_io, context)
     server.sync_close = true
     server_thread = Thread.new do
-      server.accept
+      begin
+        server.accept
+      rescue OpenSSL::SSL::SSLError, IOError, SystemCallError
+        # JRuby's OpenSSL can raise here after the client's handshake has
+        # finished. The server only has to stay silent, which it still does,
+        # and the tests check that the client failed on a timeout.
+        nil
+      end
       sleep 1
     end
     client = Dalli::Socket::SSLSocket.new(client_io, OpenSSL::SSL::SSLContext.new)
@@ -72,7 +79,9 @@ describe Dalli::Protocol::ConnectionManager do
       with_stalled_tls_connection do |manager|
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-        assert_raises(Dalli::RetryableNetworkError) { manager.read_line }
+        error = assert_raises(Dalli::RetryableNetworkError) { manager.read_line }
+
+        assert_includes Dalli::Protocol::TIMEOUT_ERRORS, error.cause.class
         assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.5
         refute_predicate manager, :connected?
       end
@@ -82,7 +91,9 @@ describe Dalli::Protocol::ConnectionManager do
       with_stalled_tls_connection do |manager|
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-        assert_raises(Dalli::RetryableNetworkError) { manager.read(4) }
+        error = assert_raises(Dalli::RetryableNetworkError) { manager.read(4) }
+
+        assert_includes Dalli::Protocol::TIMEOUT_ERRORS, error.cause.class
         assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 0.5
         refute_predicate manager, :connected?
       end
