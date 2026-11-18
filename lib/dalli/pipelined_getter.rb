@@ -54,7 +54,7 @@ module Dalli
           yield_partial_results(&block)
 
           timeout = @ring.socket_timeout
-          deadline = @deadline_key && Fiber[@deadline_key]
+          deadline = @deadline_key && Thread.current[@deadline_key]
           fetch_responses(servers, timeout, deadline, &block) until servers.empty?
           raise @unmarshal_error if @unmarshal_error
         ensure

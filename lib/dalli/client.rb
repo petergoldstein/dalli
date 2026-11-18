@@ -83,7 +83,7 @@ module Dalli
       @options = normalize_options(options)
       @key_manager = ::Dalli::KeyManager.new(@options)
       @ring = nil
-      # Where with_deadline keeps this client's deadline in fiber storage
+      # The fiber-local key where with_deadline keeps this client's deadline
       @deadline_key = :"dalli_deadline_#{object_id}"
     end
 
@@ -487,9 +487,10 @@ module Dalli
     # out of time says nothing about it. The connection the call was using is
     # closed, as its reply may be half read.
     #
-    # The deadline applies to the fiber that runs the block, and to fibers
-    # and threads started in it. Another thread sharing this client isn't
-    # affected. A nested block can only shorten the deadline. Float::INFINITY,
+    # The deadline applies only to the thread or fiber that runs the block,
+    # as quiet does. Threads and fibers started in the block don't inherit
+    # it, and another thread sharing this client isn't affected. A nested
+    # block can only shorten the deadline. Float::INFINITY,
     # which ActiveSupport::Deadline#remaining returns when there's no
     # deadline, sets none. Yields the client and returns the block's value.
     #
@@ -498,12 +499,12 @@ module Dalli
       return yield self if seconds == Float::INFINITY
 
       deadline = Deadline.new(seconds)
-      outer = Fiber[@deadline_key]
-      Fiber[@deadline_key] = deadline if outer.nil? || deadline.expires_at < outer.expires_at
+      outer = Thread.current[@deadline_key]
+      Thread.current[@deadline_key] = deadline if outer.nil? || deadline.expires_at < outer.expires_at
       begin
         yield self
       ensure
-        Fiber[@deadline_key] = outer
+        Thread.current[@deadline_key] = outer
       end
     end
 

@@ -6,7 +6,7 @@ Unreleased
 
 New features:
 
-- `Client#with_deadline(seconds) { }` gives the calls in the block a deadline: each socket wait, reconnect, retry and `get_multi` wait is cut to the time left, and once it has passed the call raises `Dalli::DeadlineExceededError`. That error isn't a `NetworkError`, so the call isn't retried or failed over and the server isn't counted toward `socket_max_failures`. The deadline applies to the calling fiber, and to fibers and threads it starts (#1319, @byroot)
+- `Client#with_deadline(seconds) { }` gives the calls in the block a deadline: each socket wait, reconnect, retry and `get_multi` wait is cut to the time left, and once it has passed the call raises `Dalli::DeadlineExceededError`. That error isn't a `NetworkError`, so the call isn't retried or failed over and the server isn't counted toward `socket_max_failures`. The deadline applies only to the calling thread or fiber, as `quiet` does (#1319, @byroot)
 
 5.3.4
 ==========

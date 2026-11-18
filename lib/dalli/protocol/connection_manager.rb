@@ -253,7 +253,7 @@ module Dalli
       def check_deadline!
         return unless @deadline_key
 
-        @deadline = Fiber[@deadline_key]
+        @deadline = Thread.current[@deadline_key]
         @deadline&.clamp(Float::INFINITY)
       end
 
@@ -262,7 +262,7 @@ module Dalli
       # follows. Nothing has been sent on the connection yet, so a timeout
       # here closes it and raises Dalli::DeadlineExceededError.
       def within_connect_deadline(&)
-        deadline = @deadline_key && Fiber[@deadline_key]
+        deadline = @deadline_key && Thread.current[@deadline_key]
         return yield unless deadline
 
         timeout = Dalli::Socket.connect_timeout_for(options) || Float::INFINITY

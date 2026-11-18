@@ -41,7 +41,7 @@ describe 'Dalli::Client#with_deadline' do
   let(:client) { Dalli::Client.new('127.0.0.1:1') }
 
   def current_deadline(client)
-    Fiber[client.instance_variable_get(:@deadline_key)]
+    Thread.current[client.instance_variable_get(:@deadline_key)]
   end
 
   it "yields the client, returns the block's value and clears the deadline afterwards" do
@@ -92,22 +92,14 @@ describe 'Dalli::Client#with_deadline' do
     end
   end
 
-  it 'applies only to the calling thread and to other clients not at all' do
+  it 'applies only to the calling thread or fiber and to other clients not at all' do
     other = Dalli::Client.new('127.0.0.1:1')
-    ready = Queue.new
-    release = Queue.new
-    seen = Thread.new do
-      ready.pop
-      current_deadline(client).tap { release << true }
-    end
 
     client.with_deadline(1) do
-      ready << true
-      release.pop
-
+      refute_nil current_deadline(client)
       assert_nil current_deadline(other)
+      assert_nil Thread.new { current_deadline(client) }.value
+      assert_nil Fiber.new { current_deadline(client) }.resume
     end
-
-    assert_nil seen.value
   end
 end
