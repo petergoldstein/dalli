@@ -4,10 +4,13 @@ Dalli Changelog
 Unreleased
 ==========
 
+5.3.4
+==========
+
 Bug fixes:
 
-- `Client#with`, which lets a bare client stand in for a connection pool, now accepts and ignores the arguments `ConnectionPool#with` takes, such as `timeout:`. Passing any raised `ArgumentError` (#1323, @byroot)
-- A request larger than the socket buffers no longer stalls until `socket_timeout` and marks the server down. memcached stops reading a connection while its replies go unread, so a large `get_multi`, `get_multi_cas`, `get_multi_with_metadata` or `delete_multi` (whose missing keys each get a reply) waited on the server. Over a Unix socket, whose buffer doesn't grow, this started at about 1,000 keys for `get_multi_cas`. Replies that arrive while a request is being sent are now read and held, checked as they arrive against what the requests sent could get back (#1326, @edcarvio)
+- `Client#with`, which lets a bare client stand in for a connection pool, now accepts and ignores the arguments `ConnectionPool#with` takes, such as `timeout:`. Before, passing any raised `ArgumentError` (#1323, @byroot)
+- A request larger than the socket buffers no longer stalls until `socket_timeout` and marks the server down. memcached stops reading a connection while its replies go unread, so a large `get_multi`, `get_multi_cas`, `get_multi_with_metadata` or `delete_multi` (whose missing keys each get a reply) waited on the server. Over a Unix socket, whose buffer doesn't grow, this started at about 1,000 keys for `get_multi_cas`. Replies that arrive while a request is being sent are now read and held, checked as they arrive against what the requests sent could get back (#1328, based on #1326 by @edcarvio)
 
 5.3.3
 ==========
