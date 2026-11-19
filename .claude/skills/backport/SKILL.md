@@ -9,6 +9,7 @@ description: Decide whether a Dalli fix belongs on the maintained stable branche
 
 | Branch | Ruby (`required_ruby_version`) | GitHub Release made by |
 |---|---|---|
+| `5-3-stable` | >= 3.3 | `release.yml` on tag push |
 | `5-2-stable` | >= 3.3 | `release.yml` on tag push |
 | `5-1-stable` | >= 3.3 | `release.yml` on tag push |
 | `5-0-stable` | >= 3.3 | hand (`gh release create`) |

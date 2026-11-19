@@ -48,7 +48,7 @@ The two must match. The query string gets past the CDN cache.
 
 ## 5. GitHub Release
 
-- **5-1-stable, 5-2-stable and main:** `release.yml` creates the release when the tag is pushed. Check it with `gh release view v<version>`.
+- **5-1-stable, 5-2-stable, 5-3-stable and main:** `release.yml` creates the release when the tag is pushed. Check it with `gh release view v<version>`.
 - **Older lines (no `release.yml`):**
 
   ```bash
