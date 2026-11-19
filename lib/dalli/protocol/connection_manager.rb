@@ -33,6 +33,13 @@ module Dalli
       # cleared with the write buffer whenever the connection closes.
       attr_writer :response_buffer
 
+      # The largest value a reply held during a send may declare: the
+      # protocol's max_response_bytes (see HeldReplies). Kept in options, as
+      # each instance variable here costs every request a little.
+      def max_reply_value_bytes=(bytes)
+        @options[:max_reply_value_bytes] = bytes
+      end
+
       def initialize(hostname, port, socket_type, client_options)
         @hostname = hostname
         @port = port
@@ -46,6 +53,11 @@ module Dalli
         @write_buffer = []
         @write_buffer_bytes = 0
         @response_buffer = nil
+        # Replies that arrived while a request was being sent, read before the
+        # socket while @held (see #send_while_reading)
+        @held_replies = nil
+        @held = false
+        @unanswered_bytes = 0
 
         @fail_count = 0
         reset_down_info
@@ -128,6 +140,9 @@ module Dalli
         reconnect_on_fork if fork_detected?
         return if @sock.nil? || @quiet_responses_pending
 
+        # Held replies with no request waiting for them were never asked for
+        return close if @held
+
         now = Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
         idle = now - @last_used_at
         @last_used_at = now
@@ -180,6 +195,9 @@ module Dalli
           @pid = nil
           @quiet_responses_pending = false
           discard_write_buffer
+          discard_held
+          @held_replies&.reset_accounting
+          @unanswered_bytes = 0
           @response_buffer&.clear
           abort_request!
         end
@@ -232,6 +250,9 @@ module Dalli
         # accepts connections but never answers would otherwise reset it on
         # every retry and never reach socket_max_failures.
         @fail_count = 0
+        # The server has read everything sent so far: it answered the last of it
+        @unanswered_bytes = 0
+        @held_replies.reset_accounting if @held_replies&.counting?
       end
 
       # Ends a request whose reply isn't read with it: a quiet write, or one of
@@ -265,13 +286,21 @@ module Dalli
       # never sends CRLF can't grow the read buffer without bound.
       MAX_LINE_BYTES = 8 * 1024
 
+      # TruffleRuby's gets with a limit doesn't find a two-byte separator whose
+      # bytes arrive in separate reads: it waits for more, or returns the line
+      # without them. Every reply line ends in CRLF, checked after the read,
+      # so reading to the LF finds the same lines.
+      LINE_SEPARATOR = RUBY_ENGINE == 'truffleruby' ? "\n" : "\r\n"
+
       def read_line
+        return held_line if @held
+
         flush_write_buffer
-        data = timed_tls_operation { @sock.gets("\r\n", MAX_LINE_BYTES) }
+        data = timed_tls_operation { @sock.gets(LINE_SEPARATOR, MAX_LINE_BYTES) }
         error_on_request!('EOF in read_line') if data.nil?
         # Without its CRLF the line either ran past MAX_LINE_BYTES or was cut
         # short by EOF; either way the connection is out of step
-        error_on_request!("Reply line without CRLF in the first #{MAX_LINE_BYTES} bytes") unless data.end_with?("\r\n")
+        line_too_long! unless data.end_with?("\r\n")
         data
       rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e
         error_on_request!(e)
@@ -292,6 +321,8 @@ module Dalli
 
       if RUBY_ENGINE == 'jruby'
         def read(count)
+          return held_read(count) if @held
+
           check_read_size!(count)
           flush_write_buffer
           @sock.readfull(count)
@@ -300,6 +331,8 @@ module Dalli
         end
       else
         def read(count)
+          return held_read(count) if @held
+
           check_read_size!(count)
           flush_write_buffer
           read_bytes(count)
@@ -320,6 +353,16 @@ module Dalli
       # A forked child discards this buffer instead. Like IO's own buffer, it
       # is sent once it grows past this size, or when a reply is read.
       WRITE_BUFFER_FLUSH_BYTES = 64 * 1024
+
+      # Less than any socket send buffer: 8 KiB is the smallest default
+      # (Unix sockets on macOS), and Linux doubles a requested SO_SNDBUF from
+      # a minimum of 2,304 bytes
+      BLOCKING_WRITE_BYTES = 4 * 1024
+
+      # jruby-openssl won't read while it has encrypted bytes it couldn't send,
+      # and they can't go until the server reads, which it won't while its
+      # replies go unread. On JRuby a TLS request is sent as before.
+      HALF_DUPLEX_TLS = RUBY_ENGINE == 'jruby'
 
       def write(bytes)
         @write_buffer << bytes
@@ -345,10 +388,18 @@ module Dalli
       end
 
       # Non-blocking read.  Here to support the operation
-      # of the get_multi operation
+      # of the get_multi operation. Held replies come first.
       def read_available(...)
+        return take_held(@held_replies.bytesize) if @held
+
         flush_write_buffer
         @sock.read_available(...)
+      end
+
+      # Whether replies that arrived during a send are waiting to be read.
+      # IO.select can't see them, so a caller waiting for replies checks first.
+      def held_replies?
+        @held
       end
 
       def max_allowed_failures
@@ -447,13 +498,137 @@ module Dalli
       # One write per flush. A TLS socket sends each argument of
       # write(*parts) as its own record and system call, so the parts are
       # joined first.
+      #
+      # A write blocks while the socket's send buffer is full. memcached stops
+      # reading a connection while its replies go unread, so once the requests
+      # it hasn't answered are more than the buffers hold, a blocking write
+      # and the server wait on each other until socket_timeout. Up to
+      # BLOCKING_WRITE_BYTES unanswered, the write fits whatever the server
+      # is doing; past that, #send_while_reading takes the replies off the
+      # socket while it sends.
       def flush_write_buffer
         return if @write_buffer.empty?
 
         # Set before writing: a write that fails may still have sent some bytes
         @request_sent = true if @request_in_progress
-        timed_tls_operation { @sock.write(@write_buffer.size == 1 ? @write_buffer.first : joined_write_buffer) }
+        data = @write_buffer.size == 1 ? @write_buffer.first : joined_write_buffer
+        @unanswered_bytes += data.bytesize
+        if @unanswered_bytes <= BLOCKING_WRITE_BYTES
+          write_blocking(data)
+        else
+          send_while_reading(data)
+        end
         discard_write_buffer
+      end
+
+      # The write every request makes, kept free of a block outside TLS: a
+      # block here measurably slowed each request
+      def write_blocking(data)
+        return @sock.write(data) unless @sock.is_a?(Dalli::Socket::SSLSocket)
+
+        Timeout.timeout(socket_timeout) { @sock.write(data) }
+      end
+
+      # Sends without blocking, holding the replies that arrive meanwhile (see
+      # HeldReplies). Fails after socket_timeout with nothing sent, as a
+      # blocking write does, or when a held reply isn't one the requests sent
+      # could get.
+      def send_while_reading(data)
+        return write_blocking(data) if HALF_DUPLEX_TLS && @sock.is_a?(OpenSSL::SSL::SSLSocket)
+
+        total = data.bytesize
+        sent = 0
+        deadline = nil
+        counted = false
+        while sent < total
+          rest = sent.zero? ? data : data.byteslice(sent, total - sent)
+          result = @sock.write_nonblock(rest, exception: false)
+          if result.is_a?(Integer)
+            sent += result
+            deadline = nil
+          else
+            # Replies can only be held from here, so the lines are counted now
+            counted ||= (@held_replies ||= HeldReplies.new(max_reply_value_bytes)).count_lines(data)
+            deadline ||= write_deadline
+            wait_to_send(result, deadline)
+          end
+        end
+      end
+
+      # Waits until the socket takes more, holding any replies that arrive.
+      # TLS can need the other direction first, and the socket is ready for
+      # the direction it doesn't need, so waiting on that too would return at
+      # once: a write can need to read (:wait_readable), and a read can need
+      # to write (:wait_writable).
+      def wait_to_send(wait_for, deadline)
+        readable, = wait_until(deadline, [@sock], wait_for == :wait_writable ? [@sock] : nil)
+        return if readable.empty?
+
+        wait_until(deadline, nil, [@sock]) if hold_arrived_replies == :wait_writable
+      end
+
+      def wait_until(deadline, readers, writers)
+        wait = deadline && (deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC))
+        raise Timeout::Error, "IO timeout writing to #{name}" if wait && wait <= 0
+
+        IO.select(readers, writers, nil, wait) or raise Timeout::Error, "IO timeout writing to #{name}"
+      end
+
+      def write_deadline
+        socket_timeout && (Process.clock_gettime(Process::CLOCK_MONOTONIC) + socket_timeout)
+      end
+
+      def max_reply_value_bytes
+        @options.fetch(:max_reply_value_bytes, MAX_READ_BYTES - 2)
+      end
+
+      # Returns what read_nonblock did when nothing was held
+      def hold_arrived_replies
+        result = @held_replies.read_from(@sock, @unanswered_bytes)
+        @held = true if result.nil?
+        result
+      rescue HeldReplies::Invalid => e
+        error_on_request!("#{name} sent #{e.message}")
+      end
+
+      # A held reply line. One that continues on the socket is finished from
+      # there. A CR that ends the held bytes may be the first half of its CRLF,
+      # which gets wouldn't find across the two.
+      def held_line
+        length, whole = @held_replies.next_line_length
+        line_too_long! if length > MAX_LINE_BYTES
+        return take_held(length) if whole
+
+        line = take_held(length)
+        line << read(1) while line.end_with?("\r") && line.bytesize <= MAX_LINE_BYTES
+        line << read_line unless line.end_with?("\r\n")
+        line_too_long! if line.bytesize > MAX_LINE_BYTES
+        line
+      end
+
+      # count bytes, the held ones first
+      def held_read(count)
+        check_read_size!(count)
+        held = @held_replies.bytesize
+        return take_held(count) if held >= count
+
+        value = take_held(held)
+        value << read(count - held)
+      end
+
+      def take_held(count)
+        part = @held_replies.take(count)
+        @held = false if @held_replies.empty?
+        part
+      end
+
+      def discard_held
+        @held = false
+        @held_replies&.clear
+      end
+
+      def line_too_long!
+        error_on_request!("Reply line without CRLF in the first #{MAX_LINE_BYTES} bytes")
       end
 
       # Joined as bytes: requests can mix UTF-8 and binary strings, which
@@ -509,7 +684,8 @@ module Dalli
           flush_write_buffer
           if @awaiting_reply
             @awaiting_reply = false
-            wait_readable! unless @sock.is_a?(::OpenSSL::SSL::SSLSocket)
+            # A reply held while the request was sent has already arrived
+            wait_readable! unless @held || @sock.is_a?(::OpenSSL::SSL::SSLSocket)
           end
           super
         rescue SystemCallError, *TIMEOUT_ERRORS, *SSL_ERRORS, EOFError => e

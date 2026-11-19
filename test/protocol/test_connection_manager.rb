@@ -249,6 +249,198 @@ describe Dalli::Protocol::ConnectionManager do
     end
   end
 
+  # TruffleRuby's gets with a limit waited for more when they arrived apart
+  it 'reads a reply line whose CR and LF arrive in separate reads' do
+    reader, writer = UNIXSocket.pair
+    manager = Dalli::Protocol::ConnectionManager.new(hostname, port, socket_type, client_options)
+    manager.instance_variable_set(:@sock, reader)
+    sender = Thread.new do
+      writer.write("HD\r")
+      sleep 0.1
+      writer.write("\nEN\r\n")
+    end
+
+    assert_equal ["HD\r\n", "EN\r\n"], Timeout.timeout(5) { [manager.read_line, manager.read_line] }
+  ensure
+    sender&.join
+    reader&.close
+    writer&.close
+  end
+
+  describe 'replies that arrive while a request is sent' do
+    let(:client_options) { { socket_max_failures: 1 } }
+
+    # A manager about to hold what arrives on sock, as a send that had to wait is
+    def manager_reading(sock, unanswered: 1_000, max_value: 1_000)
+      manager = Dalli::Protocol::ConnectionManager.new(hostname, port, socket_type, client_options)
+      manager.max_reply_value_bytes = max_value
+      manager.instance_variable_set(:@sock, sock)
+      manager.instance_variable_set(:@unanswered_bytes, unanswered)
+      manager.instance_variable_set(:@held_replies, Dalli::Protocol::HeldReplies.new(max_value))
+      manager
+    end
+
+    # A stream that gives `per_read` bytes to each read_nonblock
+    def stream(data, per_read)
+      sock = StringIO.new(data.b)
+      sock.define_singleton_method(:read_nonblock) { |_max, buf = nil, **| read(per_read, buf) }
+      sock.define_singleton_method(:readfull) { |count| read(count) } # JRuby's read
+      sock
+    end
+
+    # A stream whose first `arrived` bytes came in during the send
+    def manager_holding(data, arrived, **)
+      manager = manager_reading(stream(data, arrived), **)
+      manager.send(:hold_arrived_replies)
+      manager
+    end
+
+    it 'reads them first and the rest from the socket, wherever the two meet' do
+      # A bare CR doesn't end a line for gets, so it mustn't for the held bytes either
+      lines = ["VA 3 kfoo\r\n", "bar\r\n", "HD a\rb\r\n", "HD \r\r\n", "VA 0 kbaz\r\n", "\r\n", "MN\r\n"]
+      (1..lines.join.bytesize).each do |arrived|
+        manager = manager_holding(lines.join, arrived)
+        got = [manager.read_line, manager.read(5), manager.read_line, manager.read_line,
+               manager.read_line, manager.read(2), manager.read_line]
+
+        assert_equal lines, got, "#{arrived} bytes arrived during the send"
+        refute_predicate manager, :held_replies?
+      end
+    end
+
+    it 'gives them to read_available first' do
+      manager = manager_holding("VA 1 kfoo\r\nx\r\nMN\r\n", 9)
+
+      assert_predicate manager, :held_replies?
+      assert_equal 'VA 1 kfoo', manager.read_available
+      refute_predicate manager, :held_replies?
+    end
+
+    it 'applies the line limit of read_line to a line that ends on the socket' do
+      limit = Dalli::Protocol::ConnectionManager::MAX_LINE_BYTES
+      fits = "EN #{'x' * (limit - 5)}\r\n"
+      manager = manager_holding("#{fits}#{fits.sub('EN', 'ENx')}", fits.bytesize + 10)
+
+      assert_equal fits, manager.read_line
+      assert_raises(Dalli::NetworkError) { manager.read_line }
+      refute_predicate manager, :connected?
+    end
+
+    # What's held is never more than the requests sent could get back
+    describe 'checking them as they arrive' do
+      it 'fails on a line past the limit, or one without CRLF' do
+        limit = Dalli::Protocol::ConnectionManager::MAX_LINE_BYTES
+
+        ['x' * (limit + 1), "HD\n"].each do |data|
+          assert_raises(Dalli::NetworkError) { manager_holding(data, data.bytesize) }
+        end
+      end
+
+      it 'fails on more replies than request lines sent' do
+        assert_raises(Dalli::NetworkError) { manager_holding("EN\r\n" * 3, 12, unanswered: 2) }
+
+        manager = manager_holding("EN\r\n" * 2, 8, unanswered: 2)
+
+        assert_equal "EN\r\n", manager.read_line
+      end
+
+      it 'counts the lines of a send that waited, and allows a byte each for the rest' do
+        # 10 bytes from blocking writes, and 3 lines in the 20 bytes counted
+        [[13, false], [14, true]].each do |replies, fails|
+          manager = manager_reading(stream("EN\r\n" * replies, 4 * replies), unanswered: 10 + 20)
+          manager.instance_variable_get(:@held_replies).count_lines("#{"mg k\r\n" * 3}xx")
+
+          if fails
+            assert_raises(Dalli::NetworkError) { manager.send(:hold_arrived_replies) }
+          else
+            manager.send(:hold_arrived_replies)
+
+            assert_predicate manager, :held_replies?
+          end
+        end
+      end
+
+      it 'fails on a value larger than max_response_bytes, skipping those that fit' do
+        manager = manager_holding("VA 5 kfoo\r\nhello\r\nHD\r\n", 22, max_value: 5)
+
+        assert_equal "VA 5 kfoo\r\n", manager.read_line
+        assert_raises(Dalli::NetworkError) { manager_holding("VA 5 kfoo\r\nhello\r\n", 20, max_value: 4) }
+      end
+
+      it 'keeps its place in a value or line across reads' do
+        manager = manager_reading(stream("VA 6 kfoo\r\nHD\r\nXY\r\nEN\r\n", 3), unanswered: 2)
+        # The value's "HD\r\n" isn't a reply, so two replies fit
+        8.times { manager.send(:hold_arrived_replies) }
+
+        assert_equal "VA 6 kfoo\r\n", manager.read_line
+        assert_equal "HD\r\nXY\r\n", manager.read(8)
+        assert_equal "EN\r\n", manager.read_line
+      end
+    end
+
+    it 'reads into the empty held buffer itself, and reuses one string after that' do
+      buffers = []
+      sock = Object.new
+      sock.define_singleton_method(:read_nonblock) do |_max, buf, **|
+        buffers << buf
+        buf.replace("HD\r\n")
+      end
+      manager = manager_reading(sock)
+      3.times { manager.send(:hold_arrived_replies) }
+
+      assert_same manager.instance_variable_get(:@held_replies).instance_variable_get(:@buffer), buffers[0]
+      assert_same buffers[1], buffers[2]
+      refute_same buffers[0], buffers[1]
+    end
+
+    # OpenSSL can need to read before it writes. The socket is writable then,
+    # so waiting for that too returned at once and the send spun.
+    it 'waits only for a reply when a TLS write needs to read first' do
+      reader, writer = UNIXSocket.pair
+      attempts = 0
+      writer.define_singleton_method(:write_nonblock) do |_bytes, **|
+        attempts += 1
+        :wait_readable
+      end
+      manager = Dalli::Protocol::ConnectionManager.new(hostname, port, socket_type,
+                                                       { socket_max_failures: 1, socket_timeout: 0.3 })
+      manager.instance_variable_set(:@sock, writer)
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+      assert_raises(Dalli::NetworkError) { manager.flushed_write('x' * 10_000) }
+      assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :>=, 0.25
+      assert_operator attempts, :<=, 2
+    ensure
+      reader&.close
+      writer&.close
+    end
+
+    it 'closes a connection holding replies that no request is waiting for' do
+      manager = manager_holding("HD\r\n", 4)
+      manager.instance_variable_set(:@pid, Process.pid)
+      manager.confirm_ready!
+
+      refute_predicate manager, :connected?
+      refute_predicate manager, :held_replies?
+    end
+
+    describe 'with enforce_read_timeout' do
+      let(:client_options) { { socket_max_failures: 1, enforce_read_timeout: true } }
+
+      before { skip 'enforce_read_timeout is ignored on CRuby' if RUBY_ENGINE == 'ruby' }
+
+      it "reads a held reply without waiting, and doesn't carry the wait to the next request" do
+        manager = manager_holding("HD\r\n", 4)
+        manager.instance_variable_set(:@awaiting_reply, true)
+
+        manager.define_singleton_method(:wait_readable!) { flunk 'waited for a reply that had arrived' }
+
+        assert_equal "HD\r\n", manager.read_line
+        refute manager.instance_variable_get(:@awaiting_reply)
+      end
+    end
+  end
+
   describe 'failure counting' do
     let(:manager) { Dalli::Protocol::ConnectionManager.new('localhost', 11_211, :tcp, { socket_max_failures: 2 }) }
 
@@ -480,6 +672,11 @@ describe Dalli::Protocol::ConnectionManager do
         def write(*parts)
           @written << parts.join
           parts.sum(&:bytesize)
+        end
+
+        # Takes everything, as a socket with room in its buffer does
+        def write_nonblock(bytes, exception: true) # rubocop:disable Lint/UnusedMethodArgument
+          write(bytes)
         end
 
         def gets(_sep, _limit = nil)

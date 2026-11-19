@@ -102,6 +102,31 @@ describe Dalli::Protocol::Base do
       assert_predicate buffer, :in_progress?
     end
 
+    # Replies that arrived while a chunk was sent are held by the connection,
+    # where the socket's readiness doesn't show them
+    it 'parses held replies between chunks when the socket has nothing more' do
+      server = Dalli::Protocol::Meta.new('localhost:11211', { raw: true })
+      conn = server.instance_variable_get(:@connection_manager)
+      sock = Object.new
+      sock.define_singleton_method(:wait_readable) { |_timeout| nil }
+      conn.instance_variable_set(:@sock, sock)
+      held = Dalli::Protocol::HeldReplies.new(1_000)
+      held.read_from(StringIO.new("VA 3 ka\r\none\r\n".b).tap do |io|
+        io.define_singleton_method(:read_nonblock) { |max, buf, **| read(max, buf) }
+      end, 100)
+      conn.instance_variable_set(:@held_replies, held)
+      conn.instance_variable_set(:@held, true)
+      server.send(:response_buffer).reset
+      server.send(:response_buffer).raw = true
+      server.send(:expect_reply_keys, %w[a b])
+      results = {}
+
+      server.send(:drain_pipeline_responses, results)
+
+      assert_equal({ 'a' => ['one', 0] }, results)
+      refute_predicate server, :held_replies?
+    end
+
     it 'is cleared when the connection closes' do
       server = Dalli::Protocol::Meta.new('localhost:11211', {})
       buffer = stale_buffer(server)

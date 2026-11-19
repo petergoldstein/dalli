@@ -47,6 +47,7 @@ module Dalli
         @verify_reply_keys = client_options[:verify_reply_keys] ? true : false
         @value_marshaller = @raw_mode ? StringMarshaller.new(@options) : ValueMarshaller.new(@options)
         @connection_manager = ConnectionManager.new(hostname, port, socket_type, @options)
+        @connection_manager.max_reply_value_bytes = @value_marshaller.max_response_bytes
       end
 
       # Returns true if client is in raw mode (no serialization/compression).
@@ -252,6 +253,12 @@ module Dalli
       # Did the last call to #pipeline_response_setup complete successfully?
       def pipeline_complete?
         !response_buffer.in_progress?
+      end
+
+      # Replies that arrived while the request was sent, which IO.select
+      # can't see (see ConnectionManager#send_while_reading)
+      def held_replies?
+        @connection_manager.held_replies?
       end
 
       def quiet?
@@ -487,8 +494,8 @@ module Dalli
       def drain_pipeline_responses(results)
         return unless connected?
 
-        # Non-blocking check if socket has data available
-        return unless sock.wait_readable(0)
+        # Replies held while this chunk was sent first, then the socket
+        return unless @connection_manager.held_replies? || sock.wait_readable(0)
 
         # Read available data without blocking
         response_buffer.read
