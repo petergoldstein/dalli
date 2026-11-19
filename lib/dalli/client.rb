@@ -796,7 +796,7 @@ module Dalli
     end
 
     # Stub method so a bare Dalli client can pretend to be a connection pool.
-    def with
+    def with(...)
       yield self
     end
 
