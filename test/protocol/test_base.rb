@@ -110,7 +110,11 @@ describe Dalli::Protocol::Base do
       sock = Object.new
       sock.define_singleton_method(:wait_readable) { |_timeout| nil }
       conn.instance_variable_set(:@sock, sock)
-      conn.instance_variable_set(:@read_buffer, +"VA 3 ka\r\none\r\n".b)
+      held = Dalli::Protocol::HeldReplies.new(1_000)
+      held.read_from(StringIO.new("VA 3 ka\r\none\r\n".b).tap do |io|
+        io.define_singleton_method(:read_nonblock) { |max, buf, **| read(max, buf) }
+      end, 100)
+      conn.instance_variable_set(:@held_replies, held)
       conn.instance_variable_set(:@held, true)
       server.send(:response_buffer).reset
       server.send(:response_buffer).raw = true

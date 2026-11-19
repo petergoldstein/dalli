@@ -270,14 +270,27 @@ describe Dalli::Protocol::ConnectionManager do
   describe 'replies that arrive while a request is sent' do
     let(:client_options) { { socket_max_failures: 1 } }
 
-    # A stream whose first `arrived` bytes came in during the send
-    def manager_holding(data, arrived, unanswered: 1_000)
-      sock = StringIO.new(data.b)
-      sock.define_singleton_method(:read_nonblock) { |_max, buf = nil, **| read(arrived, buf) }
-      sock.define_singleton_method(:readfull) { |count| read(count) } # JRuby's read
+    # A manager about to hold what arrives on sock, as a send that had to wait is
+    def manager_reading(sock, unanswered: 1_000, max_value: 1_000)
       manager = Dalli::Protocol::ConnectionManager.new(hostname, port, socket_type, client_options)
+      manager.max_reply_value_bytes = max_value
       manager.instance_variable_set(:@sock, sock)
       manager.instance_variable_set(:@unanswered_bytes, unanswered)
+      manager.instance_variable_set(:@held_replies, Dalli::Protocol::HeldReplies.new(max_value))
+      manager
+    end
+
+    # A stream that gives `per_read` bytes to each read_nonblock
+    def stream(data, per_read)
+      sock = StringIO.new(data.b)
+      sock.define_singleton_method(:read_nonblock) { |_max, buf = nil, **| read(per_read, buf) }
+      sock.define_singleton_method(:readfull) { |count| read(count) } # JRuby's read
+      sock
+    end
+
+    # A stream whose first `arrived` bytes came in during the send
+    def manager_holding(data, arrived, **)
+      manager = manager_reading(stream(data, arrived), **)
       manager.send(:hold_arrived_replies)
       manager
     end
@@ -331,40 +344,31 @@ describe Dalli::Protocol::ConnectionManager do
         assert_equal "EN\r\n", manager.read_line
       end
 
-      it 'counts lines sent without blocking, and allows a byte each for the rest' do
-        manager = Dalli::Protocol::ConnectionManager.new(hostname, port, socket_type, client_options)
-        manager.instance_variable_set(:@unanswered_bytes, 10 + 20)
-        manager.send(:count_unanswered_lines, "#{"mg k\r\n" * 3}xx")
-
+      it 'counts the lines of a send that waited, and allows a byte each for the rest' do
         # 10 bytes from blocking writes, and 3 lines in the 20 bytes counted
-        assert_equal 13, manager.instance_variable_get(:@unanswered_bytes) -
-                         manager.instance_variable_get(:@unanswered_bytes_counted) +
-                         manager.instance_variable_get(:@unanswered_lines)
+        [[13, false], [14, true]].each do |replies, fails|
+          manager = manager_reading(stream("EN\r\n" * replies, 4 * replies), unanswered: 10 + 20)
+          manager.instance_variable_get(:@held_replies).count_lines("#{"mg k\r\n" * 3}xx")
+
+          if fails
+            assert_raises(Dalli::NetworkError) { manager.send(:hold_arrived_replies) }
+          else
+            manager.send(:hold_arrived_replies)
+
+            assert_predicate manager, :held_replies?
+          end
+        end
       end
 
       it 'fails on a value larger than max_response_bytes, skipping those that fit' do
-        manager = manager_holding("VA 5 kfoo\r\nhello\r\nHD\r\n", 22)
-        manager.max_reply_value_bytes = 5
+        manager = manager_holding("VA 5 kfoo\r\nhello\r\nHD\r\n", 22, max_value: 5)
 
         assert_equal "VA 5 kfoo\r\n", manager.read_line
-
-        manager = Dalli::Protocol::ConnectionManager.new(hostname, port, socket_type, client_options)
-        manager.max_reply_value_bytes = 4
-        sock = StringIO.new("VA 5 kfoo\r\nhello\r\n".b)
-        sock.define_singleton_method(:read_nonblock) { |_max, buf = nil, **| read(20, buf) }
-        manager.instance_variable_set(:@sock, sock)
-        manager.instance_variable_set(:@unanswered_bytes, 100)
-
-        assert_raises(Dalli::NetworkError) { manager.send(:hold_arrived_replies) }
+        assert_raises(Dalli::NetworkError) { manager_holding("VA 5 kfoo\r\nhello\r\n", 20, max_value: 4) }
       end
 
       it 'keeps its place in a value or line across reads' do
-        data = "VA 6 kfoo\r\nHD\r\nXY\r\nEN\r\n"
-        manager = Dalli::Protocol::ConnectionManager.new(hostname, port, socket_type, client_options)
-        sock = StringIO.new(data.b)
-        sock.define_singleton_method(:read_nonblock) { |_max, buf = nil, **| read(3, buf) }
-        manager.instance_variable_set(:@sock, sock)
-        manager.instance_variable_set(:@unanswered_bytes, 2)
+        manager = manager_reading(stream("VA 6 kfoo\r\nHD\r\nXY\r\nEN\r\n", 3), unanswered: 2)
         # The value's "HD\r\n" isn't a reply, so two replies fit
         8.times { manager.send(:hold_arrived_replies) }
 
@@ -381,12 +385,10 @@ describe Dalli::Protocol::ConnectionManager do
         buffers << buf
         buf.replace("HD\r\n")
       end
-      manager = Dalli::Protocol::ConnectionManager.new(hostname, port, socket_type, client_options)
-      manager.instance_variable_set(:@sock, sock)
-      manager.instance_variable_set(:@unanswered_bytes, 100)
+      manager = manager_reading(sock)
       3.times { manager.send(:hold_arrived_replies) }
 
-      assert_same manager.instance_variable_get(:@read_buffer), buffers[0]
+      assert_same manager.instance_variable_get(:@held_replies).instance_variable_get(:@buffer), buffers[0]
       assert_same buffers[1], buffers[2]
       refute_same buffers[0], buffers[1]
     end
