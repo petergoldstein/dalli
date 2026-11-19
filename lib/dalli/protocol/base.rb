@@ -47,6 +47,7 @@ module Dalli
         @verify_reply_keys = client_options[:verify_reply_keys] ? true : false
         @value_marshaller = @raw_mode ? StringMarshaller.new(@options) : ValueMarshaller.new(@options)
         @connection_manager = ConnectionManager.new(hostname, port, socket_type, @options)
+        @connection_manager.max_reply_value_bytes = @value_marshaller.max_response_bytes
       end
 
       # Returns true if client is in raw mode (no serialization/compression).
@@ -147,10 +148,10 @@ module Dalli
       # Returns nothing.
       def pipeline_response_setup
         verify_pipelined_state(:getkq)
+        write_noop
         # Use ensure_ready instead of reset to preserve any data already buffered
         # while this get_multi's interleaved requests were sent
         response_buffer.ensure_ready
-        write_pipeline_noop
       end
 
       # Attempt to receive and parse as many key/value pairs as possible
@@ -252,6 +253,12 @@ module Dalli
       # Did the last call to #pipeline_response_setup complete successfully?
       def pipeline_complete?
         !response_buffer.in_progress?
+      end
+
+      # Replies that arrived while the request was sent, which IO.select
+      # can't see (see ConnectionManager#send_while_reading)
+      def held_replies?
+        @connection_manager.held_replies?
       end
 
       def quiet?
@@ -451,8 +458,8 @@ module Dalli
         response_processor.take_unmarshal_error
         expect_reply_keys(keys)
 
-        # Sent by pipeline_response_setup, in one write with the terminating noop
-        @connection_manager.write_with_next(quiet_get_requests(keys, options, return_cas: return_cas))
+        # The terminating noop is sent by pipeline_response_setup
+        write(quiet_get_requests(keys, options, return_cas: return_cas))
       end
 
       # For large batches, interleave writing requests with draining responses.
@@ -473,22 +480,12 @@ module Dalli
           chunk.each do |key|
             req << quiet_get_request(key, options)
           end
-          @connection_manager.interleaved_write(req, max_reply_bytes(keys.size)) { prefetch_pipeline_replies }
+          write(req)
+          @connection_manager.flush
 
           # Drain any available responses directly into results hash
           drain_pipeline_responses(results)
         end
-      end
-
-      # The most reply bytes key_count keys can need: a header line and a value
-      # for each, and the line that ends the replies
-      def max_reply_bytes(key_count)
-        (key_count + 1) * (ConnectionManager::MAX_LINE_BYTES + @value_marshaller.max_response_bytes + 2)
-      end
-
-      def prefetch_pipeline_replies
-        response_buffer.read
-        response_buffer.unparsed_bytesize
       end
 
       # Non-blocking read and processing of any available pipeline responses.
@@ -497,8 +494,8 @@ module Dalli
       def drain_pipeline_responses(results)
         return unless connected?
 
-        # Non-blocking check if socket has data available
-        return unless sock.wait_readable(0)
+        # Replies held while this chunk was sent first, then the socket
+        return unless @connection_manager.held_replies? || sock.wait_readable(0)
 
         # Read available data without blocking
         response_buffer.read

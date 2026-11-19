@@ -90,14 +90,37 @@ describe Dalli::Protocol::Base do
       drain = ->(_results) { seen = buffer.instance_variable_get(:@buffer).dup }
       conn = server.instance_variable_get(:@connection_manager)
 
-      conn.stub(:interleaved_write, ->(bytes, _max_held) { bytes.bytesize }) do
-        server.stub(:drain_pipeline_responses, drain) do
-          server.send(:pipelined_get_interleaved, %w[a b], 10, {})
+      server.stub(:write, lambda(&:bytesize)) do
+        conn.stub(:flush, nil) do
+          server.stub(:drain_pipeline_responses, drain) do
+            server.send(:pipelined_get_interleaved, %w[a b], 10, {})
+          end
         end
       end
 
       assert_equal '', seen
       assert_predicate buffer, :in_progress?
+    end
+
+    # Replies that arrived while a chunk was sent are held by the connection,
+    # where the socket's readiness doesn't show them
+    it 'parses held replies between chunks when the socket has nothing more' do
+      server = Dalli::Protocol::Meta.new('localhost:11211', { raw: true })
+      conn = server.instance_variable_get(:@connection_manager)
+      sock = Object.new
+      sock.define_singleton_method(:wait_readable) { |_timeout| nil }
+      conn.instance_variable_set(:@sock, sock)
+      conn.instance_variable_set(:@read_buffer, +"VA 3 ka\r\none\r\n".b)
+      conn.instance_variable_set(:@held, true)
+      server.send(:response_buffer).reset
+      server.send(:response_buffer).raw = true
+      server.send(:expect_reply_keys, %w[a b])
+      results = {}
+
+      server.send(:drain_pipeline_responses, results)
+
+      assert_equal({ 'a' => ['one', 0] }, results)
+      refute_predicate server, :held_replies?
     end
 
     it 'is cleared when the connection closes' do

@@ -7,7 +7,7 @@ Unreleased
 Bug fixes:
 
 - `Client#with`, which lets a bare client stand in for a connection pool, now accepts and ignores the arguments `ConnectionPool#with` takes, such as `timeout:`. Passing any raised `ArgumentError` (#1323, @byroot)
-- A multi-get whose request was larger than the socket's send buffer no longer stalls until `socket_timeout` and marks the server down: replies are now read while the request is still being sent (#1326, @edcarvio)
+- A request larger than the socket buffers no longer stalls until `socket_timeout` and marks the server down. memcached stops reading a connection while its replies go unread, so a large `get_multi`, `get_multi_cas`, `get_multi_with_metadata` or `delete_multi` (whose missing keys each get a reply) waited on the server. Over a Unix socket, whose buffer doesn't grow, this started at about 1,000 keys for `get_multi_cas`. Replies that arrive while a request is being sent are now read and held, checked as they arrive against what the requests sent could get back (#1326, @edcarvio)
 
 5.3.3
 ==========

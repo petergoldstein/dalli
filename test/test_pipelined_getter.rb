@@ -33,9 +33,20 @@ describe Dalli::PipelinedGetter do
     socket.define_singleton_method(:buffered_data?) { true }
     socket.define_singleton_method(:pending_data?) { false }
     server = Struct.new(:sock).new(socket)
+    server.define_singleton_method(:held_replies?) { false }
 
     IO.stub(:select, nil) do
       assert_empty getter.send(:servers_with_response, [server], 0.01)
+    end
+  end
+
+  it "doesn't wait for a server holding replies that arrived during the send" do
+    socket = Object.new
+    server = Struct.new(:sock).new(socket)
+    server.define_singleton_method(:held_replies?) { true }
+
+    IO.stub(:select, ->(*) { flunk 'waited on the socket' }) do
+      assert_equal [server], getter.send(:servers_with_response, [server], 0.01)
     end
   end
 
