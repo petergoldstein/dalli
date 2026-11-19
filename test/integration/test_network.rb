@@ -184,7 +184,12 @@ describe 'Network' do
             end
           end
           addresses = servers.map { |s| "127.0.0.1:#{s.addr[1]}" }
-          keys = Array.new(10) { |i| "k#{i}" }
+          # Enough keys that both servers get some. The ports are random, and
+          # 10 keys all landed on one server about once in 800 runs. Then,
+          # without failover, set_multi marked that server down, so
+          # delete_multi found it down before it started and skipped its keys
+          # without raising, as it does for a server already down.
+          keys = Array.new(100) { |i| "k#{i}" }
 
           # With and without failover. Each failure is an immediate EOF, so
           # nothing here waits for socket_timeout; it's long only so that a
