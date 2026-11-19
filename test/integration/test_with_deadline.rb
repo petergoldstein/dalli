@@ -3,12 +3,15 @@
 require_relative '../helper'
 
 # Accepts connections and answers the version check on connect (unless
-# answer_version is false), then reads requests without answering them
+# answer_version is false), then reads requests without answering them. With
+# stop_reading, it stops reading after the version check, as memcached does
+# while its replies go unread
 class SilentServer
   attr_reader :port
 
-  def initialize(answer_version: true)
+  def initialize(answer_version: true, stop_reading: false)
     @answer_version = answer_version
+    @stop_reading = stop_reading
     @server = TCPServer.new('127.0.0.1', 0)
     @port = @server.addr[1]
     @mutex = Mutex.new
@@ -48,7 +51,10 @@ class SilentServer
       command, _key, size = line.split
       sock.read(size.to_i + 2) if command == 'ms'
       @mutex.synchronize { @commands << command }
-      sock.write("VERSION 1.6.45\r\n") if command == 'version' && @answer_version
+      next unless command == 'version' && @answer_version
+
+      sock.write("VERSION 1.6.45\r\n")
+      sleep if @stop_reading
     end
   rescue IOError, SystemCallError
     nil
@@ -131,6 +137,24 @@ describe 'Dalli::Client#with_deadline' do
         assert_operator took, :<, 1
       end
     end
+  end
+
+  it 'bounds a large request the server stops reading' do
+    server = SilentServer.new(stop_reading: true)
+    keys = Array.new(50_000) { |i| format('%<i>0200d', i: i) }
+    with_client(server.address, socket_timeout: 5, sndbuf: 16_384) do |client|
+      took = elapsed do
+        assert_raises(Dalli::DeadlineExceededError) { client.with_deadline(0.3) { client.get_multi(keys) } }
+      end
+
+      assert_operator took, :<, 2
+      manager = connection_manager(client)
+
+      assert_equal 0, manager.instance_variable_get(:@fail_count)
+      assert_nil manager.instance_variable_get(:@down_at)
+    end
+  ensure
+    server&.close
   end
 
   it 'bounds a connect that gets no answer to its version check' do

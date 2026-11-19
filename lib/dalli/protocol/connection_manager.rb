@@ -602,11 +602,12 @@ module Dalli
       def write_blocking(data)
         return @sock.write(data) unless @sock.is_a?(Dalli::Socket::SSLSocket)
 
-        Timeout.timeout(socket_timeout) { @sock.write(data) }
+        Timeout.timeout(@request_timeout || socket_timeout) { @sock.write(data) }
       end
 
       # Sends without blocking, holding the replies that arrive meanwhile (see
-      # HeldReplies). Fails after socket_timeout with nothing sent, as a
+      # HeldReplies). Fails after socket_timeout (or the time a with_deadline
+      # block leaves, when that is shorter) with nothing sent, as a
       # blocking write does, or when a held reply isn't one the requests sent
       # could get.
       def send_while_reading(data)
@@ -651,7 +652,8 @@ module Dalli
       end
 
       def write_deadline
-        socket_timeout && (Process.clock_gettime(Process::CLOCK_MONOTONIC) + socket_timeout)
+        timeout = @request_timeout || socket_timeout
+        timeout && (Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout)
       end
 
       def max_reply_value_bytes
