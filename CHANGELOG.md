@@ -4,6 +4,10 @@ Dalli Changelog
 Unreleased
 ==========
 
+Bug fixes:
+
+- `Client#with`, which lets a bare client stand in for a connection pool, now accepts and ignores the arguments `ConnectionPool#with` takes, such as `timeout:`. Passing any raised `ArgumentError` (#1323, @byroot)
+
 5.3.3
 ==========
 
