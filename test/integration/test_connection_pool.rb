@@ -11,7 +11,7 @@ describe 'connection pool behavior' do
 
           assert_equal 'some_value', dc.get('some_key')
 
-          dc.with { |c| c.delete('some_key') }
+          dc.with(some_unknown_keyword: 1) { |c| c.delete('some_key') }
 
           assert_nil dc.get('some_key')
         end
