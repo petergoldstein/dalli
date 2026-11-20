@@ -47,6 +47,10 @@ module Dalli
   # server's replies can't be trusted
   class UnexpectedReplyKeyError < DalliError; end
 
+  # a Client#with_deadline block ran out of time. It isn't a NetworkError: the
+  # call isn't retried or failed over, and the server isn't counted as failing.
+  class DeadlineExceededError < DalliError; end
+
   # Implements the NullObject pattern to store an application-defined value for 'Key not found' responses.
   class NilObject; end # rubocop:disable Lint/EmptyClass
   NOT_FOUND = NilObject.new
@@ -82,6 +86,7 @@ require_relative 'dalli/json_serializer'
 require_relative 'dalli/compressor'
 require_relative 'dalli/cache_result'
 require_relative 'dalli/client'
+require_relative 'dalli/deadline'
 require_relative 'dalli/key_manager'
 require_relative 'dalli/key_grouping'
 require_relative 'dalli/pipelined_getter'

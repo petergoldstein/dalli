@@ -60,6 +60,11 @@ module Dalli
         @unanswered_bytes = 0
 
         @fail_count = 0
+        # Where the client's with_deadline keeps its deadline (see
+        # check_deadline!), and this request's waits when it cuts them short
+        @deadline_key = @options[:deadline_key]
+        @deadline = nil
+        @request_timeout = nil
         reset_down_info
         extend ReadTimeout if @options[:enforce_read_timeout] && RUBY_ENGINE != 'ruby'
       end
@@ -238,6 +243,40 @@ module Dalli
 
         @request_in_progress = true
         @request_sent = false
+        limit_to_deadline if @deadline
+      end
+
+      # Called before each request, ahead of any reconnect. Looks up the
+      # deadline of the Client#with_deadline block it's made in, and raises
+      # Dalli::DeadlineExceededError if that has passed, so a request that
+      # can't run leaves the connection as it is.
+      def check_deadline!
+        return unless @deadline_key
+
+        @deadline = Thread.current[@deadline_key]
+        @deadline&.clamp(Float::INFINITY)
+      end
+
+      # Bounds a connect by the deadline, when it leaves less than the connect
+      # timeout: the socket, a TLS handshake and the version check that
+      # follows. Nothing has been sent on the connection yet, so a timeout
+      # here closes it and raises Dalli::DeadlineExceededError.
+      def within_connect_deadline(&)
+        deadline = @deadline_key && Thread.current[@deadline_key]
+        return yield unless deadline
+
+        timeout = Dalli::Socket.connect_timeout_for(options) || Float::INFINITY
+        limit = deadline.clamp(timeout)
+        return yield if limit == timeout
+
+        @request_timeout = limit
+        Timeout.timeout(limit, &)
+      rescue *TIMEOUT_ERRORS => e
+        raise unless @request_timeout
+
+        deadline_exceeded!(e)
+      ensure
+        @request_timeout = nil
       end
 
       def finish_request!
@@ -245,6 +284,7 @@ module Dalli
 
         @request_in_progress = false
         @request_sent = false
+        restore_timeout if @request_timeout
         # A completed request is what proves the server healthy again, so the
         # failure count resets here rather than on reconnect: a server that
         # accepts connections but never answers would otherwise reset it on
@@ -263,11 +303,13 @@ module Dalli
 
         @request_in_progress = false
         @request_sent = false
+        restore_timeout if @request_timeout
       end
 
       def abort_request!
         @request_in_progress = false
         @request_sent = false
+        restore_timeout if @request_timeout
       end
 
       # True once any of the request in progress has been handed to the
@@ -407,6 +449,7 @@ module Dalli
       end
 
       def error_on_request!(err_or_string)
+        deadline_exceeded!(err_or_string) if @request_timeout && timeout_error?(err_or_string)
         log_warn_message(err_or_string)
 
         @fail_count += 1
@@ -492,7 +535,40 @@ module Dalli
       def timed_tls_operation(&)
         return yield unless @sock.is_a?(Dalli::Socket::SSLSocket)
 
-        Timeout.timeout(socket_timeout, &)
+        Timeout.timeout(@request_timeout || socket_timeout, &)
+      end
+
+      # Cuts this request's waits to the time its deadline leaves, when that's
+      # less than socket_timeout. CRuby enforces it through IO#timeout=; the
+      # TLS and enforce_read_timeout waits read @request_timeout.
+      def limit_to_deadline
+        timeout = socket_timeout || Float::INFINITY
+        limit = @deadline.clamp(timeout)
+        return if limit == timeout
+
+        @request_timeout = limit
+        io = @sock&.to_io
+        io.timeout = limit if io.respond_to?(:timeout=)
+      end
+
+      def restore_timeout
+        io = @sock&.to_io
+        io.timeout = socket_timeout if io.respond_to?(:timeout=)
+        @request_timeout = nil
+      end
+
+      def timeout_error?(err_or_string)
+        TIMEOUT_ERRORS.any? { |klass| err_or_string.is_a?(klass) }
+      end
+
+      # A wait cut short by a deadline ended the call. The connection is closed,
+      # as the reply may be half read, but the timeout says nothing about the
+      # server, so it isn't counted against it and the call isn't retried.
+      def deadline_exceeded!(err)
+        Dalli.logger.debug { "#{name}: deadline exceeded (#{err.class})" }
+        close
+        @request_timeout = nil
+        raise Dalli::DeadlineExceededError, "Deadline exceeded waiting for #{name}"
       end
 
       # One write per flush. A TLS socket sends each argument of
@@ -526,11 +602,12 @@ module Dalli
       def write_blocking(data)
         return @sock.write(data) unless @sock.is_a?(Dalli::Socket::SSLSocket)
 
-        Timeout.timeout(socket_timeout) { @sock.write(data) }
+        Timeout.timeout(@request_timeout || socket_timeout) { @sock.write(data) }
       end
 
       # Sends without blocking, holding the replies that arrive meanwhile (see
-      # HeldReplies). Fails after socket_timeout with nothing sent, as a
+      # HeldReplies). Fails after socket_timeout (or the time a with_deadline
+      # block leaves, when that is shorter) with nothing sent, as a
       # blocking write does, or when a held reply isn't one the requests sent
       # could get.
       def send_while_reading(data)
@@ -575,7 +652,8 @@ module Dalli
       end
 
       def write_deadline
-        socket_timeout && (Process.clock_gettime(Process::CLOCK_MONOTONIC) + socket_timeout)
+        timeout = @request_timeout || socket_timeout
+        timeout && (Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout)
       end
 
       def max_reply_value_bytes
@@ -700,7 +778,8 @@ module Dalli
         end
 
         def wait_readable!
-          @sock.wait_readable(socket_timeout) or raise Timeout::Error, "IO timeout reading from #{name}"
+          @sock.wait_readable(@request_timeout || socket_timeout) or
+            raise Timeout::Error, "IO timeout reading from #{name}"
         end
       end
     end
