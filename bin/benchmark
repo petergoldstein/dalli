@@ -53,6 +53,9 @@ multi_client = Dalli::Client.new('localhost:11211,localhost:11222', serializer: 
 sock = TCPSocket.new('127.0.0.1', '11211', connect_timeout: 1)
 sock.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, true)
 sock.setsockopt(Socket::SOL_SOCKET, Socket::SO_KEEPALIVE, true)
+# The raw socket has no socket_timeout. Without one, a read that never gets its
+# reply blocks until the CI job is cancelled, which keeps no log.
+sock.timeout = 10
 # Benchmarks didn't see any performance gains from increasing the SO_RCVBUF buffer size
 # sock.setsockopt(Socket::SOL_SOCKET, ::Socket::SO_RCVBUF, 1024 * 1024 * 8)
 # Benchmarks did see an improvement in performance when increasing the SO_SNDBUF buffer size
