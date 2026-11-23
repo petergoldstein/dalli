@@ -331,7 +331,9 @@ module Dalli
       # TruffleRuby's gets with a limit doesn't find a two-byte separator whose
       # bytes arrive in separate reads: it waits for more, or returns the line
       # without them. Every reply line ends in CRLF, checked after the read,
-      # so reading to the LF finds the same lines.
+      # so reading to the LF finds the same lines. Fixed upstream after 40.0.0
+      # (truffleruby/truffleruby#4583); keep this while 40.0.0 and earlier are
+      # supported.
       LINE_SEPARATOR = RUBY_ENGINE == 'truffleruby' ? "\n" : "\r\n"
 
       def read_line
