@@ -81,6 +81,12 @@ describe 'Dalli::Client#with_deadline' do
     client.send(:ring).servers[index].instance_variable_get(:@connection_manager)
   end
 
+  # memcached_persistent's client has two servers, localhost and 127.0.0.1,
+  # so look up the one the key is sent to
+  def connection_manager_for(client, key)
+    client.send(:ring).server_for_key(key).instance_variable_get(:@connection_manager)
+  end
+
   describe 'against a server that never answers' do
     before do
       @servers = Array.new(2) { SilentServer.new }
@@ -186,7 +192,7 @@ describe 'Dalli::Client#with_deadline' do
     it 'raises before sending once the deadline has passed, keeping the connection' do
       memcached_persistent do |dc|
         dc.set('deadline_key', 'value')
-        manager = connection_manager(dc)
+        manager = connection_manager_for(dc, 'deadline_key')
 
         assert_raises(Dalli::DeadlineExceededError) { dc.with_deadline(0) { dc.get('deadline_key') } }
         assert_predicate manager, :connected?
@@ -201,7 +207,7 @@ describe 'Dalli::Client#with_deadline' do
         dc.get('deadline_key')
         dc.with_deadline(0.5) { dc.get('deadline_key') }
 
-        assert_equal 1, connection_manager(dc).sock.timeout
+        assert_equal 1, connection_manager_for(dc, 'deadline_key').sock.timeout
       end
     end
   end
