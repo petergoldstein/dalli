@@ -95,32 +95,23 @@ end
 
 ###
 # GC Suite
-# benchmark without GC skewing things
+# Starts each warmup and measurement with a full GC, so garbage left by the
+# previous report isn't collected during this one. GC stays on while a report
+# runs: with it off, 'client set' keeps every 700 KB request it builds, and
+# 10 seconds of that exhausts a CI runner's memory.
 ###
 class GCSuite
   def warming(*)
-    run_gc
+    GC.start
   end
 
   def running(*)
-    run_gc
-  end
-
-  def warmup_stats(*)
-    GC.enable
-  end
-
-  def add_report(*)
-    GC.enable
-  end
-
-  private
-
-  def run_gc
-    GC.enable
     GC.start
-    GC.disable
   end
+
+  def warmup_stats(*); end
+
+  def add_report(*); end
 end
 suite = GCSuite.new
 
